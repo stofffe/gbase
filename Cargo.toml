@@ -6,9 +6,21 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-env_logger = "0.10.1"
+winit = "0.29.3"
+wgpu = { version = "0.18.0", features = ["webgl"] }
 glam = "0.24.2"
 log = "0.4.20"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
-wgpu = { version = "0.18.0", features = ["webgl"] }
-winit = "0.29.3"
+env_logger = "0.10.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+console_log = { version = "1.0.0", features = ["wasm-bindgen"] }
+wasm-bindgen = "0.2.88"
+wasm-bindgen-futures = "0.4.38"
+web-sys = { version = "0.3.64", features = [] }
+
+[workspace]
+members = ["web"]

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Home</title>
+    <style>
+        canvas {
+            background-color: black;
+        }
+
+        /* canvas:focus { */
+        /*     cursor: none; */
+        /* } */
+    </style>
+</head>
+
+<body>
+    <h1>Game</h1>
+    <button id="play">Play</button>
+    <script type="module" async>
+        import init from './pkg/web.js'
+        const mod = await init()
+
+        document.getElementById('play').addEventListener('click', () => {
+            let button = document.getElementById('play').remove()
+            mod.run()
+        })
+    </script>
+</body>
+
+</html>

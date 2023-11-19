@@ -15,7 +15,27 @@ pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLo
 
     let window = WindowBuilder::new().build(&event_loop).unwrap();
 
+    #[cfg(target_arch = "wasm32")]
+    attach_window_to_canvas(&window);
+
     (window, event_loop)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn attach_window_to_canvas(window: &winit::window::Window) {
+    use winit::platform::web::WindowExtWebSys;
+    let canvas = window
+        .canvas()
+        .expect("could not get canvas from winit window");
+
+    let win = web_sys::window().expect("could not get window");
+    let document = win.document().expect("could not get document");
+    let body = document.body().expect("could not get body");
+    body.append_child(&canvas)
+        .expect("could not append canvas to body");
+
+    // Auto focus canvas
+    canvas.focus().expect("could not focus canvas");
 }
 
 pub(crate) async fn run_window<C: Callbacks + 'static>(
@@ -33,7 +53,6 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
         }
         Event::AboutToWait => {
             app.update(&mut ctx);
-            println!("draw");
         }
         _ => {}
     });

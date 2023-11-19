@@ -63,6 +63,20 @@ fn init_logging(log_level: LogLevel) {
         return;
     }
 
+    #[cfg(target_arch = "wasm32")]
+    {
+        let log_level = match log_level {
+            LogLevel::Info => log::Level::Info,
+            LogLevel::Warn => log::Level::Warn,
+            LogLevel::Error => log::Level::Error,
+            LogLevel::Debug => log::Level::Debug,
+            LogLevel::Trace => log::Level::Trace,
+            LogLevel::None => panic!("unreachable"),
+        };
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+        console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+    }
+
     #[cfg(not(target_arch = "wasm32"))]
     {
         let log_level = match log_level {
