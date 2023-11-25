@@ -61,7 +61,6 @@ impl TimeContext {
         if now >= self.last_frame_time + update_frame_time_interval {
             let frame_time = update_frame_time_interval.as_secs_f32() / self.frames as f32;
 
-            println!("FRAME: {:?}", 1.0 / frame_time);
             self.last_ms = frame_time;
 
             self.last_frame_time = now;
