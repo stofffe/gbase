@@ -1,5 +1,6 @@
 mod app;
-mod window;
+pub mod input;
+pub mod window;
 
 // exports
 pub use app::*;
@@ -15,4 +16,5 @@ pub use winit;
 /// Sent with each command
 pub struct Context {
     window: winit::window::Window,
+    input: input::InputContext,
 }

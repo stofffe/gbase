@@ -14,7 +14,6 @@ impl Callbacks for App {
 #[pollster::main]
 pub async fn main() {
     let (ctx, ev) = gbase::build_context().await;
-    log::error!("yoo");
     let app = App {};
     gbase::run(app, ctx, ev).await;
 }

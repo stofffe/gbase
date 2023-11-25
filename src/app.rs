@@ -1,4 +1,4 @@
-use crate::{window, Context};
+use crate::{input, window, Context};
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -32,6 +32,8 @@ where
         if self.callbacks.update(ctx) {
             return true;
         }
+
+        ctx.input.update();
 
         false
     }
@@ -115,7 +117,8 @@ impl ContextBuilder {
         init_logging(self.log_level);
 
         let (window, event_loop) = window::new_window();
-        let context = Context { window };
+        let input = input::InputContext::default();
+        let context = Context { window, input };
 
         (context, event_loop)
     }
