@@ -76,7 +76,7 @@ fn init_logging(log_level: LogLevel) {
             LogLevel::None => panic!("unreachable"),
         };
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-        console_log::init_with_level(log::Level::Warn).expect("Couldn't initialize logger");
+        console_log::init_with_level(log_level).expect("Couldn't initialize logger");
     }
 
     #[cfg(not(target_arch = "wasm32"))]
