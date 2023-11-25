@@ -1,9 +1,10 @@
 use std::{
+    path::{Path, PathBuf},
     thread,
     time::{Duration, Instant},
 };
 
-use crate::{input, time, window, Context};
+use crate::{filesystem, input, time, window, Context};
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -35,6 +36,7 @@ where
     pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
         ctx.time.update();
         ctx.input.update();
+        ctx.filesystem.update();
 
         // Update callback
         if self.callbacks.update(ctx) {
@@ -103,6 +105,7 @@ fn init_logging(log_level: LogLevel) {
 
 /// Build the context for running an application
 pub struct ContextBuilder {
+    assets_path: PathBuf,
     log_level: LogLevel,
 }
 
@@ -111,7 +114,13 @@ impl ContextBuilder {
     pub fn new() -> Self {
         Self {
             log_level: LogLevel::Warn,
+            assets_path: PathBuf::from("assets"),
         }
+    }
+
+    pub fn assets_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.assets_path = path.into();
+        self
     }
 
     pub fn log_level(mut self, log_level: LogLevel) -> Self {
@@ -125,10 +134,12 @@ impl ContextBuilder {
         let (window, event_loop) = window::new_window();
         let input = input::InputContext::default();
         let time = time::TimeContext::default();
+        let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
         let context = Context {
             window,
             input,
             time,
+            filesystem,
         };
 
         (context, event_loop)

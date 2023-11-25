@@ -1,4 +1,5 @@
 mod app;
+pub mod filesystem;
 pub mod input;
 pub mod time;
 pub mod window;
@@ -19,4 +20,5 @@ pub struct Context {
     window: winit::window::Window,
     input: input::InputContext,
     time: time::TimeContext,
+    filesystem: filesystem::FileSystemContext,
 }
