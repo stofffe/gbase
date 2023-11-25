@@ -2,6 +2,14 @@ copy_window:
 	@cp ../examples/window.rs ./src/lib.rs
 	@make convert
 
+copy_input:
+	@cp ../examples/input.rs ./src/lib.rs
+	@make convert
+
+copy_time:
+	@cp ../examples/time.rs ./src/lib.rs
+	@make convert
+
 compile:
 	@cp -r ../assets .
 	@wasm-pack build --target web

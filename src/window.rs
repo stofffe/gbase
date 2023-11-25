@@ -1,5 +1,3 @@
-pub use winit::window::CursorGrabMode;
-
 use crate::{
     app::{App, Callbacks},
     Context,
@@ -8,14 +6,14 @@ use winit::{
     event::{DeviceEvent, Event, WindowEvent},
     event_loop::{ControlFlow, EventLoop},
     keyboard::PhysicalKey,
-    platform::pump_events::EventLoopExtPumpEvents,
     window::WindowBuilder,
 };
 
 pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLoop<()>) {
-    let event_loop = EventLoop::new().expect("");
-
-    let window = WindowBuilder::new().build(&event_loop).unwrap();
+    let event_loop = EventLoop::new().expect("could not initialize event loop");
+    let window = WindowBuilder::new()
+        .build(&event_loop)
+        .expect("could not initialize window");
 
     #[cfg(target_arch = "wasm32")]
     attach_window_to_canvas(&window);

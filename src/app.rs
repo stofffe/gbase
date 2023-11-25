@@ -1,4 +1,9 @@
-use crate::{input, window, Context};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
+
+use crate::{input, time, window, Context};
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -28,12 +33,13 @@ where
     /// Main loop which is called from window event loop
     /// Returns true if app should exit
     pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
+        ctx.time.update();
+        ctx.input.update();
+
         // Update callback
         if self.callbacks.update(ctx) {
             return true;
         }
-
-        ctx.input.update();
 
         false
     }
@@ -118,7 +124,12 @@ impl ContextBuilder {
 
         let (window, event_loop) = window::new_window();
         let input = input::InputContext::default();
-        let context = Context { window, input };
+        let time = time::TimeContext::default();
+        let context = Context {
+            window,
+            input,
+            time,
+        };
 
         (context, event_loop)
     }

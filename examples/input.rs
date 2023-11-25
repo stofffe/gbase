@@ -1,6 +1,6 @@
 use gbase::{
     input::{self, KeyCode},
-    Callbacks, Context,
+    Callbacks, Context, ContextBuilder, LogLevel,
 };
 
 struct App {}
@@ -8,20 +8,22 @@ struct App {}
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         if input::key_just_pressed(ctx, KeyCode::KeyA) {
-            println!("A pressed")
+            log::info!("A pressed");
         }
         if input::key_released(ctx, KeyCode::KeyA) {
-            println!("A released")
+            log::info!("A released");
         }
-        println!("{:?}", input::mouse_pos(ctx));
-        // println!("{:?}", input::scroll_delta(ctx));
+        log::info!("mouse pos: {:?}", input::mouse_pos(ctx));
         false
     }
 }
 
 #[pollster::main]
 pub async fn main() {
-    let (ctx, ev) = gbase::build_context().await;
+    let (ctx, ev) = ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .build()
+        .await;
     let app = App {};
     gbase::run(app, ctx, ev).await;
 }
