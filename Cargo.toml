@@ -11,6 +11,7 @@ wgpu = { version = "0.18.0", features = ["webgl"] }
 glam = "0.24.2"
 log = "0.4.20"
 anyhow = "1.0.75"
+rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }

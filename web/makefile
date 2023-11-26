@@ -10,6 +10,14 @@ copy_time:
 	@cp ../examples/time.rs ./src/lib.rs
 	@make convert
 
+copy_filesystem:
+	@cp ../examples/filesystem.rs ./src/lib.rs
+	@make convert
+
+copy_audio:
+	@cp ../examples/audio.rs ./src/lib.rs
+	@make convert
+
 compile:
 	@cp -r ../assets .
 	@wasm-pack build --target web

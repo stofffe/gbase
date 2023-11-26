@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{filesystem, input, time, window, Context};
+use crate::{audio, filesystem, input, time, window, Context};
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -35,13 +35,15 @@ where
     /// Returns true if app should exit
     pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
         ctx.time.update();
-        ctx.input.update();
         ctx.filesystem.update();
+        ctx.audio.update();
 
         // Update callback
         if self.callbacks.update(ctx) {
             return true;
         }
+
+        ctx.input.update();
 
         false
     }
@@ -135,11 +137,13 @@ impl ContextBuilder {
         let input = input::InputContext::default();
         let time = time::TimeContext::default();
         let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
+        let audio = audio::AudioContext::new();
         let context = Context {
             window,
             input,
             time,
             filesystem,
+            audio,
         };
 
         (context, event_loop)

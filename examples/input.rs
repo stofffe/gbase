@@ -13,7 +13,11 @@ impl Callbacks for App {
         if input::key_released(ctx, KeyCode::KeyA) {
             log::info!("A released");
         }
-        log::info!("mouse pos: {:?}", input::mouse_pos(ctx));
+        if input::key_pressed(ctx, KeyCode::Space) {
+            log::info!("mouse pos: {:?}", input::mouse_pos(ctx));
+            // log::info!("mouse delta: {:?}", input::mouse_delta(ctx));
+            // log::info!("scroll delta: {:?}", input::scroll_delta(ctx));
+        }
         false
     }
 }

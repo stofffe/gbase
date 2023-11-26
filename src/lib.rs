@@ -1,4 +1,5 @@
 mod app;
+pub mod audio;
 pub mod filesystem;
 pub mod input;
 pub mod time;
@@ -21,4 +22,5 @@ pub struct Context {
     input: input::InputContext,
     time: time::TimeContext,
     filesystem: filesystem::FileSystemContext,
+    audio: audio::AudioContext,
 }

@@ -42,6 +42,8 @@ impl KeyboardContext {
     /// Returns true if KeyCode was pressed this frame
     /// Does not accepts repeating
     pub fn key_just_pressed(&self, keycode: KeyCode) -> bool {
+        let a = self.pressed.contains(&keycode) && !self.previous_pressed.contains(&keycode);
+        // println!("saved {:?} prev {:?}", self.pressed, self.previous_pressed);
         self.pressed.contains(&keycode) && !self.previous_pressed.contains(&keycode)
     }
 
@@ -110,6 +112,8 @@ impl KeyboardContext {
         self.previous_pressed = self.pressed.clone();
     }
 
+    /// Save current modifiers in previous
+    /// Should be called each frame
     pub(crate) fn save_modifiers(&mut self) {
         self.previous_pressed_modifiers = self.pressed_modifiers.clone();
     }
