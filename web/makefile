@@ -18,6 +18,10 @@ copy_audio:
 	@cp ../examples/audio.rs ./src/lib.rs
 	@make convert
 
+copy_render:
+	@cp ../examples/render.rs ./src/lib.rs
+	@make convert
+
 compile:
 	@cp -r ../assets .
 	@wasm-pack build --target web

@@ -15,14 +15,6 @@ pub(crate) struct MouseContext {
 }
 
 impl MouseContext {
-    pub(crate) fn update(&mut self) {
-        self.save_buttons();
-        self.set_mouse_delta((0.0, 0.0));
-        // reset scroll?
-    }
-}
-
-impl MouseContext {
     /// Returns true if Button is down
     /// Accepts repeating
     pub fn button_pressed(&self, keycode: MouseButton) -> bool {

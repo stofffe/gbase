@@ -9,33 +9,41 @@ use winit::{
     window::WindowBuilder,
 };
 
+const WEB_CANVAS_ID: &str = "gbase";
+
 pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLoop<()>) {
     let event_loop = EventLoop::new().expect("could not initialize event loop");
-    let window = WindowBuilder::new()
-        .build(&event_loop)
-        .expect("could not initialize window");
+    let window_builder = WindowBuilder::new();
 
     #[cfg(target_arch = "wasm32")]
-    attach_window_to_canvas(&window);
+    let window_builder = extend_window_builder(window_builder);
+
+    let window = window_builder
+        .build(&event_loop)
+        .expect("could not initialize window");
 
     (window, event_loop)
 }
 
 #[cfg(target_arch = "wasm32")]
-fn attach_window_to_canvas(window: &winit::window::Window) {
-    use winit::platform::web::WindowExtWebSys;
-    let canvas = window
-        .canvas()
-        .expect("could not get canvas from winit window");
+fn extend_window_builder(window_builder: WindowBuilder) -> WindowBuilder {
+    use wasm_bindgen::JsCast;
+    use winit::platform::web::WindowBuilderExtWebSys;
 
     let win = web_sys::window().expect("could not get window");
     let document = win.document().expect("could not get document");
-    let body = document.body().expect("could not get body");
-    body.append_child(&canvas)
-        .expect("could not append canvas to body");
+    let canvas = document
+        .get_element_by_id(WEB_CANVAS_ID)
+        .expect("could not find canvas")
+        .dyn_into::<web_sys::HtmlCanvasElement>()
+        .expect("element was not a canvas");
+    let (width, height) = (canvas.width(), canvas.height());
 
-    // Auto focus canvas
-    canvas.focus().expect("could not focus canvas");
+    // canvas.focus().expect("could not focus canvas");
+
+    window_builder
+        .with_canvas(Some(canvas))
+        .with_inner_size(winit::dpi::LogicalSize::new(width, height))
 }
 
 pub(crate) async fn run_window<C: Callbacks + 'static>(
@@ -45,9 +53,18 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
 ) {
     event_loop.set_control_flow(ControlFlow::Poll);
     let _ = event_loop.run(move |event, target| match event {
+        // Update and rendering
+        // Fine to render here since we render every frame
+        Event::AboutToWait => {
+            if app.update(&mut ctx) {
+                target.exit();
+            }
+        }
+        // Normal events
         Event::WindowEvent { ref event, .. } => {
             match event {
                 WindowEvent::CloseRequested => target.exit(),
+                WindowEvent::Resized(new_size) => ctx.render.resize_window(*new_size),
                 // Keyboard
                 WindowEvent::KeyboardInput { event, .. } => {
                     let (key, pressed) = (event.physical_key, event.state.is_pressed());
@@ -55,7 +72,7 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
                         (PhysicalKey::Code(code), true) => ctx.input.keyboard.set_key(code),
                         (PhysicalKey::Code(code), false) => ctx.input.keyboard.release_key(code),
                         (PhysicalKey::Unidentified(code), _) => {
-                            log::error!("pressed/release  unidentified key {:?}", code)
+                            log::error!("pressed/released unidentified key {:?}", code)
                         }
                     };
                 }
@@ -101,9 +118,7 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
                 _ => {}
             };
         }
-        Event::AboutToWait => {
-            app.update(&mut ctx);
-        }
+        // TODO RedrawRequested and add app.render ?
         _ => {}
     });
 }

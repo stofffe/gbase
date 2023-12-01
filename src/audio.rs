@@ -12,10 +12,6 @@ pub(crate) struct AudioContext {
     sources: Vec<SoundSource>,
 }
 
-impl AudioContext {
-    pub(crate) fn update(&mut self) {}
-}
-
 struct AudioHandleRaw {
     handle: rodio::OutputStreamHandle,
     _stream: rodio::OutputStream, // store handle to keep output stream alive

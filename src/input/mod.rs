@@ -10,9 +10,4 @@ pub(crate) struct InputContext {
     pub mouse: MouseContext,
 }
 
-impl InputContext {
-    pub(crate) fn update(&mut self) {
-        self.keyboard.update();
-        self.mouse.update();
-    }
-}
+impl InputContext {}

@@ -7,7 +7,7 @@ struct App {}
 
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
-        // log::info!("FT {}", time::frame_time(ctx));
+        log::info!("Fps {}", time::fps(ctx));
 
         false
     }
@@ -22,4 +22,3 @@ pub async fn main() {
     let app = App {};
     gbase::run(app, ctx, ev).await;
 }
-

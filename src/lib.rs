@@ -2,6 +2,7 @@ mod app;
 pub mod audio;
 pub mod filesystem;
 pub mod input;
+pub mod render;
 pub mod time;
 pub mod window;
 
@@ -18,9 +19,9 @@ pub use winit;
 ///
 /// Sent with each command
 pub struct Context {
-    window: winit::window::Window,
     input: input::InputContext,
     time: time::TimeContext,
     filesystem: filesystem::FileSystemContext,
     audio: audio::AudioContext,
+    render: render::RenderContext,
 }

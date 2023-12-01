@@ -17,12 +17,6 @@ pub(crate) struct TimeContext {
     last_ms: f32,
 }
 
-impl TimeContext {
-    pub(crate) fn update(&mut self) {
-        self.update_time();
-    }
-}
-
 impl Default for TimeContext {
     fn default() -> Self {
         let start_time = Instant::now();
@@ -39,7 +33,7 @@ impl Default for TimeContext {
 }
 
 impl TimeContext {
-    fn update_time(&mut self) {
+    pub(crate) fn update_time(&mut self) {
         // frame target
         // if let Some(frame_target) = self.frame_target {
         //     let ms_per_frame = Duration::from_secs_f32(1.0 / frame_target);
@@ -57,12 +51,10 @@ impl TimeContext {
 
         // frame time
         self.frames += 1;
-        let update_frame_time_interval = std::time::Duration::from_secs_f32(0.01);
+        let update_frame_time_interval = std::time::Duration::from_secs_f32(0.5);
         if now >= self.last_frame_time + update_frame_time_interval {
             let frame_time = update_frame_time_interval.as_secs_f32() / self.frames as f32;
-
             self.last_ms = frame_time;
-
             self.last_frame_time = now;
             self.frames = 0;
         }

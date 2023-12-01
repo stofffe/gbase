@@ -12,8 +12,6 @@ pub(crate) struct FileSystemContext {
 }
 
 impl FileSystemContext {
-    pub(crate) fn update(&mut self) {}
-
     pub(crate) fn new(assets_path: &Path) -> Self {
         // set default resource path
         let mut res_path = path::PathBuf::new();

@@ -1,10 +1,5 @@
-use std::{
-    path::{Path, PathBuf},
-    thread,
-    time::{Duration, Instant},
-};
-
-use crate::{audio, filesystem, input, time, window, Context};
+use crate::{audio, filesystem, input, render, time, window, Context};
+use std::path::PathBuf;
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -34,16 +29,17 @@ where
     /// Main loop which is called from window event loop
     /// Returns true if app should exit
     pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
-        ctx.time.update();
-        ctx.filesystem.update();
-        ctx.audio.update();
-
         // Update callback
         if self.callbacks.update(ctx) {
             return true;
         }
 
-        ctx.input.update();
+        // Context updates
+        ctx.time.update_time();
+        ctx.input.keyboard.save_keys();
+        ctx.input.keyboard.save_modifiers();
+        ctx.input.mouse.save_buttons();
+        ctx.input.mouse.set_mouse_delta((0.0, 0.0));
 
         false
     }
@@ -70,6 +66,9 @@ pub enum LogLevel {
     Trace,
 }
 
+/// Initialize init_logging
+///
+/// Panics if called multiple times
 fn init_logging(log_level: LogLevel) {
     if let LogLevel::None = log_level {
         return;
@@ -138,12 +137,13 @@ impl ContextBuilder {
         let time = time::TimeContext::default();
         let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
         let audio = audio::AudioContext::new();
+        let render = render::RenderContext::new(window).await;
         let context = Context {
-            window,
             input,
             time,
             filesystem,
             audio,
+            render,
         };
 
         (context, event_loop)
