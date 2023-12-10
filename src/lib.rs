@@ -10,6 +10,7 @@ pub mod window;
 pub use app::*;
 
 // re-exports
+pub use bytemuck;
 pub use glam;
 pub use log;
 pub use wgpu;

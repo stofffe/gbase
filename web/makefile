@@ -22,6 +22,10 @@ copy_render:
 	@cp ../examples/render.rs ./src/lib.rs
 	@make convert
 
+copy_triangle:
+	@cp ../examples/triangle.rs ./src/lib.rs
+	@make convert
+
 compile:
 	@cp -r ../assets .
 	@wasm-pack build --target web
@@ -31,8 +35,9 @@ convert:
 	@sed -i "" "1s/^/use gbase::winit;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::wgpu;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::glam;\n/" src/lib.rs
+	@sed -i "" "1s/^/use gbase::bytemuck;\n/" src/lib.rs
 	@sed -i "" "s/#\[pollster::main\]/#\[wasm_bindgen::prelude::wasm_bindgen\]/" src/lib.rs
-	@sed -i "" "s/main/run/" src/lib.rs
+	@sed -i "" "s/fn main/fn run/" src/lib.rs
 
 run:
 	@python3 -m http.server

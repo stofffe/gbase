@@ -47,10 +47,11 @@ where
 
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
-pub async fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>)
-where
-    C: Callbacks + 'static,
-{
+pub async fn run<C: Callbacks + 'static>(
+    callbacks: C,
+    mut ctx: Context,
+    event_loop: EventLoop<()>,
+) {
     let mut app = App { callbacks };
     app.callbacks.init(&mut ctx);
     window::run_window(event_loop, app, ctx).await;

@@ -1,5 +1,6 @@
 use crate::Context;
 use std::sync::Arc;
+use wgpu::SurfaceConfiguration;
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
@@ -104,6 +105,25 @@ impl RenderContext {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Vertex {
+    pub position: [f32; 3],
+}
+
+impl Vertex {
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![
+                0 =>Float32x3,
+            ],
+            // attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
+
 // Getter functions for render and window operations
 
 pub fn surface(ctx: &mut Context) -> Arc<wgpu::Surface> {
@@ -120,6 +140,9 @@ pub fn adapter(ctx: &mut Context) -> Arc<wgpu::Adapter> {
 }
 pub fn window(ctx: &mut Context) -> Arc<winit::window::Window> {
     ctx.render.window.clone()
+}
+pub fn surface_config(ctx: &mut Context) -> wgpu::SurfaceConfiguration {
+    ctx.render.surface_config.clone()
 }
 pub fn recover_window(ctx: &mut Context) {
     ctx.render.recover_window();
