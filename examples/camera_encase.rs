@@ -32,40 +32,13 @@ struct Camera {
     buffer: wgpu::Buffer,
 }
 
-impl Camera {
-    fn uniform(&self) -> CameraUniform {
-        CameraUniform { pos: self.pos }
-    }
-}
-
 #[derive(encase::ShaderType)]
 struct CameraUniform {
     pos: Vec3,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-
-        // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("camera_encase.wgsl"))
-            .await
-            .unwrap();
-        let shader_str = String::from_utf8(shader_bytes).unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
-
-        // Vertex buffer
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-
-        // Camera
+impl Camera {
+    fn new(device: &wgpu::Device) -> Self {
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera buffer"),
             size: u64::from(CameraUniform::min_size()),
@@ -97,12 +70,51 @@ impl App {
             }],
         });
 
-        let camera = Camera {
+        Self {
             pos: vec3(0.0, 0.0, 0.0),
             bind_group_layout: camera_bind_group_layout,
             bind_group: camera_bind_group,
             buffer: camera_buffer,
-        };
+        }
+    }
+
+    fn uniform(&self) -> CameraUniform {
+        CameraUniform { pos: self.pos }
+    }
+
+    fn update_buffer(&self, queue: &wgpu::Queue) {
+        let mut buffer = encase::UniformBuffer::new(Vec::new());
+        buffer
+            .write(&self.uniform())
+            .expect("could not write to camera buffer");
+        queue.write_buffer(&self.buffer, 0, &buffer.into_inner());
+    }
+}
+
+impl App {
+    async fn new(ctx: &mut Context) -> Self {
+        let device = render::device(ctx);
+        let surface_config = render::surface_config(ctx);
+
+        // Shader
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("camera_encase.wgsl"))
+            .await
+            .unwrap();
+        let shader_str = String::from_utf8(shader_bytes).unwrap();
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
+
+        // Vertex buffer
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("vertex buffer"),
+            contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        // Camera
+        let camera = Camera::new(&device);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -185,11 +197,7 @@ impl Callbacks for App {
         let queue = render::queue(ctx);
 
         // update camera uniform
-        let mut buffer = encase::UniformBuffer::new(Vec::new());
-        buffer
-            .write(&self.camera.uniform())
-            .expect("could not write to camera buffer");
-        queue.write_buffer(&self.camera.buffer, 0, &buffer.into_inner());
+        self.camera.update_buffer(&queue);
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
