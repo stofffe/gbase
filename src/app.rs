@@ -18,9 +18,23 @@ pub trait Callbacks {
     fn render(
         &mut self,
         _ctx: &mut Context,
-        _encoder: &mut wgpu::CommandEncoder,
-        _screen_view: &wgpu::TextureView,
+        encoder: &mut wgpu::CommandEncoder,
+        screen_view: &wgpu::TextureView,
     ) -> bool {
+        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("default render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: screen_view,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
         false
     }
 }
