@@ -153,6 +153,7 @@ pub struct ContextBuilder {
     assets_path: PathBuf,
     log_level: LogLevel,
     vsync: bool,
+    device_features: wgpu::Features,
 }
 
 #[allow(clippy::new_without_default)]
@@ -162,6 +163,7 @@ impl ContextBuilder {
             log_level: LogLevel::Warn,
             assets_path: PathBuf::from("assets"),
             vsync: true,
+            device_features: wgpu::Features::default(),
         }
     }
 
@@ -180,6 +182,11 @@ impl ContextBuilder {
         self
     }
 
+    pub fn device_features(mut self, device_features: wgpu::Features) -> Self {
+        self.device_features = device_features;
+        self
+    }
+
     pub async fn build(self) -> (Context, EventLoop<()>) {
         init_logging(self.log_level);
 
@@ -188,7 +195,7 @@ impl ContextBuilder {
         let time = time::TimeContext::default();
         let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
         let audio = audio::AudioContext::new();
-        let render = render::RenderContext::new(window, self.vsync).await;
+        let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
         let context = Context {
             input,
             time,

@@ -15,7 +15,11 @@ pub(crate) struct RenderContext {
 }
 
 impl RenderContext {
-    pub(crate) async fn new(window: winit::window::Window, vsync: bool) -> Self {
+    pub(crate) async fn new(
+        window: winit::window::Window,
+        vsync: bool,
+        device_features: wgpu::Features,
+    ) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             dx12_shader_compiler: wgpu::Dx12Compiler::default(),
@@ -38,7 +42,7 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: wgpu::Features::default(),
+                    features: device_features,
                     limits: adapter.limits(),
                     label: None,
                 },
