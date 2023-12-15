@@ -27,7 +27,7 @@ impl App {
         let surface_config = render::surface_config(ctx);
 
         // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("triangle.wgsl"))
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("shader.wgsl"))
             .await
             .unwrap();
         let shader_str = String::from_utf8(shader_bytes).unwrap();
@@ -103,7 +103,7 @@ impl Callbacks for App {
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let background_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
@@ -118,11 +118,28 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
+        drop(background_pass);
 
-        drop(render_pass);
+        let mut draw_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: screen_view,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        draw_pass.set_pipeline(&self.pipeline);
+        draw_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        draw_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
+
+        drop(draw_pass);
 
         false
     }

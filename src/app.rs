@@ -1,5 +1,6 @@
 use crate::{audio, filesystem, input, render, time, window, Context};
 use std::path::PathBuf;
+use wgpu::SurfaceError;
 use winit::event_loop::EventLoop;
 
 /// User callbaks
@@ -11,6 +12,15 @@ pub trait Callbacks {
     ///
     /// Return value determines wether to exit game or not
     fn update(&mut self, _ctx: &mut Context) -> bool {
+        false
+    }
+
+    fn render(
+        &mut self,
+        _ctx: &mut Context,
+        _encoder: &mut wgpu::CommandEncoder,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         false
     }
 }
@@ -40,6 +50,39 @@ where
         ctx.input.keyboard.save_modifiers();
         ctx.input.mouse.save_buttons();
         ctx.input.mouse.set_mouse_delta((0.0, 0.0));
+
+        // render
+        let surface = render::surface(ctx);
+        let device = render::device(ctx);
+        let queue = render::queue(ctx);
+
+        let output = surface.get_current_texture();
+        let output = match output {
+            Ok(val) => val,
+            Err(SurfaceError::Timeout) => {
+                log::error!("timed out getting surface");
+                return true;
+            }
+            Err(SurfaceError::Lost | SurfaceError::Outdated) => {
+                render::recover_window(ctx);
+                return false;
+            }
+            Err(err) => {
+                log::warn!("{}", err);
+                return false;
+            }
+        };
+        let view = output
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("render encodeer"),
+        });
+
+        self.callbacks.render(ctx, &mut encoder, &view);
+
+        queue.submit(Some(encoder.finish()));
+        output.present();
 
         false
     }

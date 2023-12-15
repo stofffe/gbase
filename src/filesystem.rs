@@ -1,11 +1,9 @@
+use crate::Context;
+use anyhow::anyhow;
 use std::{
     fs,
     path::{self, Path, PathBuf},
 };
-
-use anyhow::anyhow;
-
-use crate::Context;
 
 pub(crate) struct FileSystemContext {
     res_path: PathBuf,
