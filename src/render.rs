@@ -15,7 +15,7 @@ pub(crate) struct RenderContext {
 }
 
 impl RenderContext {
-    pub(crate) async fn new(window: winit::window::Window) -> Self {
+    pub(crate) async fn new(window: winit::window::Window, vsync: bool) -> Self {
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             dx12_shader_compiler: wgpu::Dx12Compiler::default(),
@@ -57,12 +57,17 @@ impl RenderContext {
         let window_size = window.inner_size();
         // let window_size = PhysicalSize::new(400, 400);
         log::warn!("window_size {:?}", window_size);
+
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // TODO might want to add more here
             format: surface_format,
             width: window_size.width.max(1),
             height: window_size.height.max(1),
-            present_mode: wgpu::PresentMode::AutoNoVsync, // TODO add option?
+            present_mode: if vsync {
+                wgpu::PresentMode::AutoVsync
+            } else {
+                wgpu::PresentMode::AutoNoVsync
+            },
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: vec![],
         };

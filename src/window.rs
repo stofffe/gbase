@@ -9,8 +9,6 @@ use winit::{
     window::WindowBuilder,
 };
 
-const WEB_CANVAS_ID: &str = "gbase";
-
 pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLoop<()>) {
     let event_loop = EventLoop::new().expect("could not initialize event loop");
     let window_builder = WindowBuilder::new();
@@ -29,6 +27,8 @@ pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLo
 fn extend_window_builder(window_builder: WindowBuilder) -> WindowBuilder {
     use wasm_bindgen::JsCast;
     use winit::platform::web::WindowBuilderExtWebSys;
+
+    const WEB_CANVAS_ID: &str = "gbase";
 
     let win = web_sys::window().expect("could not get window");
     let document = win.document().expect("could not get document");

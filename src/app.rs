@@ -152,6 +152,7 @@ fn init_logging(log_level: LogLevel) {
 pub struct ContextBuilder {
     assets_path: PathBuf,
     log_level: LogLevel,
+    vsync: bool,
 }
 
 #[allow(clippy::new_without_default)]
@@ -160,6 +161,7 @@ impl ContextBuilder {
         Self {
             log_level: LogLevel::Warn,
             assets_path: PathBuf::from("assets"),
+            vsync: true,
         }
     }
 
@@ -173,6 +175,11 @@ impl ContextBuilder {
         self
     }
 
+    pub fn vsync(mut self, vsync: bool) -> Self {
+        self.vsync = vsync;
+        self
+    }
+
     pub async fn build(self) -> (Context, EventLoop<()>) {
         init_logging(self.log_level);
 
@@ -181,7 +188,7 @@ impl ContextBuilder {
         let time = time::TimeContext::default();
         let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
         let audio = audio::AudioContext::new();
-        let render = render::RenderContext::new(window).await;
+        let render = render::RenderContext::new(window, self.vsync).await;
         let context = Context {
             input,
             time,
