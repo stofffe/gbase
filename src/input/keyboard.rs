@@ -35,8 +35,6 @@ impl KeyboardContext {
     /// Returns true if KeyCode was pressed this frame
     /// Does not accepts repeating
     pub fn key_just_pressed(&self, keycode: KeyCode) -> bool {
-        let a = self.pressed.contains(&keycode) && !self.previous_pressed.contains(&keycode);
-        // println!("saved {:?} prev {:?}", self.pressed, self.previous_pressed);
         self.pressed.contains(&keycode) && !self.previous_pressed.contains(&keycode)
     }
 

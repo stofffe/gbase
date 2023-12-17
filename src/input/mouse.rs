@@ -2,7 +2,7 @@ pub use winit::event::MouseButton;
 
 use std::collections::HashSet;
 
-use crate::Context;
+use crate::{render, Context};
 
 #[derive(Default)]
 pub(crate) struct MouseContext {
@@ -77,7 +77,9 @@ impl MouseContext {
 /// Returns the mouse delta for the current frame
 pub fn mouse_delta(ctx: &Context) -> (f32, f32) {
     let (dx, dy) = ctx.input.mouse.mouse_delta;
-    (dx as f32, dy as f32)
+
+    // flip dy for left handed coordinate system
+    (dx as f32, -dy as f32)
 }
 
 /// Returns if mouse is on screen or not
@@ -87,7 +89,11 @@ pub fn mouse_on_screen(ctx: &Context) -> bool {
 
 /// Returns the current physical coordinates for the mouse
 pub fn mouse_pos(ctx: &Context) -> (f32, f32) {
-    (ctx.input.mouse.pos.0 as f32, ctx.input.mouse.pos.1 as f32)
+    let screen_size = ctx.render.window_size();
+    let x = ctx.input.mouse.pos.0 as f32;
+    // clip y for left handed coordinate system
+    let y = screen_size.height as f32 - ctx.input.mouse.pos.1 as f32;
+    (x, y)
 }
 
 /// Returns true if MouseButton is pressed
