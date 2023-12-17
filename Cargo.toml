@@ -7,7 +7,8 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.29.3", features = ["rwh_05", "rwh_06"] }
-wgpu = { version = "0.18.0", features = ["webgl"] }
+# wgpu = { version = "0.18.0", features = ["webgl"] }
+wgpu = { version = "0.18.0", features = [] }
 glam = "0.24.2"
 log = "0.4.20"
 anyhow = "1.0.75"

@@ -15,6 +15,11 @@ pub trait Callbacks {
         false
     }
 
+    /// Called once per frame after update
+    ///
+    /// Return value determines wether to exit game or not
+    ///
+    /// Must create at least one render pass, panics otherwise
     fn render(
         &mut self,
         _ctx: &mut Context,
@@ -50,21 +55,7 @@ impl<C> App<C>
 where
     C: Callbacks + 'static,
 {
-    /// Main loop which is called from window event loop
-    /// Returns true if app should exit
-    pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
-        // Update callback
-        if self.callbacks.update(ctx) {
-            return true;
-        }
-
-        // Context updates
-        ctx.time.update_time();
-        ctx.input.keyboard.save_keys();
-        ctx.input.keyboard.save_modifiers();
-        ctx.input.mouse.save_buttons();
-        ctx.input.mouse.set_mouse_delta((0.0, 0.0));
-
+    pub(crate) fn render(&mut self, ctx: &mut Context) -> bool {
         // render
         let surface = render::surface(ctx);
         let device = render::device(ctx);
@@ -78,7 +69,7 @@ where
                 return true;
             }
             Err(SurfaceError::Lost | SurfaceError::Outdated) => {
-                render::recover_window(ctx);
+                ctx.render.recover_window();
                 return false;
             }
             Err(err) => {
@@ -93,10 +84,29 @@ where
             label: Some("render encodeer"),
         });
 
-        self.callbacks.render(ctx, &mut encoder, &view);
+        if self.callbacks.render(ctx, &mut encoder, &view) {
+            return true;
+        }
 
         queue.submit(Some(encoder.finish()));
         output.present();
+
+        false
+    }
+    /// Main loop which is called from window event loop
+    /// Returns true if app should exit
+    pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
+        // Update callback
+        if self.callbacks.update(ctx) {
+            return true;
+        }
+
+        // Context updates
+        ctx.time.update_time();
+        ctx.input.keyboard.save_keys();
+        ctx.input.keyboard.save_modifiers();
+        ctx.input.mouse.save_buttons();
+        ctx.input.mouse.set_mouse_delta((0.0, 0.0));
 
         false
     }

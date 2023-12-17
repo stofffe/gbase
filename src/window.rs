@@ -56,13 +56,19 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
         // Update and rendering
         // Fine to render here since we render every frame
         Event::AboutToWait => {
-            if app.update(&mut ctx) {
-                target.exit();
-            }
+            ctx.render.window.request_redraw();
         }
         // Normal events
         Event::WindowEvent { ref event, .. } => {
             match event {
+                WindowEvent::RedrawRequested => {
+                    if app.update(&mut ctx) {
+                        target.exit();
+                    }
+                    if app.render(&mut ctx) {
+                        target.exit();
+                    }
+                }
                 WindowEvent::CloseRequested => target.exit(),
                 WindowEvent::Resized(new_size) => ctx.render.resize_window(*new_size),
                 // Keyboard

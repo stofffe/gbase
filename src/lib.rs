@@ -10,7 +10,9 @@ pub mod window;
 pub use app::*;
 
 // re-exports
+// TODO bytemuck and encase macros not exported
 pub use bytemuck;
+pub use encase;
 pub use glam;
 pub use log;
 pub use wgpu;
@@ -20,9 +22,9 @@ pub use winit;
 ///
 /// Sent with each command
 pub struct Context {
-    input: input::InputContext,
-    time: time::TimeContext,
-    filesystem: filesystem::FileSystemContext,
-    audio: audio::AudioContext,
-    render: render::RenderContext,
+    pub(crate) input: input::InputContext,
+    pub(crate) time: time::TimeContext,
+    pub(crate) filesystem: filesystem::FileSystemContext,
+    pub(crate) audio: audio::AudioContext,
+    pub(crate) render: render::RenderContext,
 }

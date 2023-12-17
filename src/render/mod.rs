@@ -1,17 +1,19 @@
+mod helpers;
+pub use helpers::*;
+
 use crate::Context;
 use std::sync::Arc;
-use wgpu::SurfaceConfiguration;
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
-    surface: Arc<wgpu::Surface>,
-    device: Arc<wgpu::Device>,
-    adapter: Arc<wgpu::Adapter>,
-    queue: Arc<wgpu::Queue>,
+    pub surface: Arc<wgpu::Surface>,
+    pub device: Arc<wgpu::Device>,
+    pub adapter: Arc<wgpu::Adapter>,
+    pub queue: Arc<wgpu::Queue>,
 
-    surface_config: wgpu::SurfaceConfiguration,
-    window_size: winit::dpi::PhysicalSize<u32>,
-    window: Arc<winit::window::Window>,
+    pub surface_config: wgpu::SurfaceConfiguration,
+    pub window_size: winit::dpi::PhysicalSize<u32>,
+    pub window: Arc<winit::window::Window>,
 }
 
 impl RenderContext {
@@ -60,7 +62,7 @@ impl RenderContext {
             .unwrap_or(surface_capabilities.formats[0]);
         let window_size = window.inner_size();
         // let window_size = PhysicalSize::new(400, 400);
-        log::warn!("window_size {:?}", window_size);
+        // log::warn!("window_size {:?}", window_size);
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // TODO might want to add more here
@@ -109,73 +111,34 @@ impl RenderContext {
         self.resize_window(self.window_size)
     }
 
-    pub(crate) fn request_redraw(&self) {
-        self.window.request_redraw();
+    pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
+        self.window_size
     }
-}
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-    pub position: [f32; 3],
-}
-
-impl Vertex {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![
-        0=>Float32x3,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as u64,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBUTES,
-        }
-    }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexUV {
-    pub position: [f32; 3],
-    pub uv: [f32; 2],
-}
-
-impl VertexUV {
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Float32x2,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as u64,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBUTES,
-        }
+    pub(crate) fn aspect_ratio(&self) -> f32 {
+        self.window_size.width as f32 / self.window_size.height as f32
     }
 }
 
 // Getter functions for render and window operations
 
-pub fn surface(ctx: &mut Context) -> Arc<wgpu::Surface> {
+pub fn surface(ctx: &Context) -> Arc<wgpu::Surface> {
     ctx.render.surface.clone()
 }
-pub fn device(ctx: &mut Context) -> Arc<wgpu::Device> {
+pub fn device(ctx: &Context) -> Arc<wgpu::Device> {
     ctx.render.device.clone()
 }
-pub fn queue(ctx: &mut Context) -> Arc<wgpu::Queue> {
+pub fn queue(ctx: &Context) -> Arc<wgpu::Queue> {
     ctx.render.queue.clone()
 }
-pub fn adapter(ctx: &mut Context) -> Arc<wgpu::Adapter> {
+pub fn adapter(ctx: &Context) -> Arc<wgpu::Adapter> {
     ctx.render.adapter.clone()
 }
-pub fn window(ctx: &mut Context) -> Arc<winit::window::Window> {
+pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
     ctx.render.window.clone()
 }
 pub fn surface_config(ctx: &mut Context) -> wgpu::SurfaceConfiguration {
     ctx.render.surface_config.clone()
-}
-pub fn recover_window(ctx: &mut Context) {
-    ctx.render.recover_window();
 }
 
 // /// Creates a render pass which renders to the current window
