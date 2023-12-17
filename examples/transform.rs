@@ -1,4 +1,3 @@
-use encase::ShaderType;
 use gbase::{
     filesystem, input,
     render::{self, Vertex},
@@ -12,7 +11,8 @@ use winit::keyboard::KeyCode;
 #[pollster::main]
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
+        .log_level(LogLevel::Warn)
+        .vsync(false)
         .build()
         .await;
     let app = App::new(&mut ctx).await;
@@ -22,72 +22,24 @@ pub async fn main() {
 struct App {
     vertex_buffer: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
-    camera: Camera,
+    camera: render::PerspectiveCamera,
+    transform: render::Transform,
 }
 
-struct Camera {
-    pos: Vec3,
-    bind_group_layout: wgpu::BindGroupLayout,
-    bind_group: wgpu::BindGroup,
-    buffer: wgpu::Buffer,
+struct Shader {
+    module: wgpu::ShaderModule,
 }
 
-#[derive(encase::ShaderType)]
-struct CameraUniform {
-    pos: Vec3,
-}
-
-impl Camera {
-    fn new(device: &wgpu::Device) -> Self {
-        let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("camera buffer"),
-            size: u64::from(CameraUniform::min_size()),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
+impl Shader {
+    fn new(ctx: &mut Context, bytes: Vec<u8>) -> Self {
+        let device = render::device(ctx);
+        let shader_str =
+            String::from_utf8(bytes).expect("could not convert shader bytes to string");
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
         });
-
-        let camera_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("camera bg layout"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                }],
-            });
-
-        let camera_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("camera bg"),
-            layout: &camera_bind_group_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: camera_buffer.as_entire_binding(),
-            }],
-        });
-
-        Self {
-            pos: vec3(0.0, 0.0, 0.0),
-            bind_group_layout: camera_bind_group_layout,
-            bind_group: camera_bind_group,
-            buffer: camera_buffer,
-        }
-    }
-
-    fn uniform(&self) -> CameraUniform {
-        CameraUniform { pos: self.pos }
-    }
-
-    fn update_buffer(&self, queue: &wgpu::Queue) {
-        let mut buffer = encase::UniformBuffer::new(Vec::new());
-        buffer
-            .write(&self.uniform())
-            .expect("could not write to camera buffer");
-        queue.write_buffer(&self.buffer, 0, &buffer.into_inner());
+        Self { module }
     }
 }
 
@@ -97,14 +49,10 @@ impl App {
         let surface_config = render::surface_config(ctx);
 
         // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("camera_encase.wgsl"))
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("transform.wgsl"))
             .await
             .unwrap();
-        let shader_str = String::from_utf8(shader_bytes).unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
+        let shader = Shader::new(ctx, shader_bytes);
 
         // Vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -114,12 +62,15 @@ impl App {
         });
 
         // Camera
-        let camera = Camera::new(&device);
+        let camera = render::PerspectiveCamera::new(&device);
+
+        // Transform
+        let transform = render::Transform::new(&device);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render pipeline layout"),
-            bind_group_layouts: &[&camera.bind_group_layout],
+            bind_group_layouts: &[&camera.bind_group_layout, &transform.bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -127,12 +78,12 @@ impl App {
             label: Some("render pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &shader.module,
                 entry_point: "vs_main",
                 buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &shader.module,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
@@ -144,7 +95,7 @@ impl App {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
+                cull_mode: Some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
@@ -158,10 +109,13 @@ impl App {
             multiview: None,
         });
 
+        render::window(ctx).set_cursor_visible(false);
+
         Self {
             vertex_buffer,
             pipeline,
             camera,
+            transform,
         }
     }
 }
@@ -170,21 +124,50 @@ impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
-        if input::key_pressed(ctx, KeyCode::KeyW) {
-            self.camera.pos += vec3(0.0, 1.0, 0.0) * dt;
-        }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
-            self.camera.pos += vec3(0.0, -1.0, 0.0) * dt;
-        }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
-            self.camera.pos += vec3(-1.0, 0.0, 0.0) * dt;
-        }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
-            self.camera.pos += vec3(1.0, 0.0, 0.0) * dt;
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            self.camera.yaw = 0.0;
+            self.camera.pitch = 0.0;
         }
 
-        // let fps = gbase::time::fps(ctx);
-        // println!("fps {fps}");
+        // Camera rotation
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
+            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+            self.camera.yaw += 1.0 * dt * mouse_dx;
+            self.camera.pitch -= 1.0 * dt * mouse_dy;
+        }
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, KeyCode::KeyW) {
+            camera_movement_dir += self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyS) {
+            camera_movement_dir -= self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyA) {
+            camera_movement_dir -= self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyD) {
+            camera_movement_dir += self.camera.right();
+        }
+        if camera_movement_dir != Vec3::ZERO {
+            self.camera.pos += camera_movement_dir.normalize() * dt;
+        }
+
+        // Camera zoom
+        let (_, scroll_y) = input::scroll_delta(ctx);
+        self.camera.fov += scroll_y * dt;
+
+        // Transform movement
+        self.transform.scale.x = gbase::time::time_since_start(ctx)
+            .sin()
+            .abs()
+            .clamp(0.1, 1.0);
+        self.transform.scale.y = gbase::time::time_since_start(ctx)
+            .cos()
+            .abs()
+            .clamp(0.1, 1.0);
+
         false
     }
 
@@ -194,10 +177,9 @@ impl Callbacks for App {
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {
-        let queue = render::queue(ctx);
-
         // update camera uniform
-        self.camera.update_buffer(&queue);
+        self.camera.update_buffer(ctx);
+        self.transform.update_buffer(ctx);
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -205,7 +187,7 @@ impl Callbacks for App {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -218,6 +200,7 @@ impl Callbacks for App {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
+        render_pass.set_bind_group(1, &self.transform.bind_group, &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
@@ -228,7 +211,7 @@ impl Callbacks for App {
 
 #[rustfmt::skip]
 const TRIANGLE_VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.5, -0.5, 0.0]  },
-    Vertex { position: [0.5, -0.5, 0.0]   },
-    Vertex { position: [0.0, 0.5, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0] },
+    Vertex { position: [ 0.5, -0.5, 0.0] },
+    Vertex { position: [ 0.0,  0.5, 0.0] },
 ];

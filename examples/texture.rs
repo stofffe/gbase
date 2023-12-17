@@ -124,7 +124,7 @@ impl App {
         // Vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
+            contents: bytemuck::cast_slice(QUAD_VERTICES),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
@@ -207,7 +207,7 @@ impl Callbacks for App {
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
-        render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
+        render_pass.draw(0..QUAD_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
 
@@ -216,7 +216,7 @@ impl Callbacks for App {
 }
 
 #[rustfmt::skip]
-const TRIANGLE_VERTICES: &[VertexUV] = &[
+const QUAD_VERTICES: &[VertexUV] = &[
     VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
     VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
     VertexUV { position: [-0.5,  0.5, 0.0], uv: [0.0, 0.0] }, // top left

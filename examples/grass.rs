@@ -1,0 +1,277 @@
+use gbase::{
+    filesystem, input,
+    render::{self, Vertex, VertexColor},
+    Callbacks, Context, ContextBuilder, LogLevel,
+};
+use glam::{vec3, Quat, Vec3};
+use std::{f32::consts::PI, path::Path};
+use wgpu::util::DeviceExt;
+use winit::keyboard::KeyCode;
+
+#[pollster::main]
+pub async fn main() {
+    let (mut ctx, ev) = ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .build()
+        .await;
+    let app = App::new(&mut ctx).await;
+    gbase::run(app, ctx, ev).await;
+}
+
+struct App {
+    grass_buffer: wgpu::Buffer,
+    grass_pipeline: wgpu::RenderPipeline,
+    plane_buffer: wgpu::Buffer,
+    plane_pipeline: wgpu::RenderPipeline,
+    plane_transform: render::Transform,
+    camera: render::PerspectiveCamera,
+}
+
+impl App {
+    async fn new(ctx: &mut Context) -> Self {
+        let device = render::device(ctx);
+        let surface_config = render::surface_config(ctx);
+
+        // Shader
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("grass.wgsl"))
+            .await
+            .unwrap();
+        let shader_str = String::from_utf8(shader_bytes).unwrap();
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
+
+        // Camera
+        let camera = render::PerspectiveCamera::new(&device)
+            .pos(vec3(0.0, 1.0, -1.0))
+            .pitch(PI / 4.0);
+
+        // Vertex buffer
+        let grass_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("grass vertex buffer"),
+            contents: bytemuck::cast_slice(GRASS_VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        // Pipeline
+        let grass_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("grass render pipeline layout"),
+                bind_group_layouts: &[&camera.bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let grass_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("grass render pipeline"),
+            layout: Some(&grass_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[Vertex::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        // Plane
+        let plane_transform = render::Transform::new(&device)
+            .rotation(Quat::from_rotation_x(PI / 2.0))
+            .scale(vec3(10.0, 10.0, 1.0));
+
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("shader.wgsl"))
+            .await
+            .unwrap();
+        let shader_str = String::from_utf8(shader_bytes).unwrap();
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
+        let plane_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("plane vertex buffer"),
+            contents: bytemuck::cast_slice(QUAD_VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        let plane_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("render pipeline layout"),
+                bind_group_layouts: &[
+                    &camera.bind_group_layout,
+                    &plane_transform.bind_group_layout,
+                ],
+                push_constant_ranges: &[],
+            });
+
+        let plane_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("render pipeline"),
+            layout: Some(&plane_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[VertexColor::desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+
+        Self {
+            grass_buffer,
+            grass_pipeline,
+            camera,
+            plane_buffer,
+            plane_pipeline,
+            plane_transform,
+        }
+    }
+}
+
+impl Callbacks for App {
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        let dt = gbase::time::delta_time(ctx);
+
+        // Camera rotation
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
+            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+            self.camera.yaw += 1.0 * dt * mouse_dx;
+            self.camera.pitch -= 1.0 * dt * mouse_dy;
+        }
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, KeyCode::KeyW) {
+            camera_movement_dir += self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyS) {
+            camera_movement_dir -= self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyA) {
+            camera_movement_dir -= self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyD) {
+            camera_movement_dir += self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::Space) {
+            camera_movement_dir += self.camera.world_up();
+        }
+        if input::key_pressed(ctx, KeyCode::ShiftLeft) {
+            camera_movement_dir -= self.camera.world_up();
+        }
+        if camera_movement_dir != Vec3::ZERO {
+            self.camera.pos += camera_movement_dir.normalize() * dt;
+        }
+
+        log::info!("{}", gbase::time::fps(ctx));
+        false
+    }
+
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        encoder: &mut wgpu::CommandEncoder,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
+        self.camera.update_buffer(ctx);
+        self.plane_transform.update_buffer(ctx);
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: screen_view,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(&self.plane_pipeline);
+        render_pass.set_vertex_buffer(0, self.plane_buffer.slice(..));
+        render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
+        render_pass.set_bind_group(1, &self.plane_transform.bind_group, &[]);
+        render_pass.draw(0..QUAD_VERTICES.len() as u32, 0..1);
+
+        render_pass.set_pipeline(&self.grass_pipeline);
+        render_pass.set_vertex_buffer(0, self.grass_buffer.slice(..));
+        render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
+        render_pass.draw(0..GRASS_VERTICES.len() as u32, 0..1);
+
+        drop(render_pass);
+
+        false
+    }
+}
+
+#[rustfmt::skip]
+const GRASS_VERTICES: &[Vertex] = &[
+    Vertex { position: [-0.05, 0.0, 0.0]  },
+    Vertex { position: [ 0.05, 0.0, 0.0]  },
+    Vertex { position: [-0.05, 0.3, 0.0]  },
+    Vertex { position: [ 0.05, 0.3, 0.0]  },
+    Vertex { position: [-0.05, 0.6, 0.0]  },
+    Vertex { position: [ 0.05, 0.6, 0.0]  },
+    Vertex { position: [-0.05, 0.9, 0.0]  },
+    Vertex { position: [ 0.05, 0.9, 0.0]  },
+    Vertex { position: [ 0.00, 1.2, 0.0]  },
+];
+
+#[rustfmt::skip]
+const QUAD_VERTICES: &[VertexColor] = &[
+    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
+    VertexColor { position: [ 0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom right
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
+    
+    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
+    VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
+
+];
