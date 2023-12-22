@@ -52,79 +52,82 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
     mut ctx: Context,
 ) {
     event_loop.set_control_flow(ControlFlow::Poll);
-    let _ = event_loop.run(move |event, target| match event {
-        // Update and rendering
-        // Fine to render here since we render every frame
-        Event::AboutToWait => {
-            ctx.render.window.request_redraw();
-        }
-        // Normal events
-        Event::WindowEvent { ref event, .. } => {
-            match event {
-                WindowEvent::RedrawRequested => {
-                    if app.update(&mut ctx) {
-                        target.exit();
-                    }
-                    if app.render(&mut ctx) {
-                        target.exit();
-                    }
-                }
-                WindowEvent::CloseRequested => target.exit(),
-                WindowEvent::Resized(new_size) => ctx.render.resize_window(*new_size),
-                // Keyboard
-                WindowEvent::KeyboardInput { event, .. } => {
-                    let (key, pressed) = (event.physical_key, event.state.is_pressed());
-                    match (key, pressed) {
-                        (PhysicalKey::Code(code), true) => ctx.input.keyboard.set_key(code),
-                        (PhysicalKey::Code(code), false) => ctx.input.keyboard.release_key(code),
-                        (PhysicalKey::Unidentified(code), _) => {
-                            log::error!("pressed/released unidentified key {:?}", code)
+    let _ = event_loop.run(move |event, target| {
+        match event {
+            // Update and rendering
+            Event::AboutToWait => {
+                ctx.render.window.request_redraw();
+            }
+            // Normal events
+            Event::WindowEvent { ref event, .. } => {
+                match event {
+                    WindowEvent::RedrawRequested => {
+                        if app.update(&mut ctx) {
+                            target.exit();
                         }
-                    };
-                }
-                WindowEvent::ModifiersChanged(modifiers) => {
-                    ctx.input.keyboard.modifiers_changed(modifiers)
-                }
-                // Mouse
-                WindowEvent::MouseInput { state, button, .. } => {
-                    match state {
-                        winit::event::ElementState::Pressed => {
-                            ctx.input.mouse.press_button(*button)
+                        if app.render(&mut ctx) {
+                            target.exit();
                         }
-                        winit::event::ElementState::Released => {
-                            ctx.input.mouse.release_button(*button)
+                    }
+                    WindowEvent::CloseRequested => target.exit(),
+                    WindowEvent::Resized(new_size) => ctx.render.resize_window(*new_size),
+                    // Keyboard
+                    WindowEvent::KeyboardInput { event, .. } => {
+                        let (key, pressed) = (event.physical_key, event.state.is_pressed());
+                        match (key, pressed) {
+                            (PhysicalKey::Code(code), true) => ctx.input.keyboard.set_key(code),
+                            (PhysicalKey::Code(code), false) => {
+                                ctx.input.keyboard.release_key(code)
+                            }
+                            (PhysicalKey::Unidentified(code), _) => {
+                                log::error!("pressed/released unidentified key {:?}", code)
+                            }
+                        };
+                    }
+                    WindowEvent::ModifiersChanged(modifiers) => {
+                        ctx.input.keyboard.modifiers_changed(modifiers)
+                    }
+                    // Mouse
+                    WindowEvent::MouseInput { state, button, .. } => {
+                        match state {
+                            winit::event::ElementState::Pressed => {
+                                ctx.input.mouse.press_button(*button)
+                            }
+                            winit::event::ElementState::Released => {
+                                ctx.input.mouse.release_button(*button)
+                            }
+                        };
+                    }
+                    WindowEvent::MouseWheel { delta, .. } => match delta {
+                        winit::event::MouseScrollDelta::LineDelta(x, y) => {
+                            ctx.input.mouse.set_scroll_delta((*x as f64, *y as f64));
                         }
-                    };
-                }
-                WindowEvent::MouseWheel { delta, .. } => match delta {
-                    winit::event::MouseScrollDelta::LineDelta(x, y) => {
-                        ctx.input.mouse.set_scroll_delta((*x as f64, *y as f64));
+                        winit::event::MouseScrollDelta::PixelDelta(pos) => {
+                            ctx.input.mouse.set_scroll_delta((*pos).into());
+                        }
+                    },
+                    WindowEvent::CursorMoved { position, .. } => {
+                        ctx.input.mouse.set_pos((*position).into());
                     }
-                    winit::event::MouseScrollDelta::PixelDelta(pos) => {
-                        ctx.input.mouse.set_scroll_delta((*pos).into());
+                    WindowEvent::CursorEntered { .. } => {
+                        ctx.input.mouse.set_on_screen(true);
                     }
-                },
-                WindowEvent::CursorMoved { position, .. } => {
-                    ctx.input.mouse.set_pos((*position).into());
-                }
-                WindowEvent::CursorEntered { .. } => {
-                    ctx.input.mouse.set_on_screen(true);
-                }
-                WindowEvent::CursorLeft { .. } => {
-                    ctx.input.mouse.set_on_screen(false);
-                }
-                _ => {}
-            };
-        }
-        Event::DeviceEvent { ref event, .. } => {
-            match event {
-                DeviceEvent::MouseMotion { delta } => {
-                    ctx.input.mouse.set_mouse_delta(*delta);
-                }
-                _ => {}
-            };
-        }
-        // TODO RedrawRequested and add app.render ?
-        _ => {}
+                    WindowEvent::CursorLeft { .. } => {
+                        ctx.input.mouse.set_on_screen(false);
+                    }
+                    _ => {}
+                };
+            }
+            Event::DeviceEvent { ref event, .. } => {
+                match event {
+                    DeviceEvent::MouseMotion { delta } => {
+                        ctx.input.mouse.set_mouse_delta(*delta);
+                    }
+                    _ => {}
+                };
+            }
+            // TODO RedrawRequested and add app.render ?
+            _ => {}
+        };
     });
 }

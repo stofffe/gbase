@@ -5,6 +5,8 @@ use std::time::Instant;
 
 use crate::Context;
 
+const FPS_UPDATE_INTERVAL: f32 = 1.0;
+
 pub(crate) struct TimeContext {
     // dt
     start_time: Instant,
@@ -51,7 +53,7 @@ impl TimeContext {
 
         // frame time
         self.frames += 1;
-        let update_frame_time_interval = std::time::Duration::from_secs_f32(0.5);
+        let update_frame_time_interval = std::time::Duration::from_secs_f32(FPS_UPDATE_INTERVAL);
         if now >= self.last_frame_time + update_frame_time_interval {
             let frame_time = update_frame_time_interval.as_secs_f32() / self.frames as f32;
             self.last_ms = frame_time;

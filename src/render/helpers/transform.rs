@@ -5,7 +5,7 @@ use crate::Context;
 
 pub struct Transform {
     pub pos: Vec3,
-    pub rotation: Quat,
+    pub rot: Quat,
     pub scale: Vec3,
 
     pub bind_group_layout: wgpu::BindGroupLayout,
@@ -50,7 +50,7 @@ impl Transform {
         });
         Self {
             pos,
-            rotation,
+            rot: rotation,
             scale,
 
             buffer,
@@ -60,7 +60,7 @@ impl Transform {
     }
 
     pub fn uniform(&self) -> TransformUniform {
-        let matrix = Mat4::from_scale_rotation_translation(self.scale, self.rotation, self.pos);
+        let matrix = Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos);
         TransformUniform { matrix }
     }
 
@@ -78,7 +78,7 @@ impl Transform {
         self
     }
     pub fn rotation(mut self, rotation: Quat) -> Self {
-        self.rotation = rotation;
+        self.rot = rotation;
         self
     }
     pub fn scale(mut self, scale: Vec3) -> Self {
@@ -91,4 +91,3 @@ impl Transform {
 pub struct TransformUniform {
     matrix: Mat4,
 }
-
