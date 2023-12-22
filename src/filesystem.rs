@@ -44,6 +44,13 @@ impl FileSystemContext {
 
         Ok(image_data)
     }
+
+    /// Loads string from file in assets folder
+    pub(crate) async fn load_string(&self, path: &Path) -> anyhow::Result<String> {
+        let bytes = self.load_bytes(path).await?;
+        let str = String::from_utf8(bytes)?;
+        Ok(str)
+    }
 }
 
 //
@@ -52,4 +59,8 @@ impl FileSystemContext {
 
 pub async fn load_bytes(ctx: &Context, path: &Path) -> anyhow::Result<Vec<u8>> {
     ctx.filesystem.load_bytes(path).await
+}
+
+pub async fn load_string(ctx: &Context, path: &Path) -> anyhow::Result<String> {
+    ctx.filesystem.load_string(path).await
 }
