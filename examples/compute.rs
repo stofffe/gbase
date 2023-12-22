@@ -23,10 +23,10 @@ const OUTPUT_MEM_SIZE: u64 = std::mem::size_of::<u32>() as u64 * OUTPUT_SIZE as 
 
 struct App {
     compute_pipeline: wgpu::ComputePipeline,
-    bind_group: wgpu::BindGroup,
     input_buffer: wgpu::Buffer,
     output_buffer: wgpu::Buffer,
     cpu_buffer: wgpu::Buffer,
+    bind_group: wgpu::BindGroup,
 }
 
 impl App {
@@ -160,21 +160,47 @@ impl Callbacks for App {
         queue.submit(Some(encoder.finish()));
 
         // read data from output buffer
-        let buffer_slice = self.cpu_buffer.slice(..);
-        let (sx, rc) = mpsc::channel();
-        buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
-            sx.send(res).unwrap();
-        });
-        device.poll(wgpu::MaintainBase::Wait);
-        if let Ok(()) = rc.recv().unwrap() {
-            let data = buffer_slice.get_mapped_range();
-            let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
-            drop(data);
-            self.cpu_buffer.unmap();
+        let data: Vec<u32> = read_buffer_sync(&device, &self.cpu_buffer);
+        println!("DATA {:?}", data);
 
-            println!("DATA {:?}", result);
-        }
+        // let buffer_slice = self.cpu_buffer.slice(..);
+        // let (sc, rc) = mpsc::channel();
+        // buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        //     sc.send(res).unwrap();
+        // });
+        // device.poll(wgpu::MaintainBase::Wait);
+        // if let Ok(()) = rc.recv().unwrap() {
+        //     let data = buffer_slice.get_mapped_range();
+        //     let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
+        //     drop(data);
+        //     self.cpu_buffer.unmap();
+        //
+        //     println!("DATA {:?}", result);
+        // }
 
         false
     }
+}
+
+/// DEBUG
+///
+/// Reads a mapped buffer
+///
+/// Panics if buffer is not mapped
+fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
+    device: &wgpu::Device,
+    buffer: &wgpu::Buffer,
+) -> Vec<T> {
+    let buffer_slice = buffer.slice(..);
+    let (sc, rc) = mpsc::channel();
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        sc.send(res).unwrap();
+    });
+    device.poll(wgpu::MaintainBase::Wait);
+    let _ = rc.recv().unwrap();
+    let data = buffer_slice.get_mapped_range();
+    let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+    drop(data);
+    buffer.unmap();
+    result
 }

@@ -1,5 +1,5 @@
 pub use winit::keyboard::KeyCode;
-use winit::keyboard::{ModifiersKeyState, ModifiersState};
+use winit::keyboard::ModifiersKeyState;
 
 use crate::Context;
 use std::collections::HashSet;

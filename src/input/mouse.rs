@@ -2,7 +2,7 @@ pub use winit::event::MouseButton;
 
 use std::collections::HashSet;
 
-use crate::{render, Context};
+use crate::Context;
 
 #[derive(Default)]
 pub(crate) struct MouseContext {
