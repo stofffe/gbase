@@ -22,8 +22,14 @@ fn vs_main(
     var out: VertexOutput;
     let rot = instance.rot.x;
     let curve_amount = instance.rot.y * model.position.y / 1.0;
-    let pos = instance.pos + (rot_y(rot) * rot_z(curve_amount) * model.position);
+    let rotated_pos = rot_y(rot) * rot_z(-curve_amount) * model.position;
+    let pos = instance.pos + rotated_pos;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
+    out.pos = pos;
+
+    let normal = vec3<f32>(0.0, 0.0, -1.0);
+    let rotated_normal = normalize(rot_y(rot) * rot_z(-curve_amount) * normal);
+    out.normal = rotated_normal;
     return out;
 }
 
@@ -31,11 +37,19 @@ fn vs_main(
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
+    @location(0) pos: vec3<f32>,
+    @location(1) normal: vec3<f32>,
 };
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(0.2, 0.8, 0.2, 1.0);
+    let light_pos = vec3<f32>(0.0, 10.0, 0.0);
+    let light_dir = normalize(light_pos - in.pos);
+    let diffuse = 0.7 * clamp(dot(light_dir, in.normal), 0.0, 1.0);
+    let ambient = 0.1;
+    let light = clamp(diffuse + ambient, 0.0, 1.0);
+    let color = vec3<f32>(0.2, 0.8, 0.2) * light;
+    return vec4<f32>(color, 1.0);
 }
 
 fn rot_x(angle: f32) -> mat3x3<f32> {
