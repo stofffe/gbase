@@ -179,13 +179,9 @@ impl App {
 }
 
 impl Callbacks for App {
-    fn update(&mut self, ctx: &mut Context) -> bool {
-        false
-    }
-
     fn render(
         &mut self,
-        ctx: &mut Context,
+        _ctx: &mut Context,
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {

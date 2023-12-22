@@ -25,23 +25,6 @@ struct App {
     camera: render::PerspectiveCamera,
 }
 
-struct Shader {
-    module: wgpu::ShaderModule,
-}
-
-impl Shader {
-    fn new(ctx: &mut Context, bytes: Vec<u8>) -> Self {
-        let device = render::device(ctx);
-        let shader_str =
-            String::from_utf8(bytes).expect("could not convert shader bytes to string");
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
-        Self { module }
-    }
-}
-
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
@@ -51,7 +34,7 @@ impl App {
         let shader_bytes = filesystem::load_bytes(ctx, Path::new("camera.wgsl"))
             .await
             .unwrap();
-        let shader = Shader::new(ctx, shader_bytes);
+        let shader = render::Shader::new(ctx, shader_bytes);
 
         // Vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

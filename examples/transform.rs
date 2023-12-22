@@ -1,12 +1,11 @@
 use gbase::{
-    filesystem, input,
+    filesystem,
     render::{self, Vertex},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec3, Vec3};
+use glam::{Quat, Vec3};
 use std::path::Path;
 use wgpu::util::DeviceExt;
-use winit::keyboard::KeyCode;
 
 #[pollster::main]
 pub async fn main() {
@@ -22,25 +21,7 @@ pub async fn main() {
 struct App {
     vertex_buffer: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
-    camera: render::PerspectiveCamera,
     transform: render::Transform,
-}
-
-struct Shader {
-    module: wgpu::ShaderModule,
-}
-
-impl Shader {
-    fn new(ctx: &mut Context, bytes: Vec<u8>) -> Self {
-        let device = render::device(ctx);
-        let shader_str =
-            String::from_utf8(bytes).expect("could not convert shader bytes to string");
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
-        Self { module }
-    }
 }
 
 impl App {
@@ -52,7 +33,7 @@ impl App {
         let shader_bytes = filesystem::load_bytes(ctx, Path::new("transform.wgsl"))
             .await
             .unwrap();
-        let shader = Shader::new(ctx, shader_bytes);
+        let shader = render::Shader::new(ctx, shader_bytes);
 
         // Vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -61,16 +42,13 @@ impl App {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
-        // Camera
-        let camera = render::PerspectiveCamera::new(&device);
-
         // Transform
         let transform = render::Transform::new(&device);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render pipeline layout"),
-            bind_group_layouts: &[&camera.bind_group_layout, &transform.bind_group_layout],
+            bind_group_layouts: &[&transform.bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -114,7 +92,6 @@ impl App {
         Self {
             vertex_buffer,
             pipeline,
-            camera,
             transform,
         }
     }
@@ -122,51 +99,12 @@ impl App {
 
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
-        let dt = gbase::time::delta_time(ctx);
-
-        if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.camera.yaw = 0.0;
-            self.camera.pitch = 0.0;
-        }
-
-        // Camera rotation
-        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw += 1.0 * dt * mouse_dx;
-            self.camera.pitch -= 1.0 * dt * mouse_dy;
-        }
-
-        // Camera movement
-        let mut camera_movement_dir = Vec3::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
-            camera_movement_dir += self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
-            camera_movement_dir -= self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
-            camera_movement_dir -= self.camera.right();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
-            camera_movement_dir += self.camera.right();
-        }
-        if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt;
-        }
-
-        // Camera zoom
-        let (_, scroll_y) = input::scroll_delta(ctx);
-        self.camera.fov += scroll_y * dt;
-
         // Transform movement
-        self.transform.scale.x = gbase::time::time_since_start(ctx)
-            .sin()
-            .abs()
-            .clamp(0.1, 1.0);
-        self.transform.scale.y = gbase::time::time_since_start(ctx)
-            .cos()
-            .abs()
-            .clamp(0.1, 1.0);
+        let t = gbase::time::time_since_start(ctx);
+        self.transform.pos.x = t.sin() * 0.5;
+        self.transform.pos.y = t.sin() * 0.5;
+        self.transform.rot = Quat::from_rotation_z(t);
+        self.transform.scale = Vec3::ONE * t.cos().abs().clamp(0.1, 1.0);
 
         false
     }
@@ -178,7 +116,6 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> bool {
         // update camera uniform
-        self.camera.update_buffer(ctx);
         self.transform.update_buffer(ctx);
 
         // render
@@ -199,8 +136,7 @@ impl Callbacks for App {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
-        render_pass.set_bind_group(1, &self.transform.bind_group, &[]);
+        render_pass.set_bind_group(0, &self.transform.bind_group, &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);

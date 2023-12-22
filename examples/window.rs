@@ -3,7 +3,7 @@ use gbase::{Callbacks, Context, ContextBuilder};
 struct App {}
 
 impl Callbacks for App {
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, _ctx: &mut Context) -> bool {
         log::info!("info");
         log::warn!("warn");
         log::error!("error");

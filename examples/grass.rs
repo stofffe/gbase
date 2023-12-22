@@ -12,6 +12,7 @@ use winit::keyboard::KeyCode;
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .log_level(LogLevel::Info)
+        .vsync(false)
         .build()
         .await;
     let app = App::new(&mut ctx).await;
@@ -24,19 +25,20 @@ struct App {
     plane_buffer: wgpu::Buffer,
     plane_pipeline: wgpu::RenderPipeline,
     plane_transform: render::Transform,
+    instances: Instances,
     camera: render::PerspectiveCamera,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
+        let queue = render::queue(ctx);
         let surface_config = render::surface_config(ctx);
 
         // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("grass.wgsl"))
+        let shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
             .await
             .unwrap();
-        let shader_str = String::from_utf8(shader_bytes).unwrap();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(shader_str.into()),
@@ -54,6 +56,31 @@ impl App {
             usage: wgpu::BufferUsages::VERTEX,
         });
 
+        // Instances
+        let mut instances = Instances::new(&device, 10 * 10);
+        for x in -5..5 {
+            for z in -5..5 {
+                instances.vec.push(Instance {
+                    pos: vec3(x as f32, 0.0, z as f32),
+                })
+            }
+        }
+        instances.update_buffer(&queue);
+        // let instances = vec![
+        //     Instance {
+        //         pos: vec3(0.0, 0.0, 0.0),
+        //     },
+        //     Instance {
+        //         pos: vec3(1.0, 0.0, 0.0),
+        //     },
+        // ];
+        // let instances_raw = instances.iter().map(Instance::to_gpu).collect::<Vec<_>>();
+        // let instance_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        //     label: Some("instance buffer"),
+        //     contents: bytemuck::cast_slice(&instances_raw),
+        //     usage: wgpu::BufferUsages::VERTEX,
+        // });
+
         // Pipeline
         let grass_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -68,7 +95,7 @@ impl App {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
+                buffers: &[Vertex::desc(), GPUInstance::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -167,49 +194,12 @@ impl App {
             plane_buffer,
             plane_pipeline,
             plane_transform,
+            instances,
         }
     }
 }
 
 impl Callbacks for App {
-    fn update(&mut self, ctx: &mut Context) -> bool {
-        let dt = gbase::time::delta_time(ctx);
-
-        // Camera rotation
-        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw += 1.0 * dt * mouse_dx;
-            self.camera.pitch -= 1.0 * dt * mouse_dy;
-        }
-
-        // Camera movement
-        let mut camera_movement_dir = Vec3::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
-            camera_movement_dir += self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
-            camera_movement_dir -= self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
-            camera_movement_dir -= self.camera.right();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
-            camera_movement_dir += self.camera.right();
-        }
-        if input::key_pressed(ctx, KeyCode::Space) {
-            camera_movement_dir += self.camera.world_up();
-        }
-        if input::key_pressed(ctx, KeyCode::ShiftLeft) {
-            camera_movement_dir -= self.camera.world_up();
-        }
-        if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt;
-        }
-
-        log::info!("{}", gbase::time::fps(ctx));
-        false
-    }
-
     fn render(
         &mut self,
         ctx: &mut Context,
@@ -218,6 +208,7 @@ impl Callbacks for App {
     ) -> bool {
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
+        // update instance buffer?
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
@@ -242,11 +233,54 @@ impl Callbacks for App {
 
         render_pass.set_pipeline(&self.grass_pipeline);
         render_pass.set_vertex_buffer(0, self.grass_buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
-        render_pass.draw(0..GRASS_VERTICES.len() as u32, 0..1);
+        render_pass.draw(
+            0..GRASS_VERTICES.len() as u32,
+            0..self.instances.vec.len() as u32,
+        ); // TODO hardcoded
 
         drop(render_pass);
 
+        false
+    }
+
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        let dt = gbase::time::delta_time(ctx);
+
+        // Camera rotation
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
+            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+            self.camera.yaw += 1.0 * dt * mouse_dx;
+            self.camera.pitch -= 1.0 * dt * mouse_dy;
+        }
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, KeyCode::KeyW) {
+            camera_movement_dir += self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyS) {
+            camera_movement_dir -= self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyA) {
+            camera_movement_dir -= self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyD) {
+            camera_movement_dir += self.camera.right();
+        }
+        camera_movement_dir.y = 0.0;
+        if input::key_pressed(ctx, KeyCode::Space) {
+            camera_movement_dir += self.camera.world_up();
+        }
+        if input::key_pressed(ctx, KeyCode::ShiftLeft) {
+            camera_movement_dir -= self.camera.world_up();
+        }
+        if camera_movement_dir != Vec3::ZERO {
+            self.camera.pos += camera_movement_dir.normalize() * dt;
+        }
+
+        log::info!("{}", gbase::time::fps(ctx));
         false
     }
 }
@@ -275,3 +309,58 @@ const QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
 
 ];
+
+struct Instances {
+    vec: Vec<Instance>,
+    buffer: wgpu::Buffer,
+}
+
+impl Instances {
+    fn new(device: &wgpu::Device, size: u64) -> Self {
+        let vec = Vec::with_capacity(size as usize);
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance buffer"),
+            size: GPUInstance::SIZE * size,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        Self { vec, buffer }
+    }
+
+    fn update_buffer(&self, queue: &wgpu::Queue) {
+        let gpu_vec = self.vec.iter().map(Instance::to_gpu).collect::<Vec<_>>();
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&gpu_vec));
+    }
+}
+
+struct Instance {
+    pos: Vec3,
+}
+
+impl Instance {
+    fn to_gpu(&self) -> GPUInstance {
+        GPUInstance {
+            pos: self.pos.to_array(),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct GPUInstance {
+    pos: [f32; 3],
+}
+
+impl GPUInstance {
+    const SIZE: u64 = std::mem::size_of::<Self>() as u64;
+    const ATTRIBUTES: [wgpu::VertexAttribute; 1] = wgpu::vertex_attr_array![
+        1=>Float32x3,
+    ];
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: Self::SIZE,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &Self::ATTRIBUTES,
+        }
+    }
+}
