@@ -137,7 +137,7 @@ pub fn adapter(ctx: &Context) -> Arc<wgpu::Adapter> {
 pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
     ctx.render.window.clone()
 }
-pub fn surface_config(ctx: &mut Context) -> wgpu::SurfaceConfiguration {
+pub fn surface_config(ctx: &Context) -> wgpu::SurfaceConfiguration {
     ctx.render.surface_config.clone()
 }
 
