@@ -4,7 +4,6 @@ use gbase::{
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
-use rand::Rng;
 use std::{
     collections::hash_map::DefaultHasher,
     f32::consts::PI,
@@ -40,7 +39,6 @@ struct App {
     plane_transform: render::Transform,
     instances: Instances,
     camera: render::PerspectiveCamera,
-    random: rand::rngs::ThreadRng,
 }
 
 impl App {
@@ -179,8 +177,6 @@ impl App {
             multiview: None,
         });
 
-        let random = rand::thread_rng();
-
         Self {
             grass_buffer,
             grass_pipeline,
@@ -189,7 +185,6 @@ impl App {
             plane_pipeline,
             plane_transform,
             instances,
-            random,
         }
     }
 }
@@ -311,8 +306,7 @@ impl App {
 
 fn grass_hash(tile: [i32; 2], i: u32, j: u32) -> u64 {
     let mut hasher = DefaultHasher::new();
-    tile[0].hash(&mut hasher);
-    tile[1].hash(&mut hasher);
+    tile.hash(&mut hasher);
     i.hash(&mut hasher);
     j.hash(&mut hasher);
     hasher.finish()

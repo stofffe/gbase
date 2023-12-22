@@ -20,9 +20,9 @@ fn vs_main(
     instance: Instance,
 ) -> VertexOutput {
     var out: VertexOutput;
-    let roty = instance.rot.x;
-    let rotz = instance.rot.y;
-    let pos = instance.pos + (rot_y(roty) * rot_z(rotz) * model.position);
+    let rot = instance.rot.x;
+    let curve_amount = instance.rot.y * model.position.y / 1.0;
+    let pos = instance.pos + (rot_y(rot) * rot_z(curve_amount) * model.position);
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
     return out;
 }
