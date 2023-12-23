@@ -117,7 +117,7 @@ impl App {
             label: Some("compute pipeline"),
             layout: Some(&compute_pipeline_descriptor),
             module: &shader,
-            entry_point: "main",
+            entry_point: "cs_main",
         });
 
         Self {

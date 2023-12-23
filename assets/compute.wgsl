@@ -3,7 +3,7 @@
 
 @compute
 @workgroup_size(1, 1, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let i = global_id.x;
     output[i] = input[i * u32(2)] + input[i * u32(2) + u32(1)];
 }
