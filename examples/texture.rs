@@ -4,7 +4,6 @@ use gbase::{
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use std::path::Path;
-use wgpu::util::DeviceExt;
 
 #[pollster::main]
 pub async fn main() {
@@ -17,7 +16,7 @@ pub async fn main() {
 }
 
 struct App {
-    vertex_buffer: wgpu::Buffer,
+    vertex_buffer: render::VertexBuffer<VertexUV>,
     texture: render::Texture,
     pipeline: wgpu::RenderPipeline,
 }
@@ -25,7 +24,6 @@ struct App {
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
-        let queue = render::queue(ctx);
         let surface_config = render::surface_config(ctx);
 
         // Shader
@@ -45,11 +43,7 @@ impl App {
         let texture = render::Texture::new(ctx, texture_bytes);
 
         // Vertex buffer
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(QUAD_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let vertex_buffer = render::VertexBuffer::new(&device, QUAD_VERTICES);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -64,14 +58,14 @@ impl App {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[VertexUV::desc()],
+                buffers: &[vertex_buffer.desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -124,7 +118,7 @@ impl Callbacks for App {
         });
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer.slice(..));
         render_pass.set_bind_group(0, &self.texture.bind_group, &[]);
         render_pass.draw(0..QUAD_VERTICES.len() as u32, 0..1);
 

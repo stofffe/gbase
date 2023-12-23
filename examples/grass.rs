@@ -33,9 +33,9 @@ const PLANE_SIZE: f32 = 100.0;
 const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
-    grass_buffer: wgpu::Buffer,
+    grass_buffer: render::VertexBuffer<Vertex>,
     grass_pipeline: wgpu::RenderPipeline,
-    plane_buffer: wgpu::Buffer,
+    plane_buffer: render::VertexBuffer<VertexColor>,
     plane_pipeline: wgpu::RenderPipeline,
     plane_transform: render::Transform,
     instances: Instances,
@@ -46,7 +46,6 @@ struct App {
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
-        let queue = render::queue(ctx);
         let surface_config = render::surface_config(ctx);
 
         // Shader
@@ -64,11 +63,7 @@ impl App {
             .pitch(PI / 4.0);
 
         // Vertex buffer
-        let grass_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("grass vertex buffer"),
-            contents: bytemuck::cast_slice(GRASS_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
 
         // Instances
         let instances = Instances::new(&device, BLADES_PER_TILE as u64);
@@ -87,7 +82,7 @@ impl App {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[Vertex::desc(), GPUInstance::desc()],
+                buffers: &[grass_buffer.desc(), GPUInstance::desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -127,19 +122,15 @@ impl App {
             .rotation(Quat::from_rotation_x(PI / 2.0))
             .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0));
 
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("shader.wgsl"))
+        let shader_str = filesystem::load_string(ctx, Path::new("shader.wgsl"))
             .await
             .unwrap();
-        let shader_str = String::from_utf8(shader_bytes).unwrap();
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(shader_str.into()),
         });
-        let plane_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("plane vertex buffer"),
-            contents: bytemuck::cast_slice(CENTERED_QUAD_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+
+        let plane_buffer = render::VertexBuffer::new(&device, CENTERED_QUAD_VERTICES);
         let plane_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render pipeline layout"),
@@ -156,7 +147,7 @@ impl App {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[VertexColor::desc()],
+                buffers: &[plane_buffer.desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -240,13 +231,13 @@ impl Callbacks for App {
         });
 
         render_pass.set_pipeline(&self.plane_pipeline);
-        render_pass.set_vertex_buffer(0, self.plane_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, self.plane_buffer.buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
         render_pass.set_bind_group(1, &self.plane_transform.bind_group, &[]);
         render_pass.draw(0..CENTERED_QUAD_VERTICES.len() as u32, 0..1);
 
         render_pass.set_pipeline(&self.grass_pipeline);
-        render_pass.set_vertex_buffer(0, self.grass_buffer.slice(..));
+        render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
         render_pass.draw(
