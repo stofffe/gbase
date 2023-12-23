@@ -40,7 +40,6 @@ struct App {
     plane_transform: render::Transform,
     instances: Instances,
     camera: render::PerspectiveCamera,
-    depth_buffer: render::DepthBuffer,
 }
 
 impl App {
@@ -182,8 +181,6 @@ impl App {
             multiview: None,
         });
 
-        let depth_buffer = render::DepthBuffer::new(ctx);
-
         Self {
             grass_buffer,
             grass_pipeline,
@@ -192,7 +189,6 @@ impl App {
             plane_pipeline,
             plane_transform,
             instances,
-            depth_buffer,
         }
     }
 }
@@ -219,7 +215,7 @@ impl Callbacks for App {
                 resolve_target: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_buffer.view,
+                view: &render::depth_buffer(ctx).view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -251,13 +247,13 @@ impl Callbacks for App {
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
-        let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
-        // println!("pos: {}, tile {}", self.camera.pos, current_tile);
         self.plane_transform.pos.x = self.camera.pos.x;
         self.plane_transform.pos.z = self.camera.pos.z;
 
         // update instances
         self.instances.vec.clear();
+
+        // let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
         // for i in 0..BLADES_PER_TILE_SIDE {
         //     for j in 0..BLADES_PER_TILE_SIDE {
         //         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;

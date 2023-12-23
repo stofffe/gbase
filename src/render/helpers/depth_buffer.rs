@@ -9,10 +9,7 @@ pub struct DepthBuffer {
 }
 
 impl DepthBuffer {
-    pub fn new(ctx: &Context) -> Self {
-        let device = render::device(ctx);
-        let surface_conf = render::surface_config(ctx);
-
+    pub fn new(device: &wgpu::Device, surface_conf: &wgpu::SurfaceConfiguration) -> Self {
         let texture = Self::create_texture(&device, &surface_conf);
         let view = Self::create_view(&texture);
         let sampler = Self::create_sampler(&device);
@@ -28,10 +25,11 @@ impl DepthBuffer {
         }
     }
 
-    pub fn resize(&mut self, ctx: &Context) {
-        let device = render::device(ctx);
-        let surface_conf = render::surface_config(ctx);
-
+    pub fn resize_to_window(
+        &mut self,
+        device: &wgpu::Device,
+        surface_conf: &wgpu::SurfaceConfiguration,
+    ) {
         self.texture = Self::create_texture(&device, &surface_conf);
         self.view = Self::create_view(&self.texture);
         self.bind_group =

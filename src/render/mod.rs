@@ -6,14 +6,16 @@ use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
-    pub surface: Arc<wgpu::Surface>,
-    pub device: Arc<wgpu::Device>,
-    pub adapter: Arc<wgpu::Adapter>,
-    pub queue: Arc<wgpu::Queue>,
+    surface: Arc<wgpu::Surface>,
+    device: Arc<wgpu::Device>,
+    adapter: Arc<wgpu::Adapter>,
+    queue: Arc<wgpu::Queue>,
 
-    pub surface_config: wgpu::SurfaceConfiguration,
-    pub window_size: winit::dpi::PhysicalSize<u32>,
-    pub window: Arc<winit::window::Window>,
+    surface_config: wgpu::SurfaceConfiguration,
+    window_size: winit::dpi::PhysicalSize<u32>,
+    window: Arc<winit::window::Window>,
+
+    depth_buffer: helpers::DepthBuffer,
 }
 
 impl RenderContext {
@@ -79,6 +81,8 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
+        let depth_buffer = helpers::DepthBuffer::new(&device, &surface_config);
+
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -89,6 +93,8 @@ impl RenderContext {
 
             window_size,
             window: Arc::new(window),
+
+            depth_buffer,
         }
     }
 
@@ -104,11 +110,18 @@ impl RenderContext {
         self.surface_config.width = new_size.width;
         self.surface_config.height = new_size.height;
         self.surface.configure(&self.device, &self.surface_config);
+
+        self.depth_buffer
+            .resize_to_window(&self.device, &self.surface_config);
     }
 
     /// Resizes the window to the last safe window size
     pub(crate) fn recover_window(&mut self) {
         self.resize_window(self.window_size)
+    }
+
+    pub(crate) fn window(&self) -> &winit::window::Window {
+        &self.window
     }
 
     pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
@@ -139,6 +152,9 @@ pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
 }
 pub fn surface_config(ctx: &Context) -> wgpu::SurfaceConfiguration {
     ctx.render.surface_config.clone()
+}
+pub fn depth_buffer(ctx: &Context) -> &helpers::DepthBuffer {
+    &ctx.render.depth_buffer
 }
 
 // /// Creates a render pass which renders to the current window

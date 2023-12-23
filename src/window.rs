@@ -56,7 +56,7 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
         match event {
             // Update and rendering
             Event::AboutToWait => {
-                ctx.render.window.request_redraw();
+                ctx.render.window().request_redraw();
             }
             // Normal events
             Event::WindowEvent { ref event, .. } => {
