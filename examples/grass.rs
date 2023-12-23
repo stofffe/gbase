@@ -40,7 +40,7 @@ struct App {
     plane_transform: render::Transform,
     instances: Instances,
     camera: render::PerspectiveCamera,
-    depth_buffer: DepthBuffer,
+    depth_buffer: render::DepthBuffer,
 }
 
 impl App {
@@ -191,7 +191,7 @@ impl App {
             multiview: None,
         });
 
-        let depth_buffer = DepthBuffer::new(ctx);
+        let depth_buffer = render::DepthBuffer::new(ctx);
 
         Self {
             grass_buffer,
@@ -216,7 +216,6 @@ impl Callbacks for App {
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
         self.instances.update_buffer(ctx);
-        // update instance buffer?
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
@@ -386,60 +385,6 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
 
 ];
-
-struct DepthBuffer {
-    // TODO bindgroup
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
-}
-
-impl DepthBuffer {
-    fn new(ctx: &Context) -> Self {
-        let device = render::device(ctx);
-        let surface_conf = render::surface_config(ctx);
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("depth texture"),
-            size: wgpu::Extent3d {
-                width: surface_conf.width,
-                height: surface_conf.height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-            view_formats: &[wgpu::TextureFormat::Depth32Float],
-        });
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("depth texture view"),
-            ..Default::default()
-        });
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("depth texture sampler"),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 100.0,
-            anisotropy_clamp: 1,
-            border_color: None,
-        });
-
-        Self {
-            texture,
-            view,
-            sampler,
-        }
-    }
-}
 
 struct Instances {
     vec: Vec<Instance>,
