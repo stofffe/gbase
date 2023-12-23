@@ -30,10 +30,13 @@ impl App {
         let surface_config = render::surface_config(ctx);
 
         // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("transform.wgsl"))
+        let shader_str = filesystem::load_string(ctx, Path::new("transform.wgsl"))
             .await
             .unwrap();
-        let shader = render::Shader::new(ctx, shader_bytes);
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
 
         // Vertex buffer
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -56,12 +59,12 @@ impl App {
             label: Some("render pipeline"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader.module,
+                module: &shader,
                 entry_point: "vs_main",
                 buffers: &[Vertex::desc()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader.module,
+                module: &shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
