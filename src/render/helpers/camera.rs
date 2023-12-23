@@ -20,6 +20,7 @@ pub struct PerspectiveCamera {
 #[derive(ShaderType)]
 pub struct PerspectiveCameraUniform {
     view_proj: Mat4,
+    pos: Vec3,
 }
 
 impl PerspectiveCamera {
@@ -36,7 +37,7 @@ impl PerspectiveCamera {
                 label: Some("camera bg layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -102,15 +103,14 @@ impl PerspectiveCamera {
         // left handed coords
         self.pitch = self.pitch.clamp(MIN_PITCH, MAX_PITCH);
         self.fov = self.fov.clamp(MIN_FOV, MAX_FOV);
-
         let view = Mat4::look_to_lh(self.pos, self.forward(), self.up());
         let aspect = ctx.render.aspect_ratio();
-
         let projection = Mat4::perspective_lh(self.fov, aspect, self.znear, self.zfar);
-
         let view_proj = projection * view;
 
-        PerspectiveCameraUniform { view_proj }
+        let pos = self.pos;
+
+        PerspectiveCameraUniform { view_proj, pos }
     }
 
     pub fn update_buffer(&mut self, ctx: &Context) {
