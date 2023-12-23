@@ -3,7 +3,7 @@ use gbase::{
     render::{self, Vertex, VertexColor},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
+use glam::{ivec2, vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{
     collections::hash_map::DefaultHasher,
     f32::consts::PI,
@@ -30,6 +30,7 @@ const BLADES_PER_TILE_SIDE: u32 = 20;
 const BLADES_PER_TILE: u32 = BLADES_PER_TILE_SIDE * BLADES_PER_TILE_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
+const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
     grass_buffer: wgpu::Buffer,
@@ -39,6 +40,7 @@ struct App {
     plane_transform: render::Transform,
     instances: Instances,
     camera: render::PerspectiveCamera,
+    depth_buffer: DepthBuffer,
 }
 
 impl App {
@@ -105,7 +107,13 @@ impl App {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -168,7 +176,13 @@ impl App {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -176,6 +190,8 @@ impl App {
             },
             multiview: None,
         });
+
+        let depth_buffer = DepthBuffer::new(ctx);
 
         Self {
             grass_buffer,
@@ -185,6 +201,7 @@ impl App {
             plane_pipeline,
             plane_transform,
             instances,
+            depth_buffer,
         }
     }
 }
@@ -211,7 +228,14 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_buffer.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -238,21 +262,38 @@ impl Callbacks for App {
 
     fn update(&mut self, ctx: &mut Context) -> bool {
         let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
-        println!("pos: {}, tile {}", self.camera.pos, current_tile);
+        // println!("pos: {}, tile {}", self.camera.pos, current_tile);
         self.plane_transform.pos.x = self.camera.pos.x;
         self.plane_transform.pos.z = self.camera.pos.z;
 
         // update instances
         self.instances.vec.clear();
+        // for i in 0..BLADES_PER_TILE_SIDE {
+        //     for j in 0..BLADES_PER_TILE_SIDE {
+        //         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+        //         let y = 0.0;
+        //         let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
+        //         let hash = grass_hash(current_tile.to_array(), i, j);
+        //         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+        //         let roty = hash_f32 * PI * 2.0;
+        //         let rotz = hash_f32 * PI / 4.0;
+        //         // let rotz = PI / 4.0;
+        //         self.instances.vec.push(Instance {
+        //             pos: vec3(x, y, z),
+        //             rot: vec2(roty, rotz),
+        //         });
+        //     }
+        // }
         for i in 0..BLADES_PER_TILE_SIDE {
             for j in 0..BLADES_PER_TILE_SIDE {
-                let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+                let x = i as f32 / TILE_SIZE;
                 let y = 0.0;
-                let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
-                let hash = grass_hash(current_tile.to_array(), i, j);
+                let z = j as f32 / TILE_SIZE;
+                let hash = grass_hash([0, 0], i, j);
                 let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
                 let roty = hash_f32 * PI * 2.0;
                 let rotz = hash_f32 * PI / 4.0;
+                // let rotz = PI / 4.0;
                 self.instances.vec.push(Instance {
                     pos: vec3(x, y, z),
                     rot: vec2(roty, rotz),
@@ -322,7 +363,9 @@ const GRASS_VERTICES: &[Vertex] = &[
     Vertex { position: [ 0.05, 0.6, 0.0]  },
     Vertex { position: [-0.05, 0.9, 0.0]  },
     Vertex { position: [ 0.05, 0.9, 0.0]  },
-    Vertex { position: [ 0.00, 1.2, 0.0]  },
+    Vertex { position: [-0.05, 1.2, 0.0]  },
+    Vertex { position: [ 0.05, 1.2, 0.0]  },
+    Vertex { position: [ 0.00, 1.5, 0.0]  },
 ];
 
 #[rustfmt::skip]
@@ -343,6 +386,60 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
 
 ];
+
+struct DepthBuffer {
+    // TODO bindgroup
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+}
+
+impl DepthBuffer {
+    fn new(ctx: &Context) -> Self {
+        let device = render::device(ctx);
+        let surface_conf = render::surface_config(ctx);
+
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("depth texture"),
+            size: wgpu::Extent3d {
+                width: surface_conf.width,
+                height: surface_conf.height,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[wgpu::TextureFormat::Depth32Float],
+        });
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("depth texture view"),
+            ..Default::default()
+        });
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("depth texture sampler"),
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            compare: Some(wgpu::CompareFunction::LessEqual),
+            lod_min_clamp: 0.0,
+            lod_max_clamp: 100.0,
+            anisotropy_clamp: 1,
+            border_color: None,
+        });
+
+        Self {
+            texture,
+            view,
+            sampler,
+        }
+    }
+}
 
 struct Instances {
     vec: Vec<Instance>,
