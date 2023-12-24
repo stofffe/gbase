@@ -7,6 +7,7 @@ pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
 
 pub struct VertexBuffer<T: VertexTrait> {
     pub buffer: wgpu::Buffer,
+    len: u32,
     ty: PhantomData<T>,
 }
 
@@ -20,12 +21,18 @@ impl<T: VertexTrait> VertexBuffer<T> {
         });
         Self {
             buffer,
+            len: vertices.len() as u32,
             ty: PhantomData::<T>,
         }
     }
 
     pub fn desc(&self) -> wgpu::VertexBufferLayout<'static> {
         T::desc()
+    }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> u32 {
+        self.len
     }
 }
 

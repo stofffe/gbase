@@ -1,5 +1,3 @@
-use crate::{render, Context};
-
 pub struct DepthBuffer {
     pub texture: wgpu::Texture,
     pub view: wgpu::TextureView,
@@ -10,11 +8,11 @@ pub struct DepthBuffer {
 
 impl DepthBuffer {
     pub fn new(device: &wgpu::Device, surface_conf: &wgpu::SurfaceConfiguration) -> Self {
-        let texture = Self::create_texture(&device, &surface_conf);
+        let texture = Self::create_texture(device, surface_conf);
         let view = Self::create_view(&texture);
-        let sampler = Self::create_sampler(&device);
-        let bind_group_layout = Self::create_bind_group_layout(&device);
-        let bind_group = Self::create_bind_group(&device, &view, &sampler, &bind_group_layout);
+        let sampler = Self::create_sampler(device);
+        let bind_group_layout = Self::create_bind_group_layout(device);
+        let bind_group = Self::create_bind_group(device, &view, &sampler, &bind_group_layout);
 
         Self {
             texture,
@@ -30,10 +28,10 @@ impl DepthBuffer {
         device: &wgpu::Device,
         surface_conf: &wgpu::SurfaceConfiguration,
     ) {
-        self.texture = Self::create_texture(&device, &surface_conf);
+        self.texture = Self::create_texture(device, surface_conf);
         self.view = Self::create_view(&self.texture);
         self.bind_group =
-            Self::create_bind_group(&device, &self.view, &self.sampler, &self.bind_group_layout);
+            Self::create_bind_group(device, &self.view, &self.sampler, &self.bind_group_layout);
     }
 
     fn create_texture(

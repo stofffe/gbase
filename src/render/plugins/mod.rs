@@ -1,3 +1,5 @@
+// This module contains boilerplate code for rendering using wgpu
+
 mod vertex;
 pub use vertex::*;
 
@@ -12,3 +14,6 @@ pub use depth_buffer::*;
 
 mod texture;
 pub use texture::*;
+
+mod instance;
+pub use instance::*;

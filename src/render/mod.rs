@@ -1,5 +1,5 @@
-mod helpers;
-pub use helpers::*;
+mod plugins;
+pub use plugins::*;
 
 use crate::Context;
 use std::sync::Arc;
@@ -15,7 +15,7 @@ pub(crate) struct RenderContext {
     window_size: winit::dpi::PhysicalSize<u32>,
     window: Arc<winit::window::Window>,
 
-    depth_buffer: helpers::DepthBuffer,
+    depth_buffer: plugins::DepthBuffer,
 }
 
 impl RenderContext {
@@ -81,7 +81,7 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
-        let depth_buffer = helpers::DepthBuffer::new(&device, &surface_config);
+        let depth_buffer = plugins::DepthBuffer::new(&device, &surface_config);
 
         Self {
             device: Arc::new(device),
@@ -153,7 +153,7 @@ pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
 pub fn surface_config(ctx: &Context) -> wgpu::SurfaceConfiguration {
     ctx.render.surface_config.clone()
 }
-pub fn depth_buffer(ctx: &Context) -> &helpers::DepthBuffer {
+pub fn depth_buffer(ctx: &Context) -> &plugins::DepthBuffer {
     &ctx.render.depth_buffer
 }
 

@@ -1,9 +1,9 @@
 use gbase::{
     filesystem, input,
-    render::{self, Vertex, VertexColor},
+    render::{self, InstaceTrait, InstanceGpuTrait, Vertex, VertexColor},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{ivec2, vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
+use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{
     collections::hash_map::DefaultHasher,
     f32::consts::PI,
@@ -11,7 +11,6 @@ use std::{
     ops::Div,
     path::Path,
 };
-use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -30,7 +29,7 @@ const BLADES_PER_TILE_SIDE: u32 = 20;
 const BLADES_PER_TILE: u32 = BLADES_PER_TILE_SIDE * BLADES_PER_TILE_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
-const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
+// const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
     grass_buffer: render::VertexBuffer<Vertex>,
@@ -38,7 +37,7 @@ struct App {
     plane_buffer: render::VertexBuffer<VertexColor>,
     plane_pipeline: wgpu::RenderPipeline,
     plane_transform: render::Transform,
-    instances: Instances,
+    instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
     camera: render::PerspectiveCamera,
 }
 
@@ -47,7 +46,22 @@ impl App {
         let device = render::device(ctx);
         let surface_config = render::surface_config(ctx);
 
-        // Shader
+        // Camera
+        let camera = render::PerspectiveCamera::new(&device)
+            .pos(vec3(0.0, 1.0, -1.0))
+            .pitch(PI / 4.0);
+
+        // Grass
+        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
+        let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64);
+
+        // Plane
+        let plane_transform = render::Transform::new(&device)
+            .rotation(Quat::from_rotation_x(PI / 2.0))
+            .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0));
+        let plane_buffer = render::VertexBuffer::new(&device, CENTERED_QUAD_VERTICES);
+
+        // Grass pipeline
         let shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
             .await
             .unwrap();
@@ -56,18 +70,6 @@ impl App {
             source: wgpu::ShaderSource::Wgsl(shader_str.into()),
         });
 
-        // Camera
-        let camera = render::PerspectiveCamera::new(&device)
-            .pos(vec3(0.0, 1.0, -1.0))
-            .pitch(PI / 4.0);
-
-        // Vertex buffer
-        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
-
-        // Instances
-        let instances = Instances::new(&device, BLADES_PER_TILE as u64);
-
-        // Pipeline
         let grass_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("grass render pipeline layout"),
@@ -81,7 +83,7 @@ impl App {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[grass_buffer.desc(), GPUInstance::desc()],
+                buffers: &[grass_buffer.desc(), instances.desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -116,11 +118,7 @@ impl App {
             multiview: None,
         });
 
-        // Plane
-        let plane_transform = render::Transform::new(&device)
-            .rotation(Quat::from_rotation_x(PI / 2.0))
-            .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0));
-
+        // Plane pipeline
         let shader_str = filesystem::load_string(ctx, Path::new("shader.wgsl"))
             .await
             .unwrap();
@@ -129,7 +127,6 @@ impl App {
             source: wgpu::ShaderSource::Wgsl(shader_str.into()),
         });
 
-        let plane_buffer = render::VertexBuffer::new(&device, CENTERED_QUAD_VERTICES);
         let plane_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("render pipeline layout"),
@@ -200,9 +197,11 @@ impl Callbacks for App {
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        let queue = render::queue(ctx);
+
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
-        self.instances.update_buffer(ctx);
+        self.instances.update_buffer(&queue);
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
@@ -226,20 +225,19 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
 
+        // Plane
         render_pass.set_pipeline(&self.plane_pipeline);
         render_pass.set_vertex_buffer(0, self.plane_buffer.buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
         render_pass.set_bind_group(1, &self.plane_transform.bind_group, &[]);
-        render_pass.draw(0..CENTERED_QUAD_VERTICES.len() as u32, 0..1);
+        render_pass.draw(0..self.plane_buffer.len(), 0..1);
 
+        // Grass
         render_pass.set_pipeline(&self.grass_pipeline);
         render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
         render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
-        render_pass.draw(
-            0..GRASS_VERTICES.len() as u32,
-            0..self.instances.vec.len() as u32,
-        );
+        render_pass.draw(0..self.grass_buffer.len(), 0..self.instances.len());
 
         drop(render_pass);
 
@@ -253,13 +251,29 @@ impl Callbacks for App {
         // update instances
         self.instances.vec.clear();
 
-        // let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
+        let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
+        for i in 0..BLADES_PER_TILE_SIDE {
+            for j in 0..BLADES_PER_TILE_SIDE {
+                let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+                let y = 0.0;
+                let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
+                let hash = grass_hash(current_tile.to_array(), i, j);
+                let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+                let roty = hash_f32 * PI * 2.0;
+                let rotz = hash_f32 * PI / 4.0;
+                // let rotz = PI / 4.0;
+                self.instances.vec.push(GrassInstance {
+                    pos: vec3(x, y, z),
+                    rot: vec2(roty, rotz),
+                });
+            }
+        }
         // for i in 0..BLADES_PER_TILE_SIDE {
         //     for j in 0..BLADES_PER_TILE_SIDE {
-        //         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+        //         let x = i as f32 / TILE_SIZE;
         //         let y = 0.0;
-        //         let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
-        //         let hash = grass_hash(current_tile.to_array(), i, j);
+        //         let z = j as f32 / TILE_SIZE;
+        //         let hash = grass_hash([0, 0], i, j);
         //         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
         //         let roty = hash_f32 * PI * 2.0;
         //         let rotz = hash_f32 * PI / 4.0;
@@ -270,22 +284,6 @@ impl Callbacks for App {
         //         });
         //     }
         // }
-        for i in 0..BLADES_PER_TILE_SIDE {
-            for j in 0..BLADES_PER_TILE_SIDE {
-                let x = i as f32 / TILE_SIZE;
-                let y = 0.0;
-                let z = j as f32 / TILE_SIZE;
-                let hash = grass_hash([0, 0], i, j);
-                let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
-                let roty = hash_f32 * PI * 2.0;
-                let rotz = hash_f32 * PI / 4.0;
-                // let rotz = PI / 4.0;
-                self.instances.vec.push(Instance {
-                    pos: vec3(x, y, z),
-                    rot: vec2(roty, rotz),
-                });
-            }
-        }
 
         self.camera_movement(ctx);
         // log::info!("{}", gbase::time::fps(ctx));
@@ -373,52 +371,34 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
 
 ];
 
-struct Instances {
-    vec: Vec<Instance>,
-    buffer: wgpu::Buffer,
-}
-
-impl Instances {
-    fn new(device: &wgpu::Device, size: u64) -> Self {
-        let vec = Vec::with_capacity(size as usize);
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instance buffer"),
-            size: GPUInstance::SIZE * size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        Self { vec, buffer }
-    }
-
-    fn update_buffer(&self, ctx: &mut Context) {
-        let queue = render::queue(ctx);
-        let gpu_vec = self.vec.iter().map(Instance::to_gpu).collect::<Vec<_>>();
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&gpu_vec));
-    }
-}
-
-struct Instance {
+struct GrassInstance {
     pos: Vec3,
     rot: Vec2,
 }
 
-impl Instance {
-    fn to_gpu(&self) -> GPUInstance {
-        GPUInstance {
+impl GrassInstance {
+    fn to_gpu(&self) -> GrassInstanceGPU {
+        GrassInstanceGPU {
             pos: self.pos.to_array(),
             rot: self.rot.to_array(),
         }
     }
 }
 
+impl InstaceTrait<GrassInstanceGPU> for GrassInstance {
+    fn to_gpu(&self) -> GrassInstanceGPU {
+        self.to_gpu()
+    }
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct GPUInstance {
+struct GrassInstanceGPU {
     pos: [f32; 3],
     rot: [f32; 2],
 }
 
-impl GPUInstance {
+impl GrassInstanceGPU {
     const SIZE: u64 = std::mem::size_of::<Self>() as u64;
     const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
         1=>Float32x3,
@@ -432,3 +412,34 @@ impl GPUInstance {
         }
     }
 }
+
+impl InstanceGpuTrait for GrassInstanceGPU {
+    const SIZE: u64 = GrassInstanceGPU::SIZE;
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        GrassInstanceGPU::desc()
+    }
+}
+
+// struct Instances {
+//     vec: Vec<Instance>,
+//     buffer: wgpu::Buffer,
+// }
+//
+// impl Instances {
+//     fn new(device: &wgpu::Device, size: u64) -> Self {
+//         let vec = Vec::with_capacity(size as usize);
+//         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+//             label: Some("instance buffer"),
+//             size: GPUInstance::SIZE * size,
+//             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+//             mapped_at_creation: false,
+//         });
+//         Self { vec, buffer }
+//     }
+//
+//     fn update_buffer(&self, ctx: &mut Context) {
+//         let queue = render::queue(ctx);
+//         let gpu_vec = self.vec.iter().map(Instance::to_gpu).collect::<Vec<_>>();
+//         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&gpu_vec));
+//     }
+// }
