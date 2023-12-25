@@ -3,11 +3,12 @@ use gbase::{
     render::{self, InstaceTrait, InstanceGpuTrait, Vertex, VertexColor, VertexUV},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Quat, Vec2, Vec3};
+use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{
     collections::hash_map::DefaultHasher,
     f32::consts::PI,
     hash::{Hash, Hasher},
+    ops::Div,
     path::Path,
 };
 use winit::keyboard::KeyCode;
@@ -23,24 +24,24 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-const TILE_SIZE: f32 = 3.0;
-const BLADES_PER_TILE_SIDE: u32 = 30;
-const BLADES_PER_TILE: u32 = BLADES_PER_TILE_SIDE * BLADES_PER_TILE_SIDE;
+const TILE_SIZE: f32 = 10.0;
+const BLADES_PER_SIDE: u32 = 100;
+const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
 // const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
-    grass_buffer: render::VertexBuffer<Vertex>,
-    grass_pipeline: wgpu::RenderPipeline,
     plane_buffer: render::VertexBuffer<VertexColor>,
     plane_pipeline: wgpu::RenderPipeline,
     plane_transform: render::Transform,
-    instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
+
     camera: render::PerspectiveCamera,
 
     depth_buffer: render::DepthBuffer,
     depth_buffer_renderer: render::DepthBufferRenderer,
+
+    grass_renderer: GrassRenderer,
 }
 
 impl App {
@@ -53,72 +54,11 @@ impl App {
             .pos(vec3(0.0, 1.0, -1.0))
             .pitch(PI / 4.0);
 
-        // Grass
-        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
-        let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64);
-
         // Plane
         let plane_transform = render::Transform::new(&device)
             .rotation(Quat::from_rotation_x(PI / 2.0))
             .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0));
         let plane_buffer = render::VertexBuffer::new(&device, CENTERED_QUAD_VERTICES);
-
-        // Grass pipeline
-        let shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
-            .await
-            .unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
-
-        let grass_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("grass render pipeline layout"),
-                bind_group_layouts: &[&camera.bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let grass_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("grass render pipeline"),
-            layout: Some(&grass_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[grass_buffer.desc(), instances.desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_config.format,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleStrip,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: wgpu::TextureFormat::Depth32Float,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: wgpu::StencilState::default(),
-                bias: wgpu::DepthBiasState::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
 
         // Plane pipeline
         let shader_str = filesystem::load_string(ctx, Path::new("shader.wgsl"))
@@ -183,17 +123,18 @@ impl App {
         let depth_buffer = render::DepthBuffer::new(&device, &surface_config);
         let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
+        let grass_renderer = GrassRenderer::new(ctx, &camera).await;
+
         Self {
-            grass_buffer,
-            grass_pipeline,
             camera,
             plane_buffer,
             plane_pipeline,
             plane_transform,
-            instances,
 
             depth_buffer,
             depth_buffer_renderer,
+
+            grass_renderer,
         }
     }
 }
@@ -210,8 +151,10 @@ impl Callbacks for App {
 
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
-        self.instances.update_buffer(&queue);
 
+        self.grass_renderer.compute(encoder);
+
+        // Render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -241,12 +184,8 @@ impl Callbacks for App {
         render_pass.set_bind_group(1, &self.plane_transform.bind_group, &[]);
         render_pass.draw(0..self.plane_buffer.len(), 0..1);
 
-        // Grass
-        render_pass.set_pipeline(&self.grass_pipeline);
-        render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
-        render_pass.set_bind_group(0, &self.camera.bind_group, &[]);
-        render_pass.draw(0..self.grass_buffer.len(), 0..self.instances.len());
+        self.grass_renderer
+            .render(ctx, &mut render_pass, &self.camera);
 
         drop(render_pass);
 
@@ -269,45 +208,11 @@ impl Callbacks for App {
         self.plane_transform.pos.x = self.camera.pos.x;
         self.plane_transform.pos.z = self.camera.pos.z;
 
-        // update instances
-        self.instances.vec.clear();
-
-        // let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
-        // for i in 0..BLADES_PER_TILE_SIDE {
-        //     for j in 0..BLADES_PER_TILE_SIDE {
-        //         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
-        //         let y = 0.0;
-        //         let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
-        //         let hash = grass_hash(current_tile.to_array(), i, j);
-        //         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
-        //         let roty = hash_f32 * PI * 2.0;
-        //         let rotz = hash_f32 * PI / 4.0;
-        //         // let rotz = PI / 4.0;
-        //         self.instances.vec.push(GrassInstance {
-        //             pos: vec3(x, y, z),
-        //             rot: vec2(roty, rotz),
-        //         });
-        //     }
-        // }
-        for i in 0..BLADES_PER_TILE_SIDE {
-            for j in 0..BLADES_PER_TILE_SIDE {
-                let x = (i as f32 / BLADES_PER_TILE_SIDE as f32) * TILE_SIZE;
-                let y = 0.0;
-                let z = (j as f32 / BLADES_PER_TILE_SIDE as f32) * TILE_SIZE;
-                let hash = grass_hash([0, 0], i, j);
-                let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
-                let roty = hash_f32 * PI * 2.0;
-                let rotz = hash_f32 * PI / 4.0;
-                // let rotz = PI / 4.0;
-                self.instances.vec.push(GrassInstance {
-                    pos: vec3(x, y, z),
-                    rot: vec2(roty, rotz),
-                });
-            }
-        }
-
         self.camera_movement(ctx);
-        log::info!("{}", gbase::time::fps(ctx));
+
+        self.grass_renderer.update(&self.camera);
+
+        // log::info!("{}", gbase::time::fps(ctx));
         false
     }
 }
@@ -350,6 +255,236 @@ impl App {
     }
 }
 
+#[rustfmt::skip]
+const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
+    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
+    VertexColor { position: [ 0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom right
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
+
+    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
+    VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
+
+];
+
+#[rustfmt::skip]
+const TEXTURE_VERTICES: &[VertexUV] = &[
+    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+    VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
+
+    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
+    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+];
+
+struct GrassRenderer {
+    instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
+    grass_buffer: render::VertexBuffer<Vertex>,
+    grass_pipeline: wgpu::RenderPipeline,
+
+    grass_compute_pipeline: wgpu::ComputePipeline,
+    grass_compute_bindgroup: wgpu::BindGroup,
+    indirect_buffer: wgpu::Buffer,
+}
+
+impl GrassRenderer {
+    fn update(&mut self, camera: &render::PerspectiveCamera) {
+        self.instances.vec.clear();
+
+        let [tile_x, tile_z] = camera.pos.xz().div(TILE_SIZE).floor().as_ivec2().to_array();
+        for row in 0..BLADES_PER_SIDE {
+            for col in 0..BLADES_PER_SIDE {
+                let x =
+                    (row as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE + tile_x as f32 * TILE_SIZE;
+                let y = 0.0; // sample from texture height map
+                let z =
+                    (col as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE + tile_z as f32 * TILE_SIZE;
+                let hash = grass_hash([tile_x, tile_z], row, col);
+                let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+                let roty = hash_f32 * PI * 2.0;
+                let rotz = hash_f32 * PI / 8.0;
+                // let rotz = PI / 4.0;
+                self.instances.vec.push(GrassInstance {
+                    pos: vec3(x, y, z),
+                    rot: vec2(roty, rotz),
+                });
+            }
+        }
+    }
+
+    fn compute(&mut self, encoder: &mut wgpu::CommandEncoder) {
+        let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("compute pass"),
+            timestamp_writes: None,
+        });
+
+        compute_pass.set_pipeline(&self.grass_compute_pipeline);
+        compute_pass.set_bind_group(0, &self.grass_compute_bindgroup, &[]);
+        compute_pass.dispatch_workgroups(1, 1, 1);
+    }
+
+    fn render<'a>(
+        &'a self,
+        ctx: &Context,
+        render_pass: &mut wgpu::RenderPass<'a>,
+        camera: &'a render::PerspectiveCamera,
+    ) {
+        // let device = render::device(ctx);
+        let queue = render::queue(ctx);
+
+        // let temp_indirect = wgpu::util::DrawIndirect {
+        //     base_vertex: 0,
+        //     vertex_count: self.grass_buffer.len(),
+        //     base_instance: 0,
+        //     instance_count: self.instances.len(),
+        // };
+        //
+        // queue.write_buffer(&self.indirect_buffer, 0, temp_indirect.as_bytes());
+
+        self.instances.update_buffer(&queue);
+
+        render_pass.set_pipeline(&self.grass_pipeline);
+        render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
+        render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
+        render_pass.set_bind_group(0, &camera.bind_group, &[]);
+        // render_pass.draw(0..self.grass_buffer.len(), 0..self.instances.len());
+        render_pass.draw_indirect(&self.indirect_buffer, 0);
+    }
+
+    async fn new(ctx: &Context, camera: &render::PerspectiveCamera) -> Self {
+        let device = render::device(ctx);
+        let surface_config = render::surface_config(ctx);
+
+        // Buffers
+        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
+        let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64 * 9);
+
+        // Compute pipeline
+        let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("grass tiles buffer"),
+            size: std::mem::size_of::<wgpu::util::DrawIndirect>() as u64, // TODO hard coded
+            usage: wgpu::BufferUsages::INDIRECT
+                | wgpu::BufferUsages::STORAGE
+                | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let compute_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("compute bind group layout)"),
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                }],
+            });
+
+        let grass_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("compute bind group"),
+            layout: &compute_bindgroup_layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: indirect_buffer.as_entire_binding(),
+            }],
+        });
+
+        let shader_str = filesystem::load_string(ctx, Path::new("grass_compute.wgsl"))
+            .await
+            .unwrap();
+        let grass_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
+
+        let grass_compute_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("grass compute pipeline layout"),
+                bind_group_layouts: &[&compute_bindgroup_layout],
+                push_constant_ranges: &[],
+            });
+
+        let grass_compute_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("grass compute pipeline"),
+                layout: Some(&grass_compute_pipeline_layout),
+                module: &grass_compute_shader,
+                entry_point: "cs_main",
+            });
+
+        // Render pipeline
+        let shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
+            .await
+            .unwrap();
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+        });
+
+        let grass_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("grass render pipeline layout"),
+                bind_group_layouts: &[&camera.bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let grass_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("grass render pipeline"),
+            layout: Some(&grass_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: "vs_main",
+                buffers: &[grass_buffer.desc(), instances.desc()],
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: None,
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleStrip,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: None,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        });
+        Self {
+            instances,
+            grass_buffer,
+            grass_pipeline,
+
+            indirect_buffer,
+            grass_compute_pipeline,
+            grass_compute_bindgroup,
+        }
+    }
+}
+
 fn grass_hash(tile: [i32; 2], i: u32, j: u32) -> u64 {
     let mut hasher = DefaultHasher::new();
     tile.hash(&mut hasher);
@@ -371,36 +506,6 @@ const GRASS_VERTICES: &[Vertex] = &[
     Vertex { position: [-0.05, 1.2, 0.0]  },
     Vertex { position: [ 0.05, 1.2, 0.0]  },
     Vertex { position: [ 0.00, 1.5, 0.0]  },
-];
-
-#[rustfmt::skip]
-const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
-    // VertexColor { position: [ 0.0,  0.0, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    // VertexColor { position: [ 1.0,  0.0, 0.0], color: [0.7, 0.5, 0.2] }, // bottom right
-    // VertexColor { position: [ 1.0,  1.0, 0.0], color: [0.7, 0.5, 0.2] }, // top right
-    //
-    // VertexColor { position: [ 0.0,  0.0, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    // VertexColor { position: [ 1.0,  1.0, 0.0], color: [0.7, 0.5, 0.2] }, // top right
-    // VertexColor { position: [ 0.0,  1.0, 0.0], color: [0.7, 0.5, 0.2] }, // top left
-    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    VertexColor { position: [ 0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom right
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
-
-    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
-    VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
-
-];
-
-#[rustfmt::skip]
-const TEXTURE_VERTICES: &[VertexUV] = &[
-    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-    VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
-
-    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
-    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
 ];
 
 struct GrassInstance {
@@ -473,5 +578,82 @@ impl InstanceGpuTrait for GrassInstanceGPU {
 //         let queue = render::queue(ctx);
 //         let gpu_vec = self.vec.iter().map(Instance::to_gpu).collect::<Vec<_>>();
 //         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(&gpu_vec));
+//     }
+// }
+
+// let [x, z] = self
+//     .camera
+//     .pos
+//     .xz()
+//     .div(TILE_SIZE)
+//     .floor()
+//     .as_ivec2()
+//     .to_array();
+// #[rustfmt::skip]
+// let active_tiles = [
+//     [x - 1, z + 1], [x, z + 1], [x + 1, z + 1],
+//     [x - 1, z], [x, z], [x + 1, z],
+//     [x - 1, z - 1], [x, z - 1], [x + 1, z - 1],
+// ];
+//
+// println!("current tile {:?}", [x, z]);
+// println!("active tiles {:?}", active_tiles);
+//
+// // update instances
+// self.instances.vec.clear();
+//
+// for [tile_x, tile_z] in active_tiles {
+//     for row in 0..BLADES_PER_SIDE {
+//         for col in 0..BLADES_PER_SIDE {
+//             let x = (row as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE
+//                 + tile_x as f32 * TILE_SIZE;
+//             let y = 0.0; // sample from texture height map
+//             let z = (col as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE
+//                 + tile_z as f32 * TILE_SIZE;
+//             let hash = grass_hash([tile_x, tile_z], row, col);
+//             let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+//             let roty = hash_f32 * PI * 2.0;
+//             let rotz = hash_f32 * PI / 6.0;
+//             // let rotz = PI / 4.0;
+//             self.instances.vec.push(GrassInstance {
+//                 pos: vec3(x, y, z),
+//                 rot: vec2(roty, rotz),
+//             });
+//         }
+//     }
+// }
+
+// let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
+// for i in 0..BLADES_PER_TILE_SIDE {
+//     for j in 0..BLADES_PER_TILE_SIDE {
+//         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+//         let y = 0.0;
+//         let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
+//         let hash = grass_hash(current_tile.to_array(), i, j);
+//         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+//         let roty = hash_f32 * PI * 2.0;
+//         let rotz = hash_f32 * PI / 4.0;
+//         // let rotz = PI / 4.0;
+//         self.instances.vec.push(GrassInstance {
+//             pos: vec3(x, y, z),
+//             rot: vec2(roty, rotz),
+//         });
+//     }
+// }
+
+// for i in 0..BLADES_PER_SIDE {
+//     for j in 0..BLADES_PER_SIDE {
+//         let x = (i as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE;
+//         let y = 0.0;
+//         let z = (j as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE;
+//         let hash = grass_hash([0, 0], i, j);
+//         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+//         let roty = hash_f32 * PI * 2.0;
+//         let rotz = hash_f32 * PI / 4.0;
+//         // let rotz = PI / 4.0;
+//         self.instances.vec.push(GrassInstance {
+//             pos: vec3(x, y, z),
+//             rot: vec2(roty, rotz),
+//         });
 //     }
 // }
