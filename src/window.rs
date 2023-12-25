@@ -70,7 +70,10 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
                         }
                     }
                     WindowEvent::CloseRequested => target.exit(),
-                    WindowEvent::Resized(new_size) => ctx.render.resize_window(*new_size),
+                    WindowEvent::Resized(new_size) => {
+                        ctx.render.resize_window(*new_size);
+                        app.callbacks.resize(&mut ctx);
+                    }
                     // Keyboard
                     WindowEvent::KeyboardInput { event, .. } => {
                         let (key, pressed) = (event.physical_key, event.state.is_pressed());

@@ -111,8 +111,7 @@ impl RenderContext {
         self.surface_config.height = new_size.height;
         self.surface.configure(&self.device, &self.surface_config);
 
-        self.depth_buffer
-            .resize_to_window(&self.device, &self.surface_config);
+        self.depth_buffer.resize(&self.device, &self.surface_config);
     }
 
     /// Resizes the window to the last safe window size

@@ -40,7 +40,7 @@ impl App {
         let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
             .await
             .unwrap();
-        let texture = render::Texture::new(ctx, texture_bytes);
+        let texture = render::Texture::new(ctx, &texture_bytes);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBuffer::new(&device, QUAD_VERTICES);

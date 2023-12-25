@@ -9,11 +9,11 @@ pub struct Texture {
 }
 
 impl Texture {
-    pub fn new(ctx: &Context, texture_bytes: Vec<u8>) -> Self {
+    pub fn new(ctx: &Context, texture_bytes: &[u8]) -> Self {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
 
-        let texture_rgba = image::load_from_memory(&texture_bytes).unwrap().to_rgba8();
+        let texture_rgba = image::load_from_memory(texture_bytes).unwrap().to_rgba8();
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("texture"),
             size: wgpu::Extent3d {

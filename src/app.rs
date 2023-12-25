@@ -42,6 +42,9 @@ pub trait Callbacks {
         });
         false
     }
+
+    /// Called after window resize
+    fn resize(&mut self, _ctx: &mut Context) {}
 }
 
 /// Main App

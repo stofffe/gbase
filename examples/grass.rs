@@ -1,14 +1,13 @@
 use gbase::{
     filesystem, input,
-    render::{self, InstaceTrait, InstanceGpuTrait, Vertex, VertexColor},
+    render::{self, InstaceTrait, InstanceGpuTrait, Vertex, VertexColor, VertexUV},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
+use glam::{vec2, vec3, Quat, Vec2, Vec3};
 use std::{
     collections::hash_map::DefaultHasher,
     f32::consts::PI,
     hash::{Hash, Hasher},
-    ops::Div,
     path::Path,
 };
 use winit::keyboard::KeyCode;
@@ -25,7 +24,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: f32 = 3.0;
-const BLADES_PER_TILE_SIDE: u32 = 20;
+const BLADES_PER_TILE_SIDE: u32 = 30;
 const BLADES_PER_TILE: u32 = BLADES_PER_TILE_SIDE * BLADES_PER_TILE_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -39,6 +38,9 @@ struct App {
     plane_transform: render::Transform,
     instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
     camera: render::PerspectiveCamera,
+
+    depth_buffer: render::DepthBuffer,
+    depth_buffer_renderer: render::DepthBufferRenderer,
 }
 
 impl App {
@@ -90,7 +92,7 @@ impl App {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -150,7 +152,7 @@ impl App {
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    blend: None,
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
@@ -178,6 +180,9 @@ impl App {
             multiview: None,
         });
 
+        let depth_buffer = render::DepthBuffer::new(&device, &surface_config);
+        let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
+
         Self {
             grass_buffer,
             grass_pipeline,
@@ -186,6 +191,9 @@ impl App {
             plane_pipeline,
             plane_transform,
             instances,
+
+            depth_buffer,
+            depth_buffer_renderer,
         }
     }
 }
@@ -197,6 +205,7 @@ impl Callbacks for App {
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        let device = render::device(ctx);
         let queue = render::queue(ctx);
 
         self.camera.update_buffer(ctx);
@@ -214,7 +223,7 @@ impl Callbacks for App {
                 resolve_target: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &render::depth_buffer(ctx).view,
+                view: &self.depth_buffer.view,
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -241,7 +250,19 @@ impl Callbacks for App {
 
         drop(render_pass);
 
+        if input::key_pressed(ctx, KeyCode::F2) {
+            self.depth_buffer_renderer.render(encoder, screen_view);
+        }
+
         false
+    }
+
+    fn resize(&mut self, ctx: &mut Context) {
+        let device = render::device(ctx);
+        let surface_config = render::surface_config(ctx);
+        self.depth_buffer.resize(&device, &surface_config);
+        self.depth_buffer_renderer
+            .resize(&device, &self.depth_buffer);
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
@@ -251,13 +272,29 @@ impl Callbacks for App {
         // update instances
         self.instances.vec.clear();
 
-        let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
+        // let current_tile = self.camera.pos.xz().div(TILE_SIZE).floor().as_ivec2();
+        // for i in 0..BLADES_PER_TILE_SIDE {
+        //     for j in 0..BLADES_PER_TILE_SIDE {
+        //         let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+        //         let y = 0.0;
+        //         let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
+        //         let hash = grass_hash(current_tile.to_array(), i, j);
+        //         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+        //         let roty = hash_f32 * PI * 2.0;
+        //         let rotz = hash_f32 * PI / 4.0;
+        //         // let rotz = PI / 4.0;
+        //         self.instances.vec.push(GrassInstance {
+        //             pos: vec3(x, y, z),
+        //             rot: vec2(roty, rotz),
+        //         });
+        //     }
+        // }
         for i in 0..BLADES_PER_TILE_SIDE {
             for j in 0..BLADES_PER_TILE_SIDE {
-                let x = current_tile.x as f32 * TILE_SIZE + i as f32 / TILE_SIZE;
+                let x = (i as f32 / BLADES_PER_TILE_SIDE as f32) * TILE_SIZE;
                 let y = 0.0;
-                let z = current_tile.y as f32 * TILE_SIZE + j as f32 / TILE_SIZE;
-                let hash = grass_hash(current_tile.to_array(), i, j);
+                let z = (j as f32 / BLADES_PER_TILE_SIDE as f32) * TILE_SIZE;
+                let hash = grass_hash([0, 0], i, j);
                 let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
                 let roty = hash_f32 * PI * 2.0;
                 let rotz = hash_f32 * PI / 4.0;
@@ -268,25 +305,9 @@ impl Callbacks for App {
                 });
             }
         }
-        // for i in 0..BLADES_PER_TILE_SIDE {
-        //     for j in 0..BLADES_PER_TILE_SIDE {
-        //         let x = i as f32 / TILE_SIZE;
-        //         let y = 0.0;
-        //         let z = j as f32 / TILE_SIZE;
-        //         let hash = grass_hash([0, 0], i, j);
-        //         let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
-        //         let roty = hash_f32 * PI * 2.0;
-        //         let rotz = hash_f32 * PI / 4.0;
-        //         // let rotz = PI / 4.0;
-        //         self.instances.vec.push(Instance {
-        //             pos: vec3(x, y, z),
-        //             rot: vec2(roty, rotz),
-        //         });
-        //     }
-        // }
 
         self.camera_movement(ctx);
-        // log::info!("{}", gbase::time::fps(ctx));
+        log::info!("{}", gbase::time::fps(ctx));
         false
     }
 }
@@ -369,6 +390,17 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
     VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
 
+];
+
+#[rustfmt::skip]
+const TEXTURE_VERTICES: &[VertexUV] = &[
+    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+    VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
+
+    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
+    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
 ];
 
 struct GrassInstance {
