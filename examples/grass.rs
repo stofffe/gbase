@@ -1,6 +1,7 @@
+use bytemuck::bytes_of;
 use gbase::{
     filesystem, input,
-    render::{self, InstaceTrait, InstanceGpuTrait, Vertex, VertexColor, VertexUV},
+    render::{self, InstaceTrait, InstanceGpuTrait, VertexColor, VertexUV},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -24,8 +25,8 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-const TILE_SIZE: f32 = 5.0;
-const BLADES_PER_SIDE: u32 = 10;
+const TILE_SIZE: f32 = 50.0;
+const BLADES_PER_SIDE: u32 = 16 * 10; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -51,7 +52,7 @@ impl App {
 
         // Camera
         let camera = render::PerspectiveCamera::new(&device)
-            .pos(vec3(0.0, 1.0, -1.0))
+            .pos(vec3(0.0, 2.0, -1.0))
             .pitch(PI / 4.0);
 
         // Plane
@@ -152,7 +153,7 @@ impl Callbacks for App {
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
 
-        self.grass_renderer.compute(encoder);
+        self.grass_renderer.compute(ctx, encoder);
 
         // Render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -212,7 +213,7 @@ impl Callbacks for App {
 
         self.grass_renderer.update(&self.camera);
 
-        // log::info!("{}", gbase::time::fps(ctx));
+        log::info!("{}", gbase::time::fps(ctx));
         false
     }
 }
@@ -267,24 +268,16 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
 
 ];
 
-#[rustfmt::skip]
-const TEXTURE_VERTICES: &[VertexUV] = &[
-    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-    VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
-
-    VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
-    VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-];
-
 struct GrassRenderer {
     instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
-    // grass_buffer: render::VertexBuffer<Vertex>,
     grass_pipeline: wgpu::RenderPipeline,
 
-    grass_compute_pipeline: wgpu::ComputePipeline,
-    grass_compute_bindgroup: wgpu::BindGroup,
+    instance_compute_pipeline: wgpu::ComputePipeline,
+    instance_compute_bindgroup: wgpu::BindGroup,
+    instance_count: wgpu::Buffer,
+
+    draw_compute_pipeline: wgpu::ComputePipeline,
+    draw_compute_bindgroup: wgpu::BindGroup,
     indirect_buffer: wgpu::Buffer,
 }
 
@@ -313,15 +306,36 @@ impl GrassRenderer {
         }
     }
 
-    fn compute(&mut self, encoder: &mut wgpu::CommandEncoder) {
+    fn compute(&mut self, ctx: &Context, encoder: &mut wgpu::CommandEncoder) {
+        let queue = render::queue(ctx);
+
+        // clear indirect buffer
+        // let cleared_indirect = wgpu::util::DrawIndirect {
+        //     base_vertex: 0,
+        //     vertex_count: 0,
+        //     base_instance: 0,
+        //     instance_count: 0,
+        // };
+        // queue.write_buffer(&self.indirect_buffer, 0, cleared_indirect.as_bytes());
+
+        // clear instance count
+        queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32]));
+
+        // run compute
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("compute pass"),
             timestamp_writes: None,
         });
 
-        compute_pass.set_pipeline(&self.grass_compute_pipeline);
-        compute_pass.set_bind_group(0, &self.grass_compute_bindgroup, &[]);
-        compute_pass.dispatch_workgroups(1, 1, 1);
+        // instance
+        compute_pass.set_pipeline(&self.instance_compute_pipeline);
+        compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
+        compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
+
+        // draw
+        compute_pass.set_pipeline(&self.draw_compute_pipeline);
+        compute_pass.set_bind_group(0, &self.draw_compute_bindgroup, &[]);
+        compute_pass.dispatch_workgroups(1, 1, 1); // TODO increase here
     }
 
     fn render<'a>(
@@ -333,23 +347,11 @@ impl GrassRenderer {
         // let device = render::device(ctx);
         let queue = render::queue(ctx);
 
-        // let temp_indirect = wgpu::util::DrawIndirect {
-        //     base_vertex: 0,
-        //     vertex_count: self.grass_buffer.len(),
-        //     base_instance: 0,
-        //     instance_count: self.instances.len(),
-        // };
-        //
-        // queue.write_buffer(&self.indirect_buffer, 0, temp_indirect.as_bytes());
-
         self.instances.update_buffer(&queue);
 
         render_pass.set_pipeline(&self.grass_pipeline);
-        // render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
-        // render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
         render_pass.set_vertex_buffer(0, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &camera.bind_group, &[]);
-        // render_pass.draw(0..self.grass_buffer.len(), 0..self.instances.len());
         render_pass.draw_indirect(&self.indirect_buffer, 0);
     }
 
@@ -358,20 +360,91 @@ impl GrassRenderer {
         let surface_config = render::surface_config(ctx);
 
         // Buffers
-        // let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
         let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64);
-
-        // Compute 2
+        let instance_count = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance count"),
+            size: std::mem::size_of::<u32>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST, // TODO DST temp
+            mapped_at_creation: false,
+        });
         let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("grass tiles buffer"),
-            size: std::mem::size_of::<wgpu::util::DrawIndirect>() as u64, // TODO hard coded
+            size: std::mem::size_of::<wgpu::util::DrawIndirect>() as u64,
             usage: wgpu::BufferUsages::INDIRECT
                 | wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let compute_bindgroup_layout =
+        // Compute 1
+        let instance_compute_bindgroup_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("compute bind group layout)"),
+                entries: &[
+                    // instance buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                    // instance count
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
+            });
+        let instance_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("compute bind group"),
+            layout: &instance_compute_bindgroup_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: instances.buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: instance_count.as_entire_binding(),
+                },
+            ],
+        });
+        let instance_shader_str =
+            filesystem::load_string(ctx, Path::new("grass_compute_instance.wgsl"))
+                .await
+                .unwrap();
+        let instance_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: None,
+            source: wgpu::ShaderSource::Wgsl(instance_shader_str.into()),
+        });
+
+        let instance_compute_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("draw compute pipeline layout"),
+                bind_group_layouts: &[&instance_compute_bindgroup_layout],
+                push_constant_ranges: &[],
+            });
+
+        let instance_compute_pipeline =
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("draw compute pipeline"),
+                layout: Some(&instance_compute_pipeline_layout),
+                module: &instance_compute_shader,
+                entry_point: "cs_main",
+            });
+
+        // Compute 2
+        let draw_compute_bindgroup_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("compute bind group layout)"),
                 entries: &[
@@ -386,12 +459,12 @@ impl GrassRenderer {
                         },
                         count: None,
                     },
-                    // instance buffer
+                    // instance count
                     wgpu::BindGroupLayoutEntry {
                         binding: 1,
                         visibility: wgpu::ShaderStages::COMPUTE,
                         ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
                             has_dynamic_offset: false,
                             min_binding_size: None,
                         },
@@ -400,9 +473,9 @@ impl GrassRenderer {
                 ],
             });
 
-        let grass_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        let draw_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("compute bind group"),
-            layout: &compute_bindgroup_layout,
+            layout: &draw_compute_bindgroup_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -410,61 +483,61 @@ impl GrassRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: instances.buffer.as_entire_binding(),
+                    resource: instance_count.as_entire_binding(),
                 },
             ],
         });
 
-        let shader_str = filesystem::load_string(ctx, Path::new("grass_compute_2.wgsl"))
+        let draw_shader_str = filesystem::load_string(ctx, Path::new("grass_compute_draw.wgsl"))
             .await
             .unwrap();
-        let grass_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let draw_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+            source: wgpu::ShaderSource::Wgsl(draw_shader_str.into()),
         });
 
-        let grass_compute_pipeline_layout =
+        let draw_compute_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("grass compute pipeline layout"),
-                bind_group_layouts: &[&compute_bindgroup_layout],
+                label: Some("draw compute pipeline layout"),
+                bind_group_layouts: &[&draw_compute_bindgroup_layout],
                 push_constant_ranges: &[],
             });
 
-        let grass_compute_pipeline =
+        let draw_compute_pipeline =
             device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                label: Some("grass compute pipeline"),
-                layout: Some(&grass_compute_pipeline_layout),
-                module: &grass_compute_shader,
+                label: Some("draw compute pipeline"),
+                layout: Some(&draw_compute_pipeline_layout),
+                module: &draw_compute_shader,
                 entry_point: "cs_main",
             });
 
         // Render pipeline
-        let shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
+        let render_shader_str = filesystem::load_string(ctx, Path::new("grass.wgsl"))
             .await
             .unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        let render_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
+            source: wgpu::ShaderSource::Wgsl(render_shader_str.into()),
         });
 
-        let grass_pipeline_layout =
+        let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("grass render pipeline layout"),
                 bind_group_layouts: &[&camera.bind_group_layout],
                 push_constant_ranges: &[],
             });
 
-        let grass_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("grass render pipeline"),
-            layout: Some(&grass_pipeline_layout),
+            layout: Some(&render_pipeline_layout),
             vertex: wgpu::VertexState {
-                module: &shader,
+                module: &render_shader,
                 entry_point: "vs_main",
                 // buffers: &[grass_buffer.desc(), instances.desc()],
                 buffers: &[instances.desc()],
             },
             fragment: Some(wgpu::FragmentState {
-                module: &shader,
+                module: &render_shader,
                 entry_point: "fs_main",
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_config.format,
@@ -497,12 +570,15 @@ impl GrassRenderer {
         });
         Self {
             instances,
-            // grass_buffer,
-            grass_pipeline,
+            grass_pipeline: render_pipeline,
 
             indirect_buffer,
-            grass_compute_pipeline,
-            grass_compute_bindgroup,
+            draw_compute_pipeline,
+            draw_compute_bindgroup,
+
+            instance_count,
+            instance_compute_pipeline,
+            instance_compute_bindgroup,
         }
     }
 }
@@ -514,21 +590,6 @@ fn grass_hash(tile: [i32; 2], i: u32, j: u32) -> u64 {
     j.hash(&mut hasher);
     hasher.finish()
 }
-
-// #[rustfmt::skip]
-// const GRASS_VERTICES: &[Vertex] = &[
-//     Vertex { position: [-0.05, 0.0, 0.0] },
-//     Vertex { position: [ 0.05, 0.0, 0.0] },
-//     Vertex { position: [-0.05, 0.3, 0.0] },
-//     Vertex { position: [ 0.05, 0.3, 0.0] },
-//     Vertex { position: [-0.05, 0.6, 0.0] },
-//     Vertex { position: [ 0.05, 0.6, 0.0] },
-//     Vertex { position: [-0.05, 0.9, 0.0] },
-//     Vertex { position: [ 0.05, 0.9, 0.0] },
-//     Vertex { position: [-0.05, 1.2, 0.0] },
-//     Vertex { position: [ 0.05, 1.2, 0.0] },
-//     Vertex { position: [ 0.00, 1.5, 0.0] },
-// ];
 
 // TODO MUST ALIGN TO 16 (wgpu requirement)
 struct GrassInstance {
@@ -579,6 +640,21 @@ impl InstanceGpuTrait for GrassInstanceGPU {
         GrassInstanceGPU::desc()
     }
 }
+
+// #[rustfmt::skip]
+// const GRASS_VERTICES: &[Vertex] = &[
+//     Vertex { position: [-0.05, 0.0, 0.0] },
+//     Vertex { position: [ 0.05, 0.0, 0.0] },
+//     Vertex { position: [-0.05, 0.3, 0.0] },
+//     Vertex { position: [ 0.05, 0.3, 0.0] },
+//     Vertex { position: [-0.05, 0.6, 0.0] },
+//     Vertex { position: [ 0.05, 0.6, 0.0] },
+//     Vertex { position: [-0.05, 0.9, 0.0] },
+//     Vertex { position: [ 0.05, 0.9, 0.0] },
+//     Vertex { position: [-0.05, 1.2, 0.0] },
+//     Vertex { position: [ 0.05, 1.2, 0.0] },
+//     Vertex { position: [ 0.00, 1.5, 0.0] },
+// ];
 
 // struct Instances {
 //     vec: Vec<Instance>,
