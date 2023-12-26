@@ -24,8 +24,8 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-const TILE_SIZE: f32 = 10.0;
-const BLADES_PER_SIDE: u32 = 100;
+const TILE_SIZE: f32 = 5.0;
+const BLADES_PER_SIDE: u32 = 10;
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -280,7 +280,7 @@ const TEXTURE_VERTICES: &[VertexUV] = &[
 
 struct GrassRenderer {
     instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
-    grass_buffer: render::VertexBuffer<Vertex>,
+    // grass_buffer: render::VertexBuffer<Vertex>,
     grass_pipeline: wgpu::RenderPipeline,
 
     grass_compute_pipeline: wgpu::ComputePipeline,
@@ -345,8 +345,9 @@ impl GrassRenderer {
         self.instances.update_buffer(&queue);
 
         render_pass.set_pipeline(&self.grass_pipeline);
-        render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
-        render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
+        // render_pass.set_vertex_buffer(0, self.grass_buffer.buffer.slice(..));
+        // render_pass.set_vertex_buffer(1, self.instances.buffer.slice(..));
+        render_pass.set_vertex_buffer(0, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &camera.bind_group, &[]);
         // render_pass.draw(0..self.grass_buffer.len(), 0..self.instances.len());
         render_pass.draw_indirect(&self.indirect_buffer, 0);
@@ -357,10 +358,10 @@ impl GrassRenderer {
         let surface_config = render::surface_config(ctx);
 
         // Buffers
-        let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
-        let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64 * 9);
+        // let grass_buffer = render::VertexBuffer::new(&device, GRASS_VERTICES);
+        let instances = render::InstanceBuffer::new_empty(&device, BLADES_PER_TILE as u64);
 
-        // Compute pipeline
+        // Compute 2
         let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("grass tiles buffer"),
             size: std::mem::size_of::<wgpu::util::DrawIndirect>() as u64, // TODO hard coded
@@ -373,28 +374,48 @@ impl GrassRenderer {
         let compute_bindgroup_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("compute bind group layout)"),
-                entries: &[wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
+                entries: &[
+                    // indirect args
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: false },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
                     },
-                    count: None,
-                }],
+                    // instance buffer
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Storage { read_only: true },
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
+                ],
             });
 
         let grass_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("compute bind group"),
             layout: &compute_bindgroup_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: indirect_buffer.as_entire_binding(),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: indirect_buffer.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: instances.buffer.as_entire_binding(),
+                },
+            ],
         });
 
-        let shader_str = filesystem::load_string(ctx, Path::new("grass_compute.wgsl"))
+        let shader_str = filesystem::load_string(ctx, Path::new("grass_compute_2.wgsl"))
             .await
             .unwrap();
         let grass_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -439,7 +460,8 @@ impl GrassRenderer {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: "vs_main",
-                buffers: &[grass_buffer.desc(), instances.desc()],
+                // buffers: &[grass_buffer.desc(), instances.desc()],
+                buffers: &[instances.desc()],
             },
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
@@ -475,7 +497,7 @@ impl GrassRenderer {
         });
         Self {
             instances,
-            grass_buffer,
+            // grass_buffer,
             grass_pipeline,
 
             indirect_buffer,
@@ -493,21 +515,22 @@ fn grass_hash(tile: [i32; 2], i: u32, j: u32) -> u64 {
     hasher.finish()
 }
 
-#[rustfmt::skip]
-const GRASS_VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.05, 0.0, 0.0]  },
-    Vertex { position: [ 0.05, 0.0, 0.0]  },
-    Vertex { position: [-0.05, 0.3, 0.0]  },
-    Vertex { position: [ 0.05, 0.3, 0.0]  },
-    Vertex { position: [-0.05, 0.6, 0.0]  },
-    Vertex { position: [ 0.05, 0.6, 0.0]  },
-    Vertex { position: [-0.05, 0.9, 0.0]  },
-    Vertex { position: [ 0.05, 0.9, 0.0]  },
-    Vertex { position: [-0.05, 1.2, 0.0]  },
-    Vertex { position: [ 0.05, 1.2, 0.0]  },
-    Vertex { position: [ 0.00, 1.5, 0.0]  },
-];
+// #[rustfmt::skip]
+// const GRASS_VERTICES: &[Vertex] = &[
+//     Vertex { position: [-0.05, 0.0, 0.0] },
+//     Vertex { position: [ 0.05, 0.0, 0.0] },
+//     Vertex { position: [-0.05, 0.3, 0.0] },
+//     Vertex { position: [ 0.05, 0.3, 0.0] },
+//     Vertex { position: [-0.05, 0.6, 0.0] },
+//     Vertex { position: [ 0.05, 0.6, 0.0] },
+//     Vertex { position: [-0.05, 0.9, 0.0] },
+//     Vertex { position: [ 0.05, 0.9, 0.0] },
+//     Vertex { position: [-0.05, 1.2, 0.0] },
+//     Vertex { position: [ 0.05, 1.2, 0.0] },
+//     Vertex { position: [ 0.00, 1.5, 0.0] },
+// ];
 
+// TODO MUST ALIGN TO 16 (wgpu requirement)
 struct GrassInstance {
     pos: Vec3,
     rot: Vec2,

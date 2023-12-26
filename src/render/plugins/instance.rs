@@ -26,7 +26,9 @@ impl<G: InstanceGpuTrait, T: InstaceTrait<G>> InstanceBuffer<G, T> {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
             size: G::SIZE * size,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::VERTEX
+                | wgpu::BufferUsages::COPY_DST
+                | wgpu::BufferUsages::STORAGE, //TODO storage here?
             mapped_at_creation: false,
         });
         Self {
