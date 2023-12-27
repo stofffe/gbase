@@ -4,7 +4,10 @@
 
 struct Instance {
     @location(1) pos: vec3<f32>,
-    @location(2) rot: vec2<f32>,
+    @location(2) hash: u32,
+    @location(3) facing: vec2<f32>,
+    @location(4) wind: f32,
+    @location(5) pad: f32,
 };
 
 struct CameraUniform {
@@ -31,23 +34,37 @@ var<private> vertices: array<vec3<f32>, 11> = array<vec3<f32>, 11>(
     vec3<f32>(0.00, 1.5, 0.0),
 );
 
+const PI = 3.14;
+
 @vertex
 fn vs_main(
     instance: Instance,
     @builtin(vertex_index) index: u32,
 ) -> VertexOutput {
-    let vpos = vertices[index];
+    // let a = f32(instance.hash) / f32(4294967295u);
+    let rot = atan2(instance.facing.x, instance.facing.y); // x z
+
+    var pos = vertices[index];
+    pos = rot_y(PI - rot) * rot_z(pos.y * instance.wind) * pos; // rotate TODO why does this work
+    pos = instance.pos + pos;    // translate
+
 
     var out: VertexOutput;
-    let rot = instance.rot.x;
-    let curve_amount = -instance.rot.y * vpos.y;
-    let rotated_pos = rot_y(rot) * rot_z(curve_amount) * vpos;
-    let pos = instance.pos + rotated_pos;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
-
-    let rotated_normal = normalize(rot_y(rot) * rot_z(curve_amount) * normal);
-    out.normal = rotated_normal;
+    out.normal = normal;
     out.pos = pos;
+
+
+    //let vpos = vertices[index];
+    //let rot = instance.rot.x;
+    //let curve_amount = -instance.rot.y * vpos.y;
+    //let rotated_pos = rot_y(rot) * rot_z(curve_amount) * vpos;
+    //let pos = instance.pos + rotated_pos;
+    //out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
+
+    //let rotated_normal = normalize(rot_y(rot) * rot_z(curve_amount) * normal);
+    //out.normal = rotated_normal;
+    //out.pos = pos;
     return out;
 }
 
@@ -71,18 +88,21 @@ fn fs_main(
 ) -> @location(0) vec4<f32> {
     var normal = in.normal;
     if front_facing {
-        normal = -normal;
+        return vec4<f32>(0.0, 0.0, 1.0, 1.0);
+        //normal = -normal;
+    } else {
+        return vec4<f32>(1.0, 0.0, 0.0, 1.0);
     }
 
-    let light_pos = vec3<f32>(0.0, 1.0, -100.0);
-    let light_dir = normalize(light_pos - in.pos);
+    // let light_pos = vec3<f32>(0.0, 1.0, -100.0);
+    // let light_dir = normalize(light_pos - in.pos);
 
-    let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
-    let ambient = ambient_mod;
-    let light = clamp(diffuse + ambient, 0.0, 1.0);
+    // let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
+    // let ambient = ambient_mod;
+    // let light = clamp(diffuse + ambient, 0.0, 1.0);
 
-    // return vec4<f32>(normal, 1.0);
-    return vec4<f32>(color * light, 1.0);
+    // // return vec4<f32>(normal, 1.0);
+    // return vec4<f32>(color * light, 1.0);
 }
 
 fn rot_x(angle: f32) -> mat3x3<f32> {

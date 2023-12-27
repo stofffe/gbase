@@ -25,8 +25,8 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-const TILE_SIZE: f32 = 50.0;
-const BLADES_PER_SIDE: u32 = 16 * 10; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const TILE_SIZE: f32 = 16.0;
+const BLADES_PER_SIDE: u32 = 16 * 1; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -294,13 +294,14 @@ impl GrassRenderer {
                 let z =
                     (col as f32 / BLADES_PER_SIDE as f32) * TILE_SIZE + tile_z as f32 * TILE_SIZE;
                 let hash = grass_hash([tile_x, tile_z], row, col);
-                let hash_f32 = (hash % u64::MAX) as f32 / u64::MAX as f32;
+                let hash_f32 = hash as f32 / u64::MAX as f32;
+                // println!("hash {hash_f32}");
                 let roty = hash_f32 * PI * 2.0;
                 let rotz = hash_f32 * PI / 8.0;
                 // let rotz = PI / 4.0;
                 self.instances.vec.push(GrassInstance {
                     pos: vec3(x, y, z),
-                    rot: vec2(roty, rotz),
+                    facing: vec2(roty, rotz),
                 });
             }
         }
@@ -327,10 +328,14 @@ impl GrassRenderer {
             timestamp_writes: None,
         });
 
+        //self.instances.update_buffer(&queue); // TODO create this in compute shader
+
         // instance
         compute_pass.set_pipeline(&self.instance_compute_pipeline);
         compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
         compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
+        // compute_pass.dispatch_workgroups(BLADES_PER_SIDE, BLADES_PER_SIDE, 1);
+        // compute_pass.dispatch_workgroups(BLADES_PER_TILE / 256, 1, 1);
 
         // draw
         compute_pass.set_pipeline(&self.draw_compute_pipeline);
@@ -344,11 +349,6 @@ impl GrassRenderer {
         render_pass: &mut wgpu::RenderPass<'a>,
         camera: &'a render::PerspectiveCamera,
     ) {
-        // let device = render::device(ctx);
-        let queue = render::queue(ctx);
-
-        self.instances.update_buffer(&queue);
-
         render_pass.set_pipeline(&self.grass_pipeline);
         render_pass.set_vertex_buffer(0, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &camera.bind_group, &[]);
@@ -594,14 +594,17 @@ fn grass_hash(tile: [i32; 2], i: u32, j: u32) -> u64 {
 // TODO MUST ALIGN TO 16 (wgpu requirement)
 struct GrassInstance {
     pos: Vec3,
-    rot: Vec2,
+    facing: Vec2,
 }
 
 impl GrassInstance {
     fn to_gpu(&self) -> GrassInstanceGPU {
         GrassInstanceGPU {
-            pos: self.pos.to_array(),
-            rot: self.rot.to_array(),
+            position: self.pos.to_array(),
+            facing: self.facing.to_array(),
+            hash: [0],
+            wind: [0.0],
+            pad: [0.0],
         }
     }
 }
@@ -615,15 +618,21 @@ impl InstaceTrait<GrassInstanceGPU> for GrassInstance {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct GrassInstanceGPU {
-    pos: [f32; 3],
-    rot: [f32; 2],
+    position: [f32; 3],
+    hash: [u32; 1],
+    facing: [f32; 2],
+    wind: [f32; 1],
+    pad: [f32; 1],
 }
 
 impl GrassInstanceGPU {
     const SIZE: u64 = std::mem::size_of::<Self>() as u64;
-    const ATTRIBUTES: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![
-        1=>Float32x3,
-        2=>Float32x2,
+    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+        1=>Float32x3,   // pos
+        2=>Uint32,      // hash
+        3=>Float32x2,   // facing
+        4=>Float32x2,   // wind
+        5=>Float32x2,   // pad
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
