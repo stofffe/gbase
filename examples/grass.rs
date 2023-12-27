@@ -2,7 +2,7 @@ use bytemuck::bytes_of;
 use gbase::{
     filesystem, input,
     render::{self, InstaceTrait, InstanceGpuTrait, VertexColor, VertexUV},
-    Callbacks, Context, ContextBuilder, LogLevel,
+    time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{
@@ -26,7 +26,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: f32 = 16.0;
-const BLADES_PER_SIDE: u32 = 16 * 1; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 5; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -275,10 +275,13 @@ struct GrassRenderer {
     instance_compute_pipeline: wgpu::ComputePipeline,
     instance_compute_bindgroup: wgpu::BindGroup,
     instance_count: wgpu::Buffer,
+    time_buffer: wgpu::Buffer,
 
     draw_compute_pipeline: wgpu::ComputePipeline,
     draw_compute_bindgroup: wgpu::BindGroup,
     indirect_buffer: wgpu::Buffer,
+
+    perlin_noise_texture: render::Texture,
 }
 
 impl GrassRenderer {
@@ -310,17 +313,12 @@ impl GrassRenderer {
     fn compute(&mut self, ctx: &Context, encoder: &mut wgpu::CommandEncoder) {
         let queue = render::queue(ctx);
 
-        // clear indirect buffer
-        // let cleared_indirect = wgpu::util::DrawIndirect {
-        //     base_vertex: 0,
-        //     vertex_count: 0,
-        //     base_instance: 0,
-        //     instance_count: 0,
-        // };
-        // queue.write_buffer(&self.indirect_buffer, 0, cleared_indirect.as_bytes());
-
         // clear instance count
         queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32]));
+
+        // update time passed
+        let time_passed = time::time_since_start(ctx);
+        queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[time_passed]));
 
         // run compute
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
@@ -328,14 +326,11 @@ impl GrassRenderer {
             timestamp_writes: None,
         });
 
-        //self.instances.update_buffer(&queue); // TODO create this in compute shader
-
         // instance
         compute_pass.set_pipeline(&self.instance_compute_pipeline);
         compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
+        compute_pass.set_bind_group(1, &self.perlin_noise_texture.bind_group, &[]);
         compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
-        // compute_pass.dispatch_workgroups(BLADES_PER_SIDE, BLADES_PER_SIDE, 1);
-        // compute_pass.dispatch_workgroups(BLADES_PER_TILE / 256, 1, 1);
 
         // draw
         compute_pass.set_pipeline(&self.draw_compute_pipeline);
@@ -375,6 +370,16 @@ impl GrassRenderer {
                 | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let time_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("time buffer"),
+            size: std::mem::size_of::<f32>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let perlin_texture_bytes = filesystem::load_bytes(ctx, Path::new("perlin_noise.png"))
+            .await
+            .unwrap();
+        let perlin_noise_texture = render::Texture::new(ctx, &perlin_texture_bytes);
 
         // Compute 1
         let instance_compute_bindgroup_layout =
@@ -403,6 +408,17 @@ impl GrassRenderer {
                         },
                         count: None,
                     },
+                    // time passed
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: None,
+                        },
+                        count: None,
+                    },
                 ],
             });
         let instance_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -416,6 +432,10 @@ impl GrassRenderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: instance_count.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: time_buffer.as_entire_binding(),
                 },
             ],
         });
@@ -431,7 +451,10 @@ impl GrassRenderer {
         let instance_compute_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("draw compute pipeline layout"),
-                bind_group_layouts: &[&instance_compute_bindgroup_layout],
+                bind_group_layouts: &[
+                    &instance_compute_bindgroup_layout,
+                    &perlin_noise_texture.bind_group_layout,
+                ],
                 push_constant_ranges: &[],
             });
 
@@ -568,6 +591,7 @@ impl GrassRenderer {
             },
             multiview: None,
         });
+
         Self {
             instances,
             grass_pipeline: render_pipeline,
@@ -579,6 +603,9 @@ impl GrassRenderer {
             instance_count,
             instance_compute_pipeline,
             instance_compute_bindgroup,
+
+            perlin_noise_texture,
+            time_buffer,
         }
     }
 }

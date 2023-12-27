@@ -1,5 +1,9 @@
 @group(0) @binding(0) var<storage, read_write> instances: array<GrassInstance>;
 @group(0) @binding(1) var<storage, read_write> instance_count: atomic<u32>;
+@group(0) @binding(2) var<uniform> time_passed: f32;
+
+@group(1) @binding(0) var perlin_tex: texture_2d<f32>;
+@group(1) @binding(1) var perlin_sam: sampler;
 
 // instances tightly packed => size must be multiple of align 
 struct GrassInstance {          // align 16 size 32 
@@ -10,8 +14,8 @@ struct GrassInstance {          // align 16 size 32
     pad: f32,                   // align 4  size 4  start 28
 };
 
-const blades_per_side = 16.0 * 1.0;
-const tile_size = 5.0;
+const BLADES_PER_SIDE = 16.0 * 5.0;
+const TILE_SIZE = 20.0;
 
 const PI = 3.1415927;
 
@@ -20,19 +24,32 @@ const PI = 3.1415927;
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let z = global_id.y;
+
+    let tile_pos = vec2<f32>(
+        f32(x) / BLADES_PER_SIDE,
+        1.0 - f32(z) / BLADES_PER_SIDE,
+    );
+    let scroll = vec2<f32>(
+        time_passed * 0.2,
+        time_passed * 0.0,
+    );
+    let uv = tile_pos + scroll;
+    let noise = textureGather(2, perlin_tex, perlin_sam, uv).x; // think x = y = z
+
     if true {
         let i = atomicAdd(&instance_count, 1u);
         let hash = hash_2d(x, z);
 
-        instances[i].hash = hash;
         instances[i].pos = vec3<f32>(
-            (f32(x) / blades_per_side) * tile_size,
+            (f32(x) / BLADES_PER_SIDE) * TILE_SIZE,
             0.0,
-            (f32(z) / blades_per_side) * tile_size,
+            (f32(z) / BLADES_PER_SIDE) * TILE_SIZE,
         );
-
-        instances[i].wind = hash_to_range(hash) * PI / 6.0;
-        instances[i].facing = normalize(hash_to_vec2_neg(hash)) * 2.0 * PI;
+        instances[i].hash = hash;
+        instances[i].facing = hash_to_vec2_neg(hash);
+        //instances[i].facing = vec2<f32>(1.0, 1.0);
+        instances[i].wind = noise * 0.5;
+        //instances[i].wind = hash_to_range(hash) * 0.5;
     }
 }
 

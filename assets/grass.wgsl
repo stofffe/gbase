@@ -35,16 +35,25 @@ var<private> vertices: array<vec3<f32>, 11> = array<vec3<f32>, 11>(
 );
 
 const PI = 3.1415927;
+const MAX_HEIGHT_VERT = 1.5;
+
+const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO hard coded
 
 @vertex
 fn vs_main(
     instance: Instance,
     @builtin(vertex_index) index: u32,
 ) -> VertexOutput {
+    // Shape
     let vpos = vertices[index];
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
-    let rot_mat = rot_y(PI - facing_angle) * rot_z(vpos.y * instance.wind);
-    //let rot_mat = rot_y(PI - rot);
+    let height_percent = vpos.y / MAX_HEIGHT_VERT;
+    let shape_mat = rot_y(PI - facing_angle) * rot_x(ease_in(height_percent) * PI / 8.);
+
+    // Wind
+    let wind_mat = rot_z(WIND_DIR.x * instance.wind) * rot_x(-WIND_DIR.z * instance.wind);
+
+    let rot_mat = wind_mat * shape_mat;
 
     var pos = vpos;
     pos = rot_mat * pos;        // rotate
@@ -133,8 +142,8 @@ fn rot_z(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        1.0, 0.0, 0.0,
-        0.0, c, -s,
-        0.0, s, c,
+        c, -s, 0.0,
+        s, c, 0.0,
+        0.0, 0.0, 1.0
     );
 }
