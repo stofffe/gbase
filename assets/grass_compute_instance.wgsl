@@ -19,6 +19,7 @@ const TILE_SIZE = 20.0;
 const BLADE_DIST = TILE_SIZE / BLADES_PER_SIDE;
 const WIND_MODIFIER = 0.5;
 const OFFSET_MODIFIER = 0.5;
+const WIND_SCROLL_SPEED = 0.1;
 
 const PI = 3.1415927;
 
@@ -28,29 +29,27 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let z = global_id.y;
 
-    let tile_pos = vec2<f32>(
-        f32(x) / BLADES_PER_SIDE,
-        1.0 - f32(z) / BLADES_PER_SIDE,
+    let hash = hash_2d(x, z);
+    let pos = vec3<f32>(
+        f32(x) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
+        0.0,
+        f32(z) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
     );
-    let scroll = vec2<f32>(
-        time_passed * 0.2,
-        time_passed * 0.0,
-    );
-    let uv = tile_pos + scroll;
-    let noise = textureGather(2, perlin_tex, perlin_sam, uv).x; // think x = y = z
 
-    if true {
+    let cull = false;
+
+    if !cull { 
+        // wind power from perline noise
+        let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
+        let scroll = vec2<f32>(1.0, 1.0) * time_passed * WIND_SCROLL_SPEED;
+        let uv = tile_pos + scroll;
+        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_MODIFIER; // think x = y = z
+
         let i = atomicAdd(&instance_count, 1u);
-        let hash = hash_2d(x, z);
-
-        instances[i].pos = vec3<f32>(
-            f32(x) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
-            0.0,
-            f32(z) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
-        );
+        instances[i].pos = pos;
         instances[i].hash = hash;
         instances[i].facing = hash_to_vec2_neg(hash);
-        instances[i].wind = noise * WIND_MODIFIER;
+        instances[i].wind = wind;
     }
 }
 

@@ -34,10 +34,6 @@ var<private> vertices: array<vec3<f32>, 11> = array<vec3<f32>, 11>(
     vec3<f32>(0.00, 1.5, 0.0),
 );
 
-const PI = 3.1415927;
-const MAX_HEIGHT_VERT = 1.5;
-
-const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO hard coded
 
 @vertex
 fn vs_main(
@@ -53,17 +49,23 @@ fn vs_main(
     // Wind
     let wind_mat = rot_z(WIND_DIR.x * instance.wind) * rot_x(-WIND_DIR.z * instance.wind);
 
+    // Apply pos and rot
     let rot_mat = wind_mat * shape_mat;
-
     var pos = vpos;
     pos = rot_mat * pos;        // rotate
     pos = instance.pos + pos;   // translate
 
+    // normal
+    let normal1 = rot_mat * rot_y(PI * NORMAL_ROUNDING) * NORMAL; // need normalize?
+    let normal2 = rot_mat * rot_y(-PI * NORMAL_ROUNDING) * NORMAL;
     let normal = normalize(rot_mat * NORMAL);
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
-    out.normal = normal;
+    // out.normal = normal;
+    out.normal1 = normal;
+    out.normal2 = normal2;
+    out.width_percent = (vpos.x + GRASS_WIDTH) / (2.0 * GRASS_WIDTH);
     out.pos = pos;
 
     return out;
@@ -74,14 +76,21 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    // @location(1) normal: vec3<f32>,
+    @location(1) normal1: vec3<f32>,
+    @location(2) normal2: vec3<f32>,
+    @location(3) width_percent: f32,
 };
 
-const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
-const ambient_mod = 0.1;
-const diffuse_mod = 0.7;
-// const color = vec3<f32>(0.2, 0.8, 0.2);
+const PI = 3.1415927;
+const MAX_HEIGHT_VERT = 1.5;
+const GRASS_WIDTH = 0.05;
+const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO hard coded
+const NORMAL_ROUNDING = 1.0 / 3.0;
 
+const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
+const ambient_mod = 0.4;
+const diffuse_mod = 0.7;
 const base_color = vec3<f32>(0.05, 0.2, 0.01);
 const tip_color = vec3<f32>(0.5, 0.5, 0.1);
 
@@ -90,19 +99,13 @@ fn fs_main(
     in: VertexOutput,
     @builtin(front_facing) front_facing: bool
 ) -> @location(0) vec4<f32> {
-    //if front_facing {
-    //    return vec4<f32>(0.0, 0.0, 1.0, 1.0);
-    //    //normal = -normal;
-    //} else {
-    //    return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-    //}
+    var normal = normalize(mix(in.normal1, in.normal2, in.width_percent));
+    //var normal = in.normal;
 
-    var normal = in.normal;
-    if front_facing {
-        normal = -normal;
-    }
+    // use if you want concave 
+    // if front_facing { normal = -normal; }
 
-    let light_pos = vec3<f32>(0.0, 1.0, -100.0);
+    let light_pos = vec3<f32>(2.0, 1.0, -10.0);
     let light_dir = normalize(light_pos - in.pos);
 
     let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
@@ -110,9 +113,10 @@ fn fs_main(
     let light = clamp(diffuse + ambient, 0.0, 1.0);
 
     let p = in.pos.y / 1.5;
-    let color = mix(base_color, tip_color, ease_in(p)); // better interpolation function
+    let color = mix(base_color, tip_color, ease_in(p)); // better interpolation function?
 
-    // return vec4<f32>(normal, 1.0);
+    // return vec4<f32>(normal.xz, 0.0, 1.0);
+    //return vec4<f32>(color * light, in.width);
     return vec4<f32>(color * light, 1.0);
 }
 
