@@ -14,12 +14,14 @@ struct GrassInstance {          // align 16 size 32
     pad: f32,                   // align 4  size 4  start 28
 };
 
-const BLADES_PER_SIDE = 16.0 * 5.0;
 const TILE_SIZE = 20.0;
-const BLADE_DIST = TILE_SIZE / BLADES_PER_SIDE;
+const BLADES_PER_SIDE = 16.0 * 5.0;
+const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
+const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
+
 const WIND_MODIFIER = 0.5;
-const OFFSET_MODIFIER = 0.5;
 const WIND_SCROLL_SPEED = 0.1;
+const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 
 const PI = 3.1415927;
 
@@ -31,9 +33,9 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let hash = hash_2d(x, z);
     let pos = vec3<f32>(
-        f32(x) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
+        f32(x) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
         0.0,
-        f32(z) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
+        f32(z) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
     );
 
     let cull = false;
@@ -41,7 +43,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if !cull { 
         // wind power from perline noise
         let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
-        let scroll = vec2<f32>(1.0, 1.0) * time_passed * WIND_SCROLL_SPEED;
+        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_passed ;
         let uv = tile_pos + scroll;
         let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_MODIFIER; // think x = y = z
 
@@ -76,7 +78,7 @@ fn hash_to_range(hash: u32) -> f32 {
     return f32(hash) * 2.3283064e-10; // hash * 1 / 2^32
 }
 
-// generates float in range [0, 1]
+// generates float in range [-1, 1]
 fn hash_to_range_neg(hash: u32) -> f32 {
     return (f32(hash) * 2.3283064e-10) * 2.0 - 1.0; // hash * 1 / 2^32
 }

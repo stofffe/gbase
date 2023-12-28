@@ -1,7 +1,3 @@
-//struct VertexInput {
-//    @location(0) position: vec3<f32>,
-//};
-
 struct Instance {
     @location(1) pos: vec3<f32>,
     @location(2) hash: u32,
@@ -24,8 +20,11 @@ const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 10u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
 
-const WIND_DIR = vec3<f32>(-1.0, 0.0, 1.0); // TODO hard coded
+const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
 const NORMAL_ROUNDING = 1.0 / 3.0;
+
+const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO sample from texture instead
+
 const PI = 3.1415927;
 
 @vertex
@@ -33,15 +32,14 @@ fn vs_main(
     instance: Instance,
     @builtin(vertex_index) index: u32,
 ) -> VertexOutput {
-    // generate vertex
-    // High LOD
+    // Generate vertex (High LOD)
     var vpos = vec3<f32>(
         -GRASS_WIDTH * 0.5 + f32(index % 2u) * GRASS_WIDTH,
         GRASS_QUAD_HEIGHT * f32(index / 2u),
         0.0,
     );
-    vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // center last vertex
-    //if f32(index == 10u) == 1.0 { vpos.x = 0.0; } // center last vertex
+    if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
+    // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
     // Shape
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
@@ -58,13 +56,11 @@ fn vs_main(
     pos = instance.pos + pos;   // translate
 
     // normal
-    let normal1 = rot_mat * rot_y(PI * NORMAL_ROUNDING) * NORMAL; // need normalize?
+    let normal1 = rot_mat * rot_y(PI * NORMAL_ROUNDING) * NORMAL;
     let normal2 = rot_mat * rot_y(-PI * NORMAL_ROUNDING) * NORMAL;
-    //let normal = normalize(rot_mat * NORMAL);
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(pos, 1.0);
-    // out.normal = normal;
     out.normal1 = normal1;
     out.normal2 = normal2;
     out.width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
@@ -83,7 +79,6 @@ struct VertexOutput {
     @location(3) width_percent: f32,
 };
 
-const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
 const ambient_mod = 0.4;
 const diffuse_mod = 0.7;
 const base_color = vec3<f32>(0.05, 0.2, 0.01);
