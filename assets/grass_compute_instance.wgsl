@@ -16,6 +16,9 @@ struct GrassInstance {          // align 16 size 32
 
 const BLADES_PER_SIDE = 16.0 * 5.0;
 const TILE_SIZE = 20.0;
+const BLADE_DIST = TILE_SIZE / BLADES_PER_SIDE;
+const WIND_MODIFIER = 0.5;
+const OFFSET_MODIFIER = 0.5;
 
 const PI = 3.1415927;
 
@@ -41,15 +44,13 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let hash = hash_2d(x, z);
 
         instances[i].pos = vec3<f32>(
-            (f32(x) / BLADES_PER_SIDE) * TILE_SIZE,
+            f32(x) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
             0.0,
-            (f32(z) / BLADES_PER_SIDE) * TILE_SIZE,
+            f32(z) * BLADE_DIST + hash_to_range_neg(hash) * BLADE_DIST * OFFSET_MODIFIER,
         );
         instances[i].hash = hash;
         instances[i].facing = hash_to_vec2_neg(hash);
-        //instances[i].facing = vec2<f32>(1.0, 1.0);
-        instances[i].wind = noise * 0.5;
-        //instances[i].wind = hash_to_range(hash) * 0.5;
+        instances[i].wind = noise * WIND_MODIFIER;
     }
 }
 
