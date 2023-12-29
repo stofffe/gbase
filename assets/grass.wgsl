@@ -28,6 +28,7 @@ const GRASS_HEIGHT = 1.5;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 10u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
+const GRASS_MAX_ROT = PI / 8.0;
 
 const GRASS_THICKNESS_FACTOR = 0.4;
 
@@ -69,10 +70,10 @@ fn vs_main(
     // Shape
     let facing_angle = atan2(facing.x, facing.y); // x z
     let height_percent = vpos.y / GRASS_HEIGHT;
-    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * PI / 8.);
+    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * GRASS_MAX_ROT);
 
     // Wind
-    let wind_mat = rot_z(WIND_DIR.x * instance.wind) * rot_x(-WIND_DIR.z * instance.wind);
+    let wind_mat = rot_z(-WIND_DIR.x * instance.wind) * rot_x(WIND_DIR.z * instance.wind);
 
     // Apply pos and rot
     let rot_mat = wind_mat * shape_mat;
@@ -131,8 +132,7 @@ fn fs_main(
     }
 
     let t = time_info.time_passed;
-    //let light_pos = vec3<f32>(sin(t) * 10.0, 1.0, -5.0);
-    let light_pos = rotate_around(vec3<f32>(5.0, 1.0, 5.0), 20.0, t * 2.0);
+    let light_pos = rotate_around(vec3<f32>(5.0, 1.0, 5.0), 5.0, t * 2.0);
     let light_dir = normalize(light_pos - in.pos);
 
     let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
