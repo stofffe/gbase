@@ -8,14 +8,14 @@ struct DrawArgs {
     base_instance: u32,
 };
 
-const vertices_size = u32(11);
-const instances_size = u32(50 * 50);
+const vertices_size = 11u;
+const instances_size = 50u * 50u;
 
 @compute
 @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    draw_args.base_vertex = u32(0);
+    draw_args.base_vertex = 0u;
     draw_args.vertex_count = vertices_size; // set this based of tile distance 15/7 verts
-    draw_args.base_instance = u32(0);
+    draw_args.base_instance = 0u;
     draw_args.instance_count = instace_count;
 }

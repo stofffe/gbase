@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::{input, Context};
 use encase::ShaderType;
 use glam::{vec3, Mat4, Vec3};
 use std::f32::consts::PI;
@@ -21,6 +21,7 @@ pub struct PerspectiveCamera {
 pub struct PerspectiveCameraUniform {
     view_proj: Mat4,
     pos: Vec3,
+    btn: u32,
 }
 
 impl PerspectiveCamera {
@@ -28,7 +29,7 @@ impl PerspectiveCamera {
         let camera_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("camera buffer"),
             size: u64::from(PerspectiveCameraUniform::min_size()),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, // OPTION
             mapped_at_creation: false,
         });
 
@@ -37,7 +38,7 @@ impl PerspectiveCamera {
                 label: Some("camera bg layout"),
                 entries: &[wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE, // OPTION
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -105,12 +106,23 @@ impl PerspectiveCamera {
         self.fov = self.fov.clamp(MIN_FOV, MAX_FOV);
         let view = Mat4::look_to_lh(self.pos, self.forward(), self.up());
         let aspect = ctx.render.aspect_ratio();
-        let projection = Mat4::perspective_lh(self.fov, aspect, self.znear, self.zfar);
-        let view_proj = projection * view;
+        let proj = Mat4::perspective_lh(self.fov, aspect, self.znear, self.zfar);
+
+        let view_proj = proj * view;
+
+        // TODO DEBUG
+        let mut btn = 0;
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyL) {
+            btn = 1;
+        }
 
         let pos = self.pos;
 
-        PerspectiveCameraUniform { view_proj, pos }
+        PerspectiveCameraUniform {
+            view_proj,
+            pos,
+            btn,
+        }
     }
 
     pub fn update_buffer(&mut self, ctx: &Context) {

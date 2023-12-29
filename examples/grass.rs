@@ -26,7 +26,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: f32 = 16.0;
-const BLADES_PER_SIDE: u32 = 16 * 5; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 3; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 const PLANE_SIZE: f32 = 100.0;
@@ -153,7 +153,7 @@ impl Callbacks for App {
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
 
-        self.grass_renderer.compute(ctx, encoder);
+        self.grass_renderer.compute(ctx, encoder, &self.camera);
 
         // Render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -310,7 +310,12 @@ impl GrassRenderer {
         }
     }
 
-    fn compute(&mut self, ctx: &Context, encoder: &mut wgpu::CommandEncoder) {
+    fn compute(
+        &mut self,
+        ctx: &Context,
+        encoder: &mut wgpu::CommandEncoder,
+        camera: &render::PerspectiveCamera,
+    ) {
         let queue = render::queue(ctx);
 
         // clear instance count
@@ -330,6 +335,7 @@ impl GrassRenderer {
         compute_pass.set_pipeline(&self.instance_compute_pipeline);
         compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
         compute_pass.set_bind_group(1, &self.perlin_noise_texture.bind_group, &[]);
+        compute_pass.set_bind_group(2, &camera.bind_group, &[]);
         compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
         // draw
@@ -444,7 +450,7 @@ impl GrassRenderer {
                 .await
                 .unwrap();
         let instance_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some("compute instance shader"),
             source: wgpu::ShaderSource::Wgsl(instance_shader_str.into()),
         });
 
@@ -454,6 +460,7 @@ impl GrassRenderer {
                 bind_group_layouts: &[
                     &instance_compute_bindgroup_layout,
                     &perlin_noise_texture.bind_group_layout,
+                    &camera.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -515,7 +522,7 @@ impl GrassRenderer {
             .await
             .unwrap();
         let draw_compute_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some("compute draw shader"),
             source: wgpu::ShaderSource::Wgsl(draw_shader_str.into()),
         });
 
@@ -539,7 +546,7 @@ impl GrassRenderer {
             .await
             .unwrap();
         let render_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
+            label: Some("grass render shader"),
             source: wgpu::ShaderSource::Wgsl(render_shader_str.into()),
         });
 
