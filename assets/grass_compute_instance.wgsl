@@ -71,17 +71,18 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // facing
         var facing = hash_to_vec2_neg(hash);
         // Rotate orthogonal verticies towards camera 
-        if btn_pressed() {
-            let camera_dir = normalize(camera.pos.xz - pos.xz);
-            let normal_xz = normalize(facing);
-            let view_normal_dot = dot(camera_dir, normal_xz);
-            if view_normal_dot >= 0.0 {
-                facing = mix(normal_xz, camera_dir, view_normal_dot * BLADE_THICKNESS_FACTOR);
-            } else {
-                facing = mix(normal_xz, -camera_dir, -view_normal_dot * BLADE_THICKNESS_FACTOR);
-            }
+        let camera_dir = camera.pos.xz - pos.xz;
+        let normal_xz = facing;
+        let camera_dist_factor = clamp(length(camera_dir), 0.0, 1.0); // avoid sharp rotations close to camera
+        let view_normal_dot = dot(normalize(camera_dir), normalize(normal_xz));
+        let rotate_amount = view_normal_dot * camera_dist_factor * BLADE_THICKNESS_FACTOR;
+        if view_normal_dot >= 0.0 {
+            facing = mix(normal_xz, camera_dir, rotate_amount);
+        } else {
+            facing = mix(normal_xz, -camera_dir, -rotate_amount);
         }
 
+        // update instancec data
         let i = atomicAdd(&instance_count, 1u);
         instances[i].pos = pos;
         instances[i].hash = hash;

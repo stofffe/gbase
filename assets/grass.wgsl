@@ -28,7 +28,7 @@ const GRASS_HEIGHT = 1.5;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 10u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
-const GRASS_MAX_ROT = PI / 8.0;
+const GRASS_MAX_ROT = PI / 4.0;
 
 const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
 const NORMAL_ROUNDING = PI / 6.0;
