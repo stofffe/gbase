@@ -30,8 +30,6 @@ const GRASS_MAX_VERT_INDEX = 10u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
 const GRASS_MAX_ROT = PI / 8.0;
 
-const GRASS_THICKNESS_FACTOR = 0.4;
-
 const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
@@ -53,22 +51,8 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-    // TODO move to instance compute?
-    // Rotate orthogonal verticies towards camera 
-    var facing = instance.facing;
-    if btn_pressed() {
-        let camera_dir = normalize(camera.pos.xz - instance.pos.xz);
-        let normal_xz = normalize(facing);
-        let view_normal_dot = dot(camera_dir, normal_xz);
-        if view_normal_dot >= 0.0 {
-            facing = mix(normal_xz, camera_dir, view_normal_dot * GRASS_THICKNESS_FACTOR);
-        } else {
-            facing = mix(normal_xz, -camera_dir, -view_normal_dot * GRASS_THICKNESS_FACTOR);
-        }
-    }
-    
     // Shape
-    let facing_angle = atan2(facing.x, facing.y); // x z
+    let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / GRASS_HEIGHT;
     let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * GRASS_MAX_ROT);
 

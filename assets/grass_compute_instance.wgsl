@@ -16,7 +16,13 @@ struct GrassInstance {          // align 16 size 32
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
+    btn: u32,
 };
+
+// TODO DEBUG
+fn btn_pressed() -> bool {
+    return camera.btn == 1u;
+}
 
 @group(3) @binding(0) var<uniform> time_info: TimeInfo;
 struct TimeInfo {
@@ -27,6 +33,8 @@ const TILE_SIZE = 10.0;
 const BLADES_PER_SIDE = 16.0 * 3.0;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
+
+const BLADE_THICKNESS_FACTOR = 0.4;
 
 const WIND_MODIFIER = 0.8;
 const WIND_SCROLL_SPEED = 0.1;
@@ -62,6 +70,17 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // facing
         var facing = hash_to_vec2_neg(hash);
+        // Rotate orthogonal verticies towards camera 
+        if btn_pressed() {
+            let camera_dir = normalize(camera.pos.xz - pos.xz);
+            let normal_xz = normalize(facing);
+            let view_normal_dot = dot(camera_dir, normal_xz);
+            if view_normal_dot >= 0.0 {
+                facing = mix(normal_xz, camera_dir, view_normal_dot * BLADE_THICKNESS_FACTOR);
+            } else {
+                facing = mix(normal_xz, -camera_dir, -view_normal_dot * BLADE_THICKNESS_FACTOR);
+            }
+        }
 
         let i = atomicAdd(&instance_count, 1u);
         instances[i].pos = pos;
