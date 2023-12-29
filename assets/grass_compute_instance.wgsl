@@ -1,6 +1,5 @@
 @group(0) @binding(0) var<storage, read_write> instances: array<GrassInstance>;
 @group(0) @binding(1) var<storage, read_write> instance_count: atomic<u32>;
-@group(0) @binding(2) var<uniform> time_passed: f32;
 // instances tightly packed => size must be multiple of align 
 struct GrassInstance {          // align 16 size 32 
     pos: vec3<f32>,             // align 16 size 12 start 0
@@ -19,7 +18,12 @@ struct CameraUniform {
     pos: vec3<f32>,
 };
 
-const TILE_SIZE = 20.0;
+@group(3) @binding(0) var<uniform> time_info: TimeInfo;
+struct TimeInfo {
+    time_passed: f32
+};
+
+const TILE_SIZE = 10.0;
 const BLADES_PER_SIDE = 16.0 * 3.0;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
@@ -52,7 +56,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if !cull { 
         // wind power from perline noise
         let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
-        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_passed ;
+        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
         let uv = tile_pos + scroll;
         let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_MODIFIER; // think x = y = z
 

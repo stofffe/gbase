@@ -104,12 +104,17 @@ where
             return true;
         }
 
-        // Context updates
+        // time
         ctx.time.update_time();
+
+        // input
         ctx.input.keyboard.save_keys();
         ctx.input.keyboard.save_modifiers();
         ctx.input.mouse.save_buttons();
         ctx.input.mouse.set_mouse_delta((0.0, 0.0));
+
+        // render
+        ctx.render.update_time_info(ctx.time.time_since_start());
 
         false
     }

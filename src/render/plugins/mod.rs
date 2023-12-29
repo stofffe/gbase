@@ -17,3 +17,6 @@ pub use texture::*;
 
 mod instance;
 pub use instance::*;
+
+mod time_info;
+pub use time_info::*;

@@ -1,7 +1,6 @@
-use bytemuck::bytes_of;
 use gbase::{
     filesystem, input,
-    render::{self, InstaceTrait, InstanceGpuTrait, VertexColor, VertexUV},
+    render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -147,12 +146,11 @@ impl Callbacks for App {
         encoder: &mut wgpu::CommandEncoder,
         screen_view: &wgpu::TextureView,
     ) -> bool {
-        let device = render::device(ctx);
-        let queue = render::queue(ctx);
-
+        // update buffers
         self.camera.update_buffer(ctx);
         self.plane_transform.update_buffer(ctx);
 
+        // compute
         self.grass_renderer.compute(ctx, encoder, &self.camera);
 
         // Render
@@ -275,7 +273,6 @@ struct GrassRenderer {
     instance_compute_pipeline: wgpu::ComputePipeline,
     instance_compute_bindgroup: wgpu::BindGroup,
     instance_count: wgpu::Buffer,
-    time_buffer: wgpu::Buffer,
 
     draw_compute_pipeline: wgpu::ComputePipeline,
     draw_compute_bindgroup: wgpu::BindGroup,
@@ -321,21 +318,19 @@ impl GrassRenderer {
         // clear instance count
         queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32]));
 
-        // update time passed
-        let time_passed = time::time_since_start(ctx);
-        queue.write_buffer(&self.time_buffer, 0, bytemuck::cast_slice(&[time_passed]));
-
         // run compute
         let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
             label: Some("compute pass"),
             timestamp_writes: None,
         });
 
+        let time_info = render::time_info(ctx);
         // instance
         compute_pass.set_pipeline(&self.instance_compute_pipeline);
         compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
         compute_pass.set_bind_group(1, &self.perlin_noise_texture.bind_group, &[]);
         compute_pass.set_bind_group(2, &camera.bind_group, &[]);
+        compute_pass.set_bind_group(3, &time_info.bind_group, &[]);
         compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
         // draw
@@ -346,13 +341,16 @@ impl GrassRenderer {
 
     fn render<'a>(
         &'a self,
-        ctx: &Context,
+        ctx: &'a Context,
         render_pass: &mut wgpu::RenderPass<'a>,
         camera: &'a render::PerspectiveCamera,
     ) {
+        let time_info = render::time_info(ctx);
+
         render_pass.set_pipeline(&self.grass_pipeline);
         render_pass.set_vertex_buffer(0, self.instances.buffer.slice(..));
         render_pass.set_bind_group(0, &camera.bind_group, &[]);
+        render_pass.set_bind_group(1, &time_info.bind_group, &[]);
         render_pass.draw_indirect(&self.indirect_buffer, 0);
     }
 
@@ -374,12 +372,6 @@ impl GrassRenderer {
             usage: wgpu::BufferUsages::INDIRECT
                 | wgpu::BufferUsages::STORAGE
                 | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let time_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("time buffer"),
-            size: std::mem::size_of::<f32>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let perlin_texture_bytes = filesystem::load_bytes(ctx, Path::new("perlin_noise.png"))
@@ -414,17 +406,6 @@ impl GrassRenderer {
                         },
                         count: None,
                     },
-                    // time passed
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
                 ],
             });
         let instance_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -439,10 +420,6 @@ impl GrassRenderer {
                     binding: 1,
                     resource: instance_count.as_entire_binding(),
                 },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: time_buffer.as_entire_binding(),
-                },
             ],
         });
         let instance_shader_str =
@@ -454,6 +431,7 @@ impl GrassRenderer {
             source: wgpu::ShaderSource::Wgsl(instance_shader_str.into()),
         });
 
+        let time_info = render::time_info(ctx);
         let instance_compute_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("draw compute pipeline layout"),
@@ -461,6 +439,7 @@ impl GrassRenderer {
                     &instance_compute_bindgroup_layout,
                     &perlin_noise_texture.bind_group_layout,
                     &camera.bind_group_layout,
+                    &time_info.bind_group_layout,
                 ],
                 push_constant_ranges: &[],
             });
@@ -550,10 +529,11 @@ impl GrassRenderer {
             source: wgpu::ShaderSource::Wgsl(render_shader_str.into()),
         });
 
+        let time_info = render::time_info(ctx);
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("grass render pipeline layout"),
-                bind_group_layouts: &[&camera.bind_group_layout],
+                bind_group_layouts: &[&camera.bind_group_layout, &time_info.bind_group_layout],
                 push_constant_ranges: &[],
             });
 
@@ -612,7 +592,6 @@ impl GrassRenderer {
             instance_compute_bindgroup,
 
             perlin_noise_texture,
-            time_buffer,
         }
     }
 }

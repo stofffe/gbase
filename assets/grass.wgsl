@@ -6,14 +6,17 @@ struct Instance {
     @location(5) pad: f32,
 };
 
+@group(0) @binding(0) var<uniform> camera: CameraUniform;
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     btn: u32,
 };
 
-@group(0) @binding(0)
-var<uniform> camera: CameraUniform;
+@group(1) @binding(0) var<uniform> time_info: TimeInfo;
+struct TimeInfo {
+    time_passed: f32,
+};
 
 const GRASS_WIDTH = 0.1;
 const GRASS_HEIGHT = 1.5;
@@ -99,11 +102,12 @@ struct VertexOutput {
     @location(3) width_percent: f32,
 };
 
-const ambient_mod = 0.4;
+const ambient_mod = 0.0;
 const diffuse_mod = 0.7;
 const base_color = vec3<f32>(0.05, 0.2, 0.01);
 const tip_color = vec3<f32>(0.5, 0.5, 0.1);
 
+// TODO something wrong here
 @fragment 
 fn fs_main(
     in: VertexOutput,
@@ -114,7 +118,8 @@ fn fs_main(
     // use if you want concave 
     if front_facing { normal = -normal; }
 
-    let light_pos = vec3<f32>(2.0, 1.0, -10.0);
+    let t = time_info.time_passed;
+    let light_pos = vec3<f32>(0.0, 0.0, 0.0);
     let light_dir = normalize(light_pos - in.pos);
 
     let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);

@@ -16,6 +16,7 @@ pub(crate) struct RenderContext {
     window: Arc<winit::window::Window>,
 
     depth_buffer: plugins::DepthBuffer,
+    time_info: plugins::TimeInfo,
 }
 
 impl RenderContext {
@@ -83,6 +84,8 @@ impl RenderContext {
 
         let depth_buffer = plugins::DepthBuffer::new(&device, &surface_config);
 
+        let time_info = plugins::TimeInfo::new(&device);
+
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -95,6 +98,7 @@ impl RenderContext {
             window: Arc::new(window),
 
             depth_buffer,
+            time_info,
         }
     }
 
@@ -130,6 +134,11 @@ impl RenderContext {
     pub(crate) fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32
     }
+
+    pub(crate) fn update_time_info(&mut self, time_passed: f32) {
+        self.time_info.time_passed = time_passed;
+        self.time_info.update_buffer(&self.queue);
+    }
 }
 
 // Getter functions for render and window operations
@@ -154,6 +163,9 @@ pub fn surface_config(ctx: &Context) -> wgpu::SurfaceConfiguration {
 }
 pub fn depth_buffer(ctx: &Context) -> &plugins::DepthBuffer {
     &ctx.render.depth_buffer
+}
+pub fn time_info(ctx: &Context) -> &plugins::TimeInfo {
+    &ctx.render.time_info
 }
 
 // /// Creates a render pass which renders to the current window

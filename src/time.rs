@@ -17,6 +17,8 @@ pub(crate) struct TimeContext {
     frames: u32,
     last_frame_time: Instant,
     last_ms: f32,
+
+    time_since_start: f32,
 }
 
 impl Default for TimeContext {
@@ -30,22 +32,14 @@ impl Default for TimeContext {
             frames: 0,
             last_frame_time: start_time,
             last_ms: 0.0,
+
+            time_since_start: 0.0,
         }
     }
 }
 
 impl TimeContext {
     pub(crate) fn update_time(&mut self) {
-        // frame target
-        // if let Some(frame_target) = self.frame_target {
-        //     let ms_per_frame = Duration::from_secs_f32(1.0 / frame_target);
-        //     let time_to_sleep = self.last_time + ms_per_frame - now;
-        //     // println!("MS {:?}", ms_per_frame);
-        //     // println!("TO SLEEP {:?}", time_to_sleep);
-        //     // TODO wasm support
-        //     spin_sleep::sleep(time_to_sleep);
-        //     // thread::sleep(time_to_sleep);
-        // }
         let now = Instant::now();
 
         // update dt
@@ -61,11 +55,14 @@ impl TimeContext {
             self.frames = 0;
         }
 
+        // time since start
+        self.time_since_start = Instant::now().duration_since(self.start_time).as_secs_f32();
+
         self.last_time = now;
     }
 
-    fn time_since_start(&self) -> f32 {
-        Instant::now().duration_since(self.start_time).as_secs_f32()
+    pub(crate) fn time_since_start(&self) -> f32 {
+        self.time_since_start
     }
 }
 
@@ -98,7 +95,7 @@ impl Timer {
 
 /// Returns the time since the start of the application
 pub fn time_since_start(ctx: &Context) -> f32 {
-    ctx.time.time_since_start()
+    ctx.time.time_since_start
 }
 
 /// Return the current time (in seconds)
@@ -142,3 +139,14 @@ pub fn fps(ctx: &Context) -> f32 {
 // }
 // println!("elapsed {}", now.elapsed().as_secs_f32());
 // self.current_time = instant::Instant::now();
+
+// frame target
+// if let Some(frame_target) = self.frame_target {
+//     let ms_per_frame = Duration::from_secs_f32(1.0 / frame_target);
+//     let time_to_sleep = self.last_time + ms_per_frame - now;
+//     // println!("MS {:?}", ms_per_frame);
+//     // println!("TO SLEEP {:?}", time_to_sleep);
+//     // TODO wasm support
+//     spin_sleep::sleep(time_to_sleep);
+//     // thread::sleep(time_to_sleep);
+// }
