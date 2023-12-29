@@ -13,6 +13,11 @@ struct CameraUniform {
     btn: u32,
 };
 
+// TODO DEBUG
+fn btn_pressed() -> bool {
+    return camera.btn == 1u;
+}
+
 @group(1) @binding(0) var<uniform> time_info: TimeInfo;
 struct TimeInfo {
     time_passed: f32,
@@ -26,17 +31,12 @@ const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
 
 const GRASS_THICKNESS_FACTOR = 0.4;
 
-const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
-const NORMAL_ROUNDING = PI / 3.0;
+const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
+const NORMAL_ROUNDING = PI / 6.0;
 
 const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO sample from texture instead
 
 const PI = 3.1415927;
-
-// TODO DEBUG
-fn btn_pressed() -> bool {
-    return camera.btn == 1u;
-}
 
 @vertex
 fn vs_main(
@@ -52,7 +52,8 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-    // Rotate orthogonal verticies towards camera
+    // TODO move to instance compute?
+    // Rotate orthogonal verticies towards camera 
     var facing = instance.facing;
     if btn_pressed() {
         let camera_dir = normalize(camera.pos.xz - instance.pos.xz);
@@ -68,7 +69,7 @@ fn vs_main(
     // Shape
     let facing_angle = atan2(facing.x, facing.y); // x z
     let height_percent = vpos.y / GRASS_HEIGHT;
-    let shape_mat = rot_y(PI - facing_angle) * rot_x(ease_in(height_percent) * PI / 8.);
+    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * PI / 8.);
 
     // Wind
     let wind_mat = rot_z(WIND_DIR.x * instance.wind) * rot_x(-WIND_DIR.z * instance.wind);
@@ -102,24 +103,36 @@ struct VertexOutput {
     @location(3) width_percent: f32,
 };
 
-const ambient_mod = 0.0;
-const diffuse_mod = 0.7;
+const ambient_mod = 0.2;
+const diffuse_mod = 8.0;
 const base_color = vec3<f32>(0.05, 0.2, 0.01);
 const tip_color = vec3<f32>(0.5, 0.5, 0.1);
 
-// TODO something wrong here
+const DEBUG_RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+const DEBUG_IDENT_MAT = mat3x3<f32>(
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+);
+
 @fragment 
 fn fs_main(
     in: VertexOutput,
     @builtin(front_facing) front_facing: bool
 ) -> @location(0) vec4<f32> {
-    var normal = normalize(mix(in.normal1, in.normal2, in.width_percent)); // blend normals to get rounded normal
+    var normal: vec3<f32>;
 
-    // use if you want concave 
-    if front_facing { normal = -normal; }
+    // blend normals to get rounded normal
+    if front_facing {
+        normal = normalize(mix(in.normal1, in.normal2, in.width_percent));
+    } else {
+        normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
+        // normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent)); // if concave
+    }
 
     let t = time_info.time_passed;
-    let light_pos = vec3<f32>(0.0, 0.0, 0.0);
+    //let light_pos = vec3<f32>(sin(t) * 10.0, 1.0, -5.0);
+    let light_pos = rotate_around(vec3<f32>(5.0, 1.0, 5.0), 20.0, t * 2.0);
     let light_dir = normalize(light_pos - in.pos);
 
     let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
@@ -131,6 +144,15 @@ fn fs_main(
 
     // return vec4<f32>(normal.xz, 0.0, 1.0);
     return vec4<f32>(color * light, 1.0);
+}
+
+const LIGHT_ROTATION_SPEED = 0.5;
+fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
+    return vec3<f32>(
+        center.x + radius * cos(time * LIGHT_ROTATION_SPEED),
+        center.y,
+        center.z + radius * sin(time * LIGHT_ROTATION_SPEED),
+    );
 }
 
 fn ease_in(p: f32) -> f32 {
@@ -146,25 +168,25 @@ fn rot_x(angle: f32) -> mat3x3<f32> {
     let c = cos(angle);
     return mat3x3<f32>(
         1.0, 0.0, 0.0,
-        0.0, c, -s,
-        0.0, s, c,
+        0.0, c, s,
+        0.0, -s, c,
     );
 }
 fn rot_y(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, 0.0, s,
+        c, 0.0, -s,
         0.0, 1.0, 0.0,
-        -s, 0.0, c,
+        s, 0.0, c,
     );
 }
 fn rot_z(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, -s, 0.0,
-        s, c, 0.0,
+        c, s, 0.0,
+        -s, c, 0.0,
         0.0, 0.0, 1.0
     );
 }
