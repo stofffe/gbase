@@ -57,7 +57,8 @@ impl App {
         // Plane
         let plane_transform = render::Transform::new(&device)
             .rotation(Quat::from_rotation_x(PI / 2.0))
-            .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0));
+            .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0))
+            .pos(vec3(0.0, -0.1, 0.0)); // TODO TEMP
         let plane_buffer = render::VertexBuffer::new(&device, CENTERED_QUAD_VERTICES);
 
         // Plane pipeline
@@ -221,11 +222,10 @@ impl App {
         let dt = gbase::time::delta_time(ctx);
 
         // Camera rotation
-        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw += 1.0 * dt * mouse_dx;
-            self.camera.pitch -= 1.0 * dt * mouse_dy;
-        }
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {}
+        let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+        self.camera.yaw += 1.0 * dt * mouse_dx;
+        self.camera.pitch -= 1.0 * dt * mouse_dy;
 
         // Camera movement
         let mut camera_movement_dir = Vec3::ZERO;

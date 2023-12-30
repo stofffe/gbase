@@ -28,12 +28,13 @@ const GRASS_HEIGHT = 1.5;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 10u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
-const GRASS_MAX_ROT = PI / 4.0;
+const GRASS_MAX_ROT = PI / 8.0;
 
 const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
-const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO sample from texture instead
+const WIND_DIR = vec3<f32>(-1.0, 0.0, -1.0); // TODO sample from texture instead
+const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
 
@@ -42,6 +43,7 @@ fn vs_main(
     instance: Instance,
     @builtin(vertex_index) index: u32,
 ) -> VertexOutput {
+
     // Generate vertex (High LOD)
     var vpos = vec3<f32>(
         -GRASS_WIDTH * 0.5 + f32(index % 2u) * GRASS_WIDTH,
@@ -51,29 +53,38 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-    // Shape
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / GRASS_HEIGHT;
-    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * GRASS_MAX_ROT);
-
-    // Wind
+    let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
     let wind_mat = rot_z(-WIND_DIR.x * instance.wind) * rot_x(WIND_DIR.z * instance.wind);
+    let rot_mat = shape_mat * wind_mat;
+    //let rot_mat = rot_y(facing_angle);
 
-    // Apply pos and rot
-    let rot_mat = wind_mat * shape_mat;
-    let model_pos = instance.pos + rot_mat * vpos;
+    let model_matrix = transpose(mat4x4<f32>(
+        rot_mat[0][0], rot_mat[0][1], rot_mat[0][2], instance.pos.x,
+        rot_mat[1][0], rot_mat[1][1], rot_mat[1][2], instance.pos.y,
+        rot_mat[2][0], rot_mat[2][1], rot_mat[2][2], instance.pos.z,
+        0.0, 0.0, 0.0, 1.0,
+    ));
 
-    // Normal
-    let normal1 = rot_mat * rot_y(NORMAL_ROUNDING) * NORMAL;
-    let normal2 = rot_mat * rot_y(-NORMAL_ROUNDING) * NORMAL;
+    // normal
+    let normal = transpose(inverse_3x3(rot_mat)) * NORMAL;
+
+    // rounded normal
+    let normal1 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
+    let normal2 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
 
+    //let normal = normal_matrix * NORMAL; // Apply pos and rot
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
-    out.normal1 = normal1;
-    out.normal2 = normal2;
+    let model_pos = model_matrix * vec4<f32>(vpos, 1.0);
+
+    out.clip_position = camera.view_proj * model_pos;
+    out.normal = normal.xyz;
+    out.normal1 = normal1.xyz;
+    out.normal2 = normal2.xyz;
     out.width_percent = width_percent;
-    out.pos = model_pos;
+    out.pos = model_pos.xyz;
 
     return out;
 }
@@ -83,22 +94,19 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) pos: vec3<f32>,
-    @location(1) normal1: vec3<f32>,
-    @location(2) normal2: vec3<f32>,
-    @location(3) width_percent: f32,
+    @location(1) normal: vec3<f32>,
+    @location(2) normal1: vec3<f32>,
+    @location(3) normal2: vec3<f32>,
+    @location(4) width_percent: f32,
 };
 
-const ambient_mod = 0.2;
-const diffuse_mod = 8.0;
-const base_color = vec3<f32>(0.05, 0.2, 0.01);
-const tip_color = vec3<f32>(0.5, 0.5, 0.1);
-
-const DEBUG_RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
-const DEBUG_IDENT_MAT = mat3x3<f32>(
-    1.0, 0.0, 0.0,
-    0.0, 1.0, 0.0,
-    0.0, 0.0, 1.0,
-);
+const AMBIENT_MOD = 0.1;
+const DIFFUSE_MOD = 0.3;
+const SPECULAR_MOD = 1.0;
+const SPECULAR_INTENSITY = 30.0;
+const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
+const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
+const SPECULAR_BLEND_MAX_DIST = 50.0;
 
 @fragment 
 fn fs_main(
@@ -106,27 +114,39 @@ fn fs_main(
     @builtin(front_facing) front_facing: bool
 ) -> @location(0) vec4<f32> {
     var normal: vec3<f32>;
-
-    // blend normals to get rounded normal
     if front_facing {
-        normal = normalize(mix(in.normal1, in.normal2, in.width_percent));
+        normal = mix(in.normal1, in.normal2, in.width_percent);
+        // normal = in.normal;
     } else {
         normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
-        // normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent)); // if concave
+        // normal = -in.normal;
     }
 
     let t = time_info.time_passed;
     let light_pos = rotate_around(vec3<f32>(5.0, 1.0, 5.0), 5.0, t * 2.0);
-    let light_dir = normalize(light_pos - in.pos);
+    //let light_pos = vec3<f32>(8.0, 3.0, 8.0);
 
-    let diffuse = diffuse_mod * clamp(dot(light_dir, normal), 0.0, 1.0);
-    let ambient = ambient_mod;
-    let light = clamp(diffuse + ambient, 0.0, 1.0);
+    let light_dir = normalize(light_pos - in.pos);
+    let view_dir = normalize(camera.pos - in.pos);
+
+    let dist_factor = length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST;
+    let specular_normal = mix(normal, TERRAIN_NORMAL, ease_in(dist_factor));
+    let reflect_dir = reflect(-light_dir, specular_normal);
+
+    // Phong
+    let ambient = AMBIENT_MOD;
+    let diffuse = DIFFUSE_MOD * saturate(dot(light_dir, normal));
+    let specular = SPECULAR_MOD * saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
+    let light = saturate(ambient + diffuse + specular);
+
+    if btn_pressed() {
+        //return vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        return vec4<f32>(specular, specular, specular, 1.0);
+    }
 
     let p = in.pos.y / 1.5;
-    let color = mix(base_color, tip_color, ease_in(p)); // better interpolation function?
+    let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
 
-    // return vec4<f32>(normal.xz, 0.0, 1.0);
     return vec4<f32>(color * light, 1.0);
 }
 
@@ -143,7 +163,7 @@ fn ease_in(p: f32) -> f32 {
     return p * p;
 }
 
-fn easeOut(t: f32) -> f32 {
+fn ease_out(t: f32) -> f32 {
     return 1.0 - pow(1.0 - t, 3.0);
 }
 
@@ -152,56 +172,69 @@ fn rot_x(angle: f32) -> mat3x3<f32> {
     let c = cos(angle);
     return mat3x3<f32>(
         1.0, 0.0, 0.0,
-        0.0, c, s,
-        0.0, -s, c,
+        0.0, c, -s,
+        0.0, s, c, // s {transpose} -> -s {left handed} -> s
     );
 }
 fn rot_y(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, 0.0, -s,
+        c, 0.0, s,// s {transpose} -> -s {left handed} -> s
         0.0, 1.0, 0.0,
-        s, 0.0, c,
+        -s, 0.0, c,
     );
 }
 fn rot_z(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, s, 0.0,
-        -s, c, 0.0,
+        c, -s, 0.0,
+        s, c, 0.0, // s {transpose} -> -s {left handed} -> s
         0.0, 0.0, 1.0
     );
 }
-// var<private> vertices: array<vec3<f32>, 11> = array<vec3<f32>, 11>(
-//     vec3<f32>(-0.05, 0.0, 0.0),
-//     vec3<f32>(0.05, 0.0, 0.0),
-//     vec3<f32>(-0.05, 0.3, 0.0),
-//     vec3<f32>(0.05, 0.3, 0.0),
-//     vec3<f32>(-0.05, 0.6, 0.0),
-//     vec3<f32>(0.05, 0.6, 0.0),
-//     vec3<f32>(-0.05, 0.9, 0.0),
-//     vec3<f32>(0.05, 0.9, 0.0),
-//     vec3<f32>(-0.05, 1.2, 0.0),
-//     vec3<f32>(0.05, 1.2, 0.0),
-//     vec3<f32>(0.00, 1.5, 0.0),
-// );
 
-//var mv_pos = camera.view * vec4<f32>(pos, 1.0);
+// Function to calculate the inverse of a 3x3 matrix
+fn inverse_3x3(input_matrix: mat3x3<f32>) -> mat3x3<f32> {
+    // Calculate the determinant of the input matrix
+    let det = input_matrix[0][0] * (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) - input_matrix[0][1] * (input_matrix[1][0] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][0]) + input_matrix[0][2] * (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]);
 
-// TEMP
+    // Calculate the inverse of the determinant
+    let invDet = 1.0 / det;
 
-//var normal3 = normalize(mix(normal1, normal2, width_percent)); // blend normals to get rounded normal
-// let camera_dir = normalize(camera.pos - pos);
-// let vd = dot(normal.xz, camera_dir.xz);
-// var factor = easeOut(1.0 - vd);
-// pos = rot_y(PI / 2.0) * pos;
-//factor = smoothstep(0.0, 0.2, vd);
-//mv_pos.x += factor * GRASS_WIDTH;
+    // Calculate the elements of the inverse matrix
+    var inverse_matrix: mat3x3<f32>;
+    inverse_matrix[0][0] = (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) * invDet;
+    inverse_matrix[0][1] = (input_matrix[0][2] * input_matrix[2][1] - input_matrix[0][1] * input_matrix[2][2]) * invDet;
+    inverse_matrix[0][2] = (input_matrix[0][1] * input_matrix[1][2] - input_matrix[0][2] * input_matrix[1][1]) * invDet;
+    inverse_matrix[1][0] = (input_matrix[1][2] * input_matrix[2][0] - input_matrix[1][0] * input_matrix[2][2]) * invDet;
+    inverse_matrix[1][1] = (input_matrix[0][0] * input_matrix[2][2] - input_matrix[0][2] * input_matrix[2][0]) * invDet;
+    inverse_matrix[1][2] = (input_matrix[0][2] * input_matrix[1][0] - input_matrix[0][0] * input_matrix[1][2]) * invDet;
+    inverse_matrix[2][0] = (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]) * invDet;
+    inverse_matrix[2][1] = (input_matrix[0][1] * input_matrix[2][0] - input_matrix[0][0] * input_matrix[2][1]) * invDet;
+    inverse_matrix[2][2] = (input_matrix[0][0] * input_matrix[1][1] - input_matrix[0][1] * input_matrix[1][0]) * invDet;
 
-//var vd = abs(dot(normal.xz, pos.xz));
-//if vd < 0.1 {
-//    view.x += vd;
-//    //return vec4<f32>(1.0, 0.0, 0.0, 1.0);
-//}
+    return inverse_matrix;
+}
+
+const DEBUG_RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+const DEBUG_IDENT_MAT = mat3x3<f32>(
+    1.0, 0.0, 0.0,
+    0.0, 1.0, 0.0,
+    0.0, 0.0, 1.0,
+);
+
+
+    //let model_matrix = mat4x4<f32>(
+    //    rot_mat[0][0], rot_mat[1][0], rot_mat[2][0], 0.0,
+    //    rot_mat[0][1], rot_mat[1][1], rot_mat[2][1], 0.0,
+    //    rot_mat[0][2], rot_mat[1][2], rot_mat[2][2], 0.0,
+    //    instance.pos.x, instance.pos.y, instance.pos.z, 1.0
+    //);
+
+    //let normal_matrix = transpose(inverse_3x3(mat3x3<f32>(
+    //    model_matrix[0][0], model_matrix[0][1], model_matrix[0][2],
+    //    model_matrix[1][0], model_matrix[1][1], model_matrix[1][2],
+    //    model_matrix[2][0], model_matrix[2][1], model_matrix[2][2],
+    //)));
