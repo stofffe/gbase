@@ -6,7 +6,7 @@ struct GrassInstance {          // align 16 size 32
     hash: u32,                  // align 4  size 4  start 12
     facing: vec2<f32>,          // align 8  size 8  start 16
     wind: f32,                  // align 4  size 4  start 24
-    pad: f32,                   // align 4  size 4  start 28
+    height: f32,                   // align 4  size 4  start 28
 };
 
 @group(1) @binding(0) var perlin_tex: texture_2d<f32>;
@@ -29,14 +29,14 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const TILE_SIZE = 10.0;
-const BLADES_PER_SIDE = 16.0 * 3.0;
+const TILE_SIZE = 30.0;
+const BLADES_PER_SIDE = 16.0 * 10.0;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
 
 const BLADE_THICKNESS_FACTOR = 0.4;
 
-const WIND_MODIFIER = 0.8;
+const WIND_STRENGTH = 1.0;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 
@@ -66,20 +66,22 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
         let uv = tile_pos + scroll;
-        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_MODIFIER; // think x = y = z
+        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
 
         // facing
         var facing = hash_to_vec2_neg(hash);
         // Rotate orthogonal verticies towards camera 
-        //let camera_dir = camera.pos.xz - pos.xz;
-        //let normal_xz = facing;
-        //let camera_dist_factor = clamp(length(camera_dir), 0.0, 1.0); // avoid sharp rotations close to camera
-        //let view_normal_dot = dot(normalize(camera_dir), normalize(normal_xz));
-        //let rotate_amount = view_normal_dot * camera_dist_factor * BLADE_THICKNESS_FACTOR;
-        //if view_normal_dot >= 0.0 {
-        //    facing = mix(normal_xz, camera_dir, rotate_amount);
-        //} else {
-        //    facing = mix(normal_xz, -camera_dir, -rotate_amount);
+        //if btn_pressed() {
+        //    let camera_dir = camera.pos.xz - pos.xz;
+        //    let normal_xz = facing;
+        //    let camera_dist_factor = clamp(length(camera_dir), 0.0, 1.0); // avoid sharp rotations close to camera
+        //    let view_normal_dot = dot(normalize(camera_dir), normalize(normal_xz));
+        //    let rotate_amount = view_normal_dot * camera_dist_factor * BLADE_THICKNESS_FACTOR;
+        //    if view_normal_dot >= 0.0 {
+        //        facing = mix(normal_xz, camera_dir, rotate_amount);
+        //    } else {
+        //        facing = mix(normal_xz, -camera_dir, -rotate_amount);
+        //    }
         //}
 
         // update instancec data
@@ -88,6 +90,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].hash = hash;
         instances[i].facing = facing;
         instances[i].wind = wind;
+        instances[i].height = 2.0;
     }
 }
 

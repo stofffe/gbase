@@ -1,7 +1,7 @@
 use gbase::{
     filesystem, input,
     render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
-    time, Callbacks, Context, ContextBuilder, LogLevel,
+    Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{
@@ -25,8 +25,9 @@ pub async fn main() {
 }
 
 const TILE_SIZE: f32 = 16.0;
-const BLADES_PER_SIDE: u32 = 16 * 3; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 10; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
+const CAMERA_MOVE_SPEED: f32 = 5.0;
 
 const PLANE_SIZE: f32 = 100.0;
 // const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
@@ -212,7 +213,12 @@ impl Callbacks for App {
 
         self.grass_renderer.update(&self.camera);
 
-        log::info!("{}", gbase::time::fps(ctx));
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            self.grass_renderer = pollster::block_on(GrassRenderer::new(ctx, &self.camera));
+            println!("reload");
+        }
+
+        //log::info!("{}", gbase::time::fps(ctx));
         false
     }
 }
@@ -249,20 +255,21 @@ impl App {
             camera_movement_dir -= self.camera.world_up();
         }
         if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt;
+            self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED;
         }
     }
 }
 
+const PLANE_COLOR: [f32; 3] = [0.05, 0.2, 0.01];
 #[rustfmt::skip]
 const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
-    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    VertexColor { position: [ 0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom right
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
+    VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
+    VertexColor { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom right
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
 
-    VertexColor { position: [-0.5, -0.5, 0.0], color: [0.7, 0.5, 0.2] }, // bottom left
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top right
-    VertexColor { position: [-0.5,  0.5, 0.0], color: [0.7, 0.5, 0.2] }, // top left
+    VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
+    VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
+    VertexColor { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR }, // top left
 
 ];
 
@@ -644,8 +651,8 @@ impl GrassInstanceGPU {
         1=>Float32x3,   // pos
         2=>Uint32,      // hash
         3=>Float32x2,   // facing
-        4=>Float32x2,   // wind
-        5=>Float32x2,   // pad
+        4=>Float32,     // wind
+        5=>Float32,     // pad
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

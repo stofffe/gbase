@@ -8,7 +8,7 @@ struct DrawArgs {
     base_instance: u32,
 };
 
-const vertices_size = 11u;
+const vertices_size = 15u;
 const instances_size = 50u * 50u;
 
 @compute
