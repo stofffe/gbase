@@ -30,23 +30,31 @@ struct TimeInfo {
 };
 
 const TILE_SIZE = 30.0;
-const BLADES_PER_SIDE = 16.0 * 10.0;
+const BLADES_PER_SIDE = 16.0 * 8.0;
+const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
 
 const BLADE_THICKNESS_FACTOR = 0.4;
 
 const WIND_STRENGTH = 1.0;
-const WIND_SCROLL_SPEED = 0.1;
+const WIND_SCROLL_SPEED = 0.2;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 
-const ORTHOGONAL_LIMIT = 0.1;
+const ORTH_LIM = 0.4; // what dot value orthogonal rotation should start at
+const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
+const ORTH_DIST_BOUNDS = vec2<f32>(2.0, 4.0);
 
 const PI = 3.1415927;
 
 @compute
 @workgroup_size(16,16,1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    // debug
+    if global_id.x + 16u * global_id.y > u32(BLADES_TOTAL) {
+        return;
+    }
+
     let x = global_id.x;
     let z = global_id.y;
     let hash = hash_2d(x, z);
@@ -69,20 +77,18 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
 
         // facing
-        var facing = hash_to_vec2_neg(hash);
+        var facing = normalize(hash_to_vec2_neg(hash));
         // Rotate orthogonal verticies towards camera 
-        //if btn_pressed() {
-        //    let camera_dir = camera.pos.xz - pos.xz;
-        //    let normal_xz = facing;
-        //    let camera_dist_factor = clamp(length(camera_dir), 0.0, 1.0); // avoid sharp rotations close to camera
-        //    let view_normal_dot = dot(normalize(camera_dir), normalize(normal_xz));
-        //    let rotate_amount = view_normal_dot * camera_dist_factor * BLADE_THICKNESS_FACTOR;
-        //    if view_normal_dot >= 0.0 {
-        //        facing = mix(normal_xz, camera_dir, rotate_amount);
-        //    } else {
-        //        facing = mix(normal_xz, -camera_dir, -rotate_amount);
-        //    }
-        //}
+        let camera_dir = normalize(camera.pos.xz - pos.xz);
+        let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
+        let vnd = dot(camera_dir, facing); // view normal dot
+        if vnd >= 0.0 {
+            let rotate_factor = pow(1.0 - vnd, 3.0) * smoothstep(0.0, ORTH_LIM, vnd) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
+            facing = mix(facing, camera_dir, rotate_factor);
+        } else {
+            let rotate_factor = pow(vnd + 1.0, 3.0) * smoothstep(ORTH_LIM, 0.0, vnd + ORTH_LIM) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
+            facing = mix(facing, -camera_dir, rotate_factor);
+        }
 
         // update instancec data
         let i = atomicAdd(&instance_count, 1u);

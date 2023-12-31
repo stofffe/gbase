@@ -51,6 +51,7 @@ const PI = 3.1415927;
 fn vs_main(
     instance: Instance,
     @builtin(vertex_index) index: u32,
+    @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
 
     // Generate vertex (High LOD)
@@ -66,14 +67,21 @@ fn vs_main(
     //facing_angle = clamp(facing_angle, 0.0, PI / 2.0);
 
     let height_percent = vpos.y / instance.height;
+    //let shape_mat = rot_y(facing_angle);
     let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
     let wind_mat = rot_z(-WIND_DIR.x * instance.wind) * rot_x(WIND_DIR.z * instance.wind);
+    //let rot_mat = shape_mat;
     let rot_mat = shape_mat * wind_mat;
 
+    // debug light pos
+    var world_pos = instance.pos;
+    if instance_index == 2000u {
+        world_pos = debug_light_pos();
+    }
     let model_matrix = transpose(mat4x4<f32>(
-        rot_mat[0][0], rot_mat[0][1], rot_mat[0][2], instance.pos.x,
-        rot_mat[1][0], rot_mat[1][1], rot_mat[1][2], instance.pos.y,
-        rot_mat[2][0], rot_mat[2][1], rot_mat[2][2], instance.pos.z,
+        rot_mat[0][0], rot_mat[0][1], rot_mat[0][2], world_pos.x,
+        rot_mat[1][0], rot_mat[1][1], rot_mat[1][2], world_pos.y,
+        rot_mat[2][0], rot_mat[2][1], rot_mat[2][2], world_pos.z,
         0.0, 0.0, 0.0, 1.0,
     ));
     let model_pos = model_matrix * vec4<f32>(vpos, 1.0);
@@ -109,6 +117,16 @@ struct VertexOutput {
     @location(4) width_percent: f32,
 };
 
+fn debug_light_pos() -> vec3<f32> {
+    let t = time_info.time_passed;
+
+    var light_pos: vec3<f32>;
+    light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
+    light_pos = vec3<f32>(-10.0, 8.0, 40.0);
+    light_pos = rotate_around(vec3<f32>(15.0, 10.0, 15.0), 15.0, t * 1.0);
+    return light_pos;
+}
+
 @fragment 
 fn fs_main(
     in: VertexOutput,
@@ -116,27 +134,26 @@ fn fs_main(
 ) -> @location(0) vec4<f32> {
     var normal: vec3<f32>;
     if front_facing {
-        normal = mix(in.normal1, in.normal2, in.width_percent);
-        normal = in.normal;
-    } else {
-        normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
-        //normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent));
         normal = -in.normal;
+        normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
+    } else {
+        normal = in.normal;
+        normal = mix(in.normal1, in.normal2, in.width_percent);
+        //normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent));
     }
 
     let t = time_info.time_passed;
-    //let light_pos = rotate_around(vec3<f32>(5.0, 1.0, 5.0), 5.0, t * 2.0);
-    //let light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    let light_pos = vec3<f32>(-10.0, 8.0, 40.0);
+    let light_pos = debug_light_pos();
 
     let light_dir = normalize(light_pos - in.pos);
+    //let light_dir = normalize(vec3<f32>(-1.0, -1.0, -1.0));
     let view_dir = normalize(camera.pos - in.pos);
 
     // Blend specular normal to terrain at distance
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
-    let specular_normal = mix(normal, TERRAIN_NORMAL, ease_in(dist_factor));
+    let specular_normal = mix(normal, TERRAIN_NORMAL, dist_factor);
     let reflect_dir = reflect(-light_dir, specular_normal);
-    let specular_strength = SPECULAR_MOD * clamp(1.0 - dist_factor, 0.3, 1.0);
+    let specular_strength = SPECULAR_MOD * clamp(1.0 - dist_factor, 0.8, 1.0);
     let specular = specular_strength * saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
 
     // Phong
@@ -145,8 +162,12 @@ fn fs_main(
     var light = saturate(ambient + diffuse + specular);
 
     if btn_pressed() {
-        light = saturate(ambient + specular);
-        //return vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        //light = saturate(ambient + specular);
+        var debug: vec4<f32>;
+        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        debug = vec4<f32>(light_dir, 1.0);
+        debug = vec4<f32>(specular, specular, specular, 1.0);
+        //return debug;
         //return vec4<f32>(specular, specular, specular, 1.0);
     }
 
