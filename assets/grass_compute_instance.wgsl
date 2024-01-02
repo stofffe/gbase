@@ -36,17 +36,16 @@ const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
 
-const BLADE_THICKNESS_FACTOR = 0.4;
-
-const WIND_STRENGTH = 1.5;
-const WIND_RANDOM_SWAY_STRENGTH = 0.05;
+const WIND_GLOBAL_POWER = 1.5;
+const WIND_LOCAL_POWER = 0.05;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
+const WIND_FACING_MODIFIER = 2.0;
 
 const ORTH_LIM = 0.4; // what dot value orthogonal rotation should start at
 const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
-const ORTH_DIST_BOUNDS = vec2<f32>(2.0, 4.0);
+const ORTH_DIST_BOUNDS = vec2<f32>(2.0, 4.0); // between which distances to smoothstep orth rotation
 
 const PI = 3.1415927;
 
@@ -62,21 +61,20 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let z = global_id.y;
     let hash = hash_2d(x, z);
 
-    // pos
+    // POS
     let pos = vec3<f32>(
         f32(x) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
         0.0,
         f32(z) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
     );
 
-    // cull
+    // CULL
     let cull = false;
 
     if !cull {
         let t = time_info.time_passed;
 
         // FACING
-
         var facing = normalize(hash_to_vec2_neg(hash));
         // Rotate orthogonal verticies towards camera 
         let camera_dir = normalize(camera.pos.xz - pos.xz);
@@ -92,35 +90,34 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
 
         // WIND
-
         // global wind from perline noise
-        let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
+        let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
-        let uv = tile_pos + scroll;
-        let global_wind_power = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
-        //let global_wind_power = 0.0; // TEMP
-        let global_wind_dir = normalize(WIND_DIR);
+        let uv = tile_uv + scroll;
+        let global_wind_power = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_GLOBAL_POWER; // think x = y = z
+        var global_wind_dir = normalize(WIND_DIR);
         var global_wind = vec2<f32>(
             facing.x * global_wind_dir.x * global_wind_power, // x
             facing.y * global_wind_dir.y * global_wind_power, // z
         );
-        // blade curls towards normal, this affects how much wind is catched
+
+        // blade curls towards normal, this affects how much wind is caught
         if global_wind.x <= 0.0 {
-            global_wind.x *= -2.0;
+            global_wind.x *= -WIND_FACING_MODIFIER;
         }
         if global_wind.y <= 0.0 {
-            global_wind.y *= -2.0;
+            global_wind.y *= -WIND_FACING_MODIFIER;
         }
 
         // local sway offset by hash
-        let local_wind_sway = vec2<f32>(
-            sin(t + 2.0 * PI * hash_to_range(hash)),
-            sin(t + 2.0 * PI * hash_to_range(hash ^ 0x732846u)),
-        ) * WIND_RANDOM_SWAY_STRENGTH;
+        let local_wind = vec2<f32>(
+            facing.x * sin(t + 2.0 * PI * hash_to_range(hash)),
+            facing.y * sin(t + 2.0 * PI * hash_to_range(hash ^ 0x732846u)),
+        ) * WIND_LOCAL_POWER;
 
-        let wind = global_wind + local_wind_sway;
+        let wind = global_wind + local_wind;
 
-        // update instancec data
+        // UPDATE INSTANCE DATA
         let i = atomicAdd(&instance_count, 1u);
         instances[i].pos = pos;
         instances[i].hash = hash;

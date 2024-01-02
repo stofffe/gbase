@@ -26,7 +26,6 @@ struct TimeInfo {
 
 // grass
 const GRASS_WIDTH = 0.1;
-//const GRASS_HEIGHT = 1.5;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 14u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
@@ -35,11 +34,11 @@ const GRASS_MAX_ROT = PI / 8.0;
 const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
-const AMBIENT_MOD = 0.1;
-const DIFFUSE_MOD = 0.6;
-const SPECULAR_MOD = 0.8;
-const SPECULAR_INTENSITY = 50.0;
-const SPECULAR_BLEND_MAX_DIST = 20.0;
+const AMBIENT_MOD = 0.2;
+const DIFFUSE_MOD = 0.7;
+const SPECULAR_MOD = 2.0;
+const SPECULAR_INTENSITY = 10.0;
+const SPECULAR_BLEND_MAX_DIST = 60.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
 
@@ -66,24 +65,20 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-    var facing = instance.facing;
-    var facing_angle = atan2(facing.x, facing.y); // x z
-    //facing_angle = clamp(facing_angle, 0.0, PI / 2.0);
 
     // shape
+    let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / instance.height;
     let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
 
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
 
-    //let wind_mat = rot_x(wind_z) * rot_z(-wind_x);
-
-    // debug light pos
     var world_pos = instance.pos;
-    if instance_index == 10u {
-        world_pos = debug_light_pos();
-    }
+    // debug light pos
+    //if instance_index == 10u {
+    //    world_pos = debug_light_pos();
+    //}
 
     // model matrix
     let rot_mat = shape_mat * wind_mat;
@@ -130,8 +125,8 @@ fn debug_light_pos() -> vec3<f32> {
 
     var light_pos: vec3<f32>;
     light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    light_pos = rotate_around(vec3<f32>(15.0, 10.0, 15.0), 15.0, t * 1.0);
     light_pos = vec3<f32>(-10.0, 8.0, 40.0);
+    light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
     return light_pos;
 }
 
@@ -140,34 +135,36 @@ fn fs_main(
     in: VertexOutput,
     @builtin(front_facing) front_facing: bool
 ) -> @location(0) vec4<f32> {
+
+    // flip normals depending on face
     var normal: vec3<f32>;
     if front_facing {
-        normal = -in.normal;
+        //normal = -in.normal;
         normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
     } else {
-        normal = in.normal;
+        //normal = in.normal;
         normal = mix(in.normal1, in.normal2, in.width_percent);
         //normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent));
     }
 
     let t = time_info.time_passed;
     let light_pos = debug_light_pos();
-
     let light_dir = normalize(light_pos - in.pos);
     //let light_dir = normalize(vec3<f32>(-1.0, -1.0, -1.0));
     let view_dir = normalize(camera.pos - in.pos);
 
     // Blend specular normal to terrain at distance
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
-    let specular_normal = mix(normal, TERRAIN_NORMAL, dist_factor);
+    let specular_normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
+
     let reflect_dir = reflect(-light_dir, specular_normal);
-    let specular_strength = SPECULAR_MOD * clamp(1.0 - dist_factor, 0.8, 1.0);
+    let specular_strength = clamp(1.0 - dist_factor, 0.5, 1.0); // TODO constant for clamp?
     let specular = specular_strength * saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
 
     // Phong
-    let ambient = AMBIENT_MOD;
-    let diffuse = DIFFUSE_MOD * saturate(dot(light_dir, normal));
-    var light = saturate(ambient + diffuse + specular);
+    let ambient = 1.0;
+    let diffuse = saturate(dot(light_dir, normal));
+    var light = saturate(AMBIENT_MOD * ambient + DIFFUSE_MOD * diffuse + SPECULAR_MOD * specular);
 
     if btn_pressed() {
         //light = saturate(ambient + specular);
@@ -175,7 +172,7 @@ fn fs_main(
         debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
         debug = vec4<f32>(light_dir, 1.0);
         debug = vec4<f32>(specular, specular, specular, 1.0);
-        //return debug;
+        return debug;
         //return vec4<f32>(specular, specular, specular, 1.0);
     }
 
