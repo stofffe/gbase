@@ -42,10 +42,13 @@ const SPECULAR_BLEND_MAX_DIST = 20.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
 
-const WIND_DIR = vec3<f32>(1.0, 0.0, 0.0); // TODO sample from texture instead
+const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO sample from texture instead
 const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
+const X = vec3<f32>(1.0, 0.0, 0.0);
+const Y = vec3<f32>(0.0, 1.0, 0.0);
+const Z = vec3<f32>(0.0, 0.0, 1.0);
 
 @vertex
 fn vs_main(
@@ -63,21 +66,35 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-    var facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
+    var facing = instance.facing;
+    var facing_angle = atan2(facing.x, facing.y); // x z
     //facing_angle = clamp(facing_angle, 0.0, PI / 2.0);
 
+    // shape
     let height_percent = vpos.y / instance.height;
-    //let shape_mat = rot_y(facing_angle);
     let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
-    let wind_mat = rot_z(-WIND_DIR.x * instance.wind) * rot_x(WIND_DIR.z * instance.wind);
-    //let rot_mat = shape_mat;
-    let rot_mat = shape_mat * wind_mat;
+    // wind
+    let wind_dir = normalize(WIND_DIR);
+
+    var wind_z: f32;
+    var wind_x: f32;
+    if btn_pressed() {
+        wind_x = abs(facing.x * wind_dir.x) * instance.wind;
+        wind_z = abs(facing.y * wind_dir.z) * instance.wind;
+    } else {
+        wind_x = wind_dir.x * instance.wind; // wrong use normal? wind_dir.x * 
+        wind_z = wind_dir.z * instance.wind; // wrong use normal? wind_dir.z * 
+    }
+    let wind_mat = rot_x(wind_z) * rot_z(-wind_x);
 
     // debug light pos
     var world_pos = instance.pos;
-    if instance_index == 2000u {
+    if instance_index == 10u {
         world_pos = debug_light_pos();
     }
+
+    // model matrix
+    let rot_mat = shape_mat * wind_mat;
     let model_matrix = transpose(mat4x4<f32>(
         rot_mat[0][0], rot_mat[0][1], rot_mat[0][2], world_pos.x,
         rot_mat[1][0], rot_mat[1][1], rot_mat[1][2], world_pos.y,

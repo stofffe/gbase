@@ -29,8 +29,8 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const TILE_SIZE = 30.0;
-const BLADES_PER_SIDE = 16.0 * 8.0;
+const TILE_SIZE = 20.0;
+const BLADES_PER_SIDE = 16.0 * 4.0;
 const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
@@ -51,7 +51,7 @@ const PI = 3.1415927;
 @workgroup_size(16,16,1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // debug
-    if global_id.x + 16u * global_id.y > u32(BLADES_TOTAL) {
+    if global_id.x >= u32(BLADES_PER_SIDE) || global_id.y >= u32(BLADES_PER_SIDE) {
         return;
     }
 
@@ -75,6 +75,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
         let uv = tile_pos + scroll;
         let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
+        //let wind = 0.5;
 
         // facing
         var facing = normalize(hash_to_vec2_neg(hash));
