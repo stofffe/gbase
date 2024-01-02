@@ -36,7 +36,7 @@ const NORMAL_ROUNDING = PI / 6.0;
 
 const AMBIENT_MOD = 0.2;
 const DIFFUSE_MOD = 0.7;
-const SPECULAR_MOD = 2.0;
+const SPECULAR_MOD = 1.0;
 const SPECULAR_INTENSITY = 11.0; // must be odd
 const SPECULAR_BLEND_MAX_DIST = 60.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
@@ -69,7 +69,7 @@ fn vs_main(
     // shape
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / instance.height;
-    let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
+    let shape_mat = rot_x(-ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
 
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);

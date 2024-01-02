@@ -213,6 +213,8 @@ impl Callbacks for App {
 
         self.grass_renderer.update(&self.camera);
 
+        // hot reload
+        #[cfg(not(target_arch = "wasm32"))]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
             self.grass_renderer = pollster::block_on(GrassRenderer::new(ctx, &self.camera));
             println!("reload");

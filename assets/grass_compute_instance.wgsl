@@ -40,7 +40,7 @@ const WIND_GLOBAL_POWER = 1.5;
 const WIND_LOCAL_POWER = 0.05;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
-const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
+const WIND_DIR = vec2<f32>(-1.0, 1.0); // TODO sample from texture instead
 const WIND_FACING_MODIFIER = 2.0;
 
 const ORTH_LIM = 0.4; // what dot value orthogonal rotation should start at
@@ -97,16 +97,16 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let global_wind_power = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_GLOBAL_POWER; // think x = y = z
         var global_wind_dir = normalize(WIND_DIR);
         var global_wind = vec2<f32>(
-            facing.x * global_wind_dir.x * global_wind_power, // x
-            facing.y * global_wind_dir.y * global_wind_power, // z
-        );
+            abs(facing.x * global_wind_dir.x), // dot product on x 
+            abs(facing.y * global_wind_dir.y), // dot product on z
+        ) * global_wind_dir * global_wind_power;
 
         // blade curls towards normal, this affects how much wind is caught
-        if global_wind.x <= 0.0 {
-            global_wind.x *= -WIND_FACING_MODIFIER;
+        if global_wind.x * facing.x >= 0.0 {
+            global_wind.x *= WIND_FACING_MODIFIER;
         }
-        if global_wind.y <= 0.0 {
-            global_wind.y *= -WIND_FACING_MODIFIER;
+        if global_wind.y * facing.y >= 0.0 {
+            global_wind.y *= WIND_FACING_MODIFIER;
         }
 
         // local sway offset by hash
