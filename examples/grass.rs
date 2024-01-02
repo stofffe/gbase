@@ -255,7 +255,11 @@ impl App {
             camera_movement_dir -= self.camera.world_up();
         }
         if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED;
+            if input::key_pressed(ctx, KeyCode::KeyM) {
+                self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED / 10.0;
+            } else {
+                self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED;
+            }
         }
     }
 }
@@ -623,8 +627,9 @@ impl GrassInstance {
             position: self.pos.to_array(),
             facing: self.facing.to_array(),
             hash: [0],
-            wind: [0.0],
-            pad: [0.0],
+            wind: [0.0, 0.0],
+            pad: [0.0, 0.0, 0.0],
+            height: [0.0],
         }
     }
 }
@@ -641,18 +646,20 @@ struct GrassInstanceGPU {
     position: [f32; 3],
     hash: [u32; 1],
     facing: [f32; 2],
-    wind: [f32; 1],
-    pad: [f32; 1],
+    wind: [f32; 2],
+    pad: [f32; 3],
+    height: [f32; 1],
 }
 
 impl GrassInstanceGPU {
     const SIZE: u64 = std::mem::size_of::<Self>() as u64;
-    const ATTRIBUTES: [wgpu::VertexAttribute; 5] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
         1=>Float32x3,   // pos
         2=>Uint32,      // hash
         3=>Float32x2,   // facing
-        4=>Float32,     // wind
-        5=>Float32,     // pad
+        4=>Float32x2,   // wind
+        5=>Float32x3,   // pad
+        6=>Float32,     // height
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

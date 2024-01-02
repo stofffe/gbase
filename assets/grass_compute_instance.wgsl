@@ -1,12 +1,13 @@
 @group(0) @binding(0) var<storage, read_write> instances: array<GrassInstance>;
 @group(0) @binding(1) var<storage, read_write> instance_count: atomic<u32>;
 // instances tightly packed => size must be multiple of align 
-struct GrassInstance {          // align 16 size 32 
+struct GrassInstance {          // align 16 size 48
     pos: vec3<f32>,             // align 16 size 12 start 0
     hash: u32,                  // align 4  size 4  start 12
     facing: vec2<f32>,          // align 8  size 8  start 16
-    wind: f32,                  // align 4  size 4  start 24
-    height: f32,                   // align 4  size 4  start 28
+    wind: vec2<f32>,            // align 8  size 8  start 24
+    pad: vec3<f32>,             // align 16 size 12 start 32
+    height: f32,                // align 4  size 4  start 44
 };
 
 @group(1) @binding(0) var perlin_tex: texture_2d<f32>;
@@ -38,8 +39,10 @@ const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
 const BLADE_THICKNESS_FACTOR = 0.4;
 
 const WIND_STRENGTH = 1.5;
-const WIND_SCROLL_SPEED = 0.2;
+const WIND_RANDOM_SWAY_STRENGTH = 0.05;
+const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
+const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
 
 const ORTH_LIM = 0.4; // what dot value orthogonal rotation should start at
 const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
@@ -69,8 +72,11 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // cull
     let cull = false;
 
-    if !cull { 
-        // facing
+    if !cull {
+        let t = time_info.time_passed;
+
+        // FACING
+
         var facing = normalize(hash_to_vec2_neg(hash));
         // Rotate orthogonal verticies towards camera 
         let camera_dir = normalize(camera.pos.xz - pos.xz);
@@ -84,11 +90,35 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             facing = mix(facing, -camera_dir, rotate_factor);
         }
 
-        // wind power from perline noise
+
+        // WIND
+
+        // global wind from perline noise
         let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
-        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
+        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
         let uv = tile_pos + scroll;
-        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
+        let global_wind_power = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
+        //let global_wind_power = 0.0; // TEMP
+        let global_wind_dir = normalize(WIND_DIR);
+        var global_wind = vec2<f32>(
+            facing.x * global_wind_dir.x * global_wind_power, // x
+            facing.y * global_wind_dir.y * global_wind_power, // z
+        );
+        // blade curls towards normal, this affects how much wind is catched
+        if global_wind.x <= 0.0 {
+            global_wind.x *= -2.0;
+        }
+        if global_wind.y <= 0.0 {
+            global_wind.y *= -2.0;
+        }
+
+        // local sway offset by hash
+        let local_wind_sway = vec2<f32>(
+            sin(t + 2.0 * PI * hash_to_range(hash)),
+            sin(t + 2.0 * PI * hash_to_range(hash ^ 0x732846u)),
+        ) * WIND_RANDOM_SWAY_STRENGTH;
+
+        let wind = global_wind + local_wind_sway;
 
         // update instancec data
         let i = atomicAdd(&instance_count, 1u);
@@ -110,14 +140,6 @@ fn hash_2d(x: u32, y: u32) -> u32 {
     return hash;
 }
 
-// generates vec2 with values in range [-1, 1]
-fn hash_to_vec2_neg(hash: u32) -> vec2<f32> {
-    return vec2<f32>(
-        hash_to_range_neg(hash ^ 0x36753621u),
-        hash_to_range_neg(hash ^ 0x12345678u),
-    );
-}
-
 // generates float in range [0, 1]
 fn hash_to_range(hash: u32) -> f32 {
     return f32(hash) * 2.3283064e-10; // hash * 1 / 2^32
@@ -127,3 +149,20 @@ fn hash_to_range(hash: u32) -> f32 {
 fn hash_to_range_neg(hash: u32) -> f32 {
     return (f32(hash) * 2.3283064e-10) * 2.0 - 1.0; // hash * 1 / 2^32
 }
+
+// generates vec2 with values in range [0, 1]
+fn hash_to_vec2(hash: u32) -> vec2<f32> {
+    return vec2<f32>(
+        hash_to_range(hash ^ 0x36753621u),
+        hash_to_range(hash ^ 0x12345678u),
+    );
+}
+
+// generates vec2 with values in range [-1, 1]
+fn hash_to_vec2_neg(hash: u32) -> vec2<f32> {
+    return vec2<f32>(
+        hash_to_range_neg(hash ^ 0x36753621u),
+        hash_to_range_neg(hash ^ 0x12345678u),
+    );
+}
+

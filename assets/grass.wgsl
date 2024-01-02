@@ -2,8 +2,9 @@ struct Instance {
     @location(1) pos: vec3<f32>,
     @location(2) hash: u32,
     @location(3) facing: vec2<f32>,
-    @location(4) wind: f32,
-    @location(5) height: f32,
+    @location(4) wind: vec2<f32>,
+    @location(5) pad: vec3<f32>,
+    @location(6) height: f32,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -42,7 +43,6 @@ const SPECULAR_BLEND_MAX_DIST = 20.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
 
-const WIND_DIR = vec3<f32>(1.0, 0.0, 1.0); // TODO sample from texture instead
 const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
@@ -75,19 +75,8 @@ fn vs_main(
     let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
 
     // wind
-    let wind_dir = normalize(WIND_DIR);
-    var wind_x = facing.x * wind_dir.x * instance.wind;
-    var wind_z = facing.y * wind_dir.z * instance.wind;
-    // blade curls towards normal, this affects how much wind is catched
-    if wind_x <= 0.0 {
-        wind_x = -wind_x * 2.0;
-    }
-    if wind_z <= 0.0 {
-        wind_z = -wind_z * 2.0;
-    }
-    let t = time_info.time_passed;
-    let local_wind = sin(t) * 0.05; // TODO make depend on hash
-    let wind_mat = rot_x(local_wind + wind_z) * rot_z(-(local_wind + wind_x));
+    let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
+
     //let wind_mat = rot_x(wind_z) * rot_z(-wind_x);
 
     // debug light pos
