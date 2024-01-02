@@ -30,8 +30,8 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const TILE_SIZE = 50.0;
-const BLADES_PER_SIDE = 16.0 * 10.0;
+const TILE_SIZE = 70.0;
+const BLADES_PER_SIDE = 16.0 * 20.0;
 const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;

@@ -37,7 +37,7 @@ const NORMAL_ROUNDING = PI / 6.0;
 const AMBIENT_MOD = 0.2;
 const DIFFUSE_MOD = 0.7;
 const SPECULAR_MOD = 2.0;
-const SPECULAR_INTENSITY = 10.0;
+const SPECULAR_INTENSITY = 11.0; // must be odd
 const SPECULAR_BLEND_MAX_DIST = 60.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
@@ -76,9 +76,9 @@ fn vs_main(
 
     var world_pos = instance.pos;
     // debug light pos
-    //if instance_index == 10u {
-    //    world_pos = debug_light_pos();
-    //}
+    if instance_index == 10u {
+        world_pos = debug_light_pos();
+    }
 
     // model matrix
     let rot_mat = shape_mat * wind_mat;

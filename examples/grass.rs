@@ -25,7 +25,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: f32 = 16.0;
-const BLADES_PER_SIDE: u32 = 16 * 10; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 20; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 5.0;
 
