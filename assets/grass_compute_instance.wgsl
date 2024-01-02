@@ -29,15 +29,15 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const TILE_SIZE = 20.0;
-const BLADES_PER_SIDE = 16.0 * 4.0;
+const TILE_SIZE = 50.0;
+const BLADES_PER_SIDE = 16.0 * 10.0;
 const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
 const BLADE_MAX_OFFSET = BLADE_DIST_BETWEEN * 0.5;
 
 const BLADE_THICKNESS_FACTOR = 0.4;
 
-const WIND_STRENGTH = 1.0;
+const WIND_STRENGTH = 1.5;
 const WIND_SCROLL_SPEED = 0.2;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 
@@ -70,13 +70,6 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let cull = false;
 
     if !cull { 
-        // wind power from perline noise
-        let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
-        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
-        let uv = tile_pos + scroll;
-        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
-        //let wind = 0.5;
-
         // facing
         var facing = normalize(hash_to_vec2_neg(hash));
         // Rotate orthogonal verticies towards camera 
@@ -90,6 +83,12 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let rotate_factor = pow(vnd + 1.0, 3.0) * smoothstep(ORTH_LIM, 0.0, vnd + ORTH_LIM) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
             facing = mix(facing, -camera_dir, rotate_factor);
         }
+
+        // wind power from perline noise
+        let tile_pos = vec2<f32>(f32(x), 1.0 - f32(z)) / BLADES_PER_SIDE;
+        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * time_info.time_passed;
+        let uv = tile_pos + scroll;
+        let wind = textureGather(2, perlin_tex, perlin_sam, uv).x * WIND_STRENGTH; // think x = y = z
 
         // update instancec data
         let i = atomicAdd(&instance_count, 1u);

@@ -73,19 +73,22 @@ fn vs_main(
     // shape
     let height_percent = vpos.y / instance.height;
     let shape_mat = rot_x(ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
+
     // wind
     let wind_dir = normalize(WIND_DIR);
-
-    var wind_z: f32;
-    var wind_x: f32;
-    if btn_pressed() {
-        wind_x = abs(facing.x * wind_dir.x) * instance.wind;
-        wind_z = abs(facing.y * wind_dir.z) * instance.wind;
-    } else {
-        wind_x = wind_dir.x * instance.wind; // wrong use normal? wind_dir.x * 
-        wind_z = wind_dir.z * instance.wind; // wrong use normal? wind_dir.z * 
+    var wind_x = facing.x * wind_dir.x * instance.wind;
+    var wind_z = facing.y * wind_dir.z * instance.wind;
+    // blade curls towards normal, this affects how much wind is catched
+    if wind_x <= 0.0 {
+        wind_x = -wind_x * 2.0;
     }
-    let wind_mat = rot_x(wind_z) * rot_z(-wind_x);
+    if wind_z <= 0.0 {
+        wind_z = -wind_z * 2.0;
+    }
+    let t = time_info.time_passed;
+    let local_wind = sin(t) * 0.05; // TODO make depend on hash
+    let wind_mat = rot_x(local_wind + wind_z) * rot_z(-(local_wind + wind_x));
+    //let wind_mat = rot_x(wind_z) * rot_z(-wind_x);
 
     // debug light pos
     var world_pos = instance.pos;
@@ -110,7 +113,6 @@ fn vs_main(
     let normal1 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let normal2 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
-
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model_pos;
@@ -139,8 +141,8 @@ fn debug_light_pos() -> vec3<f32> {
 
     var light_pos: vec3<f32>;
     light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    light_pos = vec3<f32>(-10.0, 8.0, 40.0);
     light_pos = rotate_around(vec3<f32>(15.0, 10.0, 15.0), 15.0, t * 1.0);
+    light_pos = vec3<f32>(-10.0, 8.0, 40.0);
     return light_pos;
 }
 
