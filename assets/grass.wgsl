@@ -65,11 +65,10 @@ fn vs_main(
     if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
     // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
 
-
     // shape
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / instance.height;
-    let shape_mat = rot_x(-ease_in(height_percent) * GRASS_MAX_ROT) * rot_y(facing_angle);
+    let shape_mat = rot_y(facing_angle) * rot_x(-ease_in(height_percent) * GRASS_MAX_ROT) ;
 
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
@@ -80,26 +79,19 @@ fn vs_main(
         world_pos = debug_light_pos();
     }
 
-    // model matrix
-    let rot_mat = shape_mat * wind_mat;
-    let model_matrix = transpose(mat4x4<f32>(
-        rot_mat[0][0], rot_mat[0][1], rot_mat[0][2], world_pos.x,
-        rot_mat[1][0], rot_mat[1][1], rot_mat[1][2], world_pos.y,
-        rot_mat[2][0], rot_mat[2][1], rot_mat[2][2], world_pos.z,
-        0.0, 0.0, 0.0, 1.0,
-    ));
-    let model_pos = model_matrix * vec4<f32>(vpos, 1.0);
+    // model
+    let rot_mat = wind_mat * shape_mat;
+    let model_pos = world_pos + rot_mat * vpos;
 
-    // normal
     let normal = transpose(inverse_3x3(rot_mat)) * NORMAL;
-
     // rounded normal
     let normal1 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let normal2 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
 
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * model_pos;
+    //out.clip_position = camera.view_proj * model_pos;
+    out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
     out.normal = normal.xyz;
     out.normal1 = normal1.xyz;
     out.normal2 = normal2.xyz;
@@ -139,12 +131,11 @@ fn fs_main(
     // flip normals depending on face
     var normal: vec3<f32>;
     if front_facing {
-        //normal = -in.normal;
-        normal = normalize(mix(-in.normal2, -in.normal1, in.width_percent));
-    } else {
         //normal = in.normal;
         normal = mix(in.normal1, in.normal2, in.width_percent);
-        //normal = normalize(mix(-in.normal1, -in.normal2, in.width_percent));
+    } else {
+        //normal = -in.normal;
+        normal = -mix(in.normal2, in.normal1, in.width_percent);
     }
 
     let t = time_info.time_passed;
@@ -167,13 +158,11 @@ fn fs_main(
     var light = saturate(AMBIENT_MOD * ambient + DIFFUSE_MOD * diffuse + SPECULAR_MOD * specular);
 
     if btn_pressed() {
-        //light = saturate(ambient + specular);
         var debug: vec4<f32>;
-        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
         debug = vec4<f32>(light_dir, 1.0);
         debug = vec4<f32>(specular, specular, specular, 1.0);
+        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
         return debug;
-        //return vec4<f32>(specular, specular, specular, 1.0);
     }
 
     let p = in.pos.y / 1.5;
@@ -208,26 +197,26 @@ fn rot_x(angle: f32) -> mat3x3<f32> {
     let c = cos(angle);
     return mat3x3<f32>(
         1.0, 0.0, 0.0,
-        0.0, c, -s,
-        0.0, s, c, // s {transpose} -> -s {left handed} -> s
+        0.0, c, s,
+        0.0, -s, c,
     );
 }
 fn rot_y(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, 0.0, s,// s {transpose} -> -s {left handed} -> s
+        c, 0.0, -s,
         0.0, 1.0, 0.0,
-        -s, 0.0, c,
+        s, 0.0, c,
     );
 }
 fn rot_z(angle: f32) -> mat3x3<f32> {
     let s = sin(angle);
     let c = cos(angle);
     return mat3x3<f32>(
-        c, -s, 0.0,
-        s, c, 0.0, // s {transpose} -> -s {left handed} -> s
-        0.0, 0.0, 1.0
+        c, s, 0.0,
+        -s, c, 0.0,
+        0.0, 0.0, 1.0,
     );
 }
 

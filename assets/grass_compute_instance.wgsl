@@ -40,7 +40,7 @@ const WIND_GLOBAL_POWER = 1.5;
 const WIND_LOCAL_POWER = 0.05;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
-const WIND_DIR = vec2<f32>(-1.0, 1.0); // TODO sample from texture instead
+const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
 const WIND_FACING_MODIFIER = 2.0;
 
 const ORTH_LIM = 0.4; // what dot value orthogonal rotation should start at
