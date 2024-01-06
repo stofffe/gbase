@@ -165,7 +165,10 @@ impl Callbacks for App {
             println!("reload");
         }
 
-        // log::info!("{}", gbase::time::fps(ctx));
+        // fps counter
+        if input::key_pressed(ctx, KeyCode::KeyF) {
+            log::info!("{}", gbase::time::fps(ctx));
+        }
         false
     }
 }
@@ -229,11 +232,11 @@ struct GrassRenderer {
     grass_pipeline: render::RenderPipeline,
 
     instance_compute_pipeline: render::ComputePipeline,
-    instance_compute_bindgroup: wgpu::BindGroup,
+    instance_compute_bindgroup: render::BindGroup,
     instance_count: wgpu::Buffer,
 
     draw_compute_pipeline: render::ComputePipeline,
-    draw_compute_bindgroup: wgpu::BindGroup,
+    draw_compute_bindgroup: render::BindGroup,
     indirect_buffer: wgpu::Buffer,
 
     perlin_noise_texture: render::Texture,
@@ -260,7 +263,7 @@ impl GrassRenderer {
         let time_info = render::time_info(ctx);
         // instance
         compute_pass.set_pipeline(self.instance_compute_pipeline.pipeline());
-        compute_pass.set_bind_group(0, &self.instance_compute_bindgroup, &[]);
+        compute_pass.set_bind_group(0, self.instance_compute_bindgroup.bind_group(), &[]);
         compute_pass.set_bind_group(1, self.perlin_noise_texture.bind_group(), &[]);
         compute_pass.set_bind_group(2, camera.bind_group(), &[]);
         compute_pass.set_bind_group(3, time_info.bind_group(), &[]);
@@ -268,7 +271,7 @@ impl GrassRenderer {
 
         // draw
         compute_pass.set_pipeline(self.draw_compute_pipeline.pipeline());
-        compute_pass.set_bind_group(0, &self.draw_compute_bindgroup, &[]);
+        compute_pass.set_bind_group(0, self.draw_compute_bindgroup.bind_group(), &[]);
         compute_pass.dispatch_workgroups(1, 1, 1);
     }
 
@@ -313,48 +316,17 @@ impl GrassRenderer {
             .await;
 
         // Compute 1
-        let instance_compute_bindgroup_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("compute bind group layout)"),
-                entries: &[
-                    // instance buffer
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    // instance count
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-        let instance_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("compute bind group"),
-            layout: &instance_compute_bindgroup_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: instances.buffer().as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: instance_count.as_entire_binding(),
-                },
-            ],
-        });
+        let instance_compute_bindgroup = render::BindGroupBuilder::new(vec![
+            // instances
+            render::BindGroupEntry::new(instances.buffer().as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(false),
+            // instance count
+            render::BindGroupEntry::new(instance_count.as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(false),
+        ])
+        .build(ctx);
 
         let instance_compute_shader =
             render::ShaderBuilder::new("grass_compute_instance.wgsl".to_string())
@@ -366,7 +338,7 @@ impl GrassRenderer {
         let instance_compute_pipeline =
             render::ComputePipelineBuilder::new(&instance_compute_shader)
                 .bind_group_layouts(&[
-                    &instance_compute_bindgroup_layout,
+                    instance_compute_bindgroup.bind_group_layout(),
                     perlin_noise_texture.bind_group_layout(),
                     camera.bind_group_layout(),
                     time_info.bind_group_layout(),
@@ -374,55 +346,21 @@ impl GrassRenderer {
                 .build(ctx);
 
         // Compute 2
-        let draw_compute_bindgroup_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("compute bind group layout)"),
-                entries: &[
-                    // indirect args
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                    // instance count
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::COMPUTE,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Storage { read_only: false },
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let draw_compute_bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("compute bind group"),
-            layout: &draw_compute_bindgroup_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: indirect_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: instance_count.as_entire_binding(),
-                },
-            ],
-        });
+        let draw_compute_bindgroup = render::BindGroupBuilder::new(vec![
+            render::BindGroupEntry::new(indirect_buffer.as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(false),
+            render::BindGroupEntry::new(instance_count.as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(false),
+        ])
+        .build(ctx);
 
         let draw_compute_shader = render::ShaderBuilder::new("grass_compute_draw.wgsl".to_string())
             .build(ctx)
             .await;
         let draw_compute_pipeline = render::ComputePipelineBuilder::new(&draw_compute_shader)
-            .bind_group_layouts(&[&draw_compute_bindgroup_layout])
+            .bind_group_layouts(&[draw_compute_bindgroup.bind_group_layout()])
             .build(ctx);
 
         // Render pipeline
