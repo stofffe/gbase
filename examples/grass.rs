@@ -66,14 +66,14 @@ impl App {
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })])
+            .bind_group_layouts(vec![
+                &camera.bind_group_layout(),
+                &plane_transform.bind_group_layout(),
+            ])
             .build(ctx)
             .await;
 
         let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
-            .bind_group_layouts(&[
-                &camera.bind_group_layout(),
-                &plane_transform.bind_group_layout(),
-            ])
             .depth_buffer(render::DepthBuffer::depth_stencil_state())
             .build(ctx);
 
@@ -321,29 +321,26 @@ impl GrassRenderer {
             render::BindGroupEntry::new(instances.buffer().as_entire_binding())
                 .visibility(wgpu::ShaderStages::COMPUTE)
                 .storage(false),
-            // instance count
             render::BindGroupEntry::new(instance_count.as_entire_binding())
                 .visibility(wgpu::ShaderStages::COMPUTE)
                 .storage(false),
         ])
         .build(ctx);
 
+        let time_info = render::time_info(ctx);
         let instance_compute_shader =
             render::ShaderBuilder::new("grass_compute_instance.wgsl".to_string())
-                .build(ctx)
-                .await;
-
-        let time_info = render::time_info(ctx);
-
-        let instance_compute_pipeline =
-            render::ComputePipelineBuilder::new(&instance_compute_shader)
-                .bind_group_layouts(&[
+                .bind_group_layouts(vec![
                     instance_compute_bindgroup.bind_group_layout(),
                     perlin_noise_texture.bind_group_layout(),
                     camera.bind_group_layout(),
                     time_info.bind_group_layout(),
                 ])
-                .build(ctx);
+                .build(ctx)
+                .await;
+
+        let instance_compute_pipeline =
+            render::ComputePipelineBuilder::new(&instance_compute_shader).build(ctx);
 
         // Compute 2
         let draw_compute_bindgroup = render::BindGroupBuilder::new(vec![
@@ -357,11 +354,11 @@ impl GrassRenderer {
         .build(ctx);
 
         let draw_compute_shader = render::ShaderBuilder::new("grass_compute_draw.wgsl".to_string())
+            .bind_group_layouts(vec![draw_compute_bindgroup.bind_group_layout()])
             .build(ctx)
             .await;
-        let draw_compute_pipeline = render::ComputePipelineBuilder::new(&draw_compute_shader)
-            .bind_group_layouts(&[draw_compute_bindgroup.bind_group_layout()])
-            .build(ctx);
+        let draw_compute_pipeline =
+            render::ComputePipelineBuilder::new(&draw_compute_shader).build(ctx);
 
         // Render pipeline
         let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
@@ -371,11 +368,14 @@ impl GrassRenderer {
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })])
+            .bind_group_layouts(vec![
+                &camera.bind_group_layout(),
+                &time_info.bind_group_layout(),
+            ])
             .build(ctx)
             .await;
         let time_info = render::time_info(ctx);
         let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
-            .bind_group_layouts(&[&camera.bind_group_layout(), &time_info.bind_group_layout()])
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .depth_buffer(render::DepthBuffer::depth_stencil_state())
             .build(ctx);

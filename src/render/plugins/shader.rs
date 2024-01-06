@@ -4,16 +4,17 @@ use wgpu::VertexBufferLayout;
 
 use crate::{filesystem, render, Context};
 
-pub struct ShaderBuilder {
+pub struct ShaderBuilder<'a> {
     label: Option<String>,
     source: String,
     vs_entry: String,
     fs_entry: String,
     buffers: Vec<wgpu::VertexBufferLayout<'static>>,
     targets: Vec<Option<wgpu::ColorTargetState>>,
+    bind_group_layouts: Vec<&'a wgpu::BindGroupLayout>,
 }
 
-impl ShaderBuilder {
+impl<'a> ShaderBuilder<'a> {
     pub fn new(source: String) -> Self {
         Self {
             label: None,
@@ -22,9 +23,10 @@ impl ShaderBuilder {
             fs_entry: "fs_main".to_string(),
             buffers: Vec::new(),
             targets: Vec::new(),
+            bind_group_layouts: Vec::new(),
         }
     }
-    pub async fn build(self, ctx: &Context) -> Shader {
+    pub async fn build(self, ctx: &'a Context) -> Shader {
         let device = render::device(ctx);
         let shader_str = filesystem::load_string(ctx, Path::new(&self.source))
             .await
@@ -39,6 +41,7 @@ impl ShaderBuilder {
             fs_entry: self.fs_entry,
             buffers: self.buffers,
             targets: self.targets,
+            bind_group_layouts: self.bind_group_layouts,
         }
     }
 
@@ -62,9 +65,13 @@ impl ShaderBuilder {
         self.targets = value.to_vec();
         self
     }
+    pub fn bind_group_layouts(mut self, value: Vec<&'a wgpu::BindGroupLayout>) -> Self {
+        self.bind_group_layouts = value;
+        self
+    }
 }
 
-pub struct Shader {
+pub struct Shader<'a> {
     module: wgpu::ShaderModule,
 
     vs_entry: String,
@@ -72,11 +79,16 @@ pub struct Shader {
 
     fs_entry: String,
     targets: Vec<Option<wgpu::ColorTargetState>>,
+
+    bind_group_layouts: Vec<&'a wgpu::BindGroupLayout>,
 }
 
-impl Shader {
+impl<'a> Shader<'a> {
     pub fn module(&self) -> &wgpu::ShaderModule {
         &self.module
+    }
+    pub fn bind_group_layouts(&self) -> &[&wgpu::BindGroupLayout] {
+        &self.bind_group_layouts
     }
     pub fn vertex(&self) -> wgpu::VertexState<'_> {
         wgpu::VertexState {

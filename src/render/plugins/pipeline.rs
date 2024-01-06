@@ -2,10 +2,9 @@ use crate::{render, Context};
 
 // TODO more references?
 pub struct RenderPipelineBuilder<'a> {
-    shader: &'a render::Shader,
+    shader: &'a render::Shader<'a>,
 
     label: Option<String>,
-    bind_group_layouts: Vec<&'a wgpu::BindGroupLayout>,
     topology: wgpu::PrimitiveTopology,
     cull_mode: Option<wgpu::Face>,
     polygon_mode: wgpu::PolygonMode,
@@ -15,10 +14,6 @@ pub struct RenderPipelineBuilder<'a> {
 impl<'a> RenderPipelineBuilder<'a> {
     pub fn label(mut self, value: &str) -> Self {
         self.label = Some(value.to_string());
-        self
-    }
-    pub fn bind_group_layouts(mut self, value: &[&'a wgpu::BindGroupLayout]) -> Self {
-        self.bind_group_layouts = value.to_vec();
         self
     }
     pub fn topology(mut self, value: wgpu::PrimitiveTopology) -> Self {
@@ -37,7 +32,6 @@ impl<'a> RenderPipelineBuilder<'a> {
     pub fn new(shader: &'a render::Shader) -> Self {
         Self {
             label: None,
-            bind_group_layouts: Vec::new(),
             topology: wgpu::PrimitiveTopology::TriangleList,
             shader,
             cull_mode: None,
@@ -50,7 +44,7 @@ impl<'a> RenderPipelineBuilder<'a> {
         let device = render::device(ctx);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: self.label.as_deref(),
-            bind_group_layouts: &self.bind_group_layouts,
+            bind_group_layouts: self.shader.bind_group_layouts(),
             push_constant_ranges: &[], // TODO
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -90,11 +84,10 @@ impl RenderPipeline {
 }
 
 pub struct ComputePipelineBuilder<'a> {
-    shader: &'a render::Shader,
+    shader: &'a render::Shader<'a>,
 
     label: Option<String>,
     cs_entry: String,
-    bind_group_layouts: Vec<&'a wgpu::BindGroupLayout>,
 }
 
 impl<'a> ComputePipelineBuilder<'a> {
@@ -103,7 +96,6 @@ impl<'a> ComputePipelineBuilder<'a> {
             shader,
             label: None,
             cs_entry: "cs_main".to_string(),
-            bind_group_layouts: Vec::new(),
         }
     }
 
@@ -111,7 +103,7 @@ impl<'a> ComputePipelineBuilder<'a> {
         let device = render::device(ctx);
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: self.label.as_deref(),
-            bind_group_layouts: &self.bind_group_layouts,
+            bind_group_layouts: self.shader.bind_group_layouts(),
             push_constant_ranges: &[],
         });
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -129,10 +121,6 @@ impl<'a> ComputePipelineBuilder<'a> {
     }
     pub fn cs_entry(mut self, value: &str) -> Self {
         self.cs_entry = value.to_string();
-        self
-    }
-    pub fn bind_group_layouts(mut self, value: &[&'a wgpu::BindGroupLayout]) -> Self {
-        self.bind_group_layouts = value.to_vec();
         self
     }
 }
