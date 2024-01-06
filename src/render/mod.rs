@@ -15,6 +15,7 @@ pub(crate) struct RenderContext {
     window_size: winit::dpi::PhysicalSize<u32>,
     window: Arc<winit::window::Window>,
 
+    // TODO remove?
     depth_buffer: plugins::DepthBuffer,
     time_info: plugins::TimeInfo,
 }
@@ -158,8 +159,8 @@ pub fn adapter(ctx: &Context) -> Arc<wgpu::Adapter> {
 pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
     ctx.render.window.clone()
 }
-pub fn surface_config(ctx: &Context) -> wgpu::SurfaceConfiguration {
-    ctx.render.surface_config.clone()
+pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
+    &ctx.render.surface_config
 }
 pub fn depth_buffer(ctx: &Context) -> &plugins::DepthBuffer {
     &ctx.render.depth_buffer

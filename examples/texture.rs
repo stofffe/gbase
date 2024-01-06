@@ -1,9 +1,7 @@
 use gbase::{
-    filesystem,
     render::{self, VertexUV},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use std::path::Path;
 
 #[pollster::main]
 pub async fn main() {
@@ -18,7 +16,7 @@ pub async fn main() {
 struct App {
     vertex_buffer: render::VertexBuffer<VertexUV>,
     texture: render::Texture,
-    pipeline: wgpu::RenderPipeline,
+    pipeline: render::RenderPipeline,
 }
 
 impl App {
@@ -26,66 +24,25 @@ impl App {
         let device = render::device(ctx);
         let surface_config = render::surface_config(ctx);
 
-        // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("texture.wgsl"))
-            .await
-            .unwrap();
-        let shader_str = String::from_utf8(shader_bytes).unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
-
-        // Texture
-        let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
-            .await
-            .unwrap();
-        let texture = render::Texture::new(ctx, &texture_bytes);
-
-        // Vertex buffer
         let vertex_buffer = render::VertexBuffer::new(&device, QUAD_VERTICES);
 
-        // Pipeline
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("render pipeline layout"),
-            bind_group_layouts: &[&texture.bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        let texture = render::TextureBuilder::new("texture.jpeg".to_string())
+            .build(ctx)
+            .await;
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[vertex_buffer.desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_config.format,
-                    blend: None,
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
+        let shader = render::ShaderBuilder::new("texture.wgsl".to_string())
+            .buffers(&[vertex_buffer.desc()])
+            .targets(&[Some(wgpu::ColorTargetState {
+                format: surface_config.format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })])
+            .build(ctx)
+            .await;
+
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
+            .bind_group_layouts(&[&texture.bind_group_layout()])
+            .build(ctx);
 
         Self {
             vertex_buffer,
@@ -117,10 +74,10 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.buffer.slice(..));
-        render_pass.set_bind_group(0, &self.texture.bind_group, &[]);
-        render_pass.draw(0..QUAD_VERTICES.len() as u32, 0..1);
+        render_pass.set_pipeline(self.pipeline.pipeline());
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_bind_group(0, self.texture.bind_group(), &[]);
+        render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);
 

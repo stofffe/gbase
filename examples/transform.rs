@@ -51,7 +51,7 @@ impl App {
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render pipeline layout"),
-            bind_group_layouts: &[&transform.bind_group_layout],
+            bind_group_layouts: &[transform.bind_group_layout()],
             push_constant_ranges: &[],
         });
 
@@ -139,7 +139,7 @@ impl Callbacks for App {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, &self.transform.bind_group, &[]);
+        render_pass.set_bind_group(0, self.transform.bind_group(), &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);

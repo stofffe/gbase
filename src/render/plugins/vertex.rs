@@ -1,18 +1,65 @@
-use std::marker::PhantomData;
+use crate::{render, Context};
+use std::{marker::PhantomData, ops::RangeBounds};
 use wgpu::util::DeviceExt;
 
 pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
     fn desc() -> wgpu::VertexBufferLayout<'static>;
 }
 
+pub struct VertexBufferBuilder<T: VertexTrait> {
+    label: Option<String>,
+    vertices: Vec<T>,
+}
+
+impl<T: VertexTrait> VertexBufferBuilder<T> {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            label: None,
+            vertices: Vec::new(),
+        }
+    }
+    pub fn build(self, ctx: &Context) -> VertexBuffer<T> {
+        debug_assert!(
+            !self.vertices.is_empty(),
+            "debug_assert: vertex buffer \"{}\" can not be empty",
+            self.label.unwrap_or_default()
+        );
+
+        let device = render::device(ctx);
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: self.label.as_deref(),
+            contents: bytemuck::cast_slice(&self.vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+        VertexBuffer {
+            buffer,
+            len: self.vertices.len() as u32,
+            ty: PhantomData::<T>,
+        }
+    }
+
+    // setters
+    pub fn label(mut self, value: &str) -> Self {
+        self.label = Some(value.to_string());
+        self
+    }
+    pub fn vertices(mut self, value: &[T]) -> Self {
+        //self.vertices.append(&mut value.to_vec()); append
+        self.vertices = value.to_vec();
+        self
+    }
+}
+
 pub struct VertexBuffer<T: VertexTrait> {
-    pub buffer: wgpu::Buffer,
+    buffer: wgpu::Buffer,
     len: u32,
     ty: PhantomData<T>,
 }
 
 impl<T: VertexTrait> VertexBuffer<T> {
     // TODO add label?
+    // Old
     pub fn new(device: &wgpu::Device, vertices: &[T]) -> Self {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
@@ -33,6 +80,14 @@ impl<T: VertexTrait> VertexBuffer<T> {
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u32 {
         self.len
+    }
+
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
+    }
+
+    pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
+        self.buffer.slice(bounds)
     }
 }
 

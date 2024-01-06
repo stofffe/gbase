@@ -8,9 +8,9 @@ pub struct Transform {
     pub rot: Quat,
     pub scale: Vec3,
 
-    pub bind_group_layout: wgpu::BindGroupLayout,
-    pub bind_group: wgpu::BindGroup,
-    pub buffer: wgpu::Buffer,
+    bind_group_layout: wgpu::BindGroupLayout,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
 }
 
 impl Transform {
@@ -84,6 +84,16 @@ impl Transform {
     pub fn scale(mut self, scale: Vec3) -> Self {
         self.scale = scale;
         self
+    }
+
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
     }
 }
 

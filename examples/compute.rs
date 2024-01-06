@@ -1,9 +1,8 @@
 use gbase::{
-    filesystem,
     render::{self},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use std::{path::Path, sync::mpsc};
+use std::sync::mpsc;
 
 #[pollster::main]
 pub async fn main() {
@@ -22,7 +21,8 @@ const OUTPUT_SIZE: u32 = 4;
 const OUTPUT_MEM_SIZE: u64 = std::mem::size_of::<u32>() as u64 * OUTPUT_SIZE as u64;
 
 struct App {
-    compute_pipeline: wgpu::ComputePipeline,
+    // compute_pipeline: wgpu::ComputePipeline,
+    compute_pipeline: render::ComputePipeline,
     input_buffer: wgpu::Buffer,
     output_buffer: wgpu::Buffer,
     cpu_buffer: wgpu::Buffer,
@@ -34,13 +34,9 @@ impl App {
         let device = render::device(ctx);
 
         // Shader
-        let shader_str = filesystem::load_string(ctx, Path::new("compute.wgsl"))
-            .await
-            .expect("could not load shader string");
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
+        let shader = render::ShaderBuilder::new("compute.wgsl".to_string())
+            .build(ctx)
+            .await;
 
         // Buffers
         let input_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -106,19 +102,9 @@ impl App {
             ],
         });
 
-        let compute_pipeline_descriptor =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("compute pipeline descriptor"),
-                bind_group_layouts: &[&bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let compute_pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("compute pipeline"),
-            layout: Some(&compute_pipeline_descriptor),
-            module: &shader,
-            entry_point: "cs_main",
-        });
+        let compute_pipeline = render::ComputePipelineBuilder::new(&shader)
+            .bind_group_layouts(&[&bind_group_layout])
+            .build(ctx);
 
         Self {
             compute_pipeline,
@@ -151,7 +137,7 @@ impl Callbacks for App {
             label: Some("compute pass"),
             timestamp_writes: None,
         });
-        compute_pass.set_pipeline(&self.compute_pipeline);
+        compute_pass.set_pipeline(self.compute_pipeline.pipeline());
         compute_pass.set_bind_group(0, &self.bind_group, &[]);
         compute_pass.dispatch_workgroups(OUTPUT_SIZE, 1, 1);
         drop(compute_pass);
@@ -162,21 +148,6 @@ impl Callbacks for App {
         // read data from output buffer
         let data: Vec<u32> = read_buffer_sync(&device, &self.cpu_buffer);
         println!("DATA {:?}", data);
-
-        // let buffer_slice = self.cpu_buffer.slice(..);
-        // let (sc, rc) = mpsc::channel();
-        // buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
-        //     sc.send(res).unwrap();
-        // });
-        // device.poll(wgpu::MaintainBase::Wait);
-        // if let Ok(()) = rc.recv().unwrap() {
-        //     let data = buffer_slice.get_mapped_range();
-        //     let result: Vec<u32> = bytemuck::cast_slice(&data).to_vec();
-        //     drop(data);
-        //     self.cpu_buffer.unmap();
-        //
-        //     println!("DATA {:?}", result);
-        // }
 
         false
     }

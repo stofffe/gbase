@@ -18,6 +18,29 @@ impl DepthBuffer {
         self.view = Self::create_view(&texture);
     }
 
+    // TODO not depend on self?
+    pub fn depth_stencil_state() -> wgpu::DepthStencilState {
+        wgpu::DepthStencilState {
+            format: wgpu::TextureFormat::Depth32Float,
+            depth_write_enabled: true,
+            depth_compare: wgpu::CompareFunction::Less,
+            stencil: wgpu::StencilState::default(),
+            bias: wgpu::DepthBiasState::default(),
+        }
+    }
+
+    // TODO not working
+    pub fn depth_stencil_attachment(&self) -> wgpu::RenderPassDepthStencilAttachment {
+        wgpu::RenderPassDepthStencilAttachment {
+            view: &self.view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }
+    }
+
     fn create_texture(
         device: &wgpu::Device,
         surface_conf: &wgpu::SurfaceConfiguration,
@@ -80,7 +103,7 @@ impl DepthBufferRenderer {
         });
 
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.buffer.buffer.slice(..));
+        render_pass.set_vertex_buffer(0, self.buffer.buffer().slice(..));
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..self.buffer.len(), 0..1);
     }

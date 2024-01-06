@@ -12,9 +12,9 @@ pub struct PerspectiveCamera {
     pub znear: f32,
     pub zfar: f32,
 
-    pub bind_group_layout: wgpu::BindGroupLayout,
-    pub bind_group: wgpu::BindGroup,
-    pub buffer: wgpu::Buffer,
+    bind_group_layout: wgpu::BindGroupLayout,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
 }
 
 #[derive(ShaderType)]
@@ -145,6 +145,16 @@ impl PerspectiveCamera {
     pub fn pitch(mut self, pitch: f32) -> Self {
         self.pitch = pitch;
         self
+    }
+
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
     }
 }
 

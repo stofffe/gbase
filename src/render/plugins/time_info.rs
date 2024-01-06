@@ -3,9 +3,9 @@ use encase::ShaderType;
 pub struct TimeInfo {
     pub time_passed: f32, // TODO getters and setters?
 
-    pub bind_group_layout: wgpu::BindGroupLayout,
-    pub bind_group: wgpu::BindGroup,
-    pub buffer: wgpu::Buffer,
+    bind_group_layout: wgpu::BindGroupLayout,
+    bind_group: wgpu::BindGroup,
+    buffer: wgpu::Buffer,
 }
 
 impl TimeInfo {
@@ -65,6 +65,16 @@ impl TimeInfo {
         AppInfoUniform {
             time_passed: self.time_passed,
         }
+    }
+
+    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
+        &self.bind_group_layout
+    }
+    pub fn bind_group(&self) -> &wgpu::BindGroup {
+        &self.bind_group
+    }
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
     }
 }
 

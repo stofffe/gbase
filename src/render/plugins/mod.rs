@@ -15,8 +15,14 @@ pub use depth_buffer::*;
 mod texture;
 pub use texture::*;
 
+mod shader;
+pub use shader::*;
+
 mod instance;
 pub use instance::*;
 
 mod time_info;
 pub use time_info::*;
+
+mod pipeline;
+pub use pipeline::*;

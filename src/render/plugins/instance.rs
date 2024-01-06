@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{marker::PhantomData, ops::RangeBounds};
 
 use wgpu::util::DeviceExt;
 
@@ -13,7 +13,7 @@ pub trait InstaceTrait<G: InstanceGpuTrait> {
 
 pub struct InstanceBuffer<G: InstanceGpuTrait, T: InstaceTrait<G>> {
     pub vec: Vec<T>,
-    pub buffer: wgpu::Buffer,
+    buffer: wgpu::Buffer,
     ty: PhantomData<G>,
 }
 
@@ -67,6 +67,13 @@ impl<G: InstanceGpuTrait, T: InstaceTrait<G>> InstanceBuffer<G, T> {
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u32 {
         self.vec.len() as u32
+    }
+
+    pub fn buffer(&self) -> &wgpu::Buffer {
+        &self.buffer
+    }
+    pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
+        self.buffer.slice(bounds)
     }
 }
 
