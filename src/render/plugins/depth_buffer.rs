@@ -34,7 +34,7 @@ impl DepthBuffer {
         wgpu::RenderPassDepthStencilAttachment {
             view: &self.view,
             depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Clear(1.0),
+                load: wgpu::LoadOp::Load,
                 store: wgpu::StoreOp::Store,
             }),
             stencil_ops: None,
@@ -80,13 +80,15 @@ pub struct DepthBufferRenderer {
 impl DepthBufferRenderer {
     pub fn resize(&mut self, device: &wgpu::Device, depth_buffer: &DepthBuffer) {
         self.bind_group = Self::create_bind_group(
-            &device,
+            device,
             &depth_buffer.view,
             &self.sampler,
             &self.bind_group_layout,
         );
     }
-    pub fn render(&mut self, encoder: &mut wgpu::CommandEncoder, screen_view: &wgpu::TextureView) {
+    pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
+        let queue = render::queue(ctx);
+        let mut encoder = render::create_encoder(ctx, None);
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -106,22 +108,26 @@ impl DepthBufferRenderer {
         render_pass.set_vertex_buffer(0, self.buffer.buffer().slice(..));
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.draw(0..self.buffer.len(), 0..1);
+
+        drop(render_pass);
+
+        queue.submit(Some(encoder.finish()));
     }
 
     pub fn new(ctx: &Context, depth_buffer: &DepthBuffer) -> Self {
         let device = render::device(ctx);
         let surface_config = render::surface_config(ctx);
 
-        let sampler = Self::create_sampler(&device);
-        let bind_group_layout = Self::create_bind_group_layout(&device);
+        let sampler = Self::create_sampler(device);
+        let bind_group_layout = Self::create_bind_group_layout(device);
         let bind_group =
-            Self::create_bind_group(&device, &depth_buffer.view, &sampler, &bind_group_layout);
+            Self::create_bind_group(device, &depth_buffer.view, &sampler, &bind_group_layout);
 
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: None,
             source: wgpu::ShaderSource::Wgsl(include_str!("../../../assets/texture.wgsl").into()),
         });
-        let buffer = render::VertexBuffer::new(&device, FULLSCREEN_VERTICES);
+        let buffer = render::VertexBuffer::new(device, FULLSCREEN_VERTICES);
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render pipeline layout"),

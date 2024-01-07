@@ -21,22 +21,16 @@ const OUTPUT_SIZE: u32 = 4;
 const OUTPUT_MEM_SIZE: u64 = std::mem::size_of::<u32>() as u64 * OUTPUT_SIZE as u64;
 
 struct App {
-    // compute_pipeline: wgpu::ComputePipeline,
-    compute_pipeline: render::ComputePipeline,
     input_buffer: wgpu::Buffer,
     output_buffer: wgpu::Buffer,
     cpu_buffer: wgpu::Buffer,
-    bind_group: wgpu::BindGroup,
+    bind_group: render::BindGroup,
+    compute_pipeline: render::ComputePipeline,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
-
-        // Shader
-        let shader = render::ShaderBuilder::new("compute.wgsl".to_string())
-            .build(ctx)
-            .await;
 
         // Buffers
         let input_buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -58,53 +52,22 @@ impl App {
             mapped_at_creation: false,
         });
 
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("bind group layout"),
-            entries: &[
-                // input
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: true },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-                // output
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::COMPUTE,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Storage { read_only: false },
-                        has_dynamic_offset: false,
-                        min_binding_size: None,
-                    },
-                    count: None,
-                },
-            ],
-        });
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("bind group"),
-            layout: &bind_group_layout,
-            entries: &[
-                // input
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: input_buffer.as_entire_binding(),
-                },
-                // output
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: output_buffer.as_entire_binding(),
-                },
-            ],
-        });
+        let bind_group = render::BindGroupBuilder::new(vec![
+            render::BindGroupEntry::new(input_buffer.as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(true),
+            render::BindGroupEntry::new(output_buffer.as_entire_binding())
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .storage(false),
+        ])
+        .build(ctx);
 
-        let compute_pipeline = render::ComputePipelineBuilder::new(&shader)
-            .bind_group_layouts(&[&bind_group_layout])
-            .build(ctx);
+        let shader = render::ShaderBuilder::new("compute.wgsl".to_string())
+            .bind_group_layouts(vec![bind_group.bind_group_layout()])
+            .build(ctx)
+            .await;
+
+        let compute_pipeline = render::ComputePipelineBuilder::new(&shader).build(ctx);
 
         Self {
             compute_pipeline,
@@ -138,15 +101,16 @@ impl Callbacks for App {
             timestamp_writes: None,
         });
         compute_pass.set_pipeline(self.compute_pipeline.pipeline());
-        compute_pass.set_bind_group(0, &self.bind_group, &[]);
+        compute_pass.set_bind_group(0, self.bind_group.bind_group(), &[]);
         compute_pass.dispatch_workgroups(OUTPUT_SIZE, 1, 1);
         drop(compute_pass);
 
         encoder.copy_buffer_to_buffer(&self.output_buffer, 0, &self.cpu_buffer, 0, OUTPUT_MEM_SIZE);
+        // submit here to be able to read in the same frame
         queue.submit(Some(encoder.finish()));
 
         // read data from output buffer
-        let data: Vec<u32> = read_buffer_sync(&device, &self.cpu_buffer);
+        let data: Vec<u32> = read_buffer_sync(device, &self.cpu_buffer);
         println!("DATA {:?}", data);
 
         false

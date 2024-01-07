@@ -12,8 +12,8 @@ pub struct RenderPipelineBuilder<'a> {
 }
 
 impl<'a> RenderPipelineBuilder<'a> {
-    pub fn label(mut self, value: &str) -> Self {
-        self.label = Some(value.to_string());
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn topology(mut self, value: wgpu::PrimitiveTopology) -> Self {
@@ -87,7 +87,6 @@ pub struct ComputePipelineBuilder<'a> {
     shader: &'a render::Shader<'a>,
 
     label: Option<String>,
-    cs_entry: String,
 }
 
 impl<'a> ComputePipelineBuilder<'a> {
@@ -95,7 +94,6 @@ impl<'a> ComputePipelineBuilder<'a> {
         Self {
             shader,
             label: None,
-            cs_entry: "cs_main".to_string(),
         }
     }
 
@@ -110,17 +108,13 @@ impl<'a> ComputePipelineBuilder<'a> {
             label: self.label.as_deref(),
             layout: Some(&layout),
             module: self.shader.module(),
-            entry_point: &self.cs_entry,
+            entry_point: self.shader.cs_entry(),
         });
         ComputePipeline { pipeline }
     }
 
     pub fn label(mut self, value: &str) -> Self {
         self.label = Some(value.to_string());
-        self
-    }
-    pub fn cs_entry(mut self, value: &str) -> Self {
-        self.cs_entry = value.to_string();
         self
     }
 }

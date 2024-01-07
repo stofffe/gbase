@@ -1,5 +1,11 @@
 @group(0) @binding(0) var<storage, read_write> instances: array<GrassInstance>;
 @group(0) @binding(1) var<storage, read_write> instance_count: atomic<u32>;
+@group(0) @binding(2) var<uniform> tile: Tile;
+
+struct Tile {
+    pos: vec2<f32>,
+};
+
 // instances tightly packed => size must be multiple of align 
 struct GrassInstance {          // align 16 size 48
     pos: vec3<f32>,             // align 16 size 12 start 0
@@ -30,7 +36,7 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const TILE_SIZE = 70.0;
+const TILE_SIZE = 50.0;
 const BLADES_PER_SIDE = 16.0 * 20.0;
 const BLADES_TOTAL = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const BLADE_DIST_BETWEEN = TILE_SIZE / BLADES_PER_SIDE;
@@ -61,11 +67,13 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let z = global_id.y;
     let hash = hash_2d(x, z);
 
+    
+
     // POS
     let pos = vec3<f32>(
-        f32(x) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
+        tile.pos.x + f32(x) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
         0.0,
-        f32(z) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
+        tile.pos.y + f32(z) * BLADE_DIST_BETWEEN + hash_to_range_neg(hash) * BLADE_MAX_OFFSET,
     );
 
     // CULL

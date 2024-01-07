@@ -46,7 +46,7 @@ impl App {
         });
 
         // Transform
-        let transform = render::Transform::new(&device);
+        let transform = render::Transform::new(device);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -112,12 +112,9 @@ impl Callbacks for App {
         false
     }
 
-    fn render(
-        &mut self,
-        ctx: &mut Context,
-        encoder: &mut wgpu::CommandEncoder,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let mut encoder = render::create_encoder(ctx, None);
+        let queue = render::queue(ctx);
         // update camera uniform
         self.transform.update_buffer(ctx);
 
@@ -143,6 +140,7 @@ impl Callbacks for App {
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
+        queue.submit(Some(encoder.finish()));
 
         false
     }

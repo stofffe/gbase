@@ -97,12 +97,9 @@ impl Callbacks for App {
         false
     }
 
-    fn render(
-        &mut self,
-        _ctx: &mut Context,
-        encoder: &mut wgpu::CommandEncoder,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let mut encoder = render::create_encoder(ctx, None);
+        let queue = render::queue(ctx);
         let background_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -140,6 +137,7 @@ impl Callbacks for App {
         draw_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(draw_pass);
+        queue.submit(Some(encoder.finish()));
 
         false
     }

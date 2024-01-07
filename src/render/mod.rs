@@ -16,7 +16,6 @@ pub(crate) struct RenderContext {
     window: Arc<winit::window::Window>,
 
     // TODO remove?
-    depth_buffer: plugins::DepthBuffer,
     time_info: plugins::TimeInfo,
 }
 
@@ -83,8 +82,6 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
-        let depth_buffer = plugins::DepthBuffer::new(&device, &surface_config);
-
         let time_info = plugins::TimeInfo::new(&device);
 
         Self {
@@ -98,7 +95,6 @@ impl RenderContext {
             window_size,
             window: Arc::new(window),
 
-            depth_buffer,
             time_info,
         }
     }
@@ -115,8 +111,6 @@ impl RenderContext {
         self.surface_config.width = new_size.width;
         self.surface_config.height = new_size.height;
         self.surface.configure(&self.device, &self.surface_config);
-
-        self.depth_buffer.resize(&self.device, &self.surface_config);
     }
 
     /// Resizes the window to the last safe window size
@@ -144,26 +138,28 @@ impl RenderContext {
 
 // Getter functions for render and window operations
 
-pub fn surface(ctx: &Context) -> Arc<wgpu::Surface> {
-    ctx.render.surface.clone()
+pub fn create_encoder(ctx: &Context, label: Option<&str>) -> wgpu::CommandEncoder {
+    ctx.render
+        .device
+        .create_command_encoder(&wgpu::CommandEncoderDescriptor { label })
 }
-pub fn device(ctx: &Context) -> Arc<wgpu::Device> {
-    ctx.render.device.clone()
+pub fn surface(ctx: &Context) -> &wgpu::Surface {
+    &ctx.render.surface
 }
-pub fn queue(ctx: &Context) -> Arc<wgpu::Queue> {
-    ctx.render.queue.clone()
+pub fn device(ctx: &Context) -> &wgpu::Device {
+    &ctx.render.device
 }
-pub fn adapter(ctx: &Context) -> Arc<wgpu::Adapter> {
-    ctx.render.adapter.clone()
+pub fn queue(ctx: &Context) -> &wgpu::Queue {
+    &ctx.render.queue
 }
-pub fn window(ctx: &Context) -> Arc<winit::window::Window> {
-    ctx.render.window.clone()
+pub fn adapter(ctx: &Context) -> &wgpu::Adapter {
+    &ctx.render.adapter
+}
+pub fn window(ctx: &Context) -> &winit::window::Window {
+    &ctx.render.window
 }
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
-}
-pub fn depth_buffer(ctx: &Context) -> &plugins::DepthBuffer {
-    &ctx.render.depth_buffer
 }
 pub fn time_info(ctx: &Context) -> &plugins::TimeInfo {
     &ctx.render.time_info

@@ -9,6 +9,7 @@ pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
 pub struct VertexBufferBuilder<T: VertexTrait> {
     label: Option<String>,
     vertices: Vec<T>,
+    usage: wgpu::BufferUsages,
 }
 
 impl<T: VertexTrait> VertexBufferBuilder<T> {
@@ -17,6 +18,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
         Self {
             label: None,
             vertices: Vec::new(),
+            usage: wgpu::BufferUsages::VERTEX,
         }
     }
     pub fn build(self, ctx: &Context) -> VertexBuffer<T> {
@@ -30,7 +32,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: self.label.as_deref(),
             contents: bytemuck::cast_slice(&self.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: self.usage,
         });
         VertexBuffer {
             buffer,
@@ -42,6 +44,10 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
     // setters
     pub fn label(mut self, value: &str) -> Self {
         self.label = Some(value.to_string());
+        self
+    }
+    pub fn usages(mut self, value: wgpu::BufferUsages) -> Self {
+        self.usage = value;
         self
     }
     pub fn vertices(mut self, value: &[T]) -> Self {

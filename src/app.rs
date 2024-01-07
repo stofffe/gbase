@@ -20,12 +20,11 @@ pub trait Callbacks {
     /// Return value determines wether to exit game or not
     ///
     /// Must create at least one render pass, panics otherwise
-    fn render(
-        &mut self,
-        _ctx: &mut Context,
-        encoder: &mut wgpu::CommandEncoder,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let device = render::device(ctx);
+        let queue = render::queue(ctx);
+        let mut encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("default render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -40,6 +39,7 @@ pub trait Callbacks {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+        queue.submit(Some(encoder.finish()));
         false
     }
 
@@ -61,9 +61,6 @@ where
     pub(crate) fn render(&mut self, ctx: &mut Context) -> bool {
         // render
         let surface = render::surface(ctx);
-        let device = render::device(ctx);
-        let queue = render::queue(ctx);
-
         let output = surface.get_current_texture();
         let output = match output {
             Ok(val) => val,
@@ -83,15 +80,11 @@ where
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("render encodeer"),
-        });
 
-        if self.callbacks.render(ctx, &mut encoder, &view) {
+        if self.callbacks.render(ctx, &view) {
             return true;
         }
 
-        queue.submit(Some(encoder.finish()));
         output.present();
 
         false

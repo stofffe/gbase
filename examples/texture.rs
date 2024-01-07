@@ -24,25 +24,24 @@ impl App {
         let device = render::device(ctx);
         let surface_config = render::surface_config(ctx);
 
-        let vertex_buffer = render::VertexBuffer::new(&device, QUAD_VERTICES);
+        let vertex_buffer = render::VertexBuffer::new(device, QUAD_VERTICES);
 
         let texture = render::TextureBuilder::new("texture.jpeg".to_string())
             .build(ctx)
             .await;
 
         let shader = render::ShaderBuilder::new("texture.wgsl".to_string())
-            .buffers(&[vertex_buffer.desc()])
-            .targets(&[Some(wgpu::ColorTargetState {
+            .buffers(vec![vertex_buffer.desc()])
+            .targets(vec![Some(wgpu::ColorTargetState {
                 format: surface_config.format,
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
             })])
+            .bind_group_layouts(vec![&texture.bind_group_layout()])
             .build(ctx)
             .await;
 
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .bind_group_layouts(&[&texture.bind_group_layout()])
-            .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(&shader).build(ctx);
 
         Self {
             vertex_buffer,
@@ -53,12 +52,9 @@ impl App {
 }
 
 impl Callbacks for App {
-    fn render(
-        &mut self,
-        _ctx: &mut Context,
-        encoder: &mut wgpu::CommandEncoder,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let mut encoder = render::create_encoder(ctx, None);
+        let queue = render::queue(ctx);
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -80,6 +76,7 @@ impl Callbacks for App {
         render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);
+        queue.submit(Some(encoder.finish()));
 
         false
     }

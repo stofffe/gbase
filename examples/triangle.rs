@@ -24,12 +24,13 @@ impl App {
 
         let vertex_buffer = render::VertexBufferBuilder::new()
             .label("triangle vertex buffer")
+            .usages(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
             .vertices(TRIANGLE_VERTICES)
             .build(ctx);
 
         let shader = render::ShaderBuilder::new("triangle.wgsl".to_string())
-            .buffers(&[vertex_buffer.desc()])
-            .targets(&[Some(wgpu::ColorTargetState {
+            .buffers(vec![vertex_buffer.desc()])
+            .targets(vec![Some(wgpu::ColorTargetState {
                 format: surface_config.format,
                 blend: None,
                 write_mask: wgpu::ColorWrites::ALL,
@@ -47,12 +48,16 @@ impl App {
 }
 
 impl Callbacks for App {
-    fn render(
-        &mut self,
-        _ctx: &mut Context,
-        encoder: &mut wgpu::CommandEncoder,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let queue = render::queue(ctx);
+
+        queue.write_buffer(
+            self.vertex_buffer.buffer(),
+            0,
+            bytemuck::cast_slice(TRIANGLE_VERTICES),
+        );
+
+        let mut encoder = render::create_encoder(ctx, None);
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -73,6 +78,36 @@ impl Callbacks for App {
         render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);
+        queue.submit(Some(encoder.finish()));
+
+        queue.write_buffer(
+            self.vertex_buffer.buffer(),
+            0,
+            bytemuck::cast_slice(TRIANGLE_VERTICES_2),
+        );
+
+        let mut encoder = render::create_encoder(ctx, None);
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: screen_view,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        render_pass.set_pipeline(self.pipeline.pipeline());
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.draw(0..self.vertex_buffer.len(), 0..1);
+
+        drop(render_pass);
+        queue.submit(Some(encoder.finish()));
 
         false
     }
@@ -83,4 +118,11 @@ const TRIANGLE_VERTICES: &[Vertex] = &[
     Vertex { position: [-0.5, -0.5, 0.0]  },
     Vertex { position: [0.5, -0.5, 0.0]   },
     Vertex { position: [0.0, 0.5, 0.0] },
+];
+
+#[rustfmt::skip]
+const TRIANGLE_VERTICES_2: &[Vertex] = &[
+    Vertex { position: [-1.0, -1.0, 0.0]  },
+    Vertex { position: [-0.8, -1.0, 0.0]   },
+    Vertex { position: [-0.9, -0.8, 0.0] },
 ];
