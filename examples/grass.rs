@@ -4,8 +4,8 @@ use gbase::{
     render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Quat, Vec2, Vec3};
-use std::f32::consts::PI;
+use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
+use std::{f32::consts::PI, ops::Div};
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -19,12 +19,13 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-// const TILE_SIZE: f32 = 16.0;
+const TILE_SIZE: u32 = 80;
 const BLADES_PER_SIDE: u32 = 16 * 20; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
-const CAMERA_MOVE_SPEED: f32 = 5.0;
+const CAMERA_MOVE_SPEED: f32 = 15.0;
 
-const PLANE_SIZE: f32 = 100.0;
+const PLANE_SIZE: f32 = 500.0;
+const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
 // const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
@@ -157,7 +158,7 @@ impl Callbacks for App {
         queue.submit(Some(encoder.finish()));
 
         self.grass_renderer
-            .run(ctx, &self.camera, screen_view, &self.depth_buffer);
+            .render(ctx, &self.camera, screen_view, &self.depth_buffer);
 
         if input::key_pressed(ctx, KeyCode::F2) {
             self.depth_buffer_renderer.render(ctx, screen_view);
@@ -190,6 +191,11 @@ impl Callbacks for App {
         // fps counter
         if input::key_pressed(ctx, KeyCode::KeyF) {
             log::info!("{}", gbase::time::fps(ctx));
+        }
+
+        // debug camera pos
+        if input::key_pressed(ctx, KeyCode::KeyC) {
+            log::info!("{}", self.camera.pos);
         }
         false
     }
@@ -235,6 +241,7 @@ impl App {
         }
     }
 }
+
 struct GrassRenderer {
     instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
     grass_pipeline: render::RenderPipeline,
@@ -252,7 +259,7 @@ struct GrassRenderer {
 }
 
 impl GrassRenderer {
-    fn run(
+    fn render(
         &mut self,
         ctx: &Context,
         camera: &render::PerspectiveCamera,
@@ -261,17 +268,31 @@ impl GrassRenderer {
     ) {
         let queue = render::queue(ctx);
 
+        //let [tile_x, tile_z] = camera.pos.xz().div(TILE_SIZE).floor().as_ivec2().to_array();
+        let tile_size = TILE_SIZE as f32;
+        let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
         let tiles = [
-            vec2(0.0, 0.0),
-            vec2(50.0, 0.0),
-            vec2(0.0, 50.0),
-            vec2(50.0, 50.0),
+            vec2(curr_tile.x, curr_tile.y),                          // mid
+            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),        // mid right
+            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0),       // mid left
+            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),        // top
+            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size),  // top right
+            vec2(curr_tile.x + -tile_size, curr_tile.y + tile_size), // top left
+            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),        // bot
+            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size),  // bot right
+            vec2(curr_tile.x + -tile_size, curr_tile.y - tile_size), // bot left
         ];
         for tile in tiles {
             // update buffers
             queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32])); // clear instance count
             let mut buffer = encase::UniformBuffer::new(Vec::new());
-            buffer.write(&Tile { pos: tile }).unwrap();
+            buffer
+                .write(&Tile {
+                    pos: tile,
+                    size: TILE_SIZE as f32,
+                    blades_per_side: BLADES_PER_SIDE as f32,
+                })
+                .unwrap();
             queue.write_buffer(&self.tile_buffer, 0, &buffer.into_inner());
 
             // run compute
@@ -447,6 +468,8 @@ impl GrassRenderer {
 #[derive(ShaderType)]
 struct Tile {
     pos: Vec2,
+    size: f32,
+    blades_per_side: f32,
 }
 
 // TODO MUST ALIGN TO 16 (wgpu requirement)
@@ -511,7 +534,6 @@ impl InstanceGpuTrait for GrassInstanceGPU {
     }
 }
 
-const PLANE_COLOR: [f32; 3] = [0.05, 0.2, 0.01];
 #[rustfmt::skip]
 const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left

@@ -34,9 +34,9 @@ const GRASS_MAX_ROT = PI / 8.0;
 const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
-const AMBIENT_MOD = 0.2;
-const DIFFUSE_MOD = 0.7;
-const SPECULAR_MOD = 1.0;
+const AMBIENT_MOD = 0.1;
+const DIFFUSE_MOD = 0.3;
+const SPECULAR_MOD = 2.0;
 const SPECULAR_INTENSITY = 11.0; // must be odd
 const SPECULAR_BLEND_MAX_DIST = 60.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
@@ -75,7 +75,7 @@ fn vs_main(
 
     var world_pos = instance.pos;
     // debug light pos
-    if instance_index == 10u {
+    if instance_index == 2000u {
         world_pos = debug_light_pos();
     }
 
@@ -140,8 +140,8 @@ fn fs_main(
 
     let t = time_info.time_passed;
     let light_pos = debug_light_pos();
-    let light_dir = normalize(light_pos - in.pos);
-    //let light_dir = normalize(vec3<f32>(-1.0, -1.0, -1.0));
+    //let light_dir = normalize(light_pos - in.pos);
+    let light_dir = normalize(vec3<f32>(1.0, -0.5, 1.0));
     let view_dir = normalize(camera.pos - in.pos);
 
     // Blend specular normal to terrain at distance
@@ -149,7 +149,7 @@ fn fs_main(
     let specular_normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
 
     let reflect_dir = reflect(-light_dir, specular_normal);
-    let specular_strength = clamp(1.0 - dist_factor, 0.5, 1.0); // TODO constant for clamp?
+    let specular_strength = clamp(1.0 - dist_factor, 0.3, 1.0); // TODO constant for clamp?
     let specular = specular_strength * saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
 
     // Phong
@@ -160,8 +160,9 @@ fn fs_main(
     if btn_pressed() {
         var debug: vec4<f32>;
         debug = vec4<f32>(light_dir, 1.0);
-        debug = vec4<f32>(specular, specular, specular, 1.0);
+        debug = vec4<f32>(diffuse, diffuse, diffuse, 1.0);
         debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        debug = vec4<f32>(specular, specular, specular, 1.0);
         return debug;
     }
 
