@@ -1,7 +1,15 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec3<f32>,
+    @location(1) ty: u32, // 0 shape 1 text
+    @location(2) color: vec3<f32>,
+    @location(3) uv: vec2<f32>,
 };
+
+const TYPE_SHAPE = 0u;
+const TYPE_TEXT = 1u;
+
+@group(0) @binding(0) var letter_tex: texture_2d<f32>;
+@group(0) @binding(1) var letter_sampler: sampler;
 
 @vertex
 fn vs_main(
@@ -10,6 +18,9 @@ fn vs_main(
     var out: VertexOutput;
     out.clip_position = vec4<f32>(in.position, 1.0);
     out.color = in.color;
+    out.uv = in.uv;
+    out.ty = in.ty;
+
     return out;
 }
 
@@ -18,11 +29,16 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec3<f32>,
+    @location(1) ty: u32,
+    @location(2) uv: vec2<f32>,
 };
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if in.ty == TYPE_TEXT {
+        let alpha = textureSample(letter_tex, letter_sampler, in.uv).x;
+        return vec4<f32>(in.color, alpha);
+    }
+
     return vec4<f32>(in.color, 1.0);
 }
-
-

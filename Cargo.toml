@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.29.3", features = ["rwh_05", "rwh_06"] }
-# wgpu = { version = "0.18.0", features = ["webgl"] }
 wgpu = { version = "0.18.0", features = [] }
 glam = "0.24.2"
 log = "0.4.20"
@@ -16,6 +15,7 @@ rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 bytemuck = { version = "1.14.0", features = ["derive"] }
 image = "0.24.7"
 encase = { version = "0.6.1", features = ["glam"] }
+fontdue = "0.8.0"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
