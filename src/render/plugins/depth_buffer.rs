@@ -1,6 +1,10 @@
 use super::VertexUV;
 use crate::{render, Context};
 
+///
+/// Depth buffer
+///
+
 pub struct DepthBuffer {
     pub view: wgpu::TextureView,
 }
@@ -68,6 +72,10 @@ impl DepthBuffer {
         })
     }
 }
+
+///
+/// Debug depth buffer renderer
+///
 
 pub struct DepthBufferRenderer {
     sampler: wgpu::Sampler,

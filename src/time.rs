@@ -5,18 +5,19 @@ use std::time::Instant;
 
 use crate::Context;
 
-const FPS_UPDATE_INTERVAL: f32 = 1.0;
+const MS_AVERAGE_SAMPLED_TICKS: usize = 100;
 
 pub(crate) struct TimeContext {
     // dt
     start_time: Instant,
     last_time: Instant,
-    last_dt: f32,
+    delta_time: f32,
 
     // frame time
-    frames: u32,
-    last_frame_time: Instant,
-    last_ms: f32,
+    frame_times: [f32; MS_AVERAGE_SAMPLED_TICKS],
+    frame_index: usize,
+    frame_time_avg: f32,
+    frame_time_sum: f32,
 
     time_since_start: f32,
 }
@@ -27,11 +28,12 @@ impl Default for TimeContext {
         Self {
             start_time,
             last_time: start_time,
-            last_dt: 0.0,
+            delta_time: 0.0,
 
-            frames: 0,
-            last_frame_time: start_time,
-            last_ms: 0.0,
+            frame_times: [0.0; MS_AVERAGE_SAMPLED_TICKS],
+            frame_index: 0,
+            frame_time_avg: 0.0,
+            frame_time_sum: 0.0,
 
             time_since_start: 0.0,
         }
@@ -43,17 +45,14 @@ impl TimeContext {
         let now = Instant::now();
 
         // update dt
-        self.last_dt = now.duration_since(self.last_time).as_secs_f32();
+        self.delta_time = now.duration_since(self.last_time).as_secs_f32();
 
         // frame time
-        self.frames += 1;
-        let update_frame_time_interval = std::time::Duration::from_secs_f32(FPS_UPDATE_INTERVAL);
-        if now >= self.last_frame_time + update_frame_time_interval {
-            let frame_time = update_frame_time_interval.as_secs_f32() / self.frames as f32;
-            self.last_ms = frame_time;
-            self.last_frame_time = now;
-            self.frames = 0;
-        }
+        let (new_ms, old_ms) = (self.delta_time, self.frame_times[self.frame_index]);
+        self.frame_times[self.frame_index] = new_ms;
+        self.frame_index = (self.frame_index + 1) % MS_AVERAGE_SAMPLED_TICKS;
+        self.frame_time_sum += new_ms - old_ms;
+        self.frame_time_avg = self.frame_time_sum / MS_AVERAGE_SAMPLED_TICKS as f32;
 
         // time since start
         self.time_since_start = Instant::now().duration_since(self.start_time).as_secs_f32();
@@ -105,17 +104,17 @@ pub fn current_time(ctx: &Context) -> Instant {
 
 /// Returns the last delta time
 pub fn delta_time(ctx: &Context) -> f32 {
-    ctx.time.last_dt
+    ctx.time.delta_time
 }
 
 /// Returns the frame time (in seconds) for the last 500ms
 pub fn frame_time(ctx: &Context) -> f32 {
-    ctx.time.last_ms
+    ctx.time.frame_time_avg
 }
 
 /// Returns the frame time (in seconds) for the last 500ms
 pub fn fps(ctx: &Context) -> f32 {
-    1.0 / ctx.time.last_ms
+    1.0 / ctx.time.frame_time_avg
 }
 
 // /// Returns the current time at the start of the current frame

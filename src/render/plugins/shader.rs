@@ -69,6 +69,14 @@ impl<'a> ShaderBuilder<'a> {
         self.targets = value;
         self
     }
+    pub fn default_target(mut self, surface_config: &wgpu::SurfaceConfiguration) -> Self {
+        self.targets = vec![Some(wgpu::ColorTargetState {
+            format: surface_config.format,
+            blend: None,
+            write_mask: wgpu::ColorWrites::ALL,
+        })];
+        self
+    }
     pub fn bind_group_layouts(mut self, value: Vec<&'a wgpu::BindGroupLayout>) -> Self {
         self.bind_group_layouts = value;
         self
