@@ -55,7 +55,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             primitive: wgpu::PrimitiveState {
                 topology: self.topology,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Cw, // left handed coordinate system
+                front_face: wgpu::FrontFace::Ccw, // right handed coordinate system
                 cull_mode: self.cull_mode,
                 polygon_mode: self.polygon_mode,
                 unclipped_depth: false,

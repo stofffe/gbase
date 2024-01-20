@@ -1,11 +1,11 @@
 use encase::ShaderType;
 use gbase::{
-    input,
+    filesystem, input,
     render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
-use std::{f32::consts::PI, ops::Div};
+use std::{f32::consts::PI, ops::Div, path::Path};
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -26,7 +26,6 @@ const CAMERA_MOVE_SPEED: f32 = 15.0;
 
 const PLANE_SIZE: f32 = 500.0;
 const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
-// const LIGHT_INIT_POS: Vec3 = vec3(10.0, 10.0, 0.0);
 
 struct App {
     plane_buffer: render::VertexBuffer<VertexColor>,
@@ -48,8 +47,8 @@ impl App {
 
         // Camera
         let camera = render::PerspectiveCamera::new(device)
-            .pos(vec3(0.0, 2.0, -1.0))
-            .pitch(PI / 4.0);
+            .pos(vec3(0.0, 2.0, 1.0))
+            .pitch(-PI / 4.0);
 
         // Plane
         let plane_transform = render::Transform::new(device)
@@ -208,7 +207,7 @@ impl App {
         // Camera rotation
         // if input::mouse_button_pressed(ctx, input::MouseButton::Left) {}
         let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-        self.camera.yaw += 1.0 * dt * mouse_dx;
+        self.camera.yaw -= 1.0 * dt * mouse_dx;
         self.camera.pitch -= 1.0 * dt * mouse_dy;
 
         // Camera movement
@@ -282,6 +281,7 @@ impl GrassRenderer {
             vec2(curr_tile.x + tile_size, curr_tile.y - tile_size),  // bot right
             vec2(curr_tile.x + -tile_size, curr_tile.y - tile_size), // bot left
         ];
+        // TODO use one compute pass but buffers of instance counts and tiles?
         for tile in tiles {
             // update buffers
             queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32])); // clear instance count
@@ -366,10 +366,13 @@ impl GrassRenderer {
                 | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let perlin_noise_texture = render::TextureBuilder::new("perlin_noise.png".to_string())
-            .visibility(wgpu::ShaderStages::COMPUTE)
-            .build(ctx)
-            .await;
+        let perlin_noise_bytes = filesystem::load_bytes(ctx, Path::new("perlin_noise.png"))
+            .await
+            .unwrap();
+        let perlin_noise_texture =
+            render::TextureBuilder::new(render::TextureSource::FormattedBytes(perlin_noise_bytes))
+                .visibility(wgpu::ShaderStages::COMPUTE)
+                .build(ctx);
 
         let tile_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
@@ -431,11 +434,7 @@ impl GrassRenderer {
         // Render pipeline
         let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
             .buffers(vec![instances.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: surface_config.format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
+            .default_target(surface_config)
             .bind_group_layouts(vec![
                 &camera.bind_group_layout(),
                 &time_info.bind_group_layout(),

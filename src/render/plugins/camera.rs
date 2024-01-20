@@ -3,6 +3,14 @@ use encase::ShaderType;
 use glam::{vec3, Mat4, Vec3};
 use std::f32::consts::PI;
 
+// TODO make members private and update direction vectors when yaw/pitch changes
+
+/// Right handed perspective camera
+///
+/// yaw = pitch = 0
+/// => forw  (0, 0, -1)
+/// => right (1, 0, 0)
+/// => up    (0, 1, 0)
 pub struct PerspectiveCamera {
     pub pos: Vec3,
     pub yaw: f32,
@@ -77,14 +85,19 @@ impl PerspectiveCamera {
     // TODO not sure about these
     pub fn forward(&self) -> Vec3 {
         vec3(
-            self.yaw.sin() * self.pitch.cos(),
-            -self.pitch.sin(),
-            self.yaw.cos() * self.pitch.cos(),
+            -self.yaw.sin() * self.pitch.cos(),
+            self.pitch.sin(),
+            -self.yaw.cos() * self.pitch.cos(),
         )
         .normalize()
     }
+    #[rustfmt::skip]
     pub fn right(&self) -> Vec3 {
-        vec3(self.yaw.cos(), 0.0, -self.yaw.sin()).normalize()
+        vec3(
+            self.yaw.cos(),
+            0.0,
+            -self.yaw.sin(),
+        )
     }
     pub fn up(&self) -> Vec3 {
         vec3(
@@ -104,9 +117,9 @@ impl PerspectiveCamera {
         // left handed coords
         self.pitch = self.pitch.clamp(MIN_PITCH, MAX_PITCH);
         self.fov = self.fov.clamp(MIN_FOV, MAX_FOV);
-        let view = Mat4::look_to_lh(self.pos, self.forward(), self.up());
+        let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
         let aspect = ctx.render.aspect_ratio();
-        let proj = Mat4::perspective_lh(self.fov, aspect, self.znear, self.zfar);
+        let proj = Mat4::perspective_rh(self.fov, aspect, self.znear, self.zfar);
 
         let view_proj = proj * view;
 

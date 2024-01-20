@@ -3,7 +3,7 @@ use gbase::{
     render::{self, Vertex},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::Vec3;
+use glam::{vec3, Vec3};
 use std::path::Path;
 use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
@@ -47,7 +47,7 @@ impl App {
         });
 
         // Camera
-        let camera = render::PerspectiveCamera::new(device);
+        let camera = render::PerspectiveCamera::new(device).pos(vec3(0.0, 0.0, 2.0));
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -104,7 +104,6 @@ impl App {
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
-        log::info!("DT {dt}");
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
             self.camera.yaw = 0.0;
@@ -114,7 +113,7 @@ impl Callbacks for App {
         // Camera rotation
         if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
             let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw += 1.0 * dt * mouse_dx;
+            self.camera.yaw -= 1.0 * dt * mouse_dx;
             self.camera.pitch -= 1.0 * dt * mouse_dy;
         }
 
@@ -123,6 +122,7 @@ impl Callbacks for App {
         if input::key_pressed(ctx, KeyCode::KeyW) {
             camera_movement_dir += self.camera.forward();
         }
+
         if input::key_pressed(ctx, KeyCode::KeyS) {
             camera_movement_dir -= self.camera.forward();
         }
