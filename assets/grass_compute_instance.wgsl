@@ -38,11 +38,11 @@ struct TimeInfo {
     time_passed: f32
 };
 
-const WIND_GLOBAL_POWER = 2.0;
-const WIND_LOCAL_POWER = 0.00;
+const WIND_GLOBAL_POWER = 2.5;
+const WIND_LOCAL_POWER = 0.05;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
-const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
+const WIND_DIR = -vec2<f32>(1.0, 1.0); // TODO sample from texture instead
 const WIND_FACING_MODIFIER = 2.0;
 
 const ORTH_LIM = 0.4; // what dot_value orth rotation should start at
@@ -69,7 +69,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let pos = vec3<f32>(
         tile.pos.x + f32(x) * blade_dist_between + hash_to_range_neg(hash) * blade_max_offset,
         0.0,
-        tile.pos.y + f32(z) * blade_dist_between + hash_to_range_neg(hash) * blade_max_offset,
+        (tile.pos.y + f32(z) * blade_dist_between + hash_to_range_neg(hash) * blade_max_offset),
     );
 
     // CULL
@@ -98,20 +98,20 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
         let uv = tile_uv + scroll;
         // let global_wind_power = textureGather(1, perlin_tex, perlin_sam, uv).x; // think x = y = z // TODO filtering?
-        let global_wind_power = bilinear_0(uv);
+        let wind_sample_power = bilinear_0(uv);
 
-        //let global_wind_power = textureSample(perlin_tex, perlin_sam, uv) * WIND_GLOBAL_POWER;
+        //let wind_sample_power = textureSample(perlin_tex, perlin_sam, uv) * WIND_GLOBAL_POWER;
         var global_wind_dir = normalize(WIND_DIR);
         var global_wind = vec2<f32>(
             abs(facing.x * global_wind_dir.x), // dot product on x 
             abs(facing.y * global_wind_dir.y), // dot product on z
-        ) * global_wind_dir * global_wind_power * WIND_GLOBAL_POWER;
+        ) * global_wind_dir * wind_sample_power * WIND_GLOBAL_POWER;
 
         // blade curls towards normal, this affects how much wind is caught
-        if global_wind.x * facing.x >= 0.0 {
+        if global_wind.x * facing.x <= 0.0 {
             global_wind.x *= WIND_FACING_MODIFIER;
         }
-        if global_wind.y * facing.y >= 0.0 {
+        if global_wind.y * facing.y <= 0.0 {
             global_wind.y *= WIND_FACING_MODIFIER;
         }
 
@@ -140,7 +140,7 @@ fn bilinear_0(uv: vec2<f32>) -> f32 {
 
     // let offset = 1.0 / 512.0; // not needed?
     // let weight = fract(uv * size - 0.5 + offset);
-    let weight = fract(uv * size - 0.5);
+    let weight = fract(uv * size - 0.5); // -0.5 since we have 4 pixels
 
     return mix(
         mix(tex.w, tex.z, weight.x),

@@ -31,14 +31,14 @@ const GRASS_MAX_VERT_INDEX = 14u;
 const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
 const GRASS_MAX_ROT = PI / 8.0;
 
-const NORMAL = vec3<f32>(0.0, 0.0, -1.0);
+const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
-const AMBIENT_MOD = 0.1;
-const DIFFUSE_MOD = 0.3;
+const AMBIENT_MOD = 0.3;
+const DIFFUSE_MOD = 0.5;
 const SPECULAR_MOD = 2.0;
-const SPECULAR_INTENSITY = 11.0; // must be odd
-const SPECULAR_BLEND_MAX_DIST = 60.0;
+const SPECULAR_INTENSITY = 15.0; // must be odd
+const SPECULAR_BLEND_MAX_DIST = 30.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
 
@@ -68,7 +68,8 @@ fn vs_main(
     // shape
     let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
     let height_percent = vpos.y / instance.height;
-    let shape_mat = rot_y(facing_angle) * rot_x(-ease_in(height_percent) * GRASS_MAX_ROT) ;
+    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * GRASS_MAX_ROT);
+   // let shape_mat = rot_y(facing_angle);
 
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
@@ -85,8 +86,8 @@ fn vs_main(
 
     let normal = transpose(inverse_3x3(rot_mat)) * NORMAL;
     // rounded normal
-    let normal1 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
-    let normal2 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
+    let normal1 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
+    let normal2 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
     let width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
 
     var out: VertexOutput;
@@ -117,8 +118,8 @@ fn debug_light_pos() -> vec3<f32> {
 
     var light_pos: vec3<f32>;
     light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    light_pos = vec3<f32>(-10.0, 8.0, 40.0);
     light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
+    light_pos = vec3<f32>(50.0, 16.0, -50.0);
     return light_pos;
 }
 
@@ -131,26 +132,30 @@ fn fs_main(
     // flip normals depending on face
     var normal: vec3<f32>;
     if front_facing {
-        //normal = in.normal;
         normal = mix(in.normal1, in.normal2, in.width_percent);
+        //normal = in.normal;
     } else {
+        normal = mix(-in.normal2, -in.normal1, in.width_percent);
         //normal = -in.normal;
-        normal = -mix(in.normal2, in.normal1, in.width_percent);
     }
 
     let t = time_info.time_passed;
     let light_pos = debug_light_pos();
-    //let light_dir = normalize(light_pos - in.pos);
-    let light_dir = normalize(vec3<f32>(1.0, -0.5, 1.0));
+    let light_dir = normalize(light_pos - in.pos);
+    //let light_dir = normalize(vec3<f32>(-1.0, 0.5, -1.0));
     let view_dir = normalize(camera.pos - in.pos);
 
     // Blend specular normal to terrain at distance
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
     let specular_normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
-
     let reflect_dir = reflect(-light_dir, specular_normal);
-    let specular_strength = clamp(1.0 - dist_factor, 0.3, 1.0); // TODO constant for clamp?
-    let specular = specular_strength * saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
+
+    // Only reflect on correct side
+    var specular = saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
+    if dot(normal, light_dir) <= 0.0 {
+        specular *= ease_in(dist_factor); // fade as distance increases 
+    }
+    specular *= clamp(ease_out(1.0 - dist_factor), 0.7, 1.0);
 
     // Phong
     let ambient = 1.0;
@@ -159,9 +164,9 @@ fn fs_main(
 
     if btn_pressed() {
         var debug: vec4<f32>;
-        debug = vec4<f32>(light_dir, 1.0);
         debug = vec4<f32>(diffuse, diffuse, diffuse, 1.0);
         debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        debug = vec4<f32>(reflect_dir, 1.0);
         debug = vec4<f32>(specular, specular, specular, 1.0);
         return debug;
     }

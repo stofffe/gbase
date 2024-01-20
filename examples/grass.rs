@@ -180,6 +180,8 @@ impl Callbacks for App {
 
         self.camera_movement(ctx);
 
+        // println!("camera {}", self.camera.pos);
+
         // hot reload
         #[cfg(not(target_arch = "wasm32"))]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -271,14 +273,15 @@ impl GrassRenderer {
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
         let tiles = [
-            vec2(curr_tile.x, curr_tile.y),                          // mid
-            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),        // mid right
-            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0),       // mid left
-            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),        // top
-            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size),  // top right
+            // vec2(0.0, 0.0),
+            vec2(curr_tile.x, curr_tile.y),                    // mid
+            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),  // mid right
+            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0), // mid left
+            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),  // top
+            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size), // top right
             vec2(curr_tile.x + -tile_size, curr_tile.y + tile_size), // top left
-            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),        // bot
-            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size),  // bot right
+            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),  // bot
+            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size), // bot right
             vec2(curr_tile.x + -tile_size, curr_tile.y - tile_size), // bot left
         ];
         // TODO use one compute pass but buffers of instance counts and tiles?
