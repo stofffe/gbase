@@ -1,4 +1,7 @@
+use std::path::Path;
+
 use gbase::{
+    filesystem,
     render::{self, VertexUV},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
@@ -26,9 +29,12 @@ impl App {
 
         let vertex_buffer = render::VertexBuffer::new(device, QUAD_VERTICES);
 
-        let texture = render::TextureBuilder::new("texture.jpeg".to_string())
-            .build(ctx)
-            .await;
+        let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
+            .await
+            .unwrap();
+        let texture =
+            render::TextureBuilder::new(render::TextureSource::FormattedBytes(texture_bytes))
+                .build(ctx);
 
         let shader = render::ShaderBuilder::new("texture.wgsl".to_string())
             .buffers(vec![vertex_buffer.desc()])

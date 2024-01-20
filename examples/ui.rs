@@ -3,7 +3,7 @@ use gbase::{
     render::{self, VertexTrait},
     time, Callbacks, Context, ContextBuilder,
 };
-use glam::{uvec2, vec2, vec3, UVec2, Vec2, Vec3};
+use glam::{uvec2, vec2, vec4, UVec2, Vec2, Vec4};
 use std::{collections::HashMap, path::Path};
 
 #[pollster::main]
@@ -23,7 +23,7 @@ struct App {
 
 impl App {
     async fn new(ctx: &Context) -> Self {
-        let quads = 100;
+        let quads = 1000;
         let gui_renderer = GUIRenderer::new(ctx, 4 * quads, 6 * quads).await;
 
         Self { gui_renderer }
@@ -33,9 +33,9 @@ impl App {
 impl Callbacks for App {
     #[rustfmt::skip]
     fn update(&mut self, ctx: &mut Context) -> bool {
-        self.gui_renderer.draw_quad(vec2(0.0, 0.0), vec2(2.0, 2.0), vec3(1.0, 1.0, 1.0));
+        self.gui_renderer.draw_quad(vec2(0.0, 0.0), vec2(2.0, 2.0), vec4(1.0, 1.0, 1.0, 1.0));
 
-        let fps_text = time::fps(ctx).to_string();
+        let fps_text = (1.0 / time::frame_time(ctx)).to_string();
         self.gui_renderer.draw_text(vec2(-1.0,0.8), vec2(1.0,1.0), 1.0, &fps_text);
 
         self.gui_renderer.draw_text(vec2(-1.0,0.0), vec2(1.0,1.0), 1.0, "hello this is some text that is going to wrap a few times lol lol");
@@ -209,9 +209,10 @@ impl FontAtlas {
             info.insert(
                 letter,
                 LetterInfo {
-                    uv_offset: offset.as_vec2() / texture_dim.as_vec2(),
-                    uv_dimensions: dimensions.as_vec2() / texture_dim.as_vec2(),
-                    min: vec2(metrics.xmin as f32, metrics.ymin as f32) / texture_dim.as_vec2(),
+                    atlas_offset: offset.as_vec2() / texture_dim.as_vec2(),
+                    atlas_dimensions: dimensions.as_vec2() / texture_dim.as_vec2(),
+                    local_offset: vec2(metrics.xmin as f32, metrics.ymin as f32)
+                        / texture_dim.as_vec2(),
                     advance: vec2(metrics.advance_width, metrics.advance_height)
                         / texture_dim.as_vec2(),
                 },
@@ -231,6 +232,12 @@ impl FontAtlas {
 }
 
 impl FontAtlas {
+    pub fn get_info(&self, letter: char) -> &LetterInfo {
+        match self.info.get(&letter) {
+            Some(info) => info,
+            None => panic!("trying to get unsupported letter \"{}\"", letter), // TODO default
+        }
+    }
     pub fn texture(&self) -> &wgpu::Texture {
         &self.texture_atlas.texture
     }
@@ -250,9 +257,9 @@ impl FontAtlas {
 
 #[derive(Debug, Clone)]
 struct LetterInfo {
-    uv_offset: Vec2,
-    uv_dimensions: Vec2,
-    min: Vec2,
+    atlas_offset: Vec2,
+    atlas_dimensions: Vec2,
+    local_offset: Vec2,
     advance: Vec2,
 }
 
@@ -273,7 +280,7 @@ impl GUIRenderer {
         let font_atlas = FontAtlas::new(
             ctx,
             "font.ttf",
-            "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW0123456789.,_ ",
+            "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW0123456789.,_-+*/ ",
         )
         .await;
         // println!("A info {:?}", letter_info.get(&'a'));
@@ -331,7 +338,7 @@ impl GUIRenderer {
     }
 
     #[rustfmt::skip]
-    fn draw_quad(&mut self, pos: Vec2, size: Vec2, color: Vec3) {
+    fn draw_quad(&mut self, pos: Vec2, size: Vec2, color: Vec4) {
         let offset = self.batch.vertices_len();
         let color = color.to_array();
         let x = pos.x;
@@ -354,54 +361,54 @@ impl GUIRenderer {
     fn draw_text(&mut self, pos: Vec2, size: Vec2, scale: f32, text: &str) {
         let mut offset = vec2(0.0, 0.0);
         for letter in text.chars() {
-            let info = self.font_atlas.info.get(&letter).unwrap().clone();
+            let info = self.font_atlas.get_info(letter);
 
-            if info.uv_dimensions.x > size.x - offset.x {
+            if info.atlas_dimensions.x > size.x - offset.x {
                 offset.x = 0.0;
                 offset.y -= self.font_atlas.line_height;
             }
 
-            let local_offset = info.min;
-            self.draw_letter(pos + (offset + local_offset) * scale, scale, letter);
-            offset.x += info.advance.x;
+            let advance = info.advance.x;
+            self.draw_letter(pos + (offset + info.local_offset) * scale, scale, letter);
+            offset.x += advance;
         }
     }
 
     fn draw_letter(&mut self, pos: Vec2, scale: f32, letter: char) {
-        let letter_info = self.font_atlas.info.get(&letter).unwrap().clone(); // clone
-        let dim = letter_info.uv_dimensions;
-
+        let info = self.font_atlas.get_info(letter);
+        let dim = info.atlas_dimensions;
         let scaled_dim = dim * scale;
         // self.draw_quad(pos, scaled_dim, vec3(0.0, 1.0, 0.0));
 
         let vertex_offset = self.batch.vertices_len();
-        let text_color = vec3(0.0, 0.0, 0.0).to_array();
-        let offset = letter_info.uv_offset;
+        const TEXT_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 1.0];
+        let offset = info.atlas_offset;
+
         //  bl
         self.batch.add_vertex(VertexUI {
             position: [pos.x, pos.y, 0.0],
-            color: text_color,
+            color: TEXT_COLOR,
             uv: [offset.x, offset.y + dim.y],
             ty: VERTEX_TYPE_TEXT,
         });
         // tl
         self.batch.add_vertex(VertexUI {
             position: [pos.x, pos.y + scaled_dim.y, 0.0],
-            color: text_color,
+            color: TEXT_COLOR,
             uv: [offset.x, offset.y],
             ty: VERTEX_TYPE_TEXT,
         });
         // tr
         self.batch.add_vertex(VertexUI {
             position: [pos.x + scaled_dim.x, pos.y + scaled_dim.y, 0.0],
-            color: text_color,
+            color: TEXT_COLOR,
             uv: [offset.x + dim.x, offset.y],
             ty: VERTEX_TYPE_TEXT,
         });
         // br
         self.batch.add_vertex(VertexUI {
             position: [pos.x + scaled_dim.x, pos.y, 0.0],
-            color: text_color,
+            color: TEXT_COLOR,
             uv: [offset.x + dim.x, offset.y + dim.y],
             ty: VERTEX_TYPE_TEXT,
         });
@@ -423,16 +430,16 @@ const VERTEX_TYPE_TEXT: u32 = 1;
 pub struct VertexUI {
     pub position: [f32; 3],
     pub ty: u32, // 0 shape, 1 text
-    pub color: [f32; 3],
+    pub color: [f32; 4],
     pub uv: [f32; 2],
 }
 
 impl VertexUI {
     const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Uint32,
-        2=>Float32x3,
-        3=>Float32x2,
+        0=>Float32x3,   // pos
+        1=>Uint32,      // ty
+        2=>Float32x4,   // color
+        3=>Float32x2,   // uv
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

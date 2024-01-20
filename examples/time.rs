@@ -16,6 +16,7 @@ impl Callbacks for App {
 pub async fn main() {
     let (ctx, ev) = ContextBuilder::new()
         .log_level(LogLevel::Info)
+        .vsync(false)
         .build()
         .await;
     let app = App {};
