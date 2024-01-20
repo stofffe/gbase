@@ -2,9 +2,9 @@ use encase::ShaderType;
 use gbase::{
     filesystem, input,
     render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
-    Callbacks, Context, ContextBuilder, LogLevel,
+    time, Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Quat, Vec2, Vec3, Vec3Swizzles};
+use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{f32::consts::PI, ops::Div, path::Path};
 use winit::keyboard::KeyCode;
 
@@ -38,6 +38,8 @@ struct App {
     depth_buffer_renderer: render::DepthBufferRenderer,
 
     grass_renderer: GrassRenderer,
+
+    gui_renderer: render::GUIRenderer,
 }
 
 impl App {
@@ -82,6 +84,8 @@ impl App {
 
         let grass_renderer = GrassRenderer::new(ctx, &camera).await;
 
+        let gui_renderer = render::GUIRenderer::new(ctx, 1000 * 4, 1000 * 6).await;
+
         Self {
             camera,
             plane_buffer,
@@ -92,6 +96,8 @@ impl App {
             depth_buffer_renderer,
 
             grass_renderer,
+
+            gui_renderer,
         }
     }
 }
@@ -163,6 +169,8 @@ impl Callbacks for App {
             self.depth_buffer_renderer.render(ctx, screen_view);
         }
 
+        self.gui_renderer.render(ctx, screen_view);
+
         false
     }
 
@@ -180,8 +188,6 @@ impl Callbacks for App {
 
         self.camera_movement(ctx);
 
-        // println!("camera {}", self.camera.pos);
-
         // hot reload
         #[cfg(not(target_arch = "wasm32"))]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -189,15 +195,23 @@ impl Callbacks for App {
             println!("reload");
         }
 
-        // fps counter
-        if input::key_pressed(ctx, KeyCode::KeyF) {
-            log::info!("{}", gbase::time::fps(ctx));
-        }
-
         // debug camera pos
         if input::key_pressed(ctx, KeyCode::KeyC) {
             log::info!("{}", self.camera.pos);
         }
+
+        // fps counter
+        if input::key_pressed(ctx, KeyCode::KeyF) {
+            let fps_text = (1.0 / time::frame_time(ctx)).to_string();
+            self.gui_renderer.draw_text(
+                vec2(0.01, 0.01),
+                vec2(0.5, 0.2),
+                1.0,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                &fps_text,
+            );
+        }
+
         false
     }
 }
