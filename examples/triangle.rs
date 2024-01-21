@@ -25,7 +25,7 @@ impl App {
         let vertex_buffer = render::VertexBufferBuilder::new()
             .label("triangle vertex buffer")
             .usages(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
-            .vertices(TRIANGLE_VERTICES)
+            .source(render::VertexSource::Values(TRIANGLE_VERTICES))
             .build(ctx);
 
         let shader = render::ShaderBuilder::new("triangle.wgsl".to_string())

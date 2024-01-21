@@ -57,9 +57,12 @@ impl App {
             .rotation(Quat::from_rotation_x(PI / 2.0))
             .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0))
             .pos(vec3(0.0, -0.1, 0.0)); // TODO TEMP
-        let plane_buffer = render::VertexBuffer::new(device, CENTERED_QUAD_VERTICES);
 
-        let depth_buffer = render::DepthBuffer::new(device, surface_config);
+        let plane_buffer = render::VertexBufferBuilder::new()
+            .source(render::VertexSource::Values(CENTERED_QUAD_VERTICES))
+            .build(ctx);
+
+        let depth_buffer = render::DepthBuffer::new(ctx);
 
         // Plane pipeline
         let shader = render::ShaderBuilder::new("shader.wgsl")
@@ -146,7 +149,7 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_stencil_attachment()),
+            depth_stencil_attachment: Some(self.depth_buffer.depth_stencil_attachment_load()),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -165,11 +168,11 @@ impl Callbacks for App {
         self.grass_renderer
             .render(ctx, &self.camera, screen_view, &self.depth_buffer);
 
+        self.gui_renderer.render(ctx, screen_view);
+
         if input::key_pressed(ctx, KeyCode::F2) {
             self.depth_buffer_renderer.render(ctx, screen_view);
         }
-
-        self.gui_renderer.render(ctx, screen_view);
 
         false
     }
@@ -347,7 +350,7 @@ impl GrassRenderer {
                     },
                     resolve_target: None,
                 })],
-                depth_stencil_attachment: Some(depth_buffer.depth_stencil_attachment()),
+                depth_stencil_attachment: Some(depth_buffer.depth_stencil_attachment_load()),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });

@@ -1,10 +1,9 @@
 use crate::filesystem;
 use crate::{render, Context};
-use glam::{uvec2, vec2, Vec4, vec4};
+use glam::{uvec2, vec2, Vec4};
 use glam::{UVec2, Vec2};
 use std::collections::HashMap;
 use std::path::Path;
-
 use super::VertexTrait;
 
 pub struct TextureAtlas {
@@ -224,7 +223,9 @@ struct LetterInfo {
 }
 
 pub struct GUIRenderer {
-    batch: render::BatchBuffer<VertexUI>,
+    vertices: render::DynamicVertexBuffer<VertexUI>,
+    indices: render::DynamicIndexBuffer,
+
     pipeline: render::RenderPipeline,
     font_atlas: FontAtlas,
 }
@@ -232,10 +233,9 @@ pub struct GUIRenderer {
 impl GUIRenderer {
     pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32) -> Self {
         let surface_config = render::surface_config(ctx);
-        let batch = render::BatchBufferBuilder::new()
-            .vertices_size(vertices_batch_size)
-            .indices_size(indices_batch_size)
-            .build(ctx);
+
+        let vertices = render::DynamicVertexBufferBuilder::new().capacity(vertices_batch_size as usize).build(ctx);
+        let indices = render::DynamicIndexBufferBuilder::new().capacity(indices_batch_size as usize).build(ctx);
 
         let font_atlas = FontAtlas::new(
             ctx,
@@ -246,7 +246,7 @@ impl GUIRenderer {
         // println!("A info {:?}", letter_info.get(&'a'));
 
         let shader = render::ShaderBuilder::new("ui.wgsl")
-            .buffers(vec![batch.vertices_desc()])
+            .buffers(vec![vertices.desc()])
             .targets(vec![Some(wgpu::ColorTargetState {
                 format: surface_config.format,
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -257,7 +257,8 @@ impl GUIRenderer {
             .await;
         let pipeline = render::RenderPipelineBuilder::new(&shader).build(ctx);
         Self {
-            batch,
+            vertices,
+            indices,
             pipeline,
             font_atlas,
         }
@@ -266,7 +267,8 @@ impl GUIRenderer {
     // TODO use existing render pass instead?
     pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
         // Update buffers with current frames data
-        self.batch.upload_buffers(ctx);
+        self.vertices.update_buffer(ctx);
+        self.indices.update_buffer(ctx);
 
         // Render batch
         let queue = render::queue(ctx);
@@ -286,37 +288,38 @@ impl GUIRenderer {
             occlusion_query_set: None,
         });
         render_pass.set_pipeline(self.pipeline.pipeline());
-        render_pass.set_vertex_buffer(0, self.batch.vertices_slice(..));
-        render_pass.set_index_buffer(self.batch.indices_slice(..), self.batch.indices_format());
+        render_pass.set_vertex_buffer(0, self.vertices.slice(..));
+        render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
         render_pass.set_bind_group(0, self.font_atlas.bind_group(), &[]);
-        render_pass.draw_indexed(0..self.batch.indices_len(), 0, 0..1);
+        render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
 
         drop(render_pass);
         queue.submit(Some(encoder.finish()));
 
         // Clear for next frame
-        self.batch.clear();
+        self.vertices.clear();
+        self.indices.clear();
     }
 
     #[rustfmt::skip]
     pub fn draw_quad(&mut self, pos: Vec2, size: Vec2, color: Vec4) {
         let size = size * 2.0;
 
-        let offset = self.batch.vertices_len();
+        let offset = self.vertices.len();
         let color = color.to_array();
         let (x, y) = (pos.x ,pos.y);
         let (sx, sy) = (size.x, size.y);
         
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x, 1.0 - y , 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tl
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tr
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // bl
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x + sx, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // br
-        self.batch.add_index(offset); // tl 
-        self.batch.add_index(offset + 1); // bl 
-        self.batch.add_index(offset + 2); // tr
-        self.batch.add_index(offset + 2); // tr 
-        self.batch.add_index(offset + 1); // bl 
-        self.batch.add_index(offset + 3); // br
+        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y , 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tl
+        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tr
+        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // bl
+        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // br
+        self.indices.add(offset); // tl 
+        self.indices.add(offset + 1); // bl 
+        self.indices.add(offset + 2); // tr
+        self.indices.add(offset + 2); // tr 
+        self.indices.add(offset + 1); // bl 
+        self.indices.add(offset + 3); // br
     }
 
     // currently size.y does nothing
@@ -333,7 +336,9 @@ impl GUIRenderer {
                 global_offset.y += self.font_atlas.line_height;
             }
 
-            let local_offset = global_offset + vec2(info.local_offset.x, -info.local_offset.y) + vec2(0.0, self.font_atlas.line_height - atlas_dim.y);
+            let local_offset = global_offset
+                + vec2(info.local_offset.x, -info.local_offset.y)
+                + vec2(0.0, self.font_atlas.line_height - atlas_dim.y);
             let pos = pos + local_offset * font_scale;
             global_offset.x += info.advance.x;
             self.draw_letter(pos, font_scale, letter, color);
@@ -354,17 +359,17 @@ impl GUIRenderer {
         let (tdx, tdy) =(texture_dim.x, texture_dim.y);
         let color = color.to_array();
 
-        let vertex_offset = self.batch.vertices_len();
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x, 1.0 - y, 0.0],          ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy] }); // tl
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy] }); // tr
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy + tdy] }); // bl
-        self.batch.add_vertex(VertexUI { position: [-1.0 + x + sx, 1.0 - y -sy, 0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy + tdy] }); // br
-        self.batch.add_index(vertex_offset); // tl 
-        self.batch.add_index(vertex_offset + 1); // bl 
-        self.batch.add_index(vertex_offset + 2); // tr
-        self.batch.add_index(vertex_offset + 2); // tr 
-        self.batch.add_index(vertex_offset + 1); // bl 
-        self.batch.add_index(vertex_offset + 3); // br
+        let vertex_offset = self.vertices.len();
+        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y, 0.0],          ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy] }); // tl
+        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy] }); // tr
+        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy + tdy] }); // bl
+        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y -sy, 0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy + tdy] }); // br
+        self.indices.add(vertex_offset); // tl 
+        self.indices.add(vertex_offset + 1); // bl 
+        self.indices.add(vertex_offset + 2); // tr
+        self.indices.add(vertex_offset + 2); // tr 
+        self.indices.add(vertex_offset + 1); // bl 
+        self.indices.add(vertex_offset + 3); // br
     }
 }
 

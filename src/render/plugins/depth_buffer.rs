@@ -10,8 +10,10 @@ pub struct DepthBuffer {
 }
 
 impl DepthBuffer {
-    pub fn new(device: &wgpu::Device, surface_conf: &wgpu::SurfaceConfiguration) -> Self {
-        let texture = Self::create_texture(device, surface_conf);
+    pub fn new(ctx: &Context) -> Self {
+        let device = render::device(ctx);
+        let surface_config = render::surface_config(ctx);
+        let texture = Self::create_texture(device, surface_config);
         let view = Self::create_view(&texture);
 
         Self { view }
@@ -34,11 +36,21 @@ impl DepthBuffer {
     }
 
     // TODO not working
-    pub fn depth_stencil_attachment(&self) -> wgpu::RenderPassDepthStencilAttachment {
+    pub fn depth_stencil_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment {
         wgpu::RenderPassDepthStencilAttachment {
             view: &self.view,
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            }),
+            stencil_ops: None,
+        }
+    }
+    pub fn depth_stencil_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment {
+        wgpu::RenderPassDepthStencilAttachment {
+            view: &self.view,
+            depth_ops: Some(wgpu::Operations {
+                load: wgpu::LoadOp::Clear(1.0),
                 store: wgpu::StoreOp::Store,
             }),
             stencil_ops: None,
