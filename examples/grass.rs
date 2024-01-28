@@ -59,7 +59,7 @@ impl App {
             .pos(vec3(0.0, -0.1, 0.0)); // TODO TEMP
 
         let plane_buffer = render::VertexBufferBuilder::new()
-            .source(render::VertexSource::Values(CENTERED_QUAD_VERTICES))
+            .source(render::BufferSource::Values(CENTERED_QUAD_VERTICES))
             .build(ctx);
 
         let depth_buffer = render::DepthBuffer::new(ctx);
@@ -87,7 +87,14 @@ impl App {
 
         let grass_renderer = GrassRenderer::new(ctx, &camera).await;
 
-        let gui_renderer = render::GUIRenderer::new(ctx, 1000 * 4, 1000 * 6).await;
+        let gui_renderer = render::GUIRenderer::new(
+            ctx,
+            1000 * 4,
+            1000 * 6,
+            &filesystem::load_bytes(ctx, "font.ttf").await.unwrap(),
+            render::DEFAULT_SUPPORTED_CHARS,
+        )
+        .await;
 
         Self {
             camera,

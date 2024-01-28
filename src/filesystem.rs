@@ -57,10 +57,10 @@ impl FileSystemContext {
 // Commands
 //
 
-pub async fn load_bytes(ctx: &Context, path: &Path) -> anyhow::Result<Vec<u8>> {
-    ctx.filesystem.load_bytes(path).await
+pub async fn load_bytes(ctx: &Context, path: impl Into<PathBuf>) -> anyhow::Result<Vec<u8>> {
+    ctx.filesystem.load_bytes(&path.into()).await
 }
 
-pub async fn load_string(ctx: &Context, path: &Path) -> anyhow::Result<String> {
-    ctx.filesystem.load_string(path).await
+pub async fn load_string(ctx: &Context, path: impl Into<PathBuf>) -> anyhow::Result<String> {
+    ctx.filesystem.load_string(&path.into()).await
 }

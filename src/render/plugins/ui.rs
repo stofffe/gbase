@@ -1,137 +1,19 @@
-use crate::filesystem;
 use crate::{render, Context};
 use glam::{uvec2, vec2, Vec4};
 use glam::{UVec2, Vec2};
+use image::error::ParameterErrorKind;
 use std::collections::HashMap;
-use std::path::Path;
 use super::VertexTrait;
 
-pub struct TextureAtlas {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
-    bind_group_layout: wgpu::BindGroupLayout,
-    bind_group: wgpu::BindGroup,
-}
-
-impl TextureAtlas {
-    fn write_texture(&mut self, ctx: &Context, origin: UVec2, dimensions: UVec2, bytes: &[u8]) {
-        let queue = render::queue(ctx);
-
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &self.texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d {
-                    x: origin.x,
-                    y: origin.y,
-                    z: 0,
-                },
-                aspect: wgpu::TextureAspect::All,
-            },
-            bytes,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: Some(dimensions.x),
-                rows_per_image: Some(dimensions.y),
-            },
-            wgpu::Extent3d {
-                width: dimensions.x,
-                height: dimensions.y,
-                depth_or_array_layers: 1,
-            },
-        );
-    }
-    fn new(ctx: &Context, size: UVec2) -> Self {
-        let device = render::device(ctx);
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: None,
-            size: wgpu::Extent3d {
-                width: size.x,
-                height: size.y,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: None,
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-            ],
-        });
-
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&sampler),
-                },
-            ],
-        });
-
-        Self {
-            texture,
-            view,
-            sampler,
-            bind_group_layout,
-            bind_group,
-        }
-    }
-}
-
 struct FontAtlas {
-    texture_atlas: TextureAtlas,
+    texture_atlas: render::TextureAtlas,
     info: HashMap<char, LetterInfo>,
     line_height: f32,
 }
 
 impl FontAtlas {
-    async fn new(ctx: &Context, font_path: &str, supported_chars: &str) -> Self {
+    fn new(ctx: &Context, font_bytes: &[u8], supported_chars: &str) -> Self {
         // texture
-        let font_bytes = filesystem::load_bytes(ctx, Path::new(font_path))
-            .await
-            .unwrap();
         let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default()).unwrap();
 
         let chars = supported_chars
@@ -150,7 +32,7 @@ impl FontAtlas {
             .unwrap() as u32;
         let line_height = max_height as f32 / texture_dim.y as f32;
 
-        let mut texture_atlas = TextureAtlas::new(ctx, texture_dim);
+        let mut texture_atlas = render::TextureAtlas::new(ctx, texture_dim);
         let mut offset = UVec2::ZERO;
 
         let padding = uvec2(10, 10);
@@ -170,10 +52,8 @@ impl FontAtlas {
                 LetterInfo {
                     atlas_offset: offset.as_vec2() / texture_dim.as_vec2(),
                     atlas_dimensions: dimensions.as_vec2() / texture_dim.as_vec2(),
-                    local_offset: vec2(metrics.xmin as f32, metrics.ymin as f32)
-                        / texture_dim.as_vec2(),
-                    advance: vec2(metrics.advance_width, metrics.advance_height)
-                        / texture_dim.as_vec2(),
+                    local_offset: vec2(metrics.xmin as f32, metrics.ymin as f32) / texture_dim.as_vec2(),
+                    advance: vec2(metrics.advance_width, metrics.advance_height) / texture_dim.as_vec2(),
                 },
             );
 
@@ -198,19 +78,19 @@ impl FontAtlas {
         }
     }
     pub fn texture(&self) -> &wgpu::Texture {
-        &self.texture_atlas.texture
+        self.texture_atlas.texture()
     }
     pub fn view(&self) -> &wgpu::TextureView {
-        &self.texture_atlas.view
+        self.texture_atlas.view()
     }
     pub fn sampler(&self) -> &wgpu::Sampler {
-        &self.texture_atlas.sampler
+        self.texture_atlas.sampler()
     }
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-        &self.texture_atlas.bind_group_layout
+        self.texture_atlas.bind_group_layout()
     }
     pub fn bind_group(&self) -> &wgpu::BindGroup {
-        &self.texture_atlas.bind_group
+        self.texture_atlas.bind_group()
     }
 }
 
@@ -230,8 +110,11 @@ pub struct GUIRenderer {
     font_atlas: FontAtlas,
 }
 
+pub const DEFAULT_SUPPORTED_CHARS: &str = "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ";
+pub const DEFAULT_SUPPORTED_CHARS_SE: &str = "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ";
+
 impl GUIRenderer {
-    pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32) -> Self {
+    pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32, font_bytes: &[u8], supported_chars: &str) -> Self {
         let surface_config = render::surface_config(ctx);
 
         let vertices = render::DynamicVertexBufferBuilder::new().capacity(vertices_batch_size as usize).build(ctx);
@@ -239,10 +122,9 @@ impl GUIRenderer {
 
         let font_atlas = FontAtlas::new(
             ctx,
-            "font.ttf",
-            "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVXYZW0123456789.,_-+*/ ",
-        )
-        .await;
+            font_bytes,
+            supported_chars,
+        ) ;
         // println!("A info {:?}", letter_info.get(&'a'));
 
         let shader = render::ShaderBuilder::new("ui.wgsl")
@@ -322,16 +204,18 @@ impl GUIRenderer {
         self.indices.add(offset + 3); // br
     }
 
+    // TODO scaling a bit weird
     // currently size.y does nothing
+    /// pos \[0,1\]
+    /// scale \[0,1\] 
     pub fn draw_text(&mut self, pos: Vec2, size: Vec2, font_scale: f32, color: Vec4, text: &str) {
-        let size = size * 2.0;
-
         let mut global_offset = vec2(0.0, 0.0);
         for letter in text.chars() {
             let info = self.font_atlas.get_info(letter);
             let atlas_dim = info.atlas_dimensions;
 
-            if (global_offset.x + atlas_dim.x) * font_scale > size.x {
+            // Check wrap
+            if (global_offset.x + atlas_dim.x) * font_scale > size.x * 2.0 {
                 global_offset.x = 0.0;
                 global_offset.y += self.font_atlas.line_height;
             }
@@ -339,14 +223,17 @@ impl GUIRenderer {
             let local_offset = global_offset
                 + vec2(info.local_offset.x, -info.local_offset.y)
                 + vec2(0.0, self.font_atlas.line_height - atlas_dim.y);
-            let pos = pos + local_offset * font_scale;
+            println!("local offset {local_offset})");
+            let pos = pos + local_offset * font_scale / 2.0; // div by two 
             global_offset.x += info.advance.x;
             self.draw_letter(pos, font_scale, letter, color);
         }
     }
 
     #[rustfmt::skip]
+    /// pos \[0,1\]
     pub fn draw_letter(&mut self, pos: Vec2, scale: f32, letter: char, color: Vec4) {
+
         let info = self.font_atlas.get_info(letter);
 
         let texture_offset = info.atlas_offset;
@@ -360,10 +247,10 @@ impl GUIRenderer {
         let color = color.to_array();
 
         let vertex_offset = self.vertices.len();
-        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y, 0.0],          ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy] }); // tl
-        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy] }); // tr
-        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0],     ty: VERTEX_TYPE_TEXT, color, uv: [tox, toy + tdy] }); // bl
-        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y -sy, 0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy + tdy] }); // br
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,      1.0 - y * 2.0,      0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox,       toy] }); // tl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx, 1.0 - y * 2.0,      0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy] }); // tr
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,      1.0 - y * 2.0 - sy, 0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox,       toy + tdy] }); // bl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx, 1.0 - y * 2.0 -sy,  0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy + tdy] }); // br
         self.indices.add(vertex_offset); // tl 
         self.indices.add(vertex_offset + 1); // bl 
         self.indices.add(vertex_offset + 2); // tr
