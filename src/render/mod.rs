@@ -68,7 +68,7 @@ impl RenderContext {
         // log::warn!("window_size {:?}", window_size);
 
         let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT, // TODO might want to add more here
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface_format,
             width: window_size.width.max(1),
             height: window_size.height.max(1),

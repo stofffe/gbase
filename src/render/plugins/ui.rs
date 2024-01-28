@@ -11,7 +11,7 @@ struct FontAtlas {
 }
 
 const FONT_RASTER_SIZE: f32 = 256.0;
-const FONT_ATLAS_SIZE: UVec2 = uvec2(2048, 2048);
+const FONT_ATLAS_SIZE: UVec2 = uvec2(4096, 4096);
 const FONT_ATLAS_PADDING: UVec2 = uvec2(10, 10);
 
 impl FontAtlas {

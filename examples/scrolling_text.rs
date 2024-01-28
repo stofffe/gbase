@@ -26,7 +26,8 @@ impl App {
             render::DEFAULT_SUPPORTED_CHARS_SE,
         )
         .await;
-        let text_pos = vec2(0.0, 0.0);
+        let text_pos = vec2(0.0, 0.1);
+
         Self {
             gui_renderer,
             text_pos,
@@ -44,12 +45,14 @@ impl Callbacks for App {
             self.text_pos.x = 1.0;
         }
 
+        self.gui_renderer
+            .draw_quad(Vec2::ZERO, Vec2::ONE, Vec4::ONE);
         self.gui_renderer.draw_text(
+            "BOOMBAAACLAT",
             self.text_pos,
-            vec2(10.0, 1.0),
-            0.8,
-            vec4(1.0, 1.0, 1.0, 1.0),
-            "Whack på slack",
+            0.7,
+            vec4(0.0, 0.0, 0.0, 1.0),
+            None,
         );
         false
     }
@@ -58,3 +61,61 @@ impl Callbacks for App {
         false
     }
 }
+//
+// struct GifRecorder {
+//     frames: Vec<Vec<u8>>,
+//     width: u16,
+//     height: u16,
+//
+//     output_buffer: wgpu::Buffer,
+// }
+//
+// impl GifRecorder {
+//     fn new(ctx: &Context) -> Self {
+//         let size = render::window(ctx).inner_size();
+//
+//         let device = render::device(ctx);
+//         let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+//             label: None,
+//             size: (size.width * size.height * 4 * std::mem::size_of::<u8>() as u32) as u64,
+//             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+//             mapped_at_creation: false,
+//         });
+//
+//         Self {
+//             frames: Vec::new(),
+//             width: size.width as u16,
+//             height: size.height as u16,
+//             output_buffer,
+//         }
+//     }
+//
+//     fn clear(&mut self) {
+//         self.frames.clear();
+//     }
+//
+//     fn record_frame(&mut self, frame: Vec<u8>) {
+//         self.frames.push(frame);
+//     }
+//
+//     fn export_gif(&mut self) -> Vec<u8> {
+//         let mut encoder =
+//             gif::Encoder::new(BufWriter::new(Vec::new()), self.width, self.height, &[]).unwrap();
+//
+//         for frame in self.frames.iter_mut() {
+//             let mut rgba = image::RgbaImage::new(self.width as u32, self.height as u32);
+//             rgba.copy_from_slice(frame.as_slice());
+//
+//             let mut gif_frame = gif::Frame::from_rgba(self.width, self.height, frame);
+//             gif_frame.delay = 1;
+//             encoder.write_frame(&gif_frame).unwrap();
+//         }
+//
+//         self.clear();
+//         encoder
+//             .into_inner()
+//             .expect("could not get bufwriter")
+//             .into_inner()
+//             .expect("could not get bytes") // extract inner vec
+//     }
+// }
