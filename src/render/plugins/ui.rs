@@ -1,7 +1,6 @@
 use crate::{render, Context};
 use glam::{uvec2, vec2, Vec4};
 use glam::{UVec2, Vec2};
-use image::error::ParameterErrorKind;
 use std::collections::HashMap;
 use super::VertexTrait;
 
@@ -11,6 +10,10 @@ struct FontAtlas {
     line_height: f32,
 }
 
+const FONT_RASTER_SIZE: f32 = 256.0;
+const FONT_ATLAS_SIZE: UVec2 = uvec2(2048, 2048);
+const FONT_ATLAS_PADDING: UVec2 = uvec2(10, 10);
+
 impl FontAtlas {
     fn new(ctx: &Context, font_bytes: &[u8], supported_chars: &str) -> Self {
         // texture
@@ -19,28 +22,34 @@ impl FontAtlas {
         let chars = supported_chars
             .chars()
             .map(|letter| {
-                let (metrics, bitmap) = font.rasterize(letter, 64.0);
+                let (metrics, bitmap) = font.rasterize(letter, FONT_RASTER_SIZE);
                 (metrics, bitmap, letter)
             })
             .collect::<Vec<_>>();
         // chars.sort_by(|a, b| a.0.height.partial_cmp(&b.0.height).unwrap());
-        let texture_dim = uvec2(1024, 1024);
+        // let texture_dim = uvec2(4096, 4096);
+        let texture_dim = FONT_ATLAS_SIZE;
         let max_height = chars
             .iter()
             .map(|(metrics, _, _)| metrics.height)
             .max()
             .unwrap() as u32;
-        let line_height = max_height as f32 / texture_dim.y as f32;
+        // println!("MAX {max_height}");
+        // let line_height = max_height as f32 / texture_dim.y as f32;
+        let line_height = max_height as f32 / FONT_RASTER_SIZE;
+        // println!("line height {line_height}");
 
         let mut texture_atlas = render::TextureAtlas::new(ctx, texture_dim);
         let mut offset = UVec2::ZERO;
 
-        let padding = uvec2(10, 10);
+        let padding = FONT_ATLAS_PADDING;
 
         let mut info = HashMap::<char, LetterInfo>::new();
 
         for (metrics, bitmap, letter) in chars {
             let dimensions = uvec2(metrics.width as u32, metrics.height as u32);
+
+            // println!("{letter} {}", vec2(metrics.advance_width, metrics.advance_height) / max_height as f32);
 
             if dimensions.x + padding.x > texture_dim.x - offset.x {
                 offset.y += max_height + padding.x;
@@ -50,10 +59,13 @@ impl FontAtlas {
             info.insert(
                 letter,
                 LetterInfo {
+                    // uv
                     atlas_offset: offset.as_vec2() / texture_dim.as_vec2(),
                     atlas_dimensions: dimensions.as_vec2() / texture_dim.as_vec2(),
-                    local_offset: vec2(metrics.xmin as f32, metrics.ymin as f32) / texture_dim.as_vec2(),
-                    advance: vec2(metrics.advance_width, metrics.advance_height) / texture_dim.as_vec2(),
+
+                    size: vec2(metrics.width as f32, metrics.height as f32) / max_height as f32,
+                    local_offset: vec2(metrics.xmin as f32, metrics.ymin as f32) / max_height as f32,
+                    advance: vec2(metrics.advance_width, metrics.advance_height) / max_height as f32,
                 },
             );
 
@@ -98,6 +110,8 @@ impl FontAtlas {
 struct LetterInfo {
     atlas_offset: Vec2,
     atlas_dimensions: Vec2,
+
+    size: Vec2,
     local_offset: Vec2,
     advance: Vec2,
 }
@@ -124,7 +138,7 @@ impl GUIRenderer {
             ctx,
             font_bytes,
             supported_chars,
-        ) ;
+        );
         // println!("A info {:?}", letter_info.get(&'a'));
 
         let shader = render::ShaderBuilder::new("ui.wgsl")
@@ -185,17 +199,17 @@ impl GUIRenderer {
 
     #[rustfmt::skip]
     pub fn draw_quad(&mut self, pos: Vec2, size: Vec2, color: Vec4) {
-        let size = size * 2.0;
-
-        let offset = self.vertices.len();
-        let color = color.to_array();
         let (x, y) = (pos.x ,pos.y);
         let (sx, sy) = (size.x, size.y);
+        let color = color.to_array();
+        let uv = [0.0,0.0];
+        let ty = VERTEX_TYPE_SHAPE;
         
-        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y , 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tl
-        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // tr
-        self.vertices.add(VertexUI { position: [-1.0 + x, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // bl
-        self.vertices.add(VertexUI { position: [-1.0 + x + sx, 1.0 - y - sy, 0.0], color, uv: [0.0, 0.0], ty: VERTEX_TYPE_SHAPE }); // br
+        let offset = self.vertices.len();
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], color, ty, uv }); // tl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], color, ty, uv }); // tr
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], color, ty, uv }); // bl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], color, ty, uv }); // br
         self.indices.add(offset); // tl 
         self.indices.add(offset + 1); // bl 
         self.indices.add(offset + 2); // tr
@@ -208,49 +222,51 @@ impl GUIRenderer {
     // currently size.y does nothing
     /// pos \[0,1\]
     /// scale \[0,1\] 
-    pub fn draw_text(&mut self, pos: Vec2, size: Vec2, font_scale: f32, color: Vec4, text: &str) {
-        let mut global_offset = vec2(0.0, 0.0);
+    pub fn draw_text(&mut self, text: &str, pos: Vec2, line_height: f32, color: Vec4,  wrap_width: Option<f32>) {
+        let mut global_offset = vec2(0.0, 0.0); // [0,1]
         for letter in text.chars() {
             let info = self.font_atlas.get_info(letter);
-            let atlas_dim = info.atlas_dimensions;
+            let size = info.size * line_height;
+            let loc_offset = info.local_offset * line_height;
+            let adv = info.advance * line_height;
 
-            // Check wrap
-            if (global_offset.x + atlas_dim.x) * font_scale > size.x * 2.0 {
-                global_offset.x = 0.0;
-                global_offset.y += self.font_atlas.line_height;
+            // word wrapping
+            if let Some(wrap_width) = wrap_width {
+                if (global_offset.x + size.x) > wrap_width {
+                    global_offset.x = 0.0;
+                    global_offset.y += line_height;
+                }
             }
 
-            let local_offset = global_offset
-                + vec2(info.local_offset.x, -info.local_offset.y)
-                + vec2(0.0, self.font_atlas.line_height - atlas_dim.y);
-            println!("local offset {local_offset})");
-            let pos = pos + local_offset * font_scale / 2.0; // div by two 
-            global_offset.x += info.advance.x;
-            self.draw_letter(pos, font_scale, letter, color);
+            let offset = pos + global_offset + vec2(loc_offset.x, -loc_offset.y) + vec2(0.0, line_height - size.y);
+            self.draw_letter(offset, line_height, letter, color);
+            global_offset.x += adv.x;
         }
     }
 
     #[rustfmt::skip]
     /// pos \[0,1\]
-    pub fn draw_letter(&mut self, pos: Vec2, scale: f32, letter: char, color: Vec4) {
-
+    /// line height \[0,1\]
+    pub fn draw_letter(&mut self, pos: Vec2, line_height: f32, letter: char, color: Vec4) {
         let info = self.font_atlas.get_info(letter);
 
-        let texture_offset = info.atlas_offset;
-        let texture_dim = info.atlas_dimensions;
-        let scaled_dim = texture_dim * scale;
+        let atlas_offset = info.atlas_offset;
+        let atlas_dim = info.atlas_dimensions;
+
+        let scaled_dim = info.size * line_height;
 
         let (x, y) = (pos.x, pos.y);
         let (sx, sy)= (scaled_dim.x, scaled_dim.y);
-        let (tox, toy) = (texture_offset.x, texture_offset.y);
-        let (tdx, tdy) =(texture_dim.x, texture_dim.y);
+        let (tox, toy) = (atlas_offset.x, atlas_offset.y);
+        let (tdx, tdy) =(atlas_dim.x, atlas_dim.y);
         let color = color.to_array();
+        let ty = VERTEX_TYPE_TEXT;
 
         let vertex_offset = self.vertices.len();
-        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,      1.0 - y * 2.0,      0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox,       toy] }); // tl
-        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx, 1.0 - y * 2.0,      0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy] }); // tr
-        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,      1.0 - y * 2.0 - sy, 0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox,       toy + tdy] }); // bl
-        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx, 1.0 - y * 2.0 -sy,  0.0], ty: VERTEX_TYPE_TEXT, color, uv: [tox + tdx, toy + tdy] }); // br
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], ty, color, uv: [tox,       toy] }); // tl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], ty, color, uv: [tox + tdx, toy] }); // tr
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
+        self.vertices.add(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
         self.indices.add(vertex_offset); // tl 
         self.indices.add(vertex_offset + 1); // bl 
         self.indices.add(vertex_offset + 2); // tr

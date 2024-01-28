@@ -27,7 +27,7 @@ impl App {
             ctx,
             4 * quads,
             6 * quads,
-            &filesystem::load_bytes(ctx, "font2.otf").await.unwrap(),
+            &filesystem::load_bytes(ctx, "font.ttf").await.unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
@@ -42,11 +42,13 @@ impl Callbacks for App {
         self.gui_renderer.draw_quad(vec2(0.0, 0.0), vec2(1.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0));
 
         let fps_text = (1.0 / time::frame_time(ctx)).to_string();
+        let text = "hello this is some text that is going to wrap a few times lol lol";
 
         let text_color = vec4(0.0,0.0,0.0,1.0);
-        self.gui_renderer.draw_text(vec2(0.0, 0.0), vec2(0.5,0.2), 1.0, text_color, &fps_text);
-        self.gui_renderer.draw_text(vec2(0.0,0.3), vec2(0.5,0.5), 1.0, text_color, "hello this is some text that is going to wrap a few times lol lol");
-        self.gui_renderer.draw_text(vec2(0.0,0.6), vec2(0.5,0.5), 2.0, text_color, "hello this is some text that is going to wrap a few times lol lol");
+        self.gui_renderer.draw_quad(vec2(0.5,0.5), vec2(0.4,0.3), vec4(0.0,1.0,0.0,1.0));
+        self.gui_renderer.draw_text(&fps_text,vec2(0.005, 0.0), 0.05, text_color,  None);
+        self.gui_renderer.draw_text(text, vec2(0.0,0.3), 0.05, text_color, Some(0.5));
+        self.gui_renderer.draw_text(text, vec2(0.0,0.6), 0.2, text_color, Some(0.5));
         false
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {

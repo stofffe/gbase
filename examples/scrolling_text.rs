@@ -1,5 +1,5 @@
 use gbase::{filesystem, input, render, time, Callbacks, Context, ContextBuilder};
-use glam::{vec2, vec4, Vec2};
+use glam::{vec2, vec4, Vec2, Vec4};
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -22,10 +22,11 @@ impl App {
             1000 * 4,
             1000 * 6,
             &filesystem::load_bytes(ctx, "font.ttf").await.unwrap(),
+            // &filesystem::load_bytes(ctx, "font2.otf").await.unwrap(),
             render::DEFAULT_SUPPORTED_CHARS_SE,
         )
         .await;
-        let text_pos = vec2(1.0, 0.0);
+        let text_pos = vec2(0.0, 0.0);
         Self {
             gui_renderer,
             text_pos,
@@ -43,12 +44,10 @@ impl Callbacks for App {
             self.text_pos.x = 1.0;
         }
 
-        // self.gui_renderer
-        //     .draw_letter(vec2(0.5, 0.5), 1.0, 'a', Vec4::ONE);
         self.gui_renderer.draw_text(
             self.text_pos,
-            vec2(100.0, 1.0),
-            30.0,
+            vec2(10.0, 1.0),
+            0.8,
             vec4(1.0, 1.0, 1.0, 1.0),
             "Whack på slack",
         );

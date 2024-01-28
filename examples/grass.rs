@@ -214,11 +214,11 @@ impl Callbacks for App {
         if input::key_pressed(ctx, KeyCode::KeyF) {
             let fps_text = (1.0 / time::frame_time(ctx)).to_string();
             self.gui_renderer.draw_text(
-                vec2(0.01, 0.01),
-                vec2(0.5, 0.2),
-                1.0,
-                vec4(1.0, 1.0, 1.0, 1.0),
                 &fps_text,
+                vec2(0.0, 0.0),
+                0.05,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                None,
             );
         }
 
