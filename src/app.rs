@@ -175,6 +175,7 @@ fn init_logging(log_level: LogLevel) {
 
 /// Build the context for running an application
 pub struct ContextBuilder {
+    window_builder: Option<winit::window::WindowBuilder>,
     assets_path: PathBuf,
     log_level: LogLevel,
     vsync: bool,
@@ -189,6 +190,7 @@ impl ContextBuilder {
             assets_path: PathBuf::from("assets"),
             vsync: true,
             device_features: wgpu::Features::default(),
+            window_builder: None,
         }
     }
 
@@ -212,10 +214,15 @@ impl ContextBuilder {
         self
     }
 
+    pub fn window_builder(mut self, window_builder: winit::window::WindowBuilder) -> Self {
+        self.window_builder = Some(window_builder);
+        self
+    }
+
     pub async fn build(self) -> (Context, EventLoop<()>) {
         init_logging(self.log_level);
 
-        let (window, event_loop) = window::new_window();
+        let (window, event_loop) = window::new_window(self.window_builder);
         let input = input::InputContext::default();
         let time = time::TimeContext::default();
         let filesystem = filesystem::FileSystemContext::new(&self.assets_path);

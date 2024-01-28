@@ -1,10 +1,17 @@
 use gbase::{filesystem, input, render, time, Callbacks, Context, ContextBuilder};
 use glam::{vec2, vec4, Vec2, Vec4};
-use winit::keyboard::KeyCode;
+use winit::{keyboard::KeyCode, platform::macos::WindowBuilderExtMacOS, window::WindowBuilder};
 
 #[pollster::main]
 async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new().build().await;
+    let (mut ctx, ev) = ContextBuilder::new()
+        .window_builder(
+            WindowBuilder::new()
+                .with_maximized(true)
+                .with_titlebar_hidden(true),
+        )
+        .build()
+        .await;
     let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev).await;
 }

@@ -9,9 +9,12 @@ use winit::{
     window::WindowBuilder,
 };
 
-pub(crate) fn new_window() -> (winit::window::Window, winit::event_loop::EventLoop<()>) {
+pub(crate) fn new_window(
+    builder: Option<WindowBuilder>,
+) -> (winit::window::Window, winit::event_loop::EventLoop<()>) {
     let event_loop = EventLoop::new().expect("could not initialize event loop");
-    let window_builder = WindowBuilder::new();
+
+    let window_builder = builder.unwrap_or_default();
 
     #[cfg(target_arch = "wasm32")]
     let window_builder = extend_window_builder(window_builder);
