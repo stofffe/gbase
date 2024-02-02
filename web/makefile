@@ -38,6 +38,10 @@ copy_grass:
 	@cp -p ../examples/grass.rs ./src/lib.rs
 	@make convert
 
+copy_ui:
+	@cp ../examples/ui.rs ./src/lib.rs
+	@make convert
+
 compile:
 	@cp -r ../assets .
 	@RUSTFLAGS=--cfg=web_sys_unstable_apis wasm-pack build --target web
@@ -58,3 +62,7 @@ run:
 open:
 	@open -na "Google Chrome" --args --incognito "http://localhost:8000"
 
+all:
+	@make compile
+	@make open
+	@make run
