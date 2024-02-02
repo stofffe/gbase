@@ -65,23 +65,23 @@ fn vs_main(
     let d = vec3<f32>(facing.x, 1.0 * height, facing.y);
     let orth = vec3<f32>(-instance.facing.y, 0.0, instance.facing.x);
 
-    var bez_pos = bez(t, a, b, c, d);
-    let bez_dx = bez_dx(t, a, b, c, d);
-    let bez_normal = cross(bez_dx, orth);
+    var pos = bez(t, a, b, c, d);
+    let dx = bez_dx(t, a, b, c, d);
+    let normal = cross(dx, orth);
     var width_percent: f32;
 
     // tip
     if index == GRASS_MAX_VERT_INDEX {
         let dx = normalize(bez_dx(t - 1.0 / f32(GRASS_MAX_VERT_INDEX), a, b, c, d));
-        bez_pos += dx * GRASS_TIP_EXTENSION;
+        pos += dx * GRASS_TIP_EXTENSION;
         width_percent = 0.5;
     // left
     } else if index % 2u == 0u {
-        bez_pos += orth * GRASS_WIDTH * 0.5;
+        pos += orth * GRASS_WIDTH * 0.5;
         width_percent = 0.0;
     // right
     } else {
-        bez_pos -= orth * GRASS_WIDTH * 0.5;
+        pos -= orth * GRASS_WIDTH * 0.5;
         width_percent = 1.0;
     }
 
@@ -96,13 +96,11 @@ fn vs_main(
 
     // model
     let rot_mat = wind_mat * DEBUG_IDENT_MAT;
-    let model_pos = world_pos + rot_mat * bez_pos;
-
-    let normal = transpose(inverse_3x3(rot_mat)) * bez_normal;
+    let model_pos = world_pos + rot_mat * pos;
 
     // rounded normal
-    let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(bez_normal + orth * NORMAL_ROUNDING);
-    let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(bez_normal - orth * NORMAL_ROUNDING);
+    let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(normal + orth * NORMAL_ROUNDING);
+    let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(normal - orth * NORMAL_ROUNDING);
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);

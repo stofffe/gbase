@@ -1,6 +1,6 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) ty: u32, // 0 shape 1 text
+    @location(1) @interpolate(flat) ty: u32, // 0 shape 1 text
     @location(2) color: vec4<f32>,
     @location(3) uv: vec2<f32>,
 };
@@ -29,16 +29,16 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) color: vec4<f32>,
-    @location(1) ty: u32,
+    @location(1) @interpolate(flat) ty: u32,
     @location(2) uv: vec2<f32>,
 };
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    // Have to sample outside
+    let alpha = textureSample(letter_tex, letter_sampler, in.uv).x;
     if in.ty == TYPE_TEXT {
-        let alpha = textureSample(letter_tex, letter_sampler, in.uv).x;
         return vec4<f32>(in.color.xyz, alpha);
     }
-
     return in.color;
 }
