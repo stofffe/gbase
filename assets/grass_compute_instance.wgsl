@@ -26,6 +26,7 @@ struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     btn: u32,
+    facing: vec3<f32>,
 };
 
 // TODO DEBUG
@@ -76,7 +77,10 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     );
 
     // CULL
-    let cull = false;
+    var cull = false;
+    if dot(camera.facing, pos - camera.pos) < 0.0 {
+        cull = true;
+    }
 
     if !cull {
         let t = time_info.time_passed;

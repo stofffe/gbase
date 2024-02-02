@@ -48,14 +48,6 @@ const X = vec3<f32>(1.0, 0.0, 0.0);
 const Y = vec3<f32>(0.0, 1.0, 0.0);
 const Z = vec3<f32>(0.0, 0.0, 1.0);
 
-fn bez(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
-    return a * (pow(-t, 3.0) + 3.0 * pow(t, 2.0) - 3.0 * t + 1.0) + b * (3.0 * pow(t, 3.0) - 6.0 * pow(t, 2.0) + 3.0 * t) + c * (-3.0 * pow(t, 3.0) + 3.0 * pow(t, 2.0)) + d * (pow(t, 3.0));
-}
-
-fn bez_dx(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
-    return a * (-3.0 * pow(t, 2.0) + 6.0 * t - 3.0) + b * (9.0 * pow(t, 2.0) - 12.0 * t + 3.0) + c * (-9.0 * pow(t, 2.0) + 6.0 * t) + d * (3.0 * pow(t, 2.0));
-}
-
 @vertex
 fn vs_main(
     instance: Instance,
@@ -63,8 +55,7 @@ fn vs_main(
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
 
-    let facing = instance.facing * GRASS_BEND;
-    //let facing = vec2<f32>(0.0, 1.0);
+    let facing = instance.facing * GRASS_BEND; // multiply to move further away
     let height = instance.height;
     // Generate vertex (High LOD)
     let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
@@ -114,15 +105,11 @@ fn vs_main(
     let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(bez_normal - orth * NORMAL_ROUNDING);
 
     var out: VertexOutput;
-    //out.clip_position = camera.view_proj * model_pos;
     out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
-    out.normal = normal.xyz;
     out.normal1 = normal1.xyz;
     out.normal2 = normal2.xyz;
     out.width_percent = width_percent;
     out.pos = model_pos.xyz;
-    // debug
-    //out.color = bez_dx;
 
     return out;
 }
@@ -132,11 +119,9 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) pos: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) normal1: vec3<f32>,
-    @location(3) normal2: vec3<f32>,
-    @location(4) width_percent: f32,
-    //@location(5) color: vec3<f32>,
+    @location(1) normal1: vec3<f32>,
+    @location(2) normal2: vec3<f32>,
+    @location(3) width_percent: f32,
 };
 
 @fragment 
@@ -144,14 +129,11 @@ fn fs_main(
     in: VertexOutput,
     @builtin(front_facing) front_facing: bool
 ) -> @location(0) vec4<f32> {
-
     // flip normals depending on face
     var normal: vec3<f32>;
     if front_facing {
-        normal = in.normal;
         normal = mix(in.normal1, in.normal2, in.width_percent);
     } else {
-        normal = -in.normal;
         normal = mix(-in.normal2, -in.normal1, in.width_percent);
     }
 
@@ -187,7 +169,6 @@ fn fs_main(
         debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
         debug = vec4<f32>(normal, 1.0);
         debug = vec4<f32>(specular, specular, specular, 1.0);
-        //debug = vec4<f32>(in.color, 1.0);
         return debug;
     }
 
@@ -206,11 +187,6 @@ fn debug_light_pos() -> vec3<f32> {
     light_pos = vec3<f32>(50.0, 16.0, -50.0);
     return light_pos;
 }
-
-//
-// UTILS
-//
-
 const LIGHT_ROTATION_SPEED = 0.5;
 fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
     return vec3<f32>(
@@ -218,6 +194,18 @@ fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
         center.y,
         center.z + radius * sin(time * LIGHT_ROTATION_SPEED),
     );
+}
+
+//
+// UTILS
+//
+
+fn bez(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (pow(-t, 3.0) + 3.0 * pow(t, 2.0) - 3.0 * t + 1.0) + b * (3.0 * pow(t, 3.0) - 6.0 * pow(t, 2.0) + 3.0 * t) + c * (-3.0 * pow(t, 3.0) + 3.0 * pow(t, 2.0)) + d * (pow(t, 3.0));
+}
+
+fn bez_dx(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (-3.0 * pow(t, 2.0) + 6.0 * t - 3.0) + b * (9.0 * pow(t, 2.0) - 12.0 * t + 3.0) + c * (-9.0 * pow(t, 2.0) + 6.0 * t) + d * (3.0 * pow(t, 2.0));
 }
 
 fn ease_in(p: f32) -> f32 {

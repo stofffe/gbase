@@ -30,6 +30,7 @@ pub struct PerspectiveCameraUniform {
     view_proj: Mat4,
     pos: Vec3,
     btn: u32,
+    facing: Vec3,
 }
 
 impl PerspectiveCamera {
@@ -130,11 +131,13 @@ impl PerspectiveCamera {
         }
 
         let pos = self.pos;
+        let facing = self.forward();
 
         PerspectiveCameraUniform {
             view_proj,
             pos,
             btn,
+            facing,
         }
     }
 
