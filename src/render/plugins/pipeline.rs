@@ -20,6 +20,10 @@ impl<'a> RenderPipelineBuilder<'a> {
         self.topology = value;
         self
     }
+    pub fn polygon_mode(mut self, value: wgpu::PolygonMode) -> Self {
+        self.polygon_mode = value;
+        self
+    }
     pub fn cull_mode(mut self, value: Option<wgpu::Face>) -> Self {
         self.cull_mode = value;
         self

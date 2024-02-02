@@ -1,6 +1,6 @@
 use gbase::{
     input,
-    render::{self, Vertex, VertexColor, VertexNormal},
+    render::{self, VertexNormal},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec3, Vec3};
@@ -33,11 +33,11 @@ fn bez(t: f32, start: Vec3, start_handle: Vec3, end_handle: Vec3, end: Vec3) -> 
         + end * (t.powi(3))
 }
 
-fn bez_dx(t: f32, a: Vec3, b: Vec3, c: Vec3, d: Vec3) -> Vec3 {
-    a * (-3.0 * t.powi(2) + 6.0 * t - 3.0)
-        + b * (9.0 * t.powi(2) - 12.0 * t + 3.0)
-        + c * (-9.0 * t.powi(2) + 6.0 * t)
-        + d * (3.0 * t.powi(2))
+fn bez_dx(t: f32, start: Vec3, start_handle: Vec3, end_handle: Vec3, end: Vec3) -> Vec3 {
+    start * (-3.0 * t.powi(2) + 6.0 * t - 3.0)
+        + start_handle * (9.0 * t.powi(2) - 12.0 * t + 3.0)
+        + end_handle * (-9.0 * t.powi(2) + 6.0 * t)
+        + end * (3.0 * t.powi(2))
 }
 
 impl App {
@@ -50,7 +50,7 @@ impl App {
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new()
-            .source(render::VertexSource::Capacity(STEPS as usize * 2 - 1))
+            .source(render::BufferSource::Capacity(STEPS as usize * 2 - 1))
             .usages(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 
@@ -78,6 +78,7 @@ impl App {
             depth_buffer,
         }
     }
+
     fn camera_movement(&mut self, ctx: &mut Context) {
         let dt = gbase::time::delta_time(ctx);
 
@@ -128,6 +129,7 @@ impl Callbacks for App {
         self.camera_movement(ctx);
 
         // Vertices
+
         let facing = vec3(-1.0, 0.0, -1.0).normalize();
         let orth = vec3(facing.z, 0.0, -facing.x);
         let width = 0.1;

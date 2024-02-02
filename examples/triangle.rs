@@ -25,7 +25,7 @@ impl App {
         let vertex_buffer = render::VertexBufferBuilder::new()
             .label("triangle vertex buffer")
             .usages(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
-            .source(render::VertexSource::Values(TRIANGLE_VERTICES))
+            .source(render::BufferSource::Values(TRIANGLE_VERTICES))
             .build(ctx);
 
         let shader = render::ShaderBuilder::new("triangle.wgsl".to_string())
@@ -115,6 +115,13 @@ impl Callbacks for App {
 
 #[rustfmt::skip]
 const TRIANGLE_VERTICES: &[Vertex] = &[
+    // Vertex { position: [-0.5, -0.5, 0.0] }, // bottom left
+    // Vertex { position: [ 0.5,  0.5, 0.0] }, // top right
+    // Vertex { position: [-0.5,  0.5, 0.0] }, // top left
+    //
+    // Vertex { position: [-0.5, -0.5, 0.0] }, // bottom left
+    // Vertex { position: [ 0.5, -0.5, 0.0] }, // bottom right
+    // Vertex { position: [ 0.5,  0.5, 0.0] }, // top right
     Vertex { position: [-0.5, -0.5, 0.0]  },
     Vertex { position: [0.5, -0.5, 0.0]   },
     Vertex { position: [0.0, 0.5, 0.0] },
