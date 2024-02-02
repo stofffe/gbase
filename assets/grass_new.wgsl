@@ -28,13 +28,12 @@ struct TimeInfo {
 const GRASS_WIDTH = 0.1;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 14u;
-const GRASS_QUAD_HEIGHT = 1.0 / f32(GRASS_QUAD_AMOUNT);
-const GRASS_MAX_ROT = PI / 8.0;
+const GRASS_BEND = 0.5;
+const GRASS_TIP_EXTENSION = 0.1;
 
-const NORMAL = vec3<f32>(0.0, 0.0, 1.0);
 const NORMAL_ROUNDING = PI / 6.0;
 
-const AMBIENT_MOD = 0.3;
+const AMBIENT_MOD = 0.2;
 const DIFFUSE_MOD = 0.5;
 const SPECULAR_MOD = 2.0;
 const SPECULAR_INTENSITY = 15.0; // must be odd
@@ -49,6 +48,14 @@ const X = vec3<f32>(1.0, 0.0, 0.0);
 const Y = vec3<f32>(0.0, 1.0, 0.0);
 const Z = vec3<f32>(0.0, 0.0, 1.0);
 
+fn bez(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (pow(-t, 3.0) + 3.0 * pow(t, 2.0) - 3.0 * t + 1.0) + b * (3.0 * pow(t, 3.0) - 6.0 * pow(t, 2.0) + 3.0 * t) + c * (-3.0 * pow(t, 3.0) + 3.0 * pow(t, 2.0)) + d * (pow(t, 3.0));
+}
+
+fn bez_dx(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (-3.0 * pow(t, 2.0) + 6.0 * t - 3.0) + b * (9.0 * pow(t, 2.0) - 12.0 * t + 3.0) + c * (-9.0 * pow(t, 2.0) + 6.0 * t) + d * (3.0 * pow(t, 2.0));
+}
+
 @vertex
 fn vs_main(
     instance: Instance,
@@ -56,20 +63,36 @@ fn vs_main(
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
 
+    let facing = instance.facing * GRASS_BEND;
+    //let facing = vec2<f32>(0.0, 1.0);
+    let height = instance.height;
     // Generate vertex (High LOD)
-    var vpos = vec3<f32>(
-        -GRASS_WIDTH * 0.5 + f32(index % 2u) * GRASS_WIDTH,
-        GRASS_QUAD_HEIGHT * f32(index / 2u),
-        0.0,
-    );
-    if index == GRASS_MAX_VERT_INDEX { vpos.x = 0.0; } // center last vertex
-    // vpos.x += f32(index == GRASS_MAX_VERT_INDEX) * GRASS_WIDTH * 0.5; // non branching center last vertex
+    let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
+    let a = vec3<f32>(0.0, 0.0, 0.0);
+    let b = vec3<f32>(0.0, 1.0 * height, 0.0);
+    let c = vec3<f32>(facing.x, 1.0 * height, facing.y);
+    let d = vec3<f32>(facing.x, 1.0 * height, facing.y);
+    let orth = vec3<f32>(-instance.facing.y, 0.0, instance.facing.x);
 
-    // shape
-    let facing_angle = atan2(instance.facing.x, instance.facing.y); // x z
-    let height_percent = vpos.y / instance.height;
-    let shape_mat = rot_y(facing_angle) * rot_x(ease_in(height_percent) * GRASS_MAX_ROT);
-   // let shape_mat = rot_y(facing_angle);
+    var bez_pos = bez(t, a, b, c, d);
+    let bez_dx = bez_dx(t, a, b, c, d);
+    let bez_normal = cross(bez_dx, orth);
+    var width_percent: f32;
+
+    // tip
+    if index == GRASS_MAX_VERT_INDEX {
+        let dx = normalize(bez_dx(t - 1.0 / f32(GRASS_MAX_VERT_INDEX), a, b, c, d));
+        bez_pos += dx * GRASS_TIP_EXTENSION;
+        width_percent = 0.5;
+    // left
+    } else if index % 2u == 0u {
+        bez_pos += orth * GRASS_WIDTH * 0.5;
+        width_percent = 0.0;
+    // right
+    } else {
+        bez_pos -= orth * GRASS_WIDTH * 0.5;
+        width_percent = 1.0;
+    }
 
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
@@ -81,14 +104,14 @@ fn vs_main(
     }
 
     // model
-    let rot_mat = wind_mat * shape_mat;
-    let model_pos = world_pos + rot_mat * vpos;
+    let rot_mat = wind_mat * DEBUG_IDENT_MAT;
+    let model_pos = world_pos + rot_mat * bez_pos;
 
-    let normal = transpose(inverse_3x3(rot_mat)) * NORMAL;
+    let normal = transpose(inverse_3x3(rot_mat)) * bez_normal;
+
     // rounded normal
-    let normal1 = transpose(inverse_3x3(rot_y(-NORMAL_ROUNDING) * rot_mat)) * NORMAL;
-    let normal2 = transpose(inverse_3x3(rot_y(NORMAL_ROUNDING) * rot_mat)) * NORMAL;
-    let width_percent = (vpos.x + GRASS_WIDTH * 0.5) / GRASS_WIDTH;
+    let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(bez_normal + orth * NORMAL_ROUNDING);
+    let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(bez_normal - orth * NORMAL_ROUNDING);
 
     var out: VertexOutput;
     //out.clip_position = camera.view_proj * model_pos;
@@ -98,6 +121,8 @@ fn vs_main(
     out.normal2 = normal2.xyz;
     out.width_percent = width_percent;
     out.pos = model_pos.xyz;
+    // debug
+    //out.color = bez_dx;
 
     return out;
 }
@@ -111,17 +136,8 @@ struct VertexOutput {
     @location(2) normal1: vec3<f32>,
     @location(3) normal2: vec3<f32>,
     @location(4) width_percent: f32,
+    //@location(5) color: vec3<f32>,
 };
-
-fn debug_light_pos() -> vec3<f32> {
-    let t = time_info.time_passed;
-
-    var light_pos: vec3<f32>;
-    light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
-    light_pos = vec3<f32>(50.0, 16.0, -50.0);
-    return light_pos;
-}
 
 @fragment 
 fn fs_main(
@@ -132,11 +148,11 @@ fn fs_main(
     // flip normals depending on face
     var normal: vec3<f32>;
     if front_facing {
+        normal = in.normal;
         normal = mix(in.normal1, in.normal2, in.width_percent);
-        //normal = in.normal;
     } else {
+        normal = -in.normal;
         normal = mix(-in.normal2, -in.normal1, in.width_percent);
-        //normal = -in.normal;
     }
 
     let t = time_info.time_passed;
@@ -165,9 +181,13 @@ fn fs_main(
     if btn_pressed() {
         var debug: vec4<f32>;
         debug = vec4<f32>(diffuse, diffuse, diffuse, 1.0);
-        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
         debug = vec4<f32>(reflect_dir, 1.0);
+        debug = vec4<f32>(0.0, normal.y, 0.0, 1.0);
+        debug = vec4<f32>(1.0) * in.width_percent;
+        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
+        debug = vec4<f32>(normal, 1.0);
         debug = vec4<f32>(specular, specular, specular, 1.0);
+        //debug = vec4<f32>(in.color, 1.0);
         return debug;
     }
 
@@ -175,6 +195,16 @@ fn fs_main(
     let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
 
     return vec4<f32>(color * light, 1.0);
+}
+
+fn debug_light_pos() -> vec3<f32> {
+    let t = time_info.time_passed;
+
+    var light_pos: vec3<f32>;
+    light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
+    light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
+    light_pos = vec3<f32>(50.0, 16.0, -50.0);
+    return light_pos;
 }
 
 //
@@ -255,16 +285,3 @@ const DEBUG_IDENT_MAT = mat3x3<f32>(
     0.0, 1.0, 0.0,
     0.0, 0.0, 1.0,
 );
-
-//let model_matrix = mat4x4<f32>(
-//    rot_mat[0][0], rot_mat[1][0], rot_mat[2][0], 0.0,
-//    rot_mat[0][1], rot_mat[1][1], rot_mat[2][1], 0.0,
-//    rot_mat[0][2], rot_mat[1][2], rot_mat[2][2], 0.0,
-//    instance.pos.x, instance.pos.y, instance.pos.z, 1.0
-//);
-
-//let normal_matrix = transpose(inverse_3x3(mat3x3<f32>(
-//    model_matrix[0][0], model_matrix[0][1], model_matrix[0][2],
-//    model_matrix[1][0], model_matrix[1][1], model_matrix[1][2],
-//    model_matrix[2][0], model_matrix[2][1], model_matrix[2][2],
-//)));

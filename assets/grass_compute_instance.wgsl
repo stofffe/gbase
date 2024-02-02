@@ -42,7 +42,7 @@ const WIND_GLOBAL_POWER = 2.5;
 const WIND_LOCAL_POWER = 0.05;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
-const WIND_DIR = -vec2<f32>(1.0, 1.0); // TODO sample from texture instead
+const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
 const WIND_FACING_MODIFIER = 2.0;
 
 const ORTH_LIM = 0.4; // what dot_value orth rotation should start at
@@ -55,6 +55,9 @@ const PI = 3.1415927;
 @workgroup_size(16,16,1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // debug
+    //if global_id.x >= 1u || global_id.y >= 1u {
+    //    return;
+    //}
     if global_id.x >= u32(tile.blades_per_side) || global_id.y >= u32(tile.blades_per_side) {
         return;
     }

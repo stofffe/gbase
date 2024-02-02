@@ -6,12 +6,13 @@ use gbase::{
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{f32::consts::PI, ops::Div, path::Path};
-use winit::keyboard::KeyCode;
+use winit::{keyboard::KeyCode, window::WindowBuilder};
 
 #[pollster::main]
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
+        .window_builder(WindowBuilder::new().with_maximized(true))
+        .log_level(LogLevel::Warn)
         .vsync(false)
         .build()
         .await;
@@ -56,7 +57,7 @@ impl App {
         let plane_transform = render::Transform::new(device)
             .rotation(Quat::from_rotation_x(PI / 2.0))
             .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0))
-            .pos(vec3(0.0, -0.1, 0.0)); // TODO TEMP
+            .pos(vec3(0.0, 0.0, 0.0)); // TODO TEMP
 
         let plane_buffer = render::VertexBufferBuilder::new()
             .source(render::BufferSource::Values(CENTERED_QUAD_VERTICES))
@@ -459,15 +460,29 @@ impl GrassRenderer {
             render::ComputePipelineBuilder::new(&draw_compute_shader).build(ctx);
 
         // Render pipeline
-        let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
-            .buffers(vec![instances.desc()])
-            .default_target(surface_config)
-            .bind_group_layouts(vec![
-                &camera.bind_group_layout(),
-                &time_info.bind_group_layout(),
-            ])
-            .build(ctx)
-            .await;
+        let render_shader = if input::key_pressed(ctx, KeyCode::KeyE) {
+            let render_shader = render::ShaderBuilder::new("grass_old.wgsl".to_string())
+                .buffers(vec![instances.desc()])
+                .default_target(surface_config)
+                .bind_group_layouts(vec![
+                    &camera.bind_group_layout(),
+                    &time_info.bind_group_layout(),
+                ])
+                .build(ctx)
+                .await;
+            render_shader
+        } else {
+            let render_shader = render::ShaderBuilder::new("grass_new.wgsl".to_string())
+                .buffers(vec![instances.desc()])
+                .default_target(surface_config)
+                .bind_group_layouts(vec![
+                    &camera.bind_group_layout(),
+                    &time_info.bind_group_layout(),
+                ])
+                .build(ctx)
+                .await;
+            render_shader
+        };
         let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .depth_buffer(render::DepthBuffer::depth_stencil_state())

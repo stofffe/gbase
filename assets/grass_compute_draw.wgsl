@@ -9,7 +9,7 @@ struct DrawArgs {
 };
 
 const vertices_size = 15u;
-const instances_size = 50u * 50u;
+//const instances_size = 50u * 50u;
 
 @compute
 @workgroup_size(1, 1, 1)
