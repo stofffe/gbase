@@ -267,7 +267,7 @@ impl App {
 }
 
 struct GrassRenderer {
-    instances: render::InstanceBuffer<GrassInstanceGPU, GrassInstance>,
+    instances: wgpu::Buffer,
     grass_pipeline: render::RenderPipeline,
 
     instance_compute_pipeline: render::ComputePipeline,
@@ -382,7 +382,12 @@ impl GrassRenderer {
         let surface_config = render::surface_config(ctx);
 
         // Buffers
-        let instances = render::InstanceBuffer::new_empty(device, BLADES_PER_TILE as u64);
+        let instances = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instances buffer"),
+            size: GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
+        });
         let instance_count = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance count"),
             size: std::mem::size_of::<u32>() as u64,
@@ -415,7 +420,7 @@ impl GrassRenderer {
         // Compute instance
         let instance_compute_bindgroup = render::BindGroupBuilder::new(vec![
             // instances
-            render::BindGroupEntry::new(instances.buffer().as_entire_binding())
+            render::BindGroupEntry::new(instances.as_entire_binding())
                 .visibility(wgpu::ShaderStages::COMPUTE)
                 .storage(false),
             // instance count
@@ -478,7 +483,7 @@ impl GrassRenderer {
         // Render pipeline
 
         let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
-            .buffers(vec![instances.desc()])
+            .buffers(vec![GrassInstanceGPU::desc()])
             .default_target(surface_config)
             .bind_group_layouts(vec![
                 &camera.bind_group_layout(),
@@ -520,31 +525,6 @@ struct Tile {
     blades_per_side: f32,
 }
 
-// TODO MUST ALIGN TO 16 (wgpu requirement)
-struct GrassInstance {
-    pos: Vec3,
-    facing: Vec2,
-}
-
-impl GrassInstance {
-    fn to_gpu(&self) -> GrassInstanceGPU {
-        GrassInstanceGPU {
-            position: self.pos.to_array(),
-            facing: self.facing.to_array(),
-            hash: [0],
-            wind: [0.0, 0.0],
-            pad: [0.0, 0.0, 0.0],
-            height: [0.0],
-        }
-    }
-}
-
-impl InstaceTrait<GrassInstanceGPU> for GrassInstance {
-    fn to_gpu(&self) -> GrassInstanceGPU {
-        self.to_gpu()
-    }
-}
-
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable, Default)]
 struct GrassInstanceGPU {
@@ -572,13 +552,6 @@ impl GrassInstanceGPU {
             step_mode: wgpu::VertexStepMode::Instance,
             attributes: &Self::ATTRIBUTES,
         }
-    }
-}
-
-impl InstanceGpuTrait for GrassInstanceGPU {
-    const SIZE: u64 = GrassInstanceGPU::SIZE;
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        GrassInstanceGPU::desc()
     }
 }
 

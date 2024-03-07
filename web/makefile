@@ -5,7 +5,7 @@ all:
 	@make run
 	
 copy:
-	@cp -p $(path) src/lib.rs
+	@cp -p ../examples/$(path) src/lib.rs
 	@sed -i "" "1s/^/use gbase::log;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::winit;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::wgpu;\n/" src/lib.rs
