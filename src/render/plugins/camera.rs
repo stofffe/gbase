@@ -29,7 +29,6 @@ pub struct PerspectiveCamera {
 pub struct PerspectiveCameraUniform {
     view_proj: Mat4,
     pos: Vec3,
-    btn: u32,
     facing: Vec3,
 }
 
@@ -124,19 +123,12 @@ impl PerspectiveCamera {
 
         let view_proj = proj * view;
 
-        // TODO DEBUG
-        let mut btn = 0;
-        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyL) {
-            btn = 1;
-        }
-
         let pos = self.pos;
         let facing = self.forward();
 
         PerspectiveCameraUniform {
             view_proj,
             pos,
-            btn,
             facing,
         }
     }

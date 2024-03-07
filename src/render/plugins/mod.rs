@@ -24,11 +24,11 @@ pub use bind_group::*;
 mod instance;
 pub use instance::*;
 
-mod time_info;
-pub use time_info::*;
-
 mod pipeline;
 pub use pipeline::*;
 
 mod ui;
 pub use ui::*;
+
+mod debug_input;
+pub use debug_input::*;

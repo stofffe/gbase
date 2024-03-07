@@ -107,7 +107,7 @@ where
         ctx.input.mouse.set_mouse_delta((0.0, 0.0));
 
         // render
-        ctx.render.update_time_info(ctx.time.time_since_start());
+        ctx.render.update_app_info(ctx.time.time_since_start());
 
         false
     }

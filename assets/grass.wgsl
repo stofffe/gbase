@@ -11,18 +11,22 @@ struct Instance {
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
-    btn: u32,
+    facing: vec3<f32>,
 };
 
-// TODO DEBUG
-fn btn_pressed() -> bool {
-    return camera.btn == 1u;
-}
-
-@group(1) @binding(0) var<uniform> time_info: TimeInfo;
-struct TimeInfo {
+@group(1) @binding(0) var<uniform> app_info: AppInfo;
+struct AppInfo {
     time_passed: f32,
 };
+
+@group(2) @binding(0) var<uniform> debug_input: DebugInput;
+struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
+fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
+fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
+fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
+fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
+fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
 
 // grass
 const GRASS_WIDTH = 0.1;
@@ -57,6 +61,7 @@ fn vs_main(
 
     let facing = instance.facing * GRASS_BEND; // multiply to move further away
     let height = instance.height;
+
     // Generate vertex (High LOD)
     let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
     let a = vec3<f32>(0.0, 0.0, 0.0);
@@ -90,12 +95,12 @@ fn vs_main(
 
     var world_pos = instance.pos;
     // debug light pos
-    if instance_index == 2000u {
-        world_pos = debug_light_pos();
-    }
+    //if instance_index == 2000u {
+    //    world_pos = debug_light_pos();
+    //}
 
     // model
-    let rot_mat = wind_mat * DEBUG_IDENT_MAT;
+    let rot_mat = wind_mat;
     let model_pos = world_pos + rot_mat * pos;
 
     // rounded normal
@@ -135,7 +140,7 @@ fn fs_main(
         normal = mix(-in.normal2, -in.normal1, in.width_percent);
     }
 
-    let t = time_info.time_passed;
+    let t = app_info.time_passed;
     let light_pos = debug_light_pos();
     let light_dir = normalize(light_pos - in.pos);
     //let light_dir = normalize(vec3<f32>(-1.0, 0.5, -1.0));
@@ -158,17 +163,9 @@ fn fs_main(
     let diffuse = saturate(dot(light_dir, normal));
     var light = saturate(AMBIENT_MOD * ambient + DIFFUSE_MOD * diffuse + SPECULAR_MOD * specular);
 
-    if btn_pressed() {
-        var debug: vec4<f32>;
-        debug = vec4<f32>(diffuse, diffuse, diffuse, 1.0);
-        debug = vec4<f32>(reflect_dir, 1.0);
-        debug = vec4<f32>(0.0, normal.y, 0.0, 1.0);
-        debug = vec4<f32>(1.0) * in.width_percent;
-        debug = vec4<f32>(normal.x, 0.0, normal.z, 1.0);
-        debug = vec4<f32>(normal, 1.0);
-        debug = vec4<f32>(specular, specular, specular, 1.0);
-        return debug;
-    }
+    if btn1_pressed() { return vec4<f32>(normal.x, 0.0, normal.z, 1.0); }
+    if btn2_pressed() { return vec4<f32>(specular, specular, specular, 1.0); }
+    if btn3_pressed() { return vec4<f32>(diffuse, diffuse, diffuse, 1.0); }
 
     let p = in.pos.y / 1.5;
     let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
@@ -177,7 +174,7 @@ fn fs_main(
 }
 
 fn debug_light_pos() -> vec3<f32> {
-    let t = time_info.time_passed;
+    let t = app_info.time_passed;
 
     var light_pos: vec3<f32>;
     light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);

@@ -25,22 +25,27 @@ struct GrassInstance {          // align 16 size 48
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
-    btn: u32,
     facing: vec3<f32>,
 };
 
-// TODO DEBUG
-fn btn_pressed() -> bool {
-    return camera.btn == 1u;
-}
-
-@group(3) @binding(0) var<uniform> time_info: TimeInfo;
-struct TimeInfo {
+@group(3) @binding(0) var<uniform> app_info: AppInfo;
+struct AppInfo {
     time_passed: f32
 };
 
-const WIND_GLOBAL_POWER = 2.5;
-const WIND_LOCAL_POWER = 0.05;
+@group(4) @binding(0) var<uniform> debug_input: DebugInput;
+struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
+fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
+fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
+fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
+fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
+fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
+
+//const WIND_GLOBAL_POWER = 2.0;
+//const WIND_LOCAL_POWER = 0.05;
+const WIND_GLOBAL_POWER = 2.0;
+const WIND_LOCAL_POWER = 0.1;
 const WIND_SCROLL_SPEED = 0.1;
 const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
@@ -82,22 +87,23 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         cull = true;
     }
 
+
     if !cull {
-        let t = time_info.time_passed;
+        let t = app_info.time_passed;
 
         // FACING
         var facing = normalize(hash_to_vec2_neg(hash));
         // Rotate orthogonal verticies towards camera 
-        let camera_dir = normalize(camera.pos.xz - pos.xz);
-        let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
-        let vnd = dot(camera_dir, facing); // view normal dot
-        if vnd >= 0.0 {
-            let rotate_factor = pow(1.0 - vnd, 3.0) * smoothstep(0.0, ORTH_LIM, vnd) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
-            facing = mix(facing, camera_dir, rotate_factor);
-        } else {
-            let rotate_factor = pow(vnd + 1.0, 3.0) * smoothstep(ORTH_LIM, 0.0, vnd + ORTH_LIM) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
-            facing = mix(facing, -camera_dir, rotate_factor);
-        }
+        //let camera_dir = normalize(camera.pos.xz - pos.xz);
+        //let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
+        //let vnd = dot(camera_dir, facing); // view normal dot
+        //if vnd >= 0.0 {
+        //    let rotate_factor = pow(1.0 - vnd, 3.0) * smoothstep(0.0, ORTH_LIM, vnd) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
+        //    facing = mix(facing, camera_dir, rotate_factor);
+        //} else {
+        //    let rotate_factor = pow(vnd + 1.0, 3.0) * smoothstep(ORTH_LIM, 0.0, vnd + ORTH_LIM) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
+        //    facing = mix(facing, -camera_dir, rotate_factor);
+        //}
 
         // WIND
         // global wind from perline noise
@@ -105,7 +111,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
         let uv = tile_uv + scroll;
         // let global_wind_power = textureGather(1, perlin_tex, perlin_sam, uv).x; // think x = y = z // TODO filtering?
-        let wind_sample_power = bilinear_0(uv);
+        let wind_sample_power = bilinear_r(uv);
 
         //let wind_sample_power = textureSample(perlin_tex, perlin_sam, uv) * WIND_GLOBAL_POWER;
         var global_wind_dir = normalize(WIND_DIR);
@@ -140,14 +146,18 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 }
 
-fn bilinear_0(uv: vec2<f32>) -> f32 {
+//
+// UTILS
+//
+
+fn bilinear_r(uv: vec2<f32>) -> f32 {
     let size = vec2<f32>(textureDimensions(perlin_tex));
 
     let tex = textureGather(0, perlin_tex, perlin_sam, uv);
 
-    // let offset = 1.0 / 512.0; // not needed?
-    // let weight = fract(uv * size - 0.5 + offset);
-    let weight = fract(uv * size - 0.5); // -0.5 since we have 4 pixels
+    let offset = 1.0 / 512.0; // not needed?
+    let weight = fract(uv * size - 0.5 + offset);
+    //let weight = fract(uv * size - 0.5); // -0.5 since we have 4 pixels
 
     return mix(
         mix(tex.w, tex.z, weight.x),

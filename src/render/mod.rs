@@ -1,6 +1,9 @@
 mod plugins;
 pub use plugins::*;
 
+mod app_info;
+pub use app_info::*;
+
 use crate::Context;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
@@ -16,7 +19,7 @@ pub(crate) struct RenderContext {
     window: Arc<winit::window::Window>,
 
     // TODO remove?
-    time_info: plugins::TimeInfo,
+    app_info: AppInfo,
 }
 
 impl RenderContext {
@@ -82,7 +85,7 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
-        let time_info = plugins::TimeInfo::new(&device);
+        let time_info = AppInfo::new(&device);
 
         Self {
             device: Arc::new(device),
@@ -95,7 +98,7 @@ impl RenderContext {
             window_size,
             window: Arc::new(window),
 
-            time_info,
+            app_info: time_info,
         }
     }
 
@@ -130,9 +133,9 @@ impl RenderContext {
         self.window_size.width as f32 / self.window_size.height as f32
     }
 
-    pub(crate) fn update_time_info(&mut self, time_passed: f32) {
-        self.time_info.time_passed = time_passed;
-        self.time_info.update_buffer(&self.queue);
+    pub(crate) fn update_app_info(&mut self, time_passed: f32) {
+        self.app_info.time_passed = time_passed;
+        self.app_info.update_buffer(&self.queue);
     }
 }
 
@@ -161,8 +164,8 @@ pub fn window(ctx: &Context) -> &winit::window::Window {
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
 }
-pub fn time_info(ctx: &Context) -> &plugins::TimeInfo {
-    &ctx.render.time_info
+pub fn app_info(ctx: &Context) -> &AppInfo {
+    &ctx.render.app_info
 }
 
 // /// Creates a render pass which renders to the current window

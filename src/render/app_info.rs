@@ -1,6 +1,9 @@
 use encase::ShaderType;
 
-pub struct TimeInfo {
+/// Holds information about the app
+///
+/// Can easily be sent as uniform to shaders
+pub struct AppInfo {
     pub time_passed: f32, // TODO getters and setters?
 
     bind_group_layout: wgpu::BindGroupLayout,
@@ -8,7 +11,7 @@ pub struct TimeInfo {
     buffer: wgpu::Buffer,
 }
 
-impl TimeInfo {
+impl AppInfo {
     pub fn new(device: &wgpu::Device) -> Self {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("app info buffer"),
@@ -60,13 +63,6 @@ impl TimeInfo {
             .expect("could not write to camera buffer");
         queue.write_buffer(&self.buffer, 0, &buffer.into_inner());
     }
-
-    fn uniform(&self) -> AppInfoUniform {
-        AppInfoUniform {
-            time_passed: self.time_passed,
-        }
-    }
-
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bind_group_layout
     }
@@ -75,6 +71,12 @@ impl TimeInfo {
     }
     pub fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
+    }
+
+    fn uniform(&self) -> AppInfoUniform {
+        AppInfoUniform {
+            time_passed: self.time_passed,
+        }
     }
 }
 

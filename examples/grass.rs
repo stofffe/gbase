@@ -20,8 +20,8 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
-const TILE_SIZE: u32 = 80;
-const BLADES_PER_SIDE: u32 = 16 * 20; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const TILE_SIZE: u32 = 150;
+const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 15.0;
 
@@ -47,6 +47,8 @@ impl App {
     async fn new(ctx: &mut Context) -> Self {
         let device = render::device(ctx);
         let surface_config = render::surface_config(ctx);
+        let depth_buffer = render::DepthBuffer::new(ctx);
+        let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
         // Camera
         let camera = render::PerspectiveCamera::new(device)
@@ -62,8 +64,6 @@ impl App {
         let plane_buffer = render::VertexBufferBuilder::new()
             .source(render::BufferSource::Values(CENTERED_QUAD_VERTICES))
             .build(ctx);
-
-        let depth_buffer = render::DepthBuffer::new(ctx);
 
         // Plane pipeline
         let shader = render::ShaderBuilder::new("shader.wgsl")
@@ -83,8 +83,6 @@ impl App {
         let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
             .depth_buffer(render::DepthBuffer::depth_stencil_state())
             .build(ctx);
-
-        let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
         let grass_renderer = GrassRenderer::new(ctx, &camera).await;
 
@@ -178,7 +176,7 @@ impl Callbacks for App {
 
         self.gui_renderer.render(ctx, screen_view);
 
-        if input::key_pressed(ctx, KeyCode::F2) {
+        if input::key_pressed(ctx, KeyCode::KeyP) {
             self.depth_buffer_renderer.render(ctx, screen_view);
         }
 
@@ -282,6 +280,8 @@ struct GrassRenderer {
 
     perlin_noise_texture: render::Texture,
     tile_buffer: wgpu::Buffer,
+
+    debug_input: render::DebugInput,
 }
 
 impl GrassRenderer {
@@ -292,23 +292,25 @@ impl GrassRenderer {
         screen_view: &wgpu::TextureView,
         depth_buffer: &render::DepthBuffer,
     ) {
+        self.debug_input.update_buffer(ctx);
+
         let queue = render::queue(ctx);
 
         //let [tile_x, tile_z] = camera.pos.xz().div(TILE_SIZE).floor().as_ivec2().to_array();
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
         let tiles = [
-            // vec2(0.0, 0.0),
-            vec2(curr_tile.x, curr_tile.y),                    // mid
-            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),  // mid right
-            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0), // mid left
-            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),  // top
-            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size), // top right
+            vec2(curr_tile.x, curr_tile.y),                          // mid
+            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),        // mid right
+            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0),       // mid left
+            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),        // top
+            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size),  // top right
             vec2(curr_tile.x + -tile_size, curr_tile.y + tile_size), // top left
-            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),  // bot
-            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size), // bot right
+            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),        // bot
+            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size),  // bot right
             vec2(curr_tile.x + -tile_size, curr_tile.y - tile_size), // bot left
         ];
+
         // TODO use one compute pass but buffers of instance counts and tiles?
         for tile in tiles {
             // update buffers
@@ -330,14 +332,15 @@ impl GrassRenderer {
                 timestamp_writes: None,
             });
 
-            let time_info = render::time_info(ctx);
+            let app_info = render::app_info(ctx);
 
             // instance
             compute_pass.set_pipeline(self.instance_compute_pipeline.pipeline());
             compute_pass.set_bind_group(0, self.instance_compute_bindgroup.bind_group(), &[]);
             compute_pass.set_bind_group(1, self.perlin_noise_texture.bind_group(), &[]);
             compute_pass.set_bind_group(2, camera.bind_group(), &[]);
-            compute_pass.set_bind_group(3, time_info.bind_group(), &[]);
+            compute_pass.set_bind_group(3, app_info.bind_group(), &[]);
+            compute_pass.set_bind_group(4, self.debug_input.bind_group(), &[]);
             compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
             // draw
@@ -366,7 +369,8 @@ impl GrassRenderer {
             render_pass.set_pipeline(self.grass_pipeline.pipeline());
             render_pass.set_vertex_buffer(0, self.instances.slice(..));
             render_pass.set_bind_group(0, camera.bind_group(), &[]);
-            render_pass.set_bind_group(1, time_info.bind_group(), &[]);
+            render_pass.set_bind_group(1, app_info.bind_group(), &[]);
+            render_pass.set_bind_group(2, self.debug_input.bind_group(), &[]);
             render_pass.draw_indirect(&self.indirect_buffer, 0);
 
             drop(render_pass);
@@ -426,14 +430,16 @@ impl GrassRenderer {
         ])
         .build(ctx);
 
-        let time_info = render::time_info(ctx);
+        let app_info = render::app_info(ctx);
+        let debug_input = render::DebugInput::new(ctx);
         let instance_compute_shader =
             render::ShaderBuilder::new("grass_compute_instance.wgsl".to_string())
                 .bind_group_layouts(vec![
                     instance_compute_bindgroup.bind_group_layout(),
                     perlin_noise_texture.bind_group_layout(),
                     camera.bind_group_layout(),
-                    time_info.bind_group_layout(),
+                    app_info.bind_group_layout(),
+                    debug_input.bind_group_layout(),
                 ])
                 .build(ctx)
                 .await;
@@ -460,29 +466,18 @@ impl GrassRenderer {
             render::ComputePipelineBuilder::new(&draw_compute_shader).build(ctx);
 
         // Render pipeline
-        let render_shader = if input::key_pressed(ctx, KeyCode::KeyE) {
-            let render_shader = render::ShaderBuilder::new("grass_old.wgsl".to_string())
-                .buffers(vec![instances.desc()])
-                .default_target(surface_config)
-                .bind_group_layouts(vec![
-                    &camera.bind_group_layout(),
-                    &time_info.bind_group_layout(),
-                ])
-                .build(ctx)
-                .await;
-            render_shader
-        } else {
-            let render_shader = render::ShaderBuilder::new("grass_new.wgsl".to_string())
-                .buffers(vec![instances.desc()])
-                .default_target(surface_config)
-                .bind_group_layouts(vec![
-                    &camera.bind_group_layout(),
-                    &time_info.bind_group_layout(),
-                ])
-                .build(ctx)
-                .await;
-            render_shader
-        };
+
+        let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
+            .buffers(vec![instances.desc()])
+            .default_target(surface_config)
+            .bind_group_layouts(vec![
+                &camera.bind_group_layout(),
+                &app_info.bind_group_layout(),
+                &debug_input.bind_group_layout(),
+            ])
+            .build(ctx)
+            .await;
+
         let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .depth_buffer(render::DepthBuffer::depth_stencil_state())
@@ -502,6 +497,8 @@ impl GrassRenderer {
 
             perlin_noise_texture,
             tile_buffer,
+
+            debug_input,
         }
     }
 }
@@ -586,60 +583,3 @@ const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
     VertexColor { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR }, // top left
 
 ];
-
-// fn compute(
-//     &mut self,
-//     ctx: &Context,
-//     encoder: &mut wgpu::CommandEncoder,
-//     camera: &render::PerspectiveCamera,
-// ) {
-//     let queue = render::queue(ctx);
-//
-//     // clear instance count
-//     queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32]));
-//
-//     // tile
-//     let mut buffer = encase::UniformBuffer::new(Vec::new());
-//     buffer
-//         .write(&Tile {
-//             pos: camera.pos.xz(),
-//         })
-//         .unwrap();
-//     queue.write_buffer(&self.tile_buffer, 0, &buffer.into_inner());
-//
-//     // run compute
-//     let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-//         label: Some("compute pass"),
-//         timestamp_writes: None,
-//     });
-//
-//     let time_info = render::time_info(ctx);
-//     // instance
-//     compute_pass.set_pipeline(self.instance_compute_pipeline.pipeline());
-//     compute_pass.set_bind_group(0, self.instance_compute_bindgroup.bind_group(), &[]);
-//     compute_pass.set_bind_group(1, self.perlin_noise_texture.bind_group(), &[]);
-//     compute_pass.set_bind_group(2, camera.bind_group(), &[]);
-//     compute_pass.set_bind_group(3, time_info.bind_group(), &[]);
-//     compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
-//
-//     // draw
-//     compute_pass.set_pipeline(self.draw_compute_pipeline.pipeline());
-//     compute_pass.set_bind_group(0, self.draw_compute_bindgroup.bind_group(), &[]);
-//     compute_pass.dispatch_workgroups(1, 1, 1);
-// }
-//
-// fn render<'a>(
-//     &'a self,
-//     ctx: &'a Context,
-//     render_pass: &mut wgpu::RenderPass<'a>,
-//     camera: &'a render::PerspectiveCamera,
-// ) {
-//     let time_info = render::time_info(ctx);
-//
-//     render_pass.set_pipeline(self.grass_pipeline.pipeline());
-//     render_pass.set_vertex_buffer(0, self.instances.slice(..));
-//     render_pass.set_bind_group(0, camera.bind_group(), &[]);
-//     render_pass.set_bind_group(1, time_info.bind_group(), &[]);
-//     render_pass.draw_indirect(&self.indirect_buffer, 0);
-// }
-//
