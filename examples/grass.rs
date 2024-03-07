@@ -337,10 +337,9 @@ impl GrassRenderer {
             // instance
             compute_pass.set_pipeline(self.instance_compute_pipeline.pipeline());
             compute_pass.set_bind_group(0, self.instance_compute_bindgroup.bind_group(), &[]);
-            compute_pass.set_bind_group(1, self.perlin_noise_texture.bind_group(), &[]);
-            compute_pass.set_bind_group(2, camera.bind_group(), &[]);
-            compute_pass.set_bind_group(3, app_info.bind_group(), &[]);
-            compute_pass.set_bind_group(4, self.debug_input.bind_group(), &[]);
+            compute_pass.set_bind_group(1, camera.bind_group(), &[]);
+            compute_pass.set_bind_group(2, app_info.bind_group(), &[]);
+            compute_pass.set_bind_group(3, self.debug_input.bind_group(), &[]);
             compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
             // draw
@@ -427,6 +426,18 @@ impl GrassRenderer {
             render::BindGroupEntry::new(tile_buffer.as_entire_binding())
                 .visibility(wgpu::ShaderStages::COMPUTE)
                 .uniform(),
+            // perlin texture
+            render::BindGroupEntry::new(wgpu::BindingResource::TextureView(
+                perlin_noise_texture.view(),
+            ))
+            .ty(perlin_noise_texture.texture_ty())
+            .visibility(wgpu::ShaderStages::COMPUTE),
+            // perlin texture sampler
+            render::BindGroupEntry::new(wgpu::BindingResource::Sampler(
+                perlin_noise_texture.sampler(),
+            ))
+            .ty(perlin_noise_texture.sampler_ty())
+            .visibility(wgpu::ShaderStages::COMPUTE),
         ])
         .build(ctx);
 
@@ -436,7 +447,6 @@ impl GrassRenderer {
             render::ShaderBuilder::new("grass_compute_instance.wgsl".to_string())
                 .bind_group_layouts(vec![
                     instance_compute_bindgroup.bind_group_layout(),
-                    perlin_noise_texture.bind_group_layout(),
                     camera.bind_group_layout(),
                     app_info.bind_group_layout(),
                     debug_input.bind_group_layout(),

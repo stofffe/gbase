@@ -1,6 +1,8 @@
 @group(0) @binding(0) var<storage, read_write> instances: array<GrassInstance>;
 @group(0) @binding(1) var<storage, read_write> instance_count: atomic<u32>;
 @group(0) @binding(2) var<uniform> tile: Tile;
+@group(0) @binding(3) var perlin_tex: texture_2d<f32>;
+@group(0) @binding(4) var perlin_sam: sampler;
 
 struct Tile {
     pos: vec2<f32>,
@@ -18,22 +20,19 @@ struct GrassInstance {          // align 16 size 48
     height: f32,                // align 4  size 4  start 44
 };
 
-@group(1) @binding(0) var perlin_tex: texture_2d<f32>;
-@group(1) @binding(1) var perlin_sam: sampler;
-
-@group(2) @binding(0) var<uniform> camera: CameraUniform;
+@group(1) @binding(0) var<uniform> camera: CameraUniform;
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     facing: vec3<f32>,
 };
 
-@group(3) @binding(0) var<uniform> app_info: AppInfo;
+@group(2) @binding(0) var<uniform> app_info: AppInfo;
 struct AppInfo {
     time_passed: f32
 };
 
-@group(4) @binding(0) var<uniform> debug_input: DebugInput;
+@group(3) @binding(0) var<uniform> debug_input: DebugInput;
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
