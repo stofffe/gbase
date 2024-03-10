@@ -1,24 +1,46 @@
+use crate::Context;
 use encase::ShaderType;
 use glam::{Mat4, Quat, Vec3};
 
-use crate::Context;
+//
+// Transform
+//
 
+#[derive(Debug)]
 pub struct Transform {
     pub pos: Vec3,
     pub rot: Quat,
     pub scale: Vec3,
+}
 
+impl Transform {
+    pub fn new(pos: Vec3, rot: Quat, scale: Vec3) -> Self {
+        Self { pos, rot, scale }
+    }
+}
+
+impl Default for Transform {
+    fn default() -> Self {
+        Self {
+            pos: Vec3::ZERO,
+            rot: Quat::IDENTITY,
+            scale: Vec3::ONE,
+        }
+    }
+}
+
+//
+// Transform GPU
+//
+
+pub struct TransformGPU {
     bind_group_layout: wgpu::BindGroupLayout,
     bind_group: wgpu::BindGroup,
     buffer: wgpu::Buffer,
 }
 
-impl Transform {
+impl TransformGPU {
     pub fn new(device: &wgpu::Device) -> Self {
-        let pos = Vec3::ZERO;
-        let rotation = Quat::IDENTITY;
-        let scale = Vec3::ONE;
-
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("transform buffer"),
             size: u64::from(TransformUniform::min_size()),
@@ -48,42 +70,31 @@ impl Transform {
                 resource: buffer.as_entire_binding(),
             }],
         });
-        Self {
-            pos,
-            rot: rotation,
-            scale,
 
+        Self {
             buffer,
             bind_group,
             bind_group_layout,
         }
     }
 
-    pub fn uniform(&self) -> TransformUniform {
-        let matrix = Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos);
-        TransformUniform { matrix }
-    }
+    pub fn update_buffer(&mut self, ctx: &Context, transform: &Transform) {
+        // Create uniform
+        let uniform = TransformUniform {
+            matrix: Mat4::from_scale_rotation_translation(
+                transform.scale,
+                transform.rot,
+                transform.pos,
+            ),
+        };
 
-    pub fn update_buffer(&mut self, ctx: &Context) {
+        // Upload data to gpu
         let queue = ctx.render.queue.clone();
         let mut buffer = encase::UniformBuffer::new(Vec::new());
         buffer
-            .write(&self.uniform())
+            .write(&uniform)
             .expect("could not write to transform buffer");
         queue.write_buffer(&self.buffer, 0, &buffer.into_inner());
-    }
-
-    pub fn pos(mut self, pos: Vec3) -> Self {
-        self.pos = pos;
-        self
-    }
-    pub fn rotation(mut self, rotation: Quat) -> Self {
-        self.rot = rotation;
-        self
-    }
-    pub fn scale(mut self, scale: Vec3) -> Self {
-        self.scale = scale;
-        self
     }
 
     pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
@@ -96,8 +107,23 @@ impl Transform {
         &self.buffer
     }
 }
-
 #[derive(ShaderType)]
 pub struct TransformUniform {
     matrix: Mat4,
 }
+
+// Re-export transform function
+// impl TransformGPU {
+//     pub fn pos(mut self, pos: Vec3) -> Self {
+//         self.transform.pos = pos;
+//         self
+//     }
+//     pub fn rotation(mut self, rotation: Quat) -> Self {
+//         self.transform.rot = rotation;
+//         self
+//     }
+//     pub fn scale(mut self, scale: Vec3) -> Self {
+//         self.transform.scale = scale;
+//         self
+//     }
+// }

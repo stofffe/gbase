@@ -32,6 +32,7 @@ struct App {
     plane_buffer: render::VertexBuffer<VertexColor>,
     plane_pipeline: render::RenderPipeline,
     plane_transform: render::Transform,
+    plane_transform_gpu: render::TransformGPU,
 
     camera: render::PerspectiveCamera,
 
@@ -56,10 +57,12 @@ impl App {
             .pitch(-PI / 4.0);
 
         // Plane
-        let plane_transform = render::Transform::new(device)
-            .rotation(Quat::from_rotation_x(PI / 2.0))
-            .scale(vec3(PLANE_SIZE, PLANE_SIZE, 1.0))
-            .pos(vec3(0.0, 0.0, 0.0)); // TODO TEMP
+        let plane_transform_gpu = render::TransformGPU::new(device);
+        let plane_transform = render::Transform::new(
+            vec3(0.0, 0.0, 0.0),
+            Quat::from_rotation_x(PI / 2.0),
+            vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
+        );
 
         let plane_buffer = render::VertexBufferBuilder::new()
             .source(render::BufferSource::Values(CENTERED_QUAD_VERTICES))
@@ -75,7 +78,7 @@ impl App {
             })])
             .bind_group_layouts(vec![
                 camera.bind_group_layout(),
-                plane_transform.bind_group_layout(),
+                plane_transform_gpu.bind_group_layout(),
             ])
             .build(ctx)
             .await;
@@ -100,6 +103,7 @@ impl App {
             plane_buffer,
             plane_pipeline,
             plane_transform,
+            plane_transform_gpu,
 
             depth_buffer,
             depth_buffer_renderer,
@@ -142,7 +146,8 @@ impl Callbacks for App {
 
         // update buffers
         self.camera.update_buffer(ctx);
-        self.plane_transform.update_buffer(ctx);
+        self.plane_transform_gpu
+            .update_buffer(ctx, &self.plane_transform);
 
         // Render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -164,7 +169,7 @@ impl Callbacks for App {
         render_pass.set_pipeline(self.plane_pipeline.pipeline());
         render_pass.set_vertex_buffer(0, self.plane_buffer.slice(..));
         render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-        render_pass.set_bind_group(1, self.plane_transform.bind_group(), &[]);
+        render_pass.set_bind_group(1, self.plane_transform_gpu.bind_group(), &[]);
         render_pass.draw(0..self.plane_buffer.len(), 0..1);
 
         drop(render_pass);

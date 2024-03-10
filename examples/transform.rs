@@ -22,6 +22,7 @@ struct App {
     vertex_buffer: wgpu::Buffer,
     pipeline: wgpu::RenderPipeline,
     transform: render::Transform,
+    transform_gpu: render::TransformGPU,
 }
 
 impl App {
@@ -46,12 +47,13 @@ impl App {
         });
 
         // Transform
-        let transform = render::Transform::new(device);
+        let transform = render::Transform::default();
+        let transform_gpu = render::TransformGPU::new(device);
 
         // Pipeline
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("render pipeline layout"),
-            bind_group_layouts: &[transform.bind_group_layout()],
+            bind_group_layouts: &[transform_gpu.bind_group_layout()],
             push_constant_ranges: &[],
         });
 
@@ -95,7 +97,9 @@ impl App {
         Self {
             vertex_buffer,
             pipeline,
+
             transform,
+            transform_gpu,
         }
     }
 }
@@ -116,7 +120,7 @@ impl Callbacks for App {
         let mut encoder = render::create_encoder(ctx, None);
         let queue = render::queue(ctx);
         // update camera uniform
-        self.transform.update_buffer(ctx);
+        self.transform_gpu.update_buffer(ctx, &self.transform);
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -136,7 +140,7 @@ impl Callbacks for App {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, self.transform.bind_group(), &[]);
+        render_pass.set_bind_group(0, self.transform_gpu.bind_group(), &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
