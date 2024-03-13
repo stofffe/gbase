@@ -1,5 +1,8 @@
+use std::mem;
+
+use encase::ShaderType;
 use gbase::{
-    input,
+    filesystem, input,
     render::{self, VertexNormal},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
@@ -18,13 +21,15 @@ pub async fn main() {
 }
 
 struct App {
+    depth_buffer: render::DepthBuffer,
+    camera: render::PerspectiveCamera,
+    camera_buffer: render::UniformBuffer,
+    camera_bindgroup: render::BindGroup,
     vertex_buffer: render::VertexBuffer<VertexNormal>,
     pipeline: render::RenderPipeline,
-    camera: render::PerspectiveCamera,
-    depth_buffer: render::DepthBuffer,
 }
 
-const STEPS: i32 = 7;
+const STEPS: i64 = 7;
 
 fn bez(t: f32, start: Vec3, start_handle: Vec3, end_handle: Vec3, end: Vec3) -> Vec3 {
     start * (-t.powi(3) + 3.0 * t.powi(2) - 3.0 * t + 1.0)
@@ -42,39 +47,48 @@ fn bez_dx(t: f32, start: Vec3, start_handle: Vec3, end_handle: Vec3, end: Vec3) 
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-
         // Camera
-        let camera = render::PerspectiveCamera::new(device).pos(vec3(0.0, 2.0, 3.0));
+        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 2.0, 3.0));
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new()
-            .source(render::BufferSource::Capacity(STEPS as usize * 2 - 1))
-            .usages(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
+            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
+            .build(
+                ctx,
+                (STEPS as u64 * 2 - 1) * mem::size_of::<VertexNormal>() as u64,
+            );
+
+        let camera_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let (camera_bindgroup_layout, camera_bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[render::BindGroupCombinedEntry::new(
+                camera_buffer.buf().as_entire_binding(),
+            )
+            .uniform()])
             .build(ctx);
 
         // Shader
-        let shader = render::ShaderBuilder::new("bezier.wgsl")
-            .default_target(surface_config)
-            .buffers(vec![vertex_buffer.desc()])
-            .bind_group_layouts(vec![camera.bind_group_layout()])
-            .build(ctx)
-            .await;
+        let shader_str = filesystem::load_string(ctx, "bezier.wgsl").await.unwrap();
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader)
+            .bind_groups(&[camera_bindgroup_layout])
+            .buffers(&[vertex_buffer.desc()])
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .topology(wgpu::PrimitiveTopology::TriangleStrip)
+            .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .build(ctx);
 
         let depth_buffer = render::DepthBuffer::new(ctx);
-        // Pipeline
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            .depth_buffer(render::DepthBuffer::depth_stencil_state())
-            .build(ctx);
 
         render::window(ctx).set_cursor_visible(false);
 
         Self {
             vertex_buffer,
-            pipeline,
             camera,
+            camera_buffer,
+            camera_bindgroup,
+            pipeline,
             depth_buffer,
         }
     }
@@ -170,7 +184,8 @@ impl Callbacks for App {
             }
         }
 
-        self.vertex_buffer.update_buffer(ctx, &vertices);
+        eprintln!("{:?}", vertices);
+        self.vertex_buffer.write(ctx, &vertices);
 
         false
     }
@@ -179,7 +194,7 @@ impl Callbacks for App {
         let mut encoder = render::create_encoder(ctx, None);
         let queue = render::queue(ctx);
         // update camera uniform
-        self.camera.update_buffer(ctx);
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -187,7 +202,7 @@ impl Callbacks for App {
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -197,9 +212,9 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
 
-        render_pass.set_pipeline(self.pipeline.pipeline());
+        render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
+        render_pass.set_bind_group(0, &self.camera_bindgroup, &[]);
         render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);

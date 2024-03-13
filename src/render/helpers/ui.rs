@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use super::VertexTrait;
 
 struct FontAtlas {
-    texture_atlas: render::TextureAtlas,
+    texture_atlas: super::TextureAtlas,
     info: HashMap<char, LetterInfo>,
     line_height: f32,
 }
@@ -27,19 +27,18 @@ impl FontAtlas {
             })
             .collect::<Vec<_>>();
         // chars.sort_by(|a, b| a.0.height.partial_cmp(&b.0.height).unwrap());
-        // let texture_dim = uvec2(4096, 4096);
         let texture_dim = FONT_ATLAS_SIZE;
         let max_height = chars
             .iter()
             .map(|(metrics, _, _)| metrics.height)
             .max()
             .unwrap() as u32;
-        // println!("MAX {max_height}");
-        // let line_height = max_height as f32 / texture_dim.y as f32;
         let line_height = max_height as f32 / FONT_RASTER_SIZE;
-        // println!("line height {line_height}");
 
-        let mut texture_atlas = render::TextureAtlas::new(ctx, texture_dim);
+        let texture = super::TextureBuilder::new()
+            .format(wgpu::TextureFormat::R8Unorm)
+            .build(ctx, texture_dim.x, texture_dim.y);
+        let mut texture_atlas = super::TextureAtlasBuilder::new().build(texture);
         let mut offset = UVec2::ZERO;
 
         let padding = FONT_ATLAS_PADDING;
@@ -48,8 +47,6 @@ impl FontAtlas {
 
         for (metrics, bitmap, letter) in chars {
             let dimensions = uvec2(metrics.width as u32, metrics.height as u32);
-
-            // println!("{letter} {}", vec2(metrics.advance_width, metrics.advance_height) / max_height as f32);
 
             if dimensions.x + padding.x > texture_dim.x - offset.x {
                 offset.y += max_height + padding.x;
@@ -69,7 +66,7 @@ impl FontAtlas {
                 },
             );
 
-            // println!("{:?}", metrics);
+            // println!("{:?}", dimensions);
             texture_atlas.write_texture(ctx, offset, dimensions, &bitmap);
             offset.x += dimensions.x + padding.x;
         }
@@ -89,21 +86,6 @@ impl FontAtlas {
             None => panic!("trying to get unsupported letter \"{}\"", letter), // TODO default
         }
     }
-    pub fn texture(&self) -> &wgpu::Texture {
-        self.texture_atlas.texture()
-    }
-    pub fn view(&self) -> &wgpu::TextureView {
-        self.texture_atlas.view()
-    }
-    pub fn sampler(&self) -> &wgpu::Sampler {
-        self.texture_atlas.sampler()
-    }
-    pub fn bind_group_layout(&self) -> &wgpu::BindGroupLayout {
-        self.texture_atlas.bind_group_layout()
-    }
-    pub fn bind_group(&self) -> &wgpu::BindGroup {
-        self.texture_atlas.bind_group()
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -117,10 +99,11 @@ struct LetterInfo {
 }
 
 pub struct GUIRenderer {
-    vertices: render::DynamicVertexBuffer<VertexUI>,
-    indices: render::DynamicIndexBuffer,
+    vertices: super::DynamicVertexBuffer<VertexUI>,
+    indices: super::DynamicIndexBuffer,
 
-    pipeline: render::RenderPipeline,
+    pipeline: super::RenderPipeline,
+    font_atlas_bindgroup: super::BindGroup,
     font_atlas: FontAtlas,
 }
 
@@ -131,32 +114,46 @@ impl GUIRenderer {
     pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32, font_bytes: &[u8], supported_chars: &str) -> Self {
         let surface_config = render::surface_config(ctx);
 
-        let vertices = render::DynamicVertexBufferBuilder::new().capacity(vertices_batch_size as usize).build(ctx);
-        let indices = render::DynamicIndexBufferBuilder::new().capacity(indices_batch_size as usize).build(ctx);
+        let vertices = super::DynamicVertexBufferBuilder::new().capacity(vertices_batch_size as usize).build(ctx);
+        let indices = super::DynamicIndexBufferBuilder::new().capacity(indices_batch_size as usize).build(ctx);
 
+        let sampler = super::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(
             ctx,
             font_bytes,
             supported_chars,
         );
         // println!("A info {:?}", letter_info.get(&'a'));
+        
+        let shader = super::ShaderBuilder::new(include_str!("../../../assets/ui.wgsl")).build(ctx);
 
-        let shader = render::ShaderBuilder::new("ui.wgsl")
-            .buffers(vec![vertices.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: surface_config.format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
-            .bind_group_layouts(vec![font_atlas.bind_group_layout()])
-            .build(ctx)
-            .await;
-        let pipeline = render::RenderPipelineBuilder::new(&shader).build(ctx);
+        let (bindgroup_layout, bindgroup) = super::BindGroupCombinedBuilder::new().entries(&[
+            super::BindGroupCombinedEntry::new(font_atlas.texture_atlas.texture().resource())
+                .ty(font_atlas.texture_atlas.texture().binding_type())
+                .visibility(wgpu::ShaderStages::FRAGMENT),
+            super::BindGroupCombinedEntry::new(sampler.resource())
+                .ty(sampler.binding_filtering())
+                .visibility(wgpu::ShaderStages::FRAGMENT),
+        ]).build(ctx);
+
+        let pipeline = super::RenderPipelineBuilder::new(shader)
+            .buffers(&[vertices.desc()])
+            .bind_groups(&[bindgroup_layout])
+            .targets(&[
+                Some(wgpu::ColorTargetState {
+                    format: surface_config.format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                }),
+            ])
+            .build(ctx);
+
         Self {
             vertices,
             indices,
             pipeline,
             font_atlas,
+            font_atlas_bindgroup: bindgroup
         }
     }
 
@@ -183,10 +180,10 @@ impl GUIRenderer {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
-        render_pass.set_pipeline(self.pipeline.pipeline());
+        render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertices.slice(..));
         render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
-        render_pass.set_bind_group(0, self.font_atlas.bind_group(), &[]);
+        render_pass.set_bind_group(0, &self.font_atlas_bindgroup, &[]);
         render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
 
         drop(render_pass);

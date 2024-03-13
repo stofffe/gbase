@@ -54,13 +54,8 @@ impl Callbacks for App {
 
         self.gui_renderer
             .draw_quad(Vec2::ZERO, Vec2::ONE, Vec4::ONE);
-        self.gui_renderer.draw_text(
-            "BOOMBAAACLAT",
-            self.text_pos,
-            0.7,
-            vec4(0.0, 0.0, 0.0, 1.0),
-            None,
-        );
+        self.gui_renderer
+            .draw_text("DADDY", self.text_pos, 0.7, vec4(0.0, 0.0, 0.0, 1.0), None);
         false
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {

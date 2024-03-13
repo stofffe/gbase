@@ -106,9 +106,6 @@ where
         ctx.input.mouse.save_buttons();
         ctx.input.mouse.set_mouse_delta((0.0, 0.0));
 
-        // render
-        ctx.render.update_app_info(ctx.time.time_since_start());
-
         false
     }
 }

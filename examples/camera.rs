@@ -1,11 +1,11 @@
+use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, Vertex},
+    render::{self},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec3, Vec3};
 use std::path::Path;
-use wgpu::util::DeviceExt;
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -20,76 +20,46 @@ pub async fn main() {
 }
 
 struct App {
-    vertex_buffer: wgpu::Buffer,
-    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: render::VertexBuffer<render::Vertex>,
+    pipeline: render::RenderPipeline,
     camera: render::PerspectiveCamera,
+    camera_bind_group: render::BindGroup,
+    camera_buffer: render::UniformBuffer,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-
         // Shader
         let shader_str = filesystem::load_string(ctx, Path::new("camera.wgsl"))
             .await
             .unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let vertex_buffer = render::VertexBufferBuilder::new()
+            .usage(wgpu::BufferUsages::VERTEX)
+            .build_init(ctx, TRIANGLE_VERTICES);
 
         // Camera
-        let camera = render::PerspectiveCamera::new(device).pos(vec3(0.0, 0.0, 2.0));
+        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 0.0, 2.0));
+        let buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let bind_group_layout = render::BindGroupLayoutBuilder::new()
+            .entries(&[render::BindGroupLayoutEntry::new().uniform()])
+            .build(ctx);
+        let bind_group = render::BindGroupBuilder::new(bind_group_layout.clone())
+            .entries(&[render::BindGroupEntry::new(
+                buffer.buf().as_entire_binding(),
+            )])
+            .build(ctx);
 
         // Pipeline
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("render pipeline layout"),
-            bind_group_layouts: &[&camera.bind_group_layout()],
-            push_constant_ranges: &[],
-        });
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
+        let pipeline = render::RenderPipelineBuilder::new(shader)
+            .buffers(&[vertex_buffer.desc()])
+            .bind_groups(&[bind_group_layout])
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .build(ctx);
 
         render::window(ctx).set_cursor_visible(false);
 
@@ -97,11 +67,43 @@ impl App {
             vertex_buffer,
             pipeline,
             camera,
+            camera_bind_group: bind_group,
+            camera_buffer: buffer,
         }
     }
 }
 
 impl Callbacks for App {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+        let queue = render::queue(ctx);
+
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: screen_view,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+        render_pass.set_pipeline(&self.pipeline);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.buf().slice(..));
+        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
+        drop(render_pass);
+
+        queue.submit(Some(encoder.finish()));
+
+        false
+    }
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
@@ -142,44 +144,11 @@ impl Callbacks for App {
 
         false
     }
-
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        let mut encoder = render::create_encoder(ctx, None);
-        let queue = render::queue(ctx);
-        // update camera uniform
-        self.camera.update_buffer(ctx);
-
-        // render
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-        render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
-
-        drop(render_pass);
-        queue.submit(Some(encoder.finish()));
-
-        false
-    }
 }
 
 #[rustfmt::skip]
-const TRIANGLE_VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.5, -0.5, 0.0] },
-    Vertex { position: [ 0.5, -0.5, 0.0] },
-    Vertex { position: [ 0.0,  0.5, 0.0] },
+const TRIANGLE_VERTICES: &[render::Vertex] = &[
+    render::Vertex { position: [-0.5, -0.5, 0.0] },
+    render::Vertex { position: [ 0.5, -0.5, 0.0] },
+    render::Vertex { position: [ 0.0,  0.5, 0.0] },
 ];

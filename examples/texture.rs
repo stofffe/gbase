@@ -1,65 +1,62 @@
+use gbase::{filesystem, render, Callbacks, Context, ContextBuilder};
 use std::path::Path;
-
-use gbase::{
-    filesystem,
-    render::{self, VertexUV},
-    Callbacks, Context, ContextBuilder, LogLevel,
-};
 
 #[pollster::main]
 pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
+    let (mut ctx, ev) = ContextBuilder::new().build().await;
     let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev).await;
 }
 
 struct App {
-    vertex_buffer: render::VertexBuffer<VertexUV>,
-    texture: render::Texture,
+    vertex_buffer: render::VertexBuffer<render::VertexUV>,
+    texture_bindgroup: render::BindGroup,
     pipeline: render::RenderPipeline,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-
-        let vertex_buffer = render::VertexBuffer::new(device, QUAD_VERTICES);
+        let vertex_buffer = render::VertexBufferBuilder::new().build_init(ctx, QUAD_VERTICES);
 
         let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
             .await
             .unwrap();
-        let texture =
-            render::TextureBuilder::new(render::TextureSource::FormattedBytes(texture_bytes))
-                .build(ctx);
+        let texture = render::TextureBuilder::new().build_init(ctx, &texture_bytes);
+        let sampler = render::SamplerBuilder::new().build(ctx);
 
-        let shader = render::ShaderBuilder::new("texture.wgsl".to_string())
-            .buffers(vec![vertex_buffer.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: surface_config.format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
-            .bind_group_layouts(vec![&texture.bind_group_layout()])
-            .build(ctx)
-            .await;
+        let shader_str = filesystem::load_string(ctx, "texture.wgsl").await.unwrap();
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
-        let pipeline = render::RenderPipelineBuilder::new(&shader).build(ctx);
+        let (texture_bindgroup_layout, texture_bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[
+                // texture
+                render::BindGroupCombinedEntry::new(texture.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(texture.binding_type()),
+                // sampler
+                render::BindGroupCombinedEntry::new(sampler.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(sampler.binding_filtering()),
+            ])
+            .build(ctx);
+
+        let pipeline = render::RenderPipelineBuilder::new(shader)
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .buffers(&[vertex_buffer.desc()])
+            .bind_groups(&[texture_bindgroup_layout])
+            .build(ctx);
 
         Self {
             vertex_buffer,
             pipeline,
-            texture,
+            texture_bindgroup,
         }
     }
 }
 
 impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        let mut encoder = render::create_encoder(ctx, None);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
         let queue = render::queue(ctx);
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("render pass"),
@@ -76,9 +73,9 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
 
-        render_pass.set_pipeline(self.pipeline.pipeline());
+        render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, self.texture.bind_group(), &[]);
+        render_pass.set_bind_group(0, &self.texture_bindgroup, &[]);
         render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);
@@ -89,90 +86,12 @@ impl Callbacks for App {
 }
 
 #[rustfmt::skip]
-const QUAD_VERTICES: &[VertexUV] = &[
-    VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
-    VertexUV { position: [-0.5,  0.5, 0.0], uv: [0.0, 0.0] }, // top left
+const QUAD_VERTICES: &[render::VertexUV] = &[
+    render::VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
+    render::VertexUV { position: [-0.5,  0.5, 0.0], uv: [0.0, 0.0] }, // top left
 
-    VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
-    VertexUV { position: [ 0.5, -0.5, 0.0], uv: [1.0, 1.0] }, // bottom right
-    VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
+    render::VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [ 0.5, -0.5, 0.0], uv: [1.0, 1.0] }, // bottom right
+    render::VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
 ];
-// let texture_rgba = image::load_from_memory(&texture_bytes).unwrap().to_rgba8();
-// let texture = device.create_texture(&wgpu::TextureDescriptor {
-//     label: Some("texture"),
-//     size: wgpu::Extent3d {
-//         width: texture_rgba.width(),
-//         height: texture_rgba.height(),
-//         depth_or_array_layers: 1,
-//     },
-//     mip_level_count: 1,
-//     sample_count: 1,
-//     dimension: wgpu::TextureDimension::D2,
-//     format: wgpu::TextureFormat::Rgba8Unorm,
-//     usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-//     view_formats: &[],
-// });
-// queue.write_texture(
-//     wgpu::ImageCopyTexture {
-//         texture: &texture,
-//         mip_level: 0,
-//         origin: wgpu::Origin3d::ZERO,
-//         aspect: wgpu::TextureAspect::All,
-//     },
-//     &texture_rgba,
-//     wgpu::ImageDataLayout {
-//         offset: 0,
-//         bytes_per_row: Some(4 * texture_rgba.width()),
-//         rows_per_image: Some(texture_rgba.height()),
-//     },
-//     texture.size(),
-// );
-// let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-// let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-//     address_mode_u: wgpu::AddressMode::ClampToEdge,
-//     address_mode_v: wgpu::AddressMode::ClampToEdge,
-//     address_mode_w: wgpu::AddressMode::ClampToEdge,
-//     mag_filter: wgpu::FilterMode::Nearest,
-//     min_filter: wgpu::FilterMode::Nearest,
-//     mipmap_filter: wgpu::FilterMode::Nearest,
-//     ..Default::default()
-// });
-//
-// let texture_bind_group_layout =
-//     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-//         label: Some("texture bind group layout"),
-//         entries: &[
-//             wgpu::BindGroupLayoutEntry {
-//                 binding: 0,
-//                 visibility: wgpu::ShaderStages::FRAGMENT,
-//                 ty: wgpu::BindingType::Texture {
-//                     sample_type: wgpu::TextureSampleType::Float { filterable: true },
-//                     view_dimension: wgpu::TextureViewDimension::D2,
-//                     multisampled: false,
-//                 },
-//                 count: None,
-//             },
-//             wgpu::BindGroupLayoutEntry {
-//                 binding: 1,
-//                 visibility: wgpu::ShaderStages::FRAGMENT,
-//                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-//                 count: None,
-//             },
-//         ],
-//     });
-//
-// let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-//     label: Some("texture bind group"),
-//     layout: &texture_bind_group_layout,
-//     entries: &[
-//         wgpu::BindGroupEntry {
-//             binding: 0,
-//             resource: wgpu::BindingResource::TextureView(&view),
-//         },
-//         wgpu::BindGroupEntry {
-//             binding: 1,
-//             resource: wgpu::BindingResource::Sampler(&sampler),
-//         },
-//     ],
-// });

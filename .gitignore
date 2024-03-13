@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 /web/pkg
+web/assets/*
+**/.DS_Store

@@ -1,8 +1,4 @@
-use gbase::{
-    filesystem,
-    render::{self, GUIRenderer},
-    time, Callbacks, Context, ContextBuilder,
-};
+use gbase::{filesystem, render, time, Callbacks, Context, ContextBuilder};
 use glam::{vec2, vec4};
 
 #[pollster::main]
@@ -17,13 +13,13 @@ pub async fn main() {
 }
 
 struct App {
-    gui_renderer: GUIRenderer,
+    gui_renderer: render::GUIRenderer,
 }
 
 impl App {
     async fn new(ctx: &Context) -> Self {
         let quads = 1000;
-        let gui_renderer = GUIRenderer::new(
+        let gui_renderer = render::GUIRenderer::new(
             ctx,
             4 * quads,
             6 * quads,

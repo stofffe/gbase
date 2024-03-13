@@ -1,11 +1,11 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, InstaceTrait, InstanceGpuTrait, VertexColor},
+    render::{self, VertexColor},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
-use std::{f32::consts::PI, ops::Div, path::Path};
+use std::{f32::consts::PI, mem::size_of, ops::Div, path::Path};
 use winit::{keyboard::KeyCode, window::WindowBuilder};
 
 #[pollster::main]
@@ -29,65 +29,81 @@ const PLANE_SIZE: f32 = 500.0;
 const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
 
 struct App {
-    plane_buffer: render::VertexBuffer<VertexColor>,
-    plane_pipeline: render::RenderPipeline,
+    plane_buffer: render::VertexBuffer<render::VertexColor>,
+
     plane_transform: render::Transform,
-    plane_transform_gpu: render::TransformGPU,
+    plane_transform_buffer: render::UniformBuffer,
 
     camera: render::PerspectiveCamera,
+    camera_buffer: render::UniformBuffer,
+
+    plane_bind_group: render::BindGroup,
+    plane_pipeline: render::RenderPipeline,
 
     depth_buffer: render::DepthBuffer,
     depth_buffer_renderer: render::DepthBufferRenderer,
-
     grass_renderer: GrassRenderer,
-
     gui_renderer: render::GUIRenderer,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
         let depth_buffer = render::DepthBuffer::new(ctx);
         let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
+        let plane_buffer = render::VertexBufferBuilder::new()
+            .usage(wgpu::BufferUsages::VERTEX)
+            .build_init(ctx, CENTERED_QUAD_VERTICES);
+
         // Camera
-        let camera = render::PerspectiveCamera::new(device)
+        let camera = render::PerspectiveCamera::new()
             .pos(vec3(0.0, 2.0, 1.0))
             .pitch(-PI / 4.0);
+        let camera_buffer = render::UniformBufferBuilder::new()
+            .label("camera buf")
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, render::PerspectiveCameraUniform::min_size());
 
         // Plane
-        let plane_transform_gpu = render::TransformGPU::new(device);
         let plane_transform = render::Transform::new(
             vec3(0.0, 0.0, 0.0),
             Quat::from_rotation_x(PI / 2.0),
             vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
         );
+        let plane_transform_buffer = render::UniformBufferBuilder::new()
+            .label("plane buf")
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build_init(ctx, &plane_transform.uniform());
 
-        let plane_buffer = render::VertexBufferBuilder::new()
-            .source(render::BufferSource::Values(CENTERED_QUAD_VERTICES))
-            .build(ctx);
-
-        // Plane pipeline
-        let shader = render::ShaderBuilder::new("shader.wgsl")
-            .buffers(vec![plane_buffer.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: surface_config.format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
-            .bind_group_layouts(vec![
-                camera.bind_group_layout(),
-                plane_transform_gpu.bind_group_layout(),
+        // Bind group
+        let (plane_bindgroup_layout, plane_bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[
+                // camera
+                render::BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
+                    .uniform(),
+                // plane transform
+                render::BindGroupCombinedEntry::new(
+                    plane_transform_buffer.buf().as_entire_binding(),
+                )
+                .uniform(),
             ])
-            .build(ctx)
-            .await;
-
-        let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
-            .depth_buffer(render::DepthBuffer::depth_stencil_state())
             .build(ctx);
 
-        let grass_renderer = GrassRenderer::new(ctx, &camera).await;
+        // Shader
+        let shader_str = filesystem::load_string(ctx, "new_shader.wgsl")
+            .await
+            .unwrap();
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+
+        // Pipeline
+        let plane_pipeline = render::RenderPipelineBuilder::new(shader)
+            .buffers(&[VertexColor::desc()])
+            .bind_groups(&[plane_bindgroup_layout])
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .build(ctx);
+
+        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer).await;
 
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -99,17 +115,20 @@ impl App {
         .await;
 
         Self {
-            camera,
             plane_buffer,
-            plane_pipeline,
+
+            camera,
+            camera_buffer,
+
+            plane_transform_buffer,
             plane_transform,
-            plane_transform_gpu,
+
+            plane_bind_group: plane_bindgroup,
+            plane_pipeline,
 
             depth_buffer,
             depth_buffer_renderer,
-
             grass_renderer,
-
             gui_renderer,
         }
     }
@@ -132,7 +151,7 @@ impl Callbacks for App {
                 resolve_target: None,
             })],
             depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: &self.depth_buffer.view,
+                view: self.depth_buffer.view(),
                 depth_ops: Some(wgpu::Operations {
                     load: wgpu::LoadOp::Clear(1.0),
                     store: wgpu::StoreOp::Store,
@@ -145,9 +164,9 @@ impl Callbacks for App {
         drop(clear_pass);
 
         // update buffers
-        self.camera.update_buffer(ctx);
-        self.plane_transform_gpu
-            .update_buffer(ctx, &self.plane_transform);
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.plane_transform_buffer
+            .write(ctx, &self.plane_transform.uniform());
 
         // Render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -166,11 +185,10 @@ impl Callbacks for App {
         });
 
         // Plane
-        render_pass.set_pipeline(self.plane_pipeline.pipeline());
+        render_pass.set_pipeline(&self.plane_pipeline);
         render_pass.set_vertex_buffer(0, self.plane_buffer.slice(..));
-        render_pass.set_bind_group(0, self.camera.bind_group(), &[]);
-        render_pass.set_bind_group(1, self.plane_transform_gpu.bind_group(), &[]);
-        render_pass.draw(0..self.plane_buffer.len(), 0..1);
+        render_pass.set_bind_group(0, &self.plane_bind_group, &[]);
+        render_pass.draw(0..CENTERED_QUAD_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
 
@@ -189,11 +207,8 @@ impl Callbacks for App {
     }
 
     fn resize(&mut self, ctx: &mut Context) {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-        self.depth_buffer.resize(device, surface_config);
-        self.depth_buffer_renderer
-            .resize(device, &self.depth_buffer);
+        self.depth_buffer.resize(ctx);
+        self.depth_buffer_renderer.resize(ctx, &self.depth_buffer);
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
@@ -205,7 +220,7 @@ impl Callbacks for App {
         // hot reload
         #[cfg(not(target_arch = "wasm32"))]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.grass_renderer = pollster::block_on(GrassRenderer::new(ctx, &self.camera));
+            self.grass_renderer = pollster::block_on(GrassRenderer::new(ctx, &self.camera_buffer));
             println!("reload");
         }
 
@@ -272,21 +287,21 @@ impl App {
 }
 
 struct GrassRenderer {
-    instances: wgpu::Buffer,
-    grass_pipeline: render::RenderPipeline,
-
-    instance_compute_pipeline: render::ComputePipeline,
-    instance_compute_bindgroup: render::BindGroup,
-    instance_count: wgpu::Buffer,
-
-    draw_compute_pipeline: render::ComputePipeline,
-    draw_compute_bindgroup: render::BindGroup,
-    indirect_buffer: wgpu::Buffer,
-
-    perlin_noise_texture: render::Texture,
-    tile_buffer: wgpu::Buffer,
-
+    instances: render::RawBuffer,
+    instance_count: render::RawBuffer,
+    indirect_buffer: render::RawBuffer,
+    tile_buffer: render::UniformBuffer,
     debug_input: render::DebugInput,
+    app_info: render::AppInfo,
+
+    instance_pipeline: render::ComputePipeline,
+    instance_bindgroup: render::BindGroup,
+
+    draw_pipeline: render::ComputePipeline,
+    draw_bindgroup: render::BindGroup,
+
+    render_pipeline: render::RenderPipeline,
+    render_bindgroup: render::BindGroup,
 }
 
 impl GrassRenderer {
@@ -298,10 +313,10 @@ impl GrassRenderer {
         depth_buffer: &render::DepthBuffer,
     ) {
         self.debug_input.update_buffer(ctx);
+        self.app_info.update_buffer(ctx);
 
         let queue = render::queue(ctx);
 
-        //let [tile_x, tile_z] = camera.pos.xz().div(TILE_SIZE).floor().as_ivec2().to_array();
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
         let tiles = [
@@ -319,37 +334,33 @@ impl GrassRenderer {
         // TODO use one compute pass but buffers of instance counts and tiles?
         for tile in tiles {
             // update buffers
-            queue.write_buffer(&self.instance_count, 0, bytemuck::cast_slice(&[0u32])); // clear instance count
-            let mut buffer = encase::UniformBuffer::new(Vec::new());
-            buffer
-                .write(&Tile {
+            self.instance_count.write(ctx, &[0u32]);
+            self.tile_buffer.write(
+                ctx,
+                &Tile {
                     pos: tile,
                     size: TILE_SIZE as f32,
                     blades_per_side: BLADES_PER_SIDE as f32,
-                })
-                .unwrap();
-            queue.write_buffer(&self.tile_buffer, 0, &buffer.into_inner());
+                },
+            );
 
             // run compute
-            let mut encoder = render::create_encoder(ctx, None);
+            let mut encoder = render::EncoderBuilder::new().build(ctx);
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("compute pass"),
                 timestamp_writes: None,
             });
 
-            let app_info = render::app_info(ctx);
-
             // instance
-            compute_pass.set_pipeline(self.instance_compute_pipeline.pipeline());
-            compute_pass.set_bind_group(0, self.instance_compute_bindgroup.bind_group(), &[]);
-            compute_pass.set_bind_group(1, camera.bind_group(), &[]);
-            compute_pass.set_bind_group(2, app_info.bind_group(), &[]);
-            compute_pass.set_bind_group(3, self.debug_input.bind_group(), &[]);
+            compute_pass.set_pipeline(&self.instance_pipeline);
+            compute_pass.set_bind_group(0, &self.instance_bindgroup, &[]);
+            compute_pass.set_bind_group(1, self.app_info.bindgroup(), &[]);
+            compute_pass.set_bind_group(2, self.debug_input.bindgroup(), &[]);
             compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
             // draw
-            compute_pass.set_pipeline(self.draw_compute_pipeline.pipeline());
-            compute_pass.set_bind_group(0, self.draw_compute_bindgroup.bind_group(), &[]);
+            compute_pass.set_pipeline(&self.draw_pipeline);
+            compute_pass.set_bind_group(0, &self.draw_bindgroup, &[]);
             compute_pass.dispatch_workgroups(1, 1, 1);
 
             drop(compute_pass);
@@ -370,155 +381,148 @@ impl GrassRenderer {
                 occlusion_query_set: None,
             });
 
-            render_pass.set_pipeline(self.grass_pipeline.pipeline());
+            render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.instances.slice(..));
-            render_pass.set_bind_group(0, camera.bind_group(), &[]);
-            render_pass.set_bind_group(1, app_info.bind_group(), &[]);
-            render_pass.set_bind_group(2, self.debug_input.bind_group(), &[]);
-            render_pass.draw_indirect(&self.indirect_buffer, 0);
+            render_pass.set_bind_group(0, &self.render_bindgroup, &[]);
+            render_pass.set_bind_group(1, self.app_info.bindgroup(), &[]);
+            render_pass.set_bind_group(2, self.debug_input.bindgroup(), &[]);
+            render_pass.draw_indirect(self.indirect_buffer.buf(), 0);
 
             drop(render_pass);
 
             queue.submit(Some(encoder.finish()));
         }
     }
-    async fn new(ctx: &Context, camera: &render::PerspectiveCamera) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
 
-        // Buffers
-        let instances = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instances buffer"),
-            size: GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
-        let instance_count = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instance count"),
-            size: std::mem::size_of::<u32>() as u64,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST, // TODO DST temp
-            mapped_at_creation: false,
-        });
-        let indirect_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("grass tiles buffer"),
-            size: std::mem::size_of::<wgpu::util::DrawIndirect>() as u64,
-            usage: wgpu::BufferUsages::INDIRECT
-                | wgpu::BufferUsages::STORAGE
-                | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+    async fn new(ctx: &Context, camera_buffer: &render::UniformBuffer) -> Self {
+        let instances = render::RawBufferBuilder::new()
+            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
+            .build(ctx, GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64);
+        let instance_count = render::RawBufferBuilder::new()
+            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, size_of::<u32>() as u64);
+        #[rustfmt::skip]
+        let indirect_buffer = render::RawBufferBuilder::new()
+            .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
+            .build(ctx, size_of::<wgpu::util::DrawIndirect>() as u64);
         let perlin_noise_bytes = filesystem::load_bytes(ctx, Path::new("perlin_noise.png"))
             .await
             .unwrap();
         let perlin_noise_texture =
-            render::TextureBuilder::new(render::TextureSource::FormattedBytes(perlin_noise_bytes))
-                .visibility(wgpu::ShaderStages::COMPUTE)
+            render::TextureBuilder::new().build_init(ctx, &perlin_noise_bytes);
+        let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
+        let tile_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, Tile::min_size());
+        let app_info = render::AppInfo::new(ctx);
+        let debug_input = render::DebugInput::new(ctx);
+
+        // Instance
+
+        let (instance_bindgroup_layout, instance_bindgroup) =
+            render::BindGroupCombinedBuilder::new()
+                .entries(&[
+                    // instances
+                    render::BindGroupCombinedEntry::new(instances.buf().as_entire_binding())
+                        .visibility(wgpu::ShaderStages::COMPUTE)
+                        .storage(false),
+                    // instance count
+                    render::BindGroupCombinedEntry::new(instance_count.buf().as_entire_binding())
+                        .visibility(wgpu::ShaderStages::COMPUTE)
+                        .storage(false),
+                    // tile
+                    render::BindGroupCombinedEntry::new(tile_buffer.buf().as_entire_binding())
+                        .visibility(wgpu::ShaderStages::COMPUTE)
+                        .uniform(),
+                    // perlin texture
+                    render::BindGroupCombinedEntry::new(perlin_noise_texture.resource())
+                        .ty(perlin_noise_texture.binding_type())
+                        .visibility(wgpu::ShaderStages::COMPUTE),
+                    // perlin texture sampler
+                    render::BindGroupCombinedEntry::new(perlin_noise_sampler.resource())
+                        .ty(perlin_noise_sampler.binding_filtering())
+                        .visibility(wgpu::ShaderStages::COMPUTE),
+                    // camera
+                    render::BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
+                        .visibility(wgpu::ShaderStages::COMPUTE)
+                        .uniform(),
+                ])
                 .build(ctx);
 
-        let tile_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: None,
-            size: u64::from(Tile::min_size()),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let instance_shader_str = filesystem::load_string(ctx, "grass_compute_instance.wgsl")
+            .await
+            .unwrap();
+        let instance_shader = render::ShaderBuilder::new(&instance_shader_str).build(ctx);
 
-        // Compute instance
-        let instance_compute_bindgroup = render::BindGroupBuilder::new(vec![
-            // instances
-            render::BindGroupEntry::new(instances.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(false),
-            // instance count
-            render::BindGroupEntry::new(instance_count.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(false),
-            // tile
-            render::BindGroupEntry::new(tile_buffer.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .uniform(),
-            // perlin texture
-            render::BindGroupEntry::new(wgpu::BindingResource::TextureView(
-                perlin_noise_texture.view(),
-            ))
-            .ty(perlin_noise_texture.texture_ty())
-            .visibility(wgpu::ShaderStages::COMPUTE),
-            // perlin texture sampler
-            render::BindGroupEntry::new(wgpu::BindingResource::Sampler(
-                perlin_noise_texture.sampler(),
-            ))
-            .ty(perlin_noise_texture.sampler_ty())
-            .visibility(wgpu::ShaderStages::COMPUTE),
-        ])
-        .build(ctx);
-
-        let app_info = render::app_info(ctx);
-        let debug_input = render::DebugInput::new(ctx);
-        let instance_compute_shader =
-            render::ShaderBuilder::new("grass_compute_instance.wgsl".to_string())
-                .bind_group_layouts(vec![
-                    instance_compute_bindgroup.bind_group_layout(),
-                    camera.bind_group_layout(),
-                    app_info.bind_group_layout(),
-                    debug_input.bind_group_layout(),
-                ])
-                .build(ctx)
-                .await;
-
-        let instance_compute_pipeline =
-            render::ComputePipelineBuilder::new(&instance_compute_shader).build(ctx);
-
-        // Compute draw
-        let draw_compute_bindgroup = render::BindGroupBuilder::new(vec![
-            render::BindGroupEntry::new(indirect_buffer.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(false),
-            render::BindGroupEntry::new(instance_count.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(false),
-        ])
-        .build(ctx);
-
-        let draw_compute_shader = render::ShaderBuilder::new("grass_compute_draw.wgsl".to_string())
-            .bind_group_layouts(vec![draw_compute_bindgroup.bind_group_layout()])
-            .build(ctx)
-            .await;
-        let draw_compute_pipeline =
-            render::ComputePipelineBuilder::new(&draw_compute_shader).build(ctx);
-
-        // Render pipeline
-
-        let render_shader = render::ShaderBuilder::new("grass.wgsl".to_string())
-            .buffers(vec![GrassInstanceGPU::desc()])
-            .default_target(surface_config)
-            .bind_group_layouts(vec![
-                &camera.bind_group_layout(),
-                &app_info.bind_group_layout(),
-                &debug_input.bind_group_layout(),
+        let instance_pipeline = render::ComputePipelineBuilder::new(instance_shader)
+            .label("instance")
+            .bind_groups(&[
+                instance_bindgroup_layout,
+                app_info.bindgroup_layout_handle().clone(),
+                debug_input.bindgroup_layout_handle().clone(),
             ])
-            .build(ctx)
-            .await;
+            .build(ctx);
 
-        let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
+        // Draw
+        let (draw_bindgroup_layout, draw_bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[
+                render::BindGroupCombinedEntry::new(indirect_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::COMPUTE)
+                    .storage(false),
+                render::BindGroupCombinedEntry::new(instance_count.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::COMPUTE)
+                    .storage(false),
+            ])
+            .build(ctx);
+
+        let draw_shader_str = filesystem::load_string(ctx, "grass_compute_draw.wgsl")
+            .await
+            .unwrap();
+        let draw_compute_shader = render::ShaderBuilder::new(&draw_shader_str).build(ctx);
+
+        let draw_pipeline = render::ComputePipelineBuilder::new(draw_compute_shader)
+            .label("draw")
+            .bind_groups(&[draw_bindgroup_layout])
+            .build(ctx);
+
+        // Render
+        let (render_bindgroup_layout, render_bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[render::BindGroupCombinedEntry::new(
+                camera_buffer.buf().as_entire_binding(),
+            )
+            .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+            .uniform()])
+            .build(ctx);
+
+        let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
+        let render_shader = render::ShaderBuilder::new(&render_shader_str).build(ctx);
+        let render_pipeline = render::RenderPipelineBuilder::new(render_shader)
+            .label("render")
+            .buffers(&[GrassInstanceGPU::desc()])
+            .bind_groups(&[
+                render_bindgroup_layout,
+                app_info.bindgroup_layout_handle().clone(),
+                debug_input.bindgroup_layout_handle().clone(),
+            ])
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .depth_stencil(render::DepthBuffer::depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            .depth_buffer(render::DepthBuffer::depth_stencil_state())
             .build(ctx);
 
         Self {
             instances,
-            grass_pipeline: render_pipeline,
-
-            indirect_buffer,
-            draw_compute_pipeline,
-            draw_compute_bindgroup,
-
             instance_count,
-            instance_compute_pipeline,
-            instance_compute_bindgroup,
-
-            perlin_noise_texture,
+            indirect_buffer,
             tile_buffer,
-
+            app_info,
             debug_input,
+
+            instance_pipeline,
+            instance_bindgroup,
+            draw_pipeline,
+            draw_bindgroup,
+            render_pipeline,
+            render_bindgroup,
         }
     }
 }

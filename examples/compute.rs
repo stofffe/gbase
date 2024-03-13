@@ -1,7 +1,4 @@
-use gbase::{
-    render::{self},
-    Callbacks, Context, ContextBuilder, LogLevel,
-};
+use gbase::{filesystem, render, Callbacks, Context, ContextBuilder, LogLevel};
 use std::sync::mpsc;
 
 #[pollster::main]
@@ -21,57 +18,48 @@ const OUTPUT_SIZE: u32 = 4;
 const OUTPUT_MEM_SIZE: u64 = std::mem::size_of::<u32>() as u64 * OUTPUT_SIZE as u64;
 
 struct App {
-    input_buffer: wgpu::Buffer,
-    output_buffer: wgpu::Buffer,
-    cpu_buffer: wgpu::Buffer,
-    bind_group: render::BindGroup,
+    input_buffer: render::RawBuffer,
+    output_buffer: render::RawBuffer,
+    cpu_buffer: render::RawBuffer,
+    bindgroup: render::BindGroup,
     compute_pipeline: render::ComputePipeline,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-
         // Buffers
-        let input_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("input buffer"),
-            size: INPUT_MEM_SIZE,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("output buffer"),
-            size: OUTPUT_MEM_SIZE,
-            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
-        let cpu_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("cpu buffer"),
-            size: OUTPUT_MEM_SIZE,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let input_buffer = render::RawBufferBuilder::new()
+            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, INPUT_MEM_SIZE);
+        let output_buffer = render::RawBufferBuilder::new()
+            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC)
+            .build(ctx, OUTPUT_MEM_SIZE);
+        let cpu_buffer = render::RawBufferBuilder::new()
+            .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, OUTPUT_MEM_SIZE);
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[
+                // input
+                render::BindGroupCombinedEntry::new(input_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::COMPUTE)
+                    .storage(true),
+                // output
+                render::BindGroupCombinedEntry::new(output_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::COMPUTE)
+                    .storage(false),
+            ])
+            .build(ctx);
 
-        let bind_group = render::BindGroupBuilder::new(vec![
-            render::BindGroupEntry::new(input_buffer.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(true),
-            render::BindGroupEntry::new(output_buffer.as_entire_binding())
-                .visibility(wgpu::ShaderStages::COMPUTE)
-                .storage(false),
-        ])
-        .build(ctx);
+        let shader_str = filesystem::load_string(ctx, "compute.wgsl").await.unwrap();
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
-        let shader = render::ShaderBuilder::new("compute.wgsl".to_string())
-            .bind_group_layouts(vec![bind_group.bind_group_layout()])
-            .build(ctx)
-            .await;
-
-        let compute_pipeline = render::ComputePipelineBuilder::new(&shader).build(ctx);
+        let compute_pipeline = render::ComputePipelineBuilder::new(shader)
+            .bind_groups(&[bindgroup_layout])
+            .build(ctx);
 
         Self {
             compute_pipeline,
-            bind_group,
+            bindgroup,
             input_buffer,
             output_buffer,
             cpu_buffer,
@@ -92,7 +80,7 @@ impl Callbacks for App {
         for i in 0..INPUT_SIZE {
             input[i as usize] = i;
         }
-        queue.write_buffer(&self.input_buffer, 0, bytemuck::cast_slice(&input));
+        self.input_buffer.write(ctx, &input);
         println!("INPUT {:?}", input);
 
         // run compute shader
@@ -100,17 +88,23 @@ impl Callbacks for App {
             label: Some("compute pass"),
             timestamp_writes: None,
         });
-        compute_pass.set_pipeline(self.compute_pipeline.pipeline());
-        compute_pass.set_bind_group(0, self.bind_group.bind_group(), &[]);
+        compute_pass.set_pipeline(&self.compute_pipeline);
+        compute_pass.set_bind_group(0, &self.bindgroup, &[]);
         compute_pass.dispatch_workgroups(OUTPUT_SIZE, 1, 1);
         drop(compute_pass);
 
-        encoder.copy_buffer_to_buffer(&self.output_buffer, 0, &self.cpu_buffer, 0, OUTPUT_MEM_SIZE);
+        encoder.copy_buffer_to_buffer(
+            self.output_buffer.buf(),
+            0,
+            self.cpu_buffer.buf(),
+            0,
+            OUTPUT_MEM_SIZE,
+        );
         // submit here to be able to read in the same frame
         queue.submit(Some(encoder.finish()));
 
         // read data from output buffer
-        let data: Vec<u32> = read_buffer_sync(device, &self.cpu_buffer);
+        let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buf());
         println!("DATA {:?}", data);
 
         false

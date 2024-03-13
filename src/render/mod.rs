@@ -1,8 +1,5 @@
-mod plugins;
-pub use plugins::*;
-
-mod app_info;
-pub use app_info::*;
+pub mod helpers;
+pub use helpers::*;
 
 use crate::Context;
 use std::sync::Arc;
@@ -13,13 +10,10 @@ pub(crate) struct RenderContext {
     device: Arc<wgpu::Device>,
     adapter: Arc<wgpu::Adapter>,
     queue: Arc<wgpu::Queue>,
-
     surface_config: wgpu::SurfaceConfiguration,
-    window_size: winit::dpi::PhysicalSize<u32>,
-    window: Arc<winit::window::Window>,
 
-    // TODO remove?
-    app_info: AppInfo,
+    window: Arc<winit::window::Window>,
+    window_size: winit::dpi::PhysicalSize<u32>,
 }
 
 impl RenderContext {
@@ -85,8 +79,6 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
-        let time_info = AppInfo::new(&device);
-
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -97,8 +89,6 @@ impl RenderContext {
 
             window_size,
             window: Arc::new(window),
-
-            app_info: time_info,
         }
     }
 
@@ -132,11 +122,6 @@ impl RenderContext {
     pub(crate) fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32
     }
-
-    pub(crate) fn update_app_info(&mut self, time_passed: f32) {
-        self.app_info.time_passed = time_passed;
-        self.app_info.update_buffer(&self.queue);
-    }
 }
 
 // Getter functions for render and window operations
@@ -164,49 +149,3 @@ pub fn window(ctx: &Context) -> &winit::window::Window {
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
 }
-pub fn app_info(ctx: &Context) -> &AppInfo {
-    &ctx.render.app_info
-}
-
-// /// Creates a render pass which renders to the current window
-// pub fn screen_render_pass<RenderFunc>(
-//     ctx: &mut Context,
-//     mut render_func: RenderFunc,
-//     clear_color: wgpu::Color,
-// ) where
-//     RenderFunc: FnMut(&wgpu::RenderPass, &wgpu::CommandEncoder),
-// {
-//     let output = ctx.render.surface.get_current_texture().unwrap();
-//
-//     let view = output
-//         .texture
-//         .create_view(&wgpu::TextureViewDescriptor::default());
-//
-//     let mut encoder = ctx
-//         .render
-//         .device
-//         .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-//             label: Some("screen render encodeer"),
-//         });
-//
-//     {
-//         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-//             label: Some("screen render pass"),
-//             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-//                 view: &view,
-//                 ops: wgpu::Operations {
-//                     load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-//                     store: wgpu::StoreOp::Store,
-//                 },
-//                 resolve_target: None,
-//             })],
-//             depth_stencil_attachment: None,
-//             timestamp_writes: None,
-//             occlusion_query_set: None,
-//         });
-//         render_func(&render_pass, &encoder);
-//     }
-//
-//     ctx.render.queue.submit(Some(encoder.finish()));
-//     output.present();
-// }

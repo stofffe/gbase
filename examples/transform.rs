@@ -1,11 +1,10 @@
+use encase::ShaderType;
 use gbase::{
     filesystem,
     render::{self, Vertex},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{Quat, Vec3};
-use std::path::Path;
-use wgpu::util::DeviceExt;
 
 #[pollster::main]
 pub async fn main() {
@@ -19,87 +18,55 @@ pub async fn main() {
 }
 
 struct App {
-    vertex_buffer: wgpu::Buffer,
-    pipeline: wgpu::RenderPipeline,
+    vertex_buffer: render::VertexBuffer<render::Vertex>,
+    pipeline: render::RenderPipeline,
+
     transform: render::Transform,
-    transform_gpu: render::TransformGPU,
+    transform_buffer: render::UniformBuffer,
+    transform_bindgroup: render::BindGroup,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let device = render::device(ctx);
-        let surface_config = render::surface_config(ctx);
-
         // Shader
-        let shader_str = filesystem::load_string(ctx, Path::new("transform.wgsl"))
+        let shader_str = filesystem::load_string(ctx, "transform.wgsl")
             .await
             .unwrap();
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: None,
-            source: wgpu::ShaderSource::Wgsl(shader_str.into()),
-        });
+        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("vertex buffer"),
-            contents: bytemuck::cast_slice(TRIANGLE_VERTICES),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let vertex_buffer = render::VertexBufferBuilder::new()
+            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
+            .build_init(ctx, TRIANGLE_VERTICES);
 
         // Transform
         let transform = render::Transform::default();
-        let transform_gpu = render::TransformGPU::new(device);
+        let transform_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
+            .build(ctx, render::TransformUniform::min_size());
+        let (transform_bindgroup_layout, transform_bindgroup) =
+            render::BindGroupCombinedBuilder::new()
+                .entries(&[render::BindGroupCombinedEntry::new(
+                    transform_buffer.buf().as_entire_binding(),
+                )
+                .uniform()])
+                .build(ctx);
 
         // Pipeline
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("render pipeline layout"),
-            bind_group_layouts: &[transform_gpu.bind_group_layout()],
-            push_constant_ranges: &[],
-        });
-
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("render pipeline"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: "vs_main",
-                buffers: &[Vertex::desc()],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_config.format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
-                unclipped_depth: false,
-                conservative: false,
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        });
-
-        render::window(ctx).set_cursor_visible(false);
+        let pipeline = render::RenderPipelineBuilder::new(shader)
+            .buffers(&[Vertex::desc()])
+            .bind_groups(&[transform_bindgroup_layout])
+            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .build(ctx);
 
         Self {
             vertex_buffer,
-            pipeline,
 
             transform,
-            transform_gpu,
+            transform_bindgroup,
+            transform_buffer,
+
+            pipeline,
         }
     }
 }
@@ -119,8 +86,9 @@ impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let mut encoder = render::create_encoder(ctx, None);
         let queue = render::queue(ctx);
-        // update camera uniform
-        self.transform_gpu.update_buffer(ctx, &self.transform);
+
+        // write to transform
+        self.transform_buffer.write(ctx, &self.transform.uniform());
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -140,7 +108,7 @@ impl Callbacks for App {
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, self.transform_gpu.bind_group(), &[]);
+        render_pass.set_bind_group(0, &self.transform_bindgroup, &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
 
         drop(render_pass);
