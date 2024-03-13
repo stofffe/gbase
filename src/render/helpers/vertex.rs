@@ -1,4 +1,3 @@
-use super::ArcHandle;
 use crate::{render, Context};
 use std::{marker::PhantomData, ops::RangeBounds};
 use wgpu::util::DeviceExt;
@@ -38,7 +37,7 @@ impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
         });
 
         VertexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             capacity: size as usize,
             len: 0,
             ty: PhantomData::<T>,
@@ -53,7 +52,7 @@ impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
             contents: bytemuck::cast_slice(data),
         });
         VertexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             capacity: data.len(),
             len: data.len() as u32,
             ty: PhantomData::<T>,
@@ -73,7 +72,7 @@ impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
 }
 
 pub struct VertexBuffer<T: VertexTrait> {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
     capacity: usize,
     len: u32,
     ty: PhantomData<T>,
@@ -136,7 +135,7 @@ impl<'a> IndexBufferBuilder<'a> {
         });
 
         IndexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             capacity: capacity as usize,
             len: 0,
         }
@@ -150,7 +149,7 @@ impl<'a> IndexBufferBuilder<'a> {
         });
 
         IndexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             capacity: data.len(),
             len: data.len() as u32,
         }
@@ -166,7 +165,7 @@ impl<'a> IndexBufferBuilder<'a> {
 }
 /// A static index buffer
 pub struct IndexBuffer {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
     len: u32,
     capacity: usize,
 }
@@ -234,7 +233,7 @@ impl<'a, T: VertexTrait> DynamicVertexBufferBuilder<'a, T> {
         });
 
         DynamicVertexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             vertices: Vec::with_capacity(self.capacity),
             capacity: self.capacity,
             ty: PhantomData::<T>,
@@ -257,7 +256,7 @@ impl<'a, T: VertexTrait> DynamicVertexBufferBuilder<'a, T> {
 }
 
 pub struct DynamicVertexBuffer<T: VertexTrait> {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
     vertices: Vec<T>,
     capacity: usize,
     ty: PhantomData<T>,
@@ -332,7 +331,7 @@ impl<'a> DynamicIndexBufferBuilder<'a> {
         });
 
         DynamicIndexBuffer {
-            buffer: ArcHandle::new(buffer),
+            buffer,
             indices: Vec::with_capacity(self.capacity),
             capacity: self.capacity,
         }
@@ -352,7 +351,7 @@ impl<'a> DynamicIndexBufferBuilder<'a> {
 }
 
 pub struct DynamicIndexBuffer {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
     indices: Vec<u32>,
     capacity: usize,
 }

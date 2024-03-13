@@ -2,14 +2,12 @@ use encase::ShaderType;
 
 use crate::{time, Context};
 
-use super::ArcHandle;
-
 /// Holds information about the app
 ///
 /// Can easily be sent as uniform to shaders
 pub struct AppInfo {
-    bindgroup_layout: super::BindGroupLayout,
-    bindgroup: super::BindGroup,
+    bindgroup_layout: wgpu::BindGroupLayout,
+    bindgroup: wgpu::BindGroup,
     buffer: super::UniformBuffer,
 }
 
@@ -39,13 +37,6 @@ impl AppInfo {
             time_passed: time::time_since_start(ctx),
         };
         self.buffer.write(ctx, &uniform);
-    }
-
-    pub fn bindgroup_layout_handle(&self) -> ArcHandle<wgpu::BindGroupLayout> {
-        self.bindgroup_layout.clone()
-    }
-    pub fn bindgroup_handle(&self) -> ArcHandle<wgpu::BindGroup> {
-        self.bindgroup.clone()
     }
 
     pub fn buffer(&self) -> &wgpu::Buffer {

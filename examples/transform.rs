@@ -19,11 +19,11 @@ pub async fn main() {
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: render::RenderPipeline,
+    pipeline: wgpu::RenderPipeline,
 
     transform: render::Transform,
     transform_buffer: render::UniformBuffer,
-    transform_bindgroup: render::BindGroup,
+    transform_bindgroup: wgpu::BindGroup,
 }
 
 impl App {
@@ -53,9 +53,9 @@ impl App {
                 .build(ctx);
 
         // Pipeline
-        let pipeline = render::RenderPipelineBuilder::new(shader)
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
             .buffers(&[Vertex::desc()])
-            .bind_groups(&[transform_bindgroup_layout])
+            .bind_groups(&[&transform_bindgroup_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .build(ctx);
 

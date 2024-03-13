@@ -87,9 +87,9 @@ impl DepthBuffer {
 pub struct DepthBufferRenderer {
     sampler: super::Sampler,
     vertex_buffer: super::VertexBuffer<super::VertexUV>,
-    bind_group: super::BindGroup,
-    bind_group_layout: super::BindGroupLayout,
-    pipeline: super::RenderPipeline,
+    bind_group: wgpu::BindGroup,
+    bind_group_layout: wgpu::BindGroupLayout,
+    pipeline: wgpu::RenderPipeline,
 }
 
 impl DepthBufferRenderer {
@@ -136,10 +136,10 @@ impl DepthBufferRenderer {
         let (bind_group_layout, bind_group) = Self::create_bindgroups(ctx, &sampler, depth_buffer);
         let shader =
             super::ShaderBuilder::new(include_str!("../../../assets/texture.wgsl")).build(ctx);
-        let pipeline = super::RenderPipelineBuilder::new(shader)
+        let pipeline = super::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[super::RenderPipelineBuilder::default_target(ctx)])
-            .bind_groups(&[bind_group_layout.clone()])
+            .bind_groups(&[&bind_group_layout])
             .build(ctx);
 
         Self {
@@ -155,7 +155,7 @@ impl DepthBufferRenderer {
         ctx: &Context,
         sampler: &super::Sampler,
         depth_buffer: &DepthBuffer,
-    ) -> (super::BindGroupLayout, super::BindGroup) {
+    ) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
         super::BindGroupCombinedBuilder::new()
             .entries(&[
                 super::BindGroupCombinedEntry::new(depth_buffer.resource())

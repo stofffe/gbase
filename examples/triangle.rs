@@ -13,7 +13,7 @@ pub async fn main() {
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: render::RenderPipeline,
+    pipeline: wgpu::RenderPipeline,
 }
 
 impl App {
@@ -24,7 +24,7 @@ impl App {
 
         let shader_str = filesystem::load_string(ctx, "triangle.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader)
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .build(ctx);

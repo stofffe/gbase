@@ -2,13 +2,11 @@ use crate::{input, Context};
 use encase::ShaderType;
 use winit::keyboard::KeyCode;
 
-use super::ArcHandle;
-
 /// Debug information for use in shaders
 pub struct DebugInput {
     buffer: super::UniformBuffer,
-    bindgroup_layout: super::BindGroupLayout,
-    bindgroup: super::BindGroup,
+    bindgroup_layout: wgpu::BindGroupLayout,
+    bindgroup: wgpu::BindGroup,
 }
 
 impl DebugInput {
@@ -47,13 +45,6 @@ impl DebugInput {
 
         // Update buffer
         self.buffer.write(ctx, &uniform);
-    }
-
-    pub fn bindgroup_layout_handle(&self) -> ArcHandle<wgpu::BindGroupLayout> {
-        self.bindgroup_layout.clone()
-    }
-    pub fn bindgroup_handle(&self) -> ArcHandle<wgpu::BindGroup> {
-        self.bindgroup.clone()
     }
 
     pub fn bindgroup_layout(&self) -> &wgpu::BindGroupLayout {

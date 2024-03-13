@@ -21,9 +21,9 @@ pub async fn main() {
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: render::RenderPipeline,
+    pipeline: wgpu::RenderPipeline,
     camera: render::PerspectiveCamera,
-    camera_bind_group: render::BindGroup,
+    camera_bind_group: wgpu::BindGroup,
     camera_buffer: render::UniformBuffer,
 }
 
@@ -48,16 +48,16 @@ impl App {
         let bind_group_layout = render::BindGroupLayoutBuilder::new()
             .entries(&[render::BindGroupLayoutEntry::new().uniform()])
             .build(ctx);
-        let bind_group = render::BindGroupBuilder::new(bind_group_layout.clone())
+        let bind_group = render::BindGroupBuilder::new(&bind_group_layout)
             .entries(&[render::BindGroupEntry::new(
                 buffer.buf().as_entire_binding(),
             )])
             .build(ctx);
 
         // Pipeline
-        let pipeline = render::RenderPipelineBuilder::new(shader)
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
-            .bind_groups(&[bind_group_layout])
+            .bind_groups(&[&bind_group_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .build(ctx);
 

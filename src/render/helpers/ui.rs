@@ -102,8 +102,8 @@ pub struct GUIRenderer {
     vertices: super::DynamicVertexBuffer<VertexUI>,
     indices: super::DynamicIndexBuffer,
 
-    pipeline: super::RenderPipeline,
-    font_atlas_bindgroup: super::BindGroup,
+    pipeline: wgpu::RenderPipeline,
+    font_atlas_bindgroup: wgpu::BindGroup,
     font_atlas: FontAtlas,
 }
 
@@ -136,9 +136,9 @@ impl GUIRenderer {
                 .visibility(wgpu::ShaderStages::FRAGMENT),
         ]).build(ctx);
 
-        let pipeline = super::RenderPipelineBuilder::new(shader)
+        let pipeline = super::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertices.desc()])
-            .bind_groups(&[bindgroup_layout])
+            .bind_groups(&[&bindgroup_layout])
             .targets(&[
                 Some(wgpu::ColorTargetState {
                     format: surface_config.format,

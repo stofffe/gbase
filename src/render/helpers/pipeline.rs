@@ -1,19 +1,14 @@
 use crate::{render, Context};
 
-use super::{ArcHandle, ArcShaderModule, BindGroupLayout};
-
 //
 // Render Pipeline Builder
 //
 
-pub type RenderPipeline = ArcHandle<wgpu::RenderPipeline>;
-
-#[derive(Hash)]
 pub struct RenderPipelineBuilder<'a> {
     label: Option<&'a str>,
 
-    shader: ArcShaderModule,
-    bind_groups: &'a [BindGroupLayout],
+    shader: &'a wgpu::ShaderModule,
+    bind_groups: &'a [&'a wgpu::BindGroupLayout],
     buffers: &'a [wgpu::VertexBufferLayout<'a>],
 
     targets: &'a [Option<wgpu::ColorTargetState>],
@@ -26,7 +21,7 @@ pub struct RenderPipelineBuilder<'a> {
 }
 
 impl<'a> RenderPipelineBuilder<'a> {
-    pub fn new(shader: ArcShaderModule) -> Self {
+    pub fn new(shader: &'a wgpu::ShaderModule) -> Self {
         Self {
             shader,
             label: None,
@@ -40,16 +35,12 @@ impl<'a> RenderPipelineBuilder<'a> {
         }
     }
 
-    pub fn build(self, ctx: &Context) -> RenderPipeline {
+    pub fn build(self, ctx: &Context) -> wgpu::RenderPipeline {
         let device = render::device(ctx);
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: self.label,
-            bind_group_layouts: &self
-                .bind_groups
-                .iter()
-                .map(|r| r.as_ref())
-                .collect::<Vec<_>>(),
+            bind_group_layouts: self.bind_groups,
             push_constant_ranges: &[],
         });
 
@@ -57,12 +48,12 @@ impl<'a> RenderPipelineBuilder<'a> {
             label: self.label,
             layout: Some(&layout),
             vertex: wgpu::VertexState {
-                module: &self.shader,
+                module: self.shader,
                 entry_point: "vs_main",
                 buffers: self.buffers,
             },
             fragment: Some(wgpu::FragmentState {
-                module: &self.shader,
+                module: self.shader,
                 entry_point: "fs_main",
                 targets: self.targets,
             }),
@@ -84,7 +75,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             multiview: None,
         });
 
-        ArcHandle::new(pipeline)
+        pipeline
     }
 }
 
@@ -93,7 +84,7 @@ impl<'a> RenderPipelineBuilder<'a> {
         self.label = Some(value);
         self
     }
-    pub fn bind_groups(mut self, value: &'a [BindGroupLayout]) -> Self {
+    pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
         self.bind_groups = value;
         self
     }
@@ -136,18 +127,15 @@ impl<'a> RenderPipelineBuilder<'a> {
 // Compute Pipeline Builder
 //
 
-pub type ComputePipeline = ArcHandle<wgpu::ComputePipeline>;
-
-#[derive(Hash)]
 pub struct ComputePipelineBuilder<'a> {
     label: Option<&'a str>,
 
-    shader: ArcShaderModule,
-    bind_groups: &'a [BindGroupLayout],
+    shader: &'a wgpu::ShaderModule,
+    bind_groups: &'a [&'a wgpu::BindGroupLayout],
 }
 
 impl<'a> ComputePipelineBuilder<'a> {
-    pub fn new(shader: ArcShaderModule) -> Self {
+    pub fn new(shader: &'a wgpu::ShaderModule) -> Self {
         Self {
             shader,
             label: None,
@@ -155,16 +143,12 @@ impl<'a> ComputePipelineBuilder<'a> {
         }
     }
 
-    pub fn build(self, ctx: &Context) -> ComputePipeline {
+    pub fn build(self, ctx: &Context) -> wgpu::ComputePipeline {
         let device = render::device(ctx);
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: self.label,
-            bind_group_layouts: &self
-                .bind_groups
-                .iter()
-                .map(|r| r.as_ref())
-                .collect::<Vec<_>>(),
+            bind_group_layouts: self.bind_groups,
             push_constant_ranges: &[],
         });
 
@@ -175,7 +159,7 @@ impl<'a> ComputePipelineBuilder<'a> {
             entry_point: "cs_main",
         });
 
-        ArcHandle::new(pipeline)
+        pipeline
     }
 }
 
@@ -184,7 +168,7 @@ impl<'a> ComputePipelineBuilder<'a> {
         self.label = Some(value);
         self
     }
-    pub fn bind_groups(mut self, value: &'a [BindGroupLayout]) -> Self {
+    pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
         self.bind_groups = value;
         self
     }

@@ -1,6 +1,5 @@
 use glam::UVec2;
 
-use super::ArcHandle;
 use crate::{render, Context};
 
 //
@@ -43,7 +42,7 @@ impl<'a> SamplerBuilder<'a> {
             compare: None,
             border_color: None,
         });
-        ArcHandle::new(sampler)
+        Sampler { sampler }
     }
 }
 
@@ -70,7 +69,9 @@ impl<'a> SamplerBuilder<'a> {
     }
 }
 
-pub type Sampler = ArcHandle<wgpu::Sampler>;
+pub struct Sampler {
+    sampler: wgpu::Sampler,
+}
 
 impl Sampler {
     pub fn binding_filtering(&self) -> wgpu::BindingType {
@@ -81,7 +82,7 @@ impl Sampler {
     }
 
     pub fn resource(&self) -> wgpu::BindingResource<'_> {
-        wgpu::BindingResource::Sampler(self)
+        wgpu::BindingResource::Sampler(&self.sampler)
     }
 }
 

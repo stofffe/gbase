@@ -21,8 +21,8 @@ struct App {
     input_buffer: render::RawBuffer,
     output_buffer: render::RawBuffer,
     cpu_buffer: render::RawBuffer,
-    bindgroup: render::BindGroup,
-    compute_pipeline: render::ComputePipeline,
+    bindgroup: wgpu::BindGroup,
+    compute_pipeline: wgpu::ComputePipeline,
 }
 
 impl App {
@@ -53,8 +53,8 @@ impl App {
         let shader_str = filesystem::load_string(ctx, "compute.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
-        let compute_pipeline = render::ComputePipelineBuilder::new(shader)
-            .bind_groups(&[bindgroup_layout])
+        let compute_pipeline = render::ComputePipelineBuilder::new(&shader)
+            .bind_groups(&[&bindgroup_layout])
             .build(ctx);
 
         Self {

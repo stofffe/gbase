@@ -24,9 +24,9 @@ struct App {
     depth_buffer: render::DepthBuffer,
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer,
-    camera_bindgroup: render::BindGroup,
+    camera_bindgroup: wgpu::BindGroup,
     vertex_buffer: render::VertexBuffer<VertexNormal>,
-    pipeline: render::RenderPipeline,
+    pipeline: wgpu::RenderPipeline,
 }
 
 const STEPS: i64 = 7;
@@ -71,8 +71,8 @@ impl App {
         // Shader
         let shader_str = filesystem::load_string(ctx, "bezier.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader)
-            .bind_groups(&[camera_bindgroup_layout])
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
+            .bind_groups(&[&camera_bindgroup_layout])
             .buffers(&[vertex_buffer.desc()])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .topology(wgpu::PrimitiveTopology::TriangleStrip)

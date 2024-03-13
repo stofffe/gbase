@@ -1,6 +1,5 @@
 use std::ops::RangeBounds;
 
-use super::ArcHandle;
 use crate::{render, Context};
 use encase::{internal::WriteInto, ShaderType};
 use wgpu::util::DeviceExt;
@@ -31,9 +30,7 @@ impl<'a> RawBufferBuilder<'a> {
             mapped_at_creation: false,
         });
 
-        RawBuffer {
-            buffer: ArcHandle::new(buffer),
-        }
+        RawBuffer { buffer }
     }
 
     pub fn build_init(self, ctx: &Context, data: &[impl bytemuck::NoUninit]) -> RawBuffer {
@@ -45,9 +42,7 @@ impl<'a> RawBufferBuilder<'a> {
             contents: bytemuck::cast_slice(data),
         });
 
-        RawBuffer {
-            buffer: ArcHandle::new(buffer),
-        }
+        RawBuffer { buffer }
     }
 }
 
@@ -63,7 +58,7 @@ impl<'a> RawBufferBuilder<'a> {
 }
 
 pub struct RawBuffer {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
 }
 
 impl RawBuffer {
@@ -110,9 +105,7 @@ impl<'a> UniformBufferBuilder<'a> {
             mapped_at_creation: false,
         });
 
-        UniformBuffer {
-            buffer: ArcHandle::new(buffer),
-        }
+        UniformBuffer { buffer }
     }
 
     pub fn build_init(self, ctx: &Context, data: &(impl ShaderType + WriteInto)) -> UniformBuffer {
@@ -126,9 +119,7 @@ impl<'a> UniformBufferBuilder<'a> {
             contents: &buffer.into_inner(),
         });
 
-        UniformBuffer {
-            buffer: ArcHandle::new(buffer),
-        }
+        UniformBuffer { buffer }
     }
 }
 
@@ -144,7 +135,7 @@ impl<'a> UniformBufferBuilder<'a> {
 }
 
 pub struct UniformBuffer {
-    buffer: ArcHandle<wgpu::Buffer>,
+    buffer: wgpu::Buffer,
 }
 
 impl UniformBuffer {

@@ -37,8 +37,8 @@ struct App {
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer,
 
-    plane_bind_group: render::BindGroup,
-    plane_pipeline: render::RenderPipeline,
+    plane_bind_group: wgpu::BindGroup,
+    plane_pipeline: wgpu::RenderPipeline,
 
     depth_buffer: render::DepthBuffer,
     depth_buffer_renderer: render::DepthBufferRenderer,
@@ -96,9 +96,9 @@ impl App {
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
         // Pipeline
-        let plane_pipeline = render::RenderPipelineBuilder::new(shader)
+        let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
             .buffers(&[VertexColor::desc()])
-            .bind_groups(&[plane_bindgroup_layout])
+            .bind_groups(&[&plane_bindgroup_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .depth_stencil(render::DepthBuffer::depth_stencil_state())
             .build(ctx);
@@ -294,14 +294,14 @@ struct GrassRenderer {
     debug_input: render::DebugInput,
     app_info: render::AppInfo,
 
-    instance_pipeline: render::ComputePipeline,
-    instance_bindgroup: render::BindGroup,
+    instance_pipeline: wgpu::ComputePipeline,
+    instance_bindgroup: wgpu::BindGroup,
 
-    draw_pipeline: render::ComputePipeline,
-    draw_bindgroup: render::BindGroup,
+    draw_pipeline: wgpu::ComputePipeline,
+    draw_bindgroup: wgpu::BindGroup,
 
-    render_pipeline: render::RenderPipeline,
-    render_bindgroup: render::BindGroup,
+    render_pipeline: wgpu::RenderPipeline,
+    render_bindgroup: wgpu::BindGroup,
 }
 
 impl GrassRenderer {
@@ -454,12 +454,12 @@ impl GrassRenderer {
             .unwrap();
         let instance_shader = render::ShaderBuilder::new(&instance_shader_str).build(ctx);
 
-        let instance_pipeline = render::ComputePipelineBuilder::new(instance_shader)
+        let instance_pipeline = render::ComputePipelineBuilder::new(&instance_shader)
             .label("instance")
             .bind_groups(&[
-                instance_bindgroup_layout,
-                app_info.bindgroup_layout_handle().clone(),
-                debug_input.bindgroup_layout_handle().clone(),
+                &instance_bindgroup_layout,
+                app_info.bindgroup_layout(),
+                debug_input.bindgroup_layout(),
             ])
             .build(ctx);
 
@@ -480,9 +480,9 @@ impl GrassRenderer {
             .unwrap();
         let draw_compute_shader = render::ShaderBuilder::new(&draw_shader_str).build(ctx);
 
-        let draw_pipeline = render::ComputePipelineBuilder::new(draw_compute_shader)
+        let draw_pipeline = render::ComputePipelineBuilder::new(&draw_compute_shader)
             .label("draw")
-            .bind_groups(&[draw_bindgroup_layout])
+            .bind_groups(&[&draw_bindgroup_layout])
             .build(ctx);
 
         // Render
@@ -496,13 +496,13 @@ impl GrassRenderer {
 
         let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
         let render_shader = render::ShaderBuilder::new(&render_shader_str).build(ctx);
-        let render_pipeline = render::RenderPipelineBuilder::new(render_shader)
+        let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
             .label("render")
             .buffers(&[GrassInstanceGPU::desc()])
             .bind_groups(&[
-                render_bindgroup_layout,
-                app_info.bindgroup_layout_handle().clone(),
-                debug_input.bindgroup_layout_handle().clone(),
+                &render_bindgroup_layout,
+                app_info.bindgroup_layout(),
+                debug_input.bindgroup_layout(),
             ])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .depth_stencil(render::DepthBuffer::depth_stencil_state())

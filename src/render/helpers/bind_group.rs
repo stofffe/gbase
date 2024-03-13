@@ -1,10 +1,8 @@
-use super::ArcHandle;
 use crate::{render, Context};
 
 //
 // Bind Group Layout
 //
-pub type BindGroupLayout = ArcHandle<wgpu::BindGroupLayout>;
 
 pub struct BindGroupLayoutBuilder<'a> {
     label: Option<&'a str>,
@@ -18,7 +16,7 @@ impl<'a> BindGroupLayoutBuilder<'a> {
             entries: &[],
         }
     }
-    pub fn build(self, ctx: &Context) -> BindGroupLayout {
+    pub fn build(self, ctx: &Context) -> wgpu::BindGroupLayout {
         let device = render::device(ctx);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: self.label,
@@ -35,7 +33,7 @@ impl<'a> BindGroupLayoutBuilder<'a> {
                 .collect::<Vec<_>>(),
         });
 
-        ArcHandle::new(layout)
+        layout
     }
 }
 
@@ -97,27 +95,25 @@ impl BindGroupLayoutEntry {
 // Bind Group
 //
 
-pub type BindGroup = ArcHandle<wgpu::BindGroup>;
-
 pub struct BindGroupBuilder<'a> {
     label: Option<&'a str>,
-    layout: BindGroupLayout,
+    layout: &'a wgpu::BindGroupLayout,
     entries: &'a [BindGroupEntry<'a>],
 }
 
 impl<'a> BindGroupBuilder<'a> {
-    pub fn new(layout: BindGroupLayout) -> Self {
+    pub fn new(layout: &'a wgpu::BindGroupLayout) -> Self {
         Self {
             layout,
             label: None,
             entries: &[],
         }
     }
-    pub fn build(self, ctx: &Context) -> BindGroup {
+    pub fn build(self, ctx: &Context) -> wgpu::BindGroup {
         let device = render::device(ctx);
         let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: self.label,
-            layout: &self.layout,
+            layout: self.layout,
             entries: &self
                 .entries
                 .iter()
@@ -129,7 +125,7 @@ impl<'a> BindGroupBuilder<'a> {
                 .collect::<Vec<_>>(),
         });
 
-        ArcHandle::new(group)
+        group
     }
 }
 
@@ -170,7 +166,7 @@ impl<'a> BindGroupCombinedBuilder<'a> {
             entries: &[],
         }
     }
-    pub fn build(self, ctx: &Context) -> (BindGroupLayout, BindGroup) {
+    pub fn build(self, ctx: &Context) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
         let device = render::device(ctx);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: self.label,
@@ -201,7 +197,7 @@ impl<'a> BindGroupCombinedBuilder<'a> {
                 .collect::<Vec<_>>(),
         });
 
-        (ArcHandle::new(layout), ArcHandle::new(bindgroup))
+        (layout, bindgroup)
     }
 }
 

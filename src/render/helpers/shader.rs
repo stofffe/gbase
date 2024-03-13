@@ -1,7 +1,4 @@
-use super::ArcHandle;
 use crate::{render, Context};
-
-pub type ArcShaderModule = ArcHandle<wgpu::ShaderModule>;
 
 //
 // Shader Builder
@@ -20,14 +17,14 @@ impl<'a> ShaderBuilder<'a> {
         }
     }
 
-    pub fn build(&self, ctx: &Context) -> ArcShaderModule {
+    pub fn build(&self, ctx: &Context) -> wgpu::ShaderModule {
         let device = render::device(ctx);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label,
             source: wgpu::ShaderSource::Wgsl(self.source.into()),
         });
 
-        ArcHandle::new(module)
+        module
     }
 }
 
