@@ -6,7 +6,7 @@ use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
-    surface: Arc<wgpu::Surface>,
+    surface: Arc<wgpu::Surface<'static>>,
     device: Arc<wgpu::Device>,
     adapter: Arc<wgpu::Adapter>,
     queue: Arc<wgpu::Queue>,
@@ -22,6 +22,8 @@ impl RenderContext {
         vsync: bool,
         device_features: wgpu::Features,
     ) -> Self {
+        let window = Arc::new(window);
+
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
             dx12_shader_compiler: wgpu::Dx12Compiler::default(),
@@ -29,8 +31,10 @@ impl RenderContext {
             flags: wgpu::InstanceFlags::default(),
         });
 
-        let surface =
-            unsafe { instance.create_surface(&window) }.expect("could not create surface");
+        let surface = instance
+            .create_surface(window.clone())
+            .expect("could not create surface");
+        // let surface = unsafe { instance.create_surface(window) }.expect("could not create surface");
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptionsBase {
@@ -44,8 +48,8 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    features: device_features,
-                    limits: adapter.limits(),
+                    required_features: device_features,
+                    required_limits: adapter.limits(),
                     label: None,
                 },
                 None,
@@ -76,6 +80,7 @@ impl RenderContext {
             },
             alpha_mode: surface_capabilities.alpha_modes[0],
             view_formats: vec![],
+            desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &surface_config);
 
@@ -88,7 +93,7 @@ impl RenderContext {
             surface_config,
 
             window_size,
-            window: Arc::new(window),
+            window,
         }
     }
 
@@ -131,7 +136,7 @@ pub fn create_encoder(ctx: &Context, label: Option<&str>) -> wgpu::CommandEncode
         .device
         .create_command_encoder(&wgpu::CommandEncoderDescriptor { label })
 }
-pub fn surface(ctx: &Context) -> &wgpu::Surface {
+pub fn surface(ctx: &Context) -> &wgpu::Surface<'_> {
     &ctx.render.surface
 }
 pub fn device(ctx: &Context) -> &wgpu::Device {

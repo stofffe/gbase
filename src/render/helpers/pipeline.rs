@@ -44,7 +44,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             push_constant_ranges: &[],
         });
 
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: self.label,
             layout: Some(&layout),
             vertex: wgpu::VertexState {
@@ -73,9 +73,7 @@ impl<'a> RenderPipelineBuilder<'a> {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
-        });
-
-        pipeline
+        })
     }
 }
 
@@ -152,14 +150,12 @@ impl<'a> ComputePipelineBuilder<'a> {
             push_constant_ranges: &[],
         });
 
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
             label: self.label,
             layout: Some(&layout),
-            module: &self.shader,
+            module: self.shader,
             entry_point: "cs_main",
-        });
-
-        pipeline
+        })
     }
 }
 

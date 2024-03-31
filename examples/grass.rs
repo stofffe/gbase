@@ -5,7 +5,7 @@ use gbase::{
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
-use std::{f32::consts::PI, mem::size_of, ops::Div, path::Path};
+use std::{f32::consts::PI, mem::size_of, ops::Div};
 use winit::{keyboard::KeyCode, window::WindowBuilder};
 
 #[pollster::main]
@@ -404,8 +404,8 @@ impl GrassRenderer {
         #[rustfmt::skip]
         let indirect_buffer = render::RawBufferBuilder::new()
             .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
-            .build(ctx, size_of::<wgpu::util::DrawIndirect>() as u64);
-        let perlin_noise_bytes = filesystem::load_bytes(ctx, Path::new("perlin_noise.png"))
+            .build(ctx, size_of::<wgpu::util::DrawIndirectArgs>() as u64);
+        let perlin_noise_bytes = filesystem::load_bytes(ctx, "perlin_noise.png")
             .await
             .unwrap();
         let perlin_noise_texture =
