@@ -6,7 +6,10 @@ use gbase::{
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
 use std::{f32::consts::PI, mem::size_of, ops::Div};
-use winit::{keyboard::KeyCode, window::WindowBuilder};
+use winit::{
+    keyboard::KeyCode,
+    window::{CursorGrabMode, WindowBuilder},
+};
 
 #[pollster::main]
 pub async fn main() {
@@ -30,20 +33,20 @@ const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
 
 struct App {
     plane_buffer: render::VertexBuffer<render::VertexColor>,
-
     plane_transform: render::Transform,
     plane_transform_buffer: render::UniformBuffer,
+    plane_bind_group: wgpu::BindGroup,
+    plane_pipeline: wgpu::RenderPipeline,
 
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer,
-
-    plane_bind_group: wgpu::BindGroup,
-    plane_pipeline: wgpu::RenderPipeline,
 
     depth_buffer: render::DepthBuffer,
     depth_buffer_renderer: render::DepthBufferRenderer,
     grass_renderer: GrassRenderer,
     gui_renderer: render::GUIRenderer,
+
+    paused: bool,
 }
 
 impl App {
@@ -130,6 +133,8 @@ impl App {
             depth_buffer_renderer,
             grass_renderer,
             gui_renderer,
+
+            paused: false,
         }
     }
 }
@@ -212,6 +217,27 @@ impl Callbacks for App {
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
+        // pausing
+        if input::key_just_pressed(ctx, KeyCode::Escape) {
+            self.paused = !self.paused;
+
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                let mode = if self.paused {
+                    CursorGrabMode::None
+                } else {
+                    CursorGrabMode::Locked
+                };
+                render::window(ctx)
+                    .set_cursor_grab(mode)
+                    .expect("could not set grab mode");
+            }
+            render::window(ctx).set_cursor_visible(self.paused);
+        }
+        if self.paused {
+            return false;
+        }
+
         self.plane_transform.pos.x = self.camera.pos.x;
         self.plane_transform.pos.z = self.camera.pos.z;
 
