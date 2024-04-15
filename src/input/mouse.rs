@@ -17,19 +17,23 @@ pub(crate) struct MouseContext {
 impl MouseContext {
     /// Returns true if Button is down
     /// Accepts repeating
-    pub fn button_pressed(&self, keycode: MouseButton) -> bool {
+    pub(crate) fn button_pressed(&self, keycode: MouseButton) -> bool {
         self.pressed.contains(&keycode)
     }
 
     /// Returns true if Button was pressed this frame
     /// Does not accept repeating
-    pub fn button_just_pressed(&self, keycode: MouseButton) -> bool {
+    pub(crate) fn button_just_pressed(&self, keycode: MouseButton) -> bool {
         self.pressed.contains(&keycode) && !self.previous_pressed.contains(&keycode)
     }
 
     /// Returns true is MouseButton was released this frame
-    pub fn button_released(&self, keycode: MouseButton) -> bool {
+    pub(crate) fn button_released(&self, keycode: MouseButton) -> bool {
         !self.pressed.contains(&keycode) && self.previous_pressed.contains(&keycode)
+    }
+
+    pub(crate) fn mouse_on_screen(&self) -> bool {
+        self.on_screen
     }
 }
 

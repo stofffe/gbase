@@ -127,7 +127,9 @@ pub(crate) async fn run_window<C: Callbacks + 'static>(
             Event::DeviceEvent { ref event, .. } => {
                 match event {
                     DeviceEvent::MouseMotion { delta } => {
-                        ctx.input.mouse.set_mouse_delta(*delta);
+                        if ctx.input.mouse.mouse_on_screen() {
+                            ctx.input.mouse.set_mouse_delta(*delta);
+                        }
                     }
                     _ => {}
                 };
