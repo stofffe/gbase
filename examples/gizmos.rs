@@ -1,4 +1,6 @@
+use encase::ShaderType;
 use gbase::{
+    input::{self, KeyCode},
     render::{
         self, DynamicIndexBuffer, DynamicIndexBufferBuilder, DynamicVertexBuffer,
         DynamicVertexBufferBuilder, EncoderBuilder, RenderPipelineBuilder, ShaderBuilder,
@@ -11,21 +13,63 @@ use std::f32::consts::PI;
 
 struct App {
     gizmo_renderer: GizmoRenderer,
+    camera: render::PerspectiveCamera,
 }
 
 impl App {
     fn new(ctx: &Context) -> Self {
         let gizmo_renderer = GizmoRenderer::new(ctx);
-        Self { gizmo_renderer }
+        let camera = render::PerspectiveCamera::new();
+        Self {
+            gizmo_renderer,
+            camera,
+        }
     }
 }
+
 const RED: Vec3 = vec3(1.0, 0.0, 0.0);
 const GREEN: Vec3 = vec3(0.0, 1.0, 0.0);
 const BLUE: Vec3 = vec3(1.0, 0.0, 1.0);
 const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
-    fn update(&mut self, _ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        let dt = gbase::time::delta_time(ctx);
+
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            self.camera.yaw = 0.0;
+            self.camera.pitch = 0.0;
+        }
+
+        // Camera rotation
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
+            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+            self.camera.yaw -= 1.0 * dt * mouse_dx;
+            self.camera.pitch -= 1.0 * dt * mouse_dy;
+        }
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, KeyCode::KeyW) {
+            camera_movement_dir += self.camera.forward();
+        }
+
+        if input::key_pressed(ctx, KeyCode::KeyS) {
+            camera_movement_dir -= self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyA) {
+            camera_movement_dir -= self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyD) {
+            camera_movement_dir += self.camera.right();
+        }
+        if camera_movement_dir != Vec3::ZERO {
+            self.camera.pos += camera_movement_dir.normalize() * dt;
+        }
+
+        // Camera zoom
+        let (_, scroll_y) = input::scroll_delta(ctx);
+        self.camera.fov += scroll_y * dt;
         false
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
@@ -35,8 +79,9 @@ impl Callbacks for App {
             .draw_2d_quad(vec2(0.0, 0.0), vec2(0.2, 0.2), RED);
         self.gizmo_renderer
             .draw_2d_circle(vec2(0.0, 0.0), 0.2, BLUE);
-        //
-        self.gizmo_renderer.render(ctx, screen_view);
+
+        self.gizmo_renderer
+            .render(ctx, screen_view, &mut self.camera);
         false
     }
     fn resize(&mut self, ctx: &mut Context) {
@@ -44,11 +89,25 @@ impl Callbacks for App {
     }
 }
 
+#[pollster::main]
+pub async fn main() {
+    let (ctx, ev) = ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .build()
+        .await;
+    let app = App::new(&ctx);
+    gbase::run(app, ctx, ev).await;
+}
+
+// Gizmo renderer
+
 struct GizmoRenderer {
     vertex_buffer: DynamicVertexBuffer<VertexColor>,
     index_buffer: DynamicIndexBuffer,
     pipeline: wgpu::RenderPipeline,
     depth_buffer: render::DepthBuffer,
+    camera_buffer: render::UniformBuffer,
+    bindgroup: wgpu::BindGroup,
 }
 
 const GIZMO_MAX_VERTICES: usize = 10000;
@@ -62,10 +121,22 @@ impl GizmoRenderer {
             .capacity(GIZMO_MAX_INDICES)
             .build(ctx);
         let shader = ShaderBuilder::new(include_str!("../assets/gizmo.wgsl")).build(ctx);
+
+        let camera_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[render::BindGroupCombinedEntry::new(
+                camera_buffer.buf().as_entire_binding(),
+            )
+            .uniform()
+            .visibility(wgpu::ShaderStages::VERTEX)])
+            .build(ctx);
         let pipeline = RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[RenderPipelineBuilder::default_target(ctx)])
             .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .bind_groups(&[&bindgroup_layout])
             .topology(wgpu::PrimitiveTopology::LineList)
             .build(ctx);
 
@@ -76,11 +147,19 @@ impl GizmoRenderer {
             index_buffer,
             pipeline,
             depth_buffer,
+            camera_buffer,
+            bindgroup,
         }
     }
-    fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
+    fn render(
+        &mut self,
+        ctx: &Context,
+        view: &wgpu::TextureView,
+        camera: &mut render::PerspectiveCamera,
+    ) {
         self.vertex_buffer.update_buffer(ctx);
         self.index_buffer.update_buffer(ctx);
+        self.camera_buffer.write(ctx, &camera.uniform(ctx));
 
         let mut encoder = EncoderBuilder::new().build(ctx);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -101,6 +180,7 @@ impl GizmoRenderer {
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
+        pass.set_bind_group(0, &self.bindgroup, &[]);
         pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
         drop(pass);
 
@@ -185,16 +265,6 @@ impl GizmoRenderer {
         self.index_buffer.add(vertex_start + N as u32 - 1);
         self.index_buffer.add(vertex_start);
     }
-}
-
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
-    let app = App::new(&ctx);
-    gbase::run(app, ctx, ev).await;
 }
 
 // fn draw_quad_tl(&mut self, tl: Vec2, dim: Vec2, color: Vec3) {
