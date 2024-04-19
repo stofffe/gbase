@@ -13,13 +13,17 @@ pub struct Transform {
 }
 
 impl Transform {
-    pub fn new(pos: Vec3, rot: Quat, scale: Vec3) -> Self {
+    pub const fn new(pos: Vec3, rot: Quat, scale: Vec3) -> Self {
         Self { pos, rot, scale }
+    }
+
+    pub fn matrix(&self) -> Mat4 {
+        Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos)
     }
 
     pub fn uniform(&self) -> TransformUniform {
         TransformUniform {
-            matrix: Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos),
+            matrix: self.matrix(),
         }
     }
 }

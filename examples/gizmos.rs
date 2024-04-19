@@ -4,11 +4,11 @@ use gbase::{
     render::{
         self, DynamicIndexBuffer, DynamicIndexBufferBuilder, DynamicVertexBuffer,
         DynamicVertexBufferBuilder, EncoderBuilder, RenderPipelineBuilder, ShaderBuilder,
-        VertexColor,
+        Transform, VertexColor,
     },
-    Callbacks, Context, ContextBuilder, LogLevel,
+    time, Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, Vec2, Vec3};
+use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec4Swizzles};
 use std::f32::consts::PI;
 
 struct App {
@@ -19,7 +19,8 @@ struct App {
 impl App {
     fn new(ctx: &Context) -> Self {
         let gizmo_renderer = GizmoRenderer::new(ctx);
-        let camera = render::PerspectiveCamera::new();
+        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 0.0, 1.0));
+
         Self {
             gizmo_renderer,
             camera,
@@ -29,7 +30,10 @@ impl App {
 
 const RED: Vec3 = vec3(1.0, 0.0, 0.0);
 const GREEN: Vec3 = vec3(0.0, 1.0, 0.0);
-const BLUE: Vec3 = vec3(1.0, 0.0, 1.0);
+const BLUE: Vec3 = vec3(0.0, 0.0, 1.0);
+const CYAN: Vec3 = vec3(0.0, 1.0, 1.0);
+const MAGENTA: Vec3 = vec3(1.0, 0.0, 1.0);
+const YELLOW: Vec3 = vec3(1.0, 1.0, 0.0);
 const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
@@ -72,14 +76,24 @@ impl Callbacks for App {
         self.camera.fov += scroll_y * dt;
         false
     }
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        self.gizmo_renderer
-            .draw_2d_line(vec2(0.0, 0.0), vec2(0.5, 0.5), GREEN);
-        self.gizmo_renderer
-            .draw_2d_quad(vec2(0.0, 0.0), vec2(0.2, 0.2), RED);
-        self.gizmo_renderer
-            .draw_2d_circle(vec2(0.0, 0.0), 0.2, BLUE);
 
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let t = time::time_since_start(ctx);
+
+        self.gizmo_renderer
+            .draw_sphere(0.01, &Transform::default(), WHITE);
+        self.gizmo_renderer.draw_sphere(
+            0.5,
+            &Transform::new(
+                vec3(t.sin(), 0.0, 0.0),
+                Quat::from_rotation_x(t * PI / 2.0),
+                Vec3::ONE,
+            ),
+            BLUE,
+        );
+
+        self.gizmo_renderer
+            .draw_cube(vec3(0.5, 1.0, 0.5), &Transform::default(), GREEN);
         self.gizmo_renderer
             .render(ctx, screen_view, &mut self.camera);
         false
@@ -99,7 +113,10 @@ pub async fn main() {
     gbase::run(app, ctx, ev).await;
 }
 
+//
+//
 // Gizmo renderer
+//
 
 struct GizmoRenderer {
     vertex_buffer: DynamicVertexBuffer<VertexColor>,
@@ -120,7 +137,6 @@ impl GizmoRenderer {
         let index_buffer = DynamicIndexBufferBuilder::new()
             .capacity(GIZMO_MAX_INDICES)
             .build(ctx);
-        let shader = ShaderBuilder::new(include_str!("../assets/gizmo.wgsl")).build(ctx);
 
         let camera_buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
@@ -132,6 +148,8 @@ impl GizmoRenderer {
             .uniform()
             .visibility(wgpu::ShaderStages::VERTEX)])
             .build(ctx);
+
+        let shader = ShaderBuilder::new(include_str!("../assets/gizmo.wgsl")).build(ctx);
         let pipeline = RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[RenderPipelineBuilder::default_target(ctx)])
@@ -193,8 +211,164 @@ impl GizmoRenderer {
     fn resize(&mut self, ctx: &Context) {
         self.depth_buffer.resize(ctx);
     }
+}
 
-    fn draw_2d_line(&mut self, start: Vec2, end: Vec2, color: Vec3) {
+// 3D
+impl GizmoRenderer {
+    fn draw_line(&mut self, start: Vec3, end: Vec3, color: Vec3) {
+        let vertex_start = self.vertex_buffer.len();
+        self.vertex_buffer.add(VertexColor {
+            position: start.to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: end.to_array(),
+            color: color.to_array(),
+        });
+        self.index_buffer.add(vertex_start);
+        self.index_buffer.add(vertex_start + 1);
+    }
+
+    fn draw_sphere(&mut self, radius: f32, transform: &Transform, color: Vec3) {
+        const N: u32 = 16;
+        let vertex_start = self.vertex_buffer.len();
+        let transform = transform.matrix();
+
+        for i in 0..N {
+            let p = i as f32 / N as f32;
+            let angle = p * 2.0 * PI;
+            let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
+            let pos = (transform * pos.extend(1.0)).xyz();
+            self.vertex_buffer.add(VertexColor {
+                position: pos.to_array(),
+                color: color.to_array(),
+            });
+            self.index_buffer.add(vertex_start + i);
+            self.index_buffer.add(vertex_start + (i + 1) % N);
+        }
+        for i in 0..N {
+            let p = i as f32 / N as f32;
+            let angle = p * 2.0 * PI;
+            let pos = Quat::from_rotation_x(PI / 2.0)
+                * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
+            let pos = (transform * pos.extend(1.0)).xyz();
+            self.vertex_buffer.add(VertexColor {
+                position: pos.to_array(),
+                color: color.to_array(),
+            });
+            self.index_buffer.add(vertex_start + N + i);
+            self.index_buffer.add(vertex_start + N + (i + 1) % N);
+        }
+        for i in 0..N {
+            let p = i as f32 / N as f32;
+            let angle = p * 2.0 * PI;
+            let pos = Quat::from_rotation_y(PI / 2.0)
+                * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
+            let pos = (transform * pos.extend(1.0)).xyz();
+            self.vertex_buffer.add(VertexColor {
+                position: pos.to_array(),
+                color: color.to_array(),
+            });
+            self.index_buffer.add(vertex_start + 2 * N + i);
+            self.index_buffer.add(vertex_start + 2 * N + (i + 1) % N);
+        }
+    }
+
+    fn draw_cube(&mut self, dimensions: Vec3, transform: &Transform, color: Vec3) {
+        let d = dimensions;
+        let t = transform.matrix();
+        let vertex_start = self.vertex_buffer.len();
+
+        let lbl = vec3(-d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom left
+        let lbr = vec3(d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom right
+        let ltr = vec3(d.x * 0.5, -d.y * 0.5, d.z * 0.5); // lower top right
+        let ltl = vec3(-d.x * 0.5, -d.y * 0.5, d.z * 0.5); // lower top left
+
+        let ubl = vec3(-d.x * 0.5, d.y * 0.5, -d.z * 0.5); // upper bottom left
+        let ubr = vec3(d.x * 0.5, d.y * 0.5, -d.z * 0.5); // upper bottom right
+        let utr = vec3(d.x * 0.5, d.y * 0.5, d.z * 0.5); // upper top right
+        let utl = vec3(-d.x * 0.5, d.y * 0.5, d.z * 0.5); // upper top left
+
+        // Bottom
+        self.vertex_buffer.add(VertexColor {
+            position: (t * lbl.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * lbr.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * ltr.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * ltl.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+
+        // Top
+        self.vertex_buffer.add(VertexColor {
+            position: (t * ubl.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * ubr.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * utr.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+        self.vertex_buffer.add(VertexColor {
+            position: (t * utl.extend(1.0)).xyz().to_array(),
+            color: color.to_array(),
+        });
+
+        // Bottom
+        self.index_buffer.add(vertex_start);
+        self.index_buffer.add(vertex_start + 1);
+
+        self.index_buffer.add(vertex_start + 1);
+        self.index_buffer.add(vertex_start + 2);
+
+        self.index_buffer.add(vertex_start + 2);
+        self.index_buffer.add(vertex_start + 3);
+
+        self.index_buffer.add(vertex_start + 3);
+        self.index_buffer.add(vertex_start);
+
+        // Top
+        self.index_buffer.add(vertex_start + 4);
+        self.index_buffer.add(vertex_start + 5);
+
+        self.index_buffer.add(vertex_start + 5);
+        self.index_buffer.add(vertex_start + 6);
+
+        self.index_buffer.add(vertex_start + 6);
+        self.index_buffer.add(vertex_start + 7);
+
+        self.index_buffer.add(vertex_start + 7);
+        self.index_buffer.add(vertex_start + 4);
+
+        // Connections
+        self.index_buffer.add(vertex_start);
+        self.index_buffer.add(vertex_start + 4);
+
+        self.index_buffer.add(vertex_start + 1);
+        self.index_buffer.add(vertex_start + 5);
+
+        self.index_buffer.add(vertex_start + 2);
+        self.index_buffer.add(vertex_start + 6);
+
+        self.index_buffer.add(vertex_start + 3);
+        self.index_buffer.add(vertex_start + 7);
+    }
+}
+
+// 2D
+impl GizmoRenderer {
+    fn draw_line_2d(&mut self, start: Vec2, end: Vec2, color: Vec3) {
         let vertex_start = self.vertex_buffer.len();
         self.vertex_buffer.add(VertexColor {
             position: [start.x, start.y, 0.0],
@@ -207,9 +381,10 @@ impl GizmoRenderer {
         self.index_buffer.add(vertex_start);
         self.index_buffer.add(vertex_start + 1);
     }
-    fn draw_2d_quad(&mut self, center: Vec2, dim: Vec2, color: Vec3) {
+    fn draw_quad_2d(&mut self, center: Vec2, dim: Vec2, color: Vec3) {
         let c = center;
         let vertex_start = self.vertex_buffer.len();
+
         self.vertex_buffer.add(VertexColor {
             position: [c.x - dim.x / 2.0, c.y - dim.y / 2.0, 0.0],
             color: color.to_array(),
@@ -240,7 +415,7 @@ impl GizmoRenderer {
         self.index_buffer.add(vertex_start);
     }
     /// Draw a
-    fn draw_2d_circle(&mut self, center: Vec2, radius: f32, color: Vec3) {
+    fn draw_circle_2d(&mut self, center: Vec2, radius: f32, color: Vec3) {
         const N: usize = 16;
 
         let vertex_start = self.vertex_buffer.len();
@@ -267,6 +442,7 @@ impl GizmoRenderer {
     }
 }
 
+//
 // fn draw_quad_tl(&mut self, tl: Vec2, dim: Vec2, color: Vec3) {
 //         let vertex_start = self.vertex_buffer.len();
 //         self.vertex_buffer.add(VertexColor {
