@@ -91,9 +91,17 @@ impl Callbacks for App {
             ),
             BLUE,
         );
-
         self.gizmo_renderer
             .draw_cube(vec3(0.5, 1.0, 0.5), &Transform::default(), GREEN);
+
+        self.gizmo_renderer
+            .draw_quad(vec2(2.0, 1.0), &Transform::default(), WHITE);
+        self.gizmo_renderer.draw_circle(
+            1.0,
+            &Transform::new(Vec3::ZERO, Quat::default(), Vec3::ONE),
+            WHITE,
+        );
+
         self.gizmo_renderer
             .render(ctx, screen_view, &mut self.camera);
         false
@@ -129,6 +137,7 @@ struct GizmoRenderer {
 
 const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
+const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
     fn new(ctx: &Context) -> Self {
         let vertex_buffer = DynamicVertexBufferBuilder::new()
@@ -213,7 +222,6 @@ impl GizmoRenderer {
     }
 }
 
-// 3D
 impl GizmoRenderer {
     fn draw_line(&mut self, start: Vec3, end: Vec3, color: Vec3) {
         let vertex_start = self.vertex_buffer.len();
@@ -230,12 +238,12 @@ impl GizmoRenderer {
     }
 
     fn draw_sphere(&mut self, radius: f32, transform: &Transform, color: Vec3) {
-        const N: u32 = 16;
+        let n = GIZMO_RESOLUTION;
         let vertex_start = self.vertex_buffer.len();
         let transform = transform.matrix();
 
-        for i in 0..N {
-            let p = i as f32 / N as f32;
+        for i in 0..n {
+            let p = i as f32 / n as f32;
             let angle = p * 2.0 * PI;
             let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
             let pos = (transform * pos.extend(1.0)).xyz();
@@ -244,10 +252,10 @@ impl GizmoRenderer {
                 color: color.to_array(),
             });
             self.index_buffer.add(vertex_start + i);
-            self.index_buffer.add(vertex_start + (i + 1) % N);
+            self.index_buffer.add(vertex_start + (i + 1) % n);
         }
-        for i in 0..N {
-            let p = i as f32 / N as f32;
+        for i in 0..n {
+            let p = i as f32 / n as f32;
             let angle = p * 2.0 * PI;
             let pos = Quat::from_rotation_x(PI / 2.0)
                 * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
@@ -256,11 +264,11 @@ impl GizmoRenderer {
                 position: pos.to_array(),
                 color: color.to_array(),
             });
-            self.index_buffer.add(vertex_start + N + i);
-            self.index_buffer.add(vertex_start + N + (i + 1) % N);
+            self.index_buffer.add(vertex_start + n + i);
+            self.index_buffer.add(vertex_start + n + (i + 1) % n);
         }
-        for i in 0..N {
-            let p = i as f32 / N as f32;
+        for i in 0..n {
+            let p = i as f32 / n as f32;
             let angle = p * 2.0 * PI;
             let pos = Quat::from_rotation_y(PI / 2.0)
                 * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
@@ -269,8 +277,8 @@ impl GizmoRenderer {
                 position: pos.to_array(),
                 color: color.to_array(),
             });
-            self.index_buffer.add(vertex_start + 2 * N + i);
-            self.index_buffer.add(vertex_start + 2 * N + (i + 1) % N);
+            self.index_buffer.add(vertex_start + 2 * n + i);
+            self.index_buffer.add(vertex_start + 2 * n + (i + 1) % n);
         }
     }
 
@@ -364,41 +372,31 @@ impl GizmoRenderer {
         self.index_buffer.add(vertex_start + 3);
         self.index_buffer.add(vertex_start + 7);
     }
-}
 
-// 2D
-impl GizmoRenderer {
-    fn draw_line_2d(&mut self, start: Vec2, end: Vec2, color: Vec3) {
+    fn draw_quad(&mut self, dimensions: Vec2, transform: &Transform, color: Vec3) {
         let vertex_start = self.vertex_buffer.len();
-        self.vertex_buffer.add(VertexColor {
-            position: [start.x, start.y, 0.0],
-            color: color.to_array(),
-        });
-        self.vertex_buffer.add(VertexColor {
-            position: [end.x, end.y, 0.0],
-            color: color.to_array(),
-        });
-        self.index_buffer.add(vertex_start);
-        self.index_buffer.add(vertex_start + 1);
-    }
-    fn draw_quad_2d(&mut self, center: Vec2, dim: Vec2, color: Vec3) {
-        let c = center;
-        let vertex_start = self.vertex_buffer.len();
+        let d = dimensions;
+        let t = transform.matrix();
+
+        let bl = vec3(-d.x * 0.5, -d.y * 0.5, 0.0);
+        let br = vec3(d.x * 0.5, -d.y * 0.5, 0.0);
+        let tr = vec3(d.x * 0.5, d.y * 0.5, 0.0);
+        let tl = vec3(-d.x * 0.5, d.y * 0.5, 0.0);
 
         self.vertex_buffer.add(VertexColor {
-            position: [c.x - dim.x / 2.0, c.y - dim.y / 2.0, 0.0],
+            position: (t * bl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         self.vertex_buffer.add(VertexColor {
-            position: [c.x + dim.x / 2.0, c.y - dim.y / 2.0, 0.0],
+            position: (t * br.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         self.vertex_buffer.add(VertexColor {
-            position: [c.x + dim.x / 2.0, c.y + dim.y / 2.0, 0.0],
+            position: (t * tr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         self.vertex_buffer.add(VertexColor {
-            position: [c.x - dim.x / 2.0, c.y + dim.y / 2.0, 0.0],
+            position: (t * tl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
 
@@ -414,63 +412,25 @@ impl GizmoRenderer {
         self.index_buffer.add(vertex_start + 3);
         self.index_buffer.add(vertex_start);
     }
-    /// Draw a
-    fn draw_circle_2d(&mut self, center: Vec2, radius: f32, color: Vec3) {
-        const N: usize = 16;
+    fn draw_circle(&mut self, radius: f32, transform: &Transform, color: Vec3) {
+        let n = GIZMO_RESOLUTION;
+        let t = transform.matrix();
 
         let vertex_start = self.vertex_buffer.len();
 
-        for i in 0..N {
-            let p = i as f32 / N as f32;
+        for i in 0..n {
+            let p = i as f32 / n as f32;
             let angle = p * 2.0 * PI;
+            let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
             self.vertex_buffer.add(VertexColor {
-                position: [
-                    center.x + radius * angle.cos(),
-                    center.y + radius * angle.sin(),
-                    0.0,
-                ],
+                position: (t * pos.extend(1.0)).xyz().to_array(),
                 color: color.to_array(),
             });
         }
 
-        for i in 0..(N - 1) as u32 {
+        for i in 0..n {
             self.index_buffer.add(vertex_start + i);
-            self.index_buffer.add(vertex_start + i + 1);
+            self.index_buffer.add(vertex_start + (i + 1) % n);
         }
-        self.index_buffer.add(vertex_start + N as u32 - 1);
-        self.index_buffer.add(vertex_start);
     }
 }
-
-//
-// fn draw_quad_tl(&mut self, tl: Vec2, dim: Vec2, color: Vec3) {
-//         let vertex_start = self.vertex_buffer.len();
-//         self.vertex_buffer.add(VertexColor {
-//             position: [tl.x, tl.y, 0.0],
-//             color: color.to_array(),
-//         });
-//         self.vertex_buffer.add(VertexColor {
-//             position: [tl.x + dim.x, tl.y, 0.0],
-//             color: color.to_array(),
-//         });
-//         self.vertex_buffer.add(VertexColor {
-//             position: [tl.x + dim.x, tl.y + dim.y, 0.0],
-//             color: color.to_array(),
-//         });
-//         self.vertex_buffer.add(VertexColor {
-//             position: [tl.x, tl.y + dim.y, 0.0],
-//             color: color.to_array(),
-//         });
-//
-//         self.index_buffer.add(vertex_start);
-//         self.index_buffer.add(vertex_start + 1);
-//
-//         self.index_buffer.add(vertex_start + 1);
-//         self.index_buffer.add(vertex_start + 2);
-//
-//         self.index_buffer.add(vertex_start + 2);
-//         self.index_buffer.add(vertex_start + 3);
-//
-//         self.index_buffer.add(vertex_start + 3);
-//         self.index_buffer.add(vertex_start);
-//     }
