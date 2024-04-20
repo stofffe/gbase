@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, VertexColor},
+    render::{self, BindGroupCombinedEntry, Transform, VertexColor},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -43,8 +43,10 @@ struct App {
 
     depth_buffer: render::DepthBuffer,
     depth_buffer_renderer: render::DepthBufferRenderer,
+
     grass_renderer: GrassRenderer,
     gui_renderer: render::GUIRenderer,
+    gizmo_renderer: render::GizmoRenderer,
 
     paused: bool,
 }
@@ -117,6 +119,8 @@ impl App {
         )
         .await;
 
+        let gizmo_renderer = render::GizmoRenderer::new(ctx);
+
         Self {
             plane_buffer,
 
@@ -131,8 +135,10 @@ impl App {
 
             depth_buffer,
             depth_buffer_renderer,
+
             grass_renderer,
             gui_renderer,
+            gizmo_renderer,
 
             paused: false,
         }
@@ -199,8 +205,13 @@ impl Callbacks for App {
 
         queue.submit(Some(encoder.finish()));
 
-        self.grass_renderer
-            .render(ctx, &self.camera, screen_view, &self.depth_buffer);
+        self.grass_renderer.render(
+            ctx,
+            &self.camera,
+            screen_view,
+            &self.depth_buffer,
+            &mut self.gizmo_renderer,
+        );
 
         self.gui_renderer.render(ctx, screen_view);
 
@@ -208,12 +219,16 @@ impl Callbacks for App {
             self.depth_buffer_renderer.render(ctx, screen_view);
         }
 
+        self.gizmo_renderer
+            .render(ctx, screen_view, &mut self.camera);
+
         false
     }
 
     fn resize(&mut self, ctx: &mut Context) {
         self.depth_buffer.resize(ctx);
         self.depth_buffer_renderer.resize(ctx, &self.depth_buffer);
+        self.gizmo_renderer.resize(ctx);
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
@@ -231,8 +246,8 @@ impl Callbacks for App {
                 render::window(ctx)
                     .set_cursor_grab(mode)
                     .expect("could not set grab mode");
+                render::window(ctx).set_cursor_visible(self.paused);
             }
-            render::window(ctx).set_cursor_visible(self.paused);
         }
         if self.paused {
             return false;
@@ -328,6 +343,9 @@ struct GrassRenderer {
 
     render_pipeline: wgpu::RenderPipeline,
     render_bindgroup: wgpu::BindGroup,
+
+    lights: Lights,
+    lights_buffer: render::UniformBuffer,
 }
 
 impl GrassRenderer {
@@ -337,9 +355,18 @@ impl GrassRenderer {
         camera: &render::PerspectiveCamera,
         screen_view: &wgpu::TextureView,
         depth_buffer: &render::DepthBuffer,
+        gizmo_renderer: &mut render::GizmoRenderer,
     ) {
         self.debug_input.update_buffer(ctx);
         self.app_info.update_buffer(ctx);
+        self.lights_buffer.write(ctx, &self.lights);
+
+        // DEBUG ligth pos
+        gizmo_renderer.draw_sphere(
+            1.0,
+            &Transform::new(self.lights.main, Quat::default(), Vec3::ONE),
+            vec3(1.0, 0.0, 0.0),
+        );
 
         let queue = render::queue(ctx);
 
@@ -380,8 +407,6 @@ impl GrassRenderer {
             // instance
             compute_pass.set_pipeline(&self.instance_pipeline);
             compute_pass.set_bind_group(0, &self.instance_bindgroup, &[]);
-            compute_pass.set_bind_group(1, self.app_info.bindgroup(), &[]);
-            compute_pass.set_bind_group(2, self.debug_input.bindgroup(), &[]);
             compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
             // draw
@@ -410,8 +435,6 @@ impl GrassRenderer {
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.instances.slice(..));
             render_pass.set_bind_group(0, &self.render_bindgroup, &[]);
-            render_pass.set_bind_group(1, self.app_info.bindgroup(), &[]);
-            render_pass.set_bind_group(2, self.debug_input.bindgroup(), &[]);
             render_pass.draw_indirect(self.indirect_buffer.buf(), 0);
 
             drop(render_pass);
@@ -437,11 +460,14 @@ impl GrassRenderer {
         let perlin_noise_texture =
             render::TextureBuilder::new().build_init(ctx, &perlin_noise_bytes);
         let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
-        let tile_buffer = render::UniformBufferBuilder::new()
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, Tile::min_size());
+        let tile_buffer = render::UniformBufferBuilder::new().build(ctx, Tile::min_size());
         let app_info = render::AppInfo::new(ctx);
         let debug_input = render::DebugInput::new(ctx);
+
+        let lights = Lights {
+            main: vec3(30.0, 10.0, 30.0),
+        };
+        let lights_buffer = render::UniformBufferBuilder::new().build(ctx, Lights::min_size());
 
         // Instance
 
@@ -472,6 +498,14 @@ impl GrassRenderer {
                     render::BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
                         .visibility(wgpu::ShaderStages::COMPUTE)
                         .uniform(),
+                    // app info
+                    render::BindGroupCombinedEntry::new(app_info.buffer().as_entire_binding())
+                        .uniform()
+                        .visibility(wgpu::ShaderStages::COMPUTE),
+                    // debug input
+                    render::BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
+                        .uniform()
+                        .visibility(wgpu::ShaderStages::COMPUTE),
                 ])
                 .build(ctx);
 
@@ -482,11 +516,7 @@ impl GrassRenderer {
 
         let instance_pipeline = render::ComputePipelineBuilder::new(&instance_shader)
             .label("instance")
-            .bind_groups(&[
-                &instance_bindgroup_layout,
-                app_info.bindgroup_layout(),
-                debug_input.bindgroup_layout(),
-            ])
+            .bind_groups(&[&instance_bindgroup_layout])
             .build(ctx);
 
         // Draw
@@ -513,11 +543,20 @@ impl GrassRenderer {
 
         // Render
         let (render_bindgroup_layout, render_bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[render::BindGroupCombinedEntry::new(
-                camera_buffer.buf().as_entire_binding(),
-            )
-            .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-            .uniform()])
+            .entries(&[
+                BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                    .uniform(),
+                BindGroupCombinedEntry::new(app_info.buffer().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                    .uniform(),
+                BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                    .uniform(),
+                BindGroupCombinedEntry::new(lights_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                    .uniform(),
+            ])
             .build(ctx);
 
         let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
@@ -525,11 +564,7 @@ impl GrassRenderer {
         let render_pipeline = render::RenderPipelineBuilder::new(&render_shader)
             .label("render")
             .buffers(&[GrassInstanceGPU::desc()])
-            .bind_groups(&[
-                &render_bindgroup_layout,
-                app_info.bindgroup_layout(),
-                debug_input.bindgroup_layout(),
-            ])
+            .bind_groups(&[&render_bindgroup_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .depth_stencil(render::DepthBuffer::depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
@@ -549,8 +584,16 @@ impl GrassRenderer {
             draw_bindgroup,
             render_pipeline,
             render_bindgroup,
+
+            lights,
+            lights_buffer,
         }
     }
+}
+
+#[derive(ShaderType)]
+struct Lights {
+    main: Vec3,
 }
 
 #[derive(ShaderType)]

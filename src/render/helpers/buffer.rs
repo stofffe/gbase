@@ -91,7 +91,7 @@ pub struct UniformBufferBuilder<'a> {
 impl<'a> UniformBufferBuilder<'a> {
     pub fn new() -> Self {
         Self {
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             label: None,
         }
     }

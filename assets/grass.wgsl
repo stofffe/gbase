@@ -8,18 +8,20 @@ struct Instance {
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
+@group(0) @binding(1) var<uniform> app_info: AppInfo;
+@group(0) @binding(2) var<uniform> debug_input: DebugInput;
+@group(0) @binding(3) var<uniform> lights: Lights;
+
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     facing: vec3<f32>,
 };
 
-@group(1) @binding(0) var<uniform> app_info: AppInfo;
 struct AppInfo {
     time_passed: f32,
 };
 
-@group(2) @binding(0) var<uniform> debug_input: DebugInput;
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
@@ -27,6 +29,10 @@ fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
 fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
 fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
 fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
+
+struct Lights {
+    main: vec3<f32>,
+};
 
 // grass
 const GRASS_WIDTH = 0.1;
@@ -141,7 +147,8 @@ fn fs_main(
     }
 
     let t = app_info.time_passed;
-    let light_pos = debug_light_pos();
+    let light_pos = lights.main;
+    //let light_pos = debug_light_pos();
     let light_dir = normalize(light_pos - in.pos);
     //let light_dir = normalize(vec3<f32>(-1.0, 0.5, -1.0));
     let view_dir = normalize(camera.pos - in.pos);
@@ -182,6 +189,7 @@ fn debug_light_pos() -> vec3<f32> {
     light_pos = vec3<f32>(50.0, 16.0, -50.0);
     return light_pos;
 }
+
 const LIGHT_ROTATION_SPEED = 0.5;
 fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
     return vec3<f32>(

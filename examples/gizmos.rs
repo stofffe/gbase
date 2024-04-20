@@ -59,6 +59,7 @@ impl Callbacks for App {
             .render(ctx, screen_view, &mut self.camera);
         false
     }
+
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 

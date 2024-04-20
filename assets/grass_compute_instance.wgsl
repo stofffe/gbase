@@ -4,7 +4,8 @@
 @group(0) @binding(3) var perlin_tex: texture_2d<f32>;
 @group(0) @binding(4) var perlin_sam: sampler;
 @group(0) @binding(5) var<uniform> camera: CameraUniform;
-
+@group(0) @binding(6) var<uniform> app_info: AppInfo;
+@group(0) @binding(7) var<uniform> debug_input: DebugInput;
 
 struct Tile {
     pos: vec2<f32>,
@@ -28,12 +29,10 @@ struct CameraUniform {
     facing: vec3<f32>,
 };
 
-@group(1) @binding(0) var<uniform> app_info: AppInfo;
 struct AppInfo {
     time_passed: f32
 };
 
-@group(2) @binding(0) var<uniform> debug_input: DebugInput;
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }

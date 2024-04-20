@@ -1,24 +1,22 @@
-use std::f32::consts::PI;
-
-use encase::ShaderType;
-use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
-
-use crate::{render, Context};
-
 use super::{
     BindGroupCombinedBuilder, BindGroupCombinedEntry, DepthBuffer, DynamicIndexBuffer,
     DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder,
     PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder, ShaderBuilder, Transform,
     UniformBuffer, UniformBufferBuilder, VertexColor,
 };
+use crate::{render, Context};
+use encase::ShaderType;
+use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
+use std::f32::consts::PI;
 
 pub struct GizmoRenderer {
     vertex_buffer: DynamicVertexBuffer<VertexColor>,
     index_buffer: DynamicIndexBuffer,
-    pipeline: wgpu::RenderPipeline,
-    depth_buffer: DepthBuffer,
-    camera_buffer: UniformBuffer,
     bindgroup: wgpu::BindGroup,
+    pipeline: wgpu::RenderPipeline,
+
+    camera_buffer: UniformBuffer,
+    depth_buffer: DepthBuffer,
 }
 
 const GIZMO_MAX_VERTICES: usize = 10000;
@@ -80,7 +78,7 @@ impl GizmoRenderer {
                 view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
             })],
