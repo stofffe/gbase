@@ -9,7 +9,7 @@ pub async fn main() {
         .build()
         .await;
     let app = App::new(&mut ctx).await;
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }
 
 const INPUT_SIZE: u32 = 8;

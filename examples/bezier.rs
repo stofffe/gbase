@@ -17,7 +17,7 @@ pub async fn main() {
         .build()
         .await;
     let app = App::new(&mut ctx).await;
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }
 
 struct App {
@@ -59,7 +59,6 @@ impl App {
             );
 
         let camera_buffer = render::UniformBufferBuilder::new()
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, render::PerspectiveCameraUniform::min_size());
         let (camera_bindgroup_layout, camera_bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[render::BindGroupCombinedEntry::new(

@@ -49,7 +49,7 @@ fn extend_window_builder(window_builder: WindowBuilder) -> WindowBuilder {
         .with_inner_size(winit::dpi::LogicalSize::new(width, height))
 }
 
-pub(crate) async fn run_window<C: Callbacks + 'static>(
+pub(crate) fn run_window<C: Callbacks + 'static>(
     event_loop: EventLoop<()>,
     mut app: App<C>,
     mut ctx: Context,

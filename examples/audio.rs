@@ -26,5 +26,5 @@ pub async fn main() {
         .await;
     let sound = audio::load_audio_source(&mut ctx, "boom.mp3").await;
     let app = App { sound };
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }

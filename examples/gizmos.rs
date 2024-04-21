@@ -111,5 +111,5 @@ pub async fn main() {
         .build()
         .await;
     let app = App::new(&ctx);
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }

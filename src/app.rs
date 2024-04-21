@@ -58,6 +58,7 @@ impl<C> App<C>
 where
     C: Callbacks + 'static,
 {
+    // TODO return enum with success, skip, exit?
     pub(crate) fn render(&mut self, ctx: &mut Context) -> bool {
         // render
         let surface = render::surface(ctx);
@@ -112,14 +113,10 @@ where
 
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
-pub async fn run<C: Callbacks + 'static>(
-    callbacks: C,
-    mut ctx: Context,
-    event_loop: EventLoop<()>,
-) {
+pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
     let mut app = App { callbacks };
     app.callbacks.init(&mut ctx);
-    window::run_window(event_loop, app, ctx).await;
+    window::run_window(event_loop, app, ctx);
 }
 
 /// What level of info that should be logged

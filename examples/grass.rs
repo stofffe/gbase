@@ -20,7 +20,7 @@ pub async fn main() {
         .build()
         .await;
     let app = App::new(&mut ctx).await;
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }
 
 const TILE_SIZE: u32 = 150;
@@ -238,13 +238,12 @@ impl Callbacks for App {
 
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let mode = if self.paused {
-                    CursorGrabMode::None
-                } else {
-                    CursorGrabMode::Locked
-                };
                 render::window(ctx)
-                    .set_cursor_grab(mode)
+                    .set_cursor_grab(if self.paused {
+                        CursorGrabMode::None
+                    } else {
+                        CursorGrabMode::Locked
+                    })
                     .expect("could not set grab mode");
                 render::window(ctx).set_cursor_visible(self.paused);
             }

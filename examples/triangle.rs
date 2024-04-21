@@ -8,7 +8,7 @@ use gbase::{
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new().build().await;
     let app = App::new(&mut ctx).await;
-    gbase::run(app, ctx, ev).await;
+    gbase::run(app, ctx, ev);
 }
 
 struct App {
