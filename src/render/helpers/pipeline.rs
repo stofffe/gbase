@@ -60,7 +60,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             primitive: wgpu::PrimitiveState {
                 topology: self.topology,
                 polygon_mode: self.polygon_mode,
-                cull_mode: None,
+                cull_mode: self.cull_mode,
                 front_face: wgpu::FrontFace::Ccw, // Right handed coordinate system
                 strip_index_format: None,
                 conservative: false,
@@ -111,6 +111,7 @@ impl<'a> RenderPipelineBuilder<'a> {
         self
     }
 
+    // TODO if targets empty use this instead
     pub fn default_target(ctx: &Context) -> Option<wgpu::ColorTargetState> {
         let surface_config = render::surface_config(ctx);
         Some(wgpu::ColorTargetState {
