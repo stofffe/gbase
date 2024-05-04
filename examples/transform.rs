@@ -35,9 +35,9 @@ impl App {
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new()
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
-            .build_init(ctx, TRIANGLE_VERTICES);
+            .build(ctx);
 
         // Transform
         let transform = render::Transform::default();

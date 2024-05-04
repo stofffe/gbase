@@ -36,9 +36,9 @@ impl App {
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new()
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX)
-            .build_init(ctx, TRIANGLE_VERTICES);
+            .build(ctx);
 
         // Camera
         let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 0.0, 2.0));

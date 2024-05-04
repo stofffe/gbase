@@ -56,9 +56,9 @@ impl App {
         let depth_buffer = render::DepthBuffer::new(ctx);
         let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
-        let plane_buffer = render::VertexBufferBuilder::new()
+        let plane_buffer = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX)
-            .build_init(ctx, CENTERED_QUAD_VERTICES);
+            .build(ctx);
 
         // Camera
         let camera = render::PerspectiveCamera::new()

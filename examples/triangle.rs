@@ -18,9 +18,9 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new()
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX)
-            .build_init(ctx, TRIANGLE_VERTICES);
+            .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "triangle.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);

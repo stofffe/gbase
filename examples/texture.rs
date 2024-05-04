@@ -16,7 +16,7 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new().build_init(ctx, QUAD_VERTICES);
+        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES).build(ctx);
 
         let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
             .await

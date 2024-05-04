@@ -1,60 +1,42 @@
 use crate::{render, Context};
 use std::{marker::PhantomData, ops::RangeBounds};
+
+pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
+    fn desc() -> wgpu::VertexBufferLayout<'static>;
+}
 use wgpu::util::DeviceExt;
 
 //
 // Vertex Buffer
 //
 
-pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
-    fn desc() -> wgpu::VertexBufferLayout<'static>;
-}
-
 pub struct VertexBufferBuilder<'a, T: VertexTrait> {
+    data: &'a [T],
+
     label: Option<&'a str>,
     usage: wgpu::BufferUsages,
-
-    ty: PhantomData<T>,
 }
 
 impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
-    pub fn new() -> Self {
+    pub fn new(data: &'a [T]) -> Self {
         Self {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             label: None,
-            ty: PhantomData::<T>,
+            data,
         }
     }
-
-    pub fn build(self, ctx: &Context, size: impl Into<u64>) -> VertexBuffer<T> {
+    pub fn build(self, ctx: &Context) -> VertexBuffer<T> {
         let device = render::device(ctx);
-        let size = size.into();
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label,
-            size,
-            usage: self.usage,
-            mapped_at_creation: false,
-        });
 
-        VertexBuffer {
-            buffer,
-            capacity: size as usize,
-            len: 0,
-            ty: PhantomData::<T>,
-        }
-    }
-
-    pub fn build_init(self, ctx: &Context, data: &[impl bytemuck::NoUninit]) -> VertexBuffer<T> {
-        let device = render::device(ctx);
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: self.label,
             usage: self.usage,
-            contents: bytemuck::cast_slice(data),
+            contents: bytemuck::cast_slice(self.data),
         });
         VertexBuffer {
             buffer,
-            capacity: data.len(),
-            len: data.len() as u32,
+            capacity: self.data.len(),
+            len: self.data.len() as u32,
             ty: PhantomData::<T>,
         }
     }
@@ -79,11 +61,15 @@ pub struct VertexBuffer<T: VertexTrait> {
 }
 
 impl<T: VertexTrait> VertexBuffer<T> {
-    pub fn write(&self, ctx: &Context, data: &[T]) {
-        render::queue(ctx).write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
+    pub fn write(&mut self, ctx: &Context, data: &[T]) {
+        let queue = render::queue(ctx);
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
+        self.len = data.len() as u32;
     }
-    pub fn write_offset(&self, ctx: &Context, offset: u64, data: &[T]) {
-        render::queue(ctx).write_buffer(&self.buffer, offset, bytemuck::cast_slice(data));
+    pub fn write_offset(&mut self, ctx: &Context, offset: u64, data: &[T]) {
+        let queue = render::queue(ctx);
+        queue.write_buffer(&self.buffer, offset, bytemuck::cast_slice(data));
+        self.len = data.len() as u32;
     }
 
     pub fn desc(&self) -> wgpu::VertexBufferLayout<'static> {
@@ -115,43 +101,30 @@ impl<T: VertexTrait> VertexBuffer<T> {
 pub struct IndexBufferBuilder<'a> {
     label: Option<&'a str>,
     usage: wgpu::BufferUsages,
+    data: &'a [u32],
 }
 
 impl<'a> IndexBufferBuilder<'a> {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(data: &'a [u32]) -> Self {
         Self {
+            data,
             label: None,
             usage: wgpu::BufferUsages::INDEX,
         }
     }
-    pub fn build(self, ctx: &Context, capacity: u64) -> IndexBuffer {
-        let device = render::device(ctx);
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label,
-            size: capacity * std::mem::size_of::<u32>() as u64,
-            usage: self.usage,
-            mapped_at_creation: false,
-        });
-
-        IndexBuffer {
-            buffer,
-            capacity: capacity as usize,
-            len: 0,
-        }
-    }
-    pub fn build_init(self, ctx: &Context, data: &[u32]) -> IndexBuffer {
+    pub fn build(self, ctx: &Context) -> IndexBuffer {
         let device = render::device(ctx);
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: self.label,
-            contents: bytemuck::cast_slice(data),
+            contents: bytemuck::cast_slice(self.data),
             usage: self.usage,
         });
 
         IndexBuffer {
             buffer,
-            capacity: data.len(),
-            len: data.len() as u32,
+            capacity: self.data.len(),
+            len: self.data.len() as u32,
         }
     }
     pub fn label(mut self, value: &'a str) -> Self {
@@ -163,6 +136,7 @@ impl<'a> IndexBufferBuilder<'a> {
         self
     }
 }
+
 /// A static index buffer
 pub struct IndexBuffer {
     buffer: wgpu::Buffer,
@@ -171,7 +145,7 @@ pub struct IndexBuffer {
 }
 
 impl IndexBuffer {
-    pub fn update_buffer(&mut self, ctx: &Context, buffer: &[u32]) {
+    pub fn write(&mut self, ctx: &Context, buffer: &[u32]) {
         debug_assert!(
             buffer.len() <= self.capacity,
             "buffer must be smaller than capacity"
@@ -207,18 +181,19 @@ impl IndexBuffer {
 ///
 
 pub struct DynamicVertexBufferBuilder<'a, T: VertexTrait> {
-    label: Option<&'a str>,
     capacity: usize,
+
+    label: Option<&'a str>,
     usage: wgpu::BufferUsages,
     ty: PhantomData<T>,
 }
 
 impl<'a, T: VertexTrait> DynamicVertexBufferBuilder<'a, T> {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
             label: None,
-            capacity: 3,
+            capacity,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             ty: PhantomData::<T>,
         }
@@ -307,17 +282,18 @@ impl<T: VertexTrait> DynamicVertexBuffer<T> {
 ///
 
 pub struct DynamicIndexBufferBuilder<'a> {
-    label: Option<&'a str>,
     capacity: usize,
+
+    label: Option<&'a str>,
     usage: wgpu::BufferUsages,
 }
 
 impl<'a> DynamicIndexBufferBuilder<'a> {
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+    pub fn new(capacity: usize) -> Self {
         Self {
+            capacity,
             label: None,
-            capacity: 3,
             usage: wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST,
         }
     }
@@ -342,10 +318,6 @@ impl<'a> DynamicIndexBufferBuilder<'a> {
     }
     pub fn usage(mut self, value: wgpu::BufferUsages) -> Self {
         self.usage = value;
-        self
-    }
-    pub fn capacity(mut self, value: usize) -> Self {
-        self.capacity = value;
         self
     }
 }
@@ -534,3 +506,69 @@ impl VertexTrait for VertexNormal {
         Self::desc()
     }
 }
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct VertexFull {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+    pub normal: [f32; 3],
+    pub uv: [f32; 2],
+    pub tangent: [f32; 4],
+}
+
+impl VertexFull {
+    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
+        0=>Float32x3, // pos
+        1=>Float32x3, // color
+        2=>Float32x3, // normal
+        3=>Float32x2, // uv
+        4=>Float32x4, // tangent
+    ];
+    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<Self>() as u64,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: Self::ATTRIBUTES,
+        }
+    }
+}
+
+impl VertexTrait for VertexFull {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        Self::desc()
+    }
+}
+
+// pub fn build(self, ctx: &Context, size: impl Into<u64>) -> VertexBuffer<T> {
+//     let device = render::device(ctx);
+//     let size = size.into();
+//     let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+//         label: self.label,
+//         size,
+//         usage: self.usage,
+//         mapped_at_creation: false,
+//     });
+//
+//     VertexBuffer {
+//         buffer,
+//         capacity: size as usize,
+//         len: 0,
+//         ty: PhantomData::<T>,
+//     }
+// }
+
+// pub fn build_init(self, ctx: &Context, data: &[impl bytemuck::NoUninit]) -> VertexBuffer<T> {
+//     let device = render::device(ctx);
+//     let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+//         label: self.label,
+//         usage: self.usage,
+//         contents: bytemuck::cast_slice(data),
+//     });
+//     VertexBuffer {
+//         buffer,
+//         capacity: data.len(),
+//         len: data.len() as u32,
+//         ty: PhantomData::<T>,
+//     }
+// }

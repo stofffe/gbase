@@ -1,4 +1,4 @@
-use std::mem;
+use std::usize;
 
 use encase::ShaderType;
 use gbase::{
@@ -25,7 +25,7 @@ struct App {
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer,
     camera_bindgroup: wgpu::BindGroup,
-    vertex_buffer: render::VertexBuffer<VertexNormal>,
+    vertex_buffer: render::DynamicVertexBuffer<VertexNormal>,
     pipeline: wgpu::RenderPipeline,
 }
 
@@ -51,12 +51,8 @@ impl App {
         let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 2.0, 3.0));
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new()
-            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
-            .build(
-                ctx,
-                (STEPS as u64 * 2 - 1) * mem::size_of::<VertexNormal>() as u64,
-            );
+        let vertex_buffer =
+            render::DynamicVertexBufferBuilder::new(STEPS as usize * 2 - 1).build(ctx);
 
         let camera_buffer = render::UniformBufferBuilder::new()
             .build(ctx, render::PerspectiveCameraUniform::min_size());
@@ -155,7 +151,7 @@ impl Callbacks for App {
         let end_handle = vec3(facing.x, 0.8 * height + t.cos(), facing.z);
         let end = vec3(facing.x, 0.75 * height, facing.z);
 
-        let mut vertices = Vec::new();
+        self.vertex_buffer.clear();
         for i in 0..STEPS {
             let t = i as f32 / STEPS as f32;
             let inv_t = (1.0 - t) * 1.5;
@@ -165,26 +161,25 @@ impl Callbacks for App {
             let normal = orth.cross(dx).normalize();
 
             if i == STEPS - 1 {
-                vertices.push(VertexNormal {
+                self.vertex_buffer.add(VertexNormal {
                     position: pos.to_array(),
                     normal: normal.to_array(),
                 });
             } else {
                 let pos1 = pos + orth * width * inv_t;
-                vertices.push(VertexNormal {
+                self.vertex_buffer.add(VertexNormal {
                     position: pos1.to_array(),
                     normal: normal.to_array(),
                 });
                 let pos2 = pos - orth * width * inv_t;
-                vertices.push(VertexNormal {
+                self.vertex_buffer.add(VertexNormal {
                     position: pos2.to_array(),
                     normal: normal.to_array(),
                 });
             }
         }
 
-        eprintln!("{:?}", vertices);
-        self.vertex_buffer.write(ctx, &vertices);
+        // eprintln!("{:?}", vertices);
 
         false
     }
@@ -194,6 +189,7 @@ impl Callbacks for App {
         let queue = render::queue(ctx);
         // update camera uniform
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.vertex_buffer.update_buffer(ctx);
 
         // render
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

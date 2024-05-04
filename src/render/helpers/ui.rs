@@ -114,8 +114,9 @@ impl GUIRenderer {
     pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32, font_bytes: &[u8], supported_chars: &str) -> Self {
         let surface_config = render::surface_config(ctx);
 
-        let vertices = super::DynamicVertexBufferBuilder::new().capacity(vertices_batch_size as usize).build(ctx);
-        let indices = super::DynamicIndexBufferBuilder::new().capacity(indices_batch_size as usize).build(ctx);
+        let vertices = super::DynamicVertexBufferBuilder::new(vertices_batch_size as usize)
+            .build(ctx);
+        let indices = super::DynamicIndexBufferBuilder::new(indices_batch_size as usize).build(ctx);
 
         let sampler = super::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(

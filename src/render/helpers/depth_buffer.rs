@@ -128,9 +128,9 @@ impl DepthBufferRenderer {
     }
 
     pub fn new(ctx: &Context, depth_buffer: &DepthBuffer) -> Self {
-        let vertex_buffer = super::VertexBufferBuilder::new()
+        let vertex_buffer = super::VertexBufferBuilder::new(FULLSCREEN_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX)
-            .build_init(ctx, FULLSCREEN_VERTICES);
+            .build(ctx);
 
         let sampler = super::SamplerBuilder::new().build(ctx);
         let (bind_group_layout, bind_group) = Self::create_bindgroups(ctx, &sampler, depth_buffer);

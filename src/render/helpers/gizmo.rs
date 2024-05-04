@@ -24,12 +24,8 @@ const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
     pub fn new(ctx: &Context) -> Self {
-        let vertex_buffer = DynamicVertexBufferBuilder::new()
-            .capacity(GIZMO_MAX_VERTICES)
-            .build(ctx);
-        let index_buffer = DynamicIndexBufferBuilder::new()
-            .capacity(GIZMO_MAX_INDICES)
-            .build(ctx);
+        let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
+        let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
 
         let camera_buffer = UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
