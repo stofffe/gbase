@@ -1,6 +1,5 @@
-use glam::UVec2;
-
 use crate::{render, Context};
+use glam::UVec2;
 
 //
 // Sampler
@@ -186,6 +185,7 @@ impl<'a> TextureBuilder<'a> {
 
 pub struct Texture {
     texture: wgpu::Texture,
+    // TODO move to framebuffer
     view: wgpu::TextureView,
 }
 
@@ -201,6 +201,13 @@ impl Texture {
     pub fn binding_type(&self) -> wgpu::BindingType {
         wgpu::BindingType::Texture {
             sample_type: wgpu::TextureSampleType::Float { filterable: true }, // TODO option?
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        }
+    }
+    pub fn binding_type_nonfilter(&self) -> wgpu::BindingType {
+        wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: false }, // TODO option?
             view_dimension: wgpu::TextureViewDimension::D2,
             multisampled: false,
         }

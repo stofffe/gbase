@@ -4,10 +4,11 @@
 @group(0) @binding(0) var<uniform> camera: Camera;
 @group(0) @binding(1) var normal_tex: texture_2d<f32>;
 @group(0) @binding(2) var albedo_tex: texture_2d<f32>;
-@group(0) @binding(3) var samp: sampler;
-@group(0) @binding(4) var<uniform> light: vec3<f32>;
-@group(0) @binding(5) var<uniform> transform: mat4x4<f32>;
-@group(0) @binding(6) var<uniform> debug_input: DebugInput;
+@group(0) @binding(3) var roughness_tex: texture_2d<f32>;
+@group(0) @binding(4) var samp: sampler;
+@group(0) @binding(5) var<uniform> light: vec3<f32>;
+@group(0) @binding(6) var<uniform> transform: mat4x4<f32>;
+@group(0) @binding(7) var<uniform> debug_input: DebugInput;
 
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
@@ -38,16 +39,18 @@ fn vs_main(
     let N = normalize((transform * vec4<f32>(in.normal, 0.0)).xyz);
     let B = cross(N, T);
 
+    let world_position = transform * vec4<f32>(in.position, 1.0);
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * transform * vec4<f32>(in.position, 1.0);
-    out.position = in.position;
+    //out.clip_position = camera.view_proj * transform * vec4<f32>(in.position, 1.0);
+    out.clip_position = camera.view_proj * world_position;
+    out.position = world_position.xyz;
     out.color = in.color;
     out.uv = in.uv;
     out.N = N;
     out.T = T;
     out.B = B;
 
-    out.normal = in.normal;
+    out.normal = in.normal * in.tangent.w;
     return out;
 }
 
@@ -66,34 +69,61 @@ struct VertexOutput {
     @location(6) normal: vec3<f32>,
 };
 
+struct FragmentOutput {
+    @location(0) position: vec4<f32>,
+    @location(1) albedo: vec4<f32>,
+    @location(2) normal: vec4<f32>,
+    @location(3) roughness: vec4<f32>,
+};
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    let albedo_tex = textureSample(albedo_tex, samp, in.uv);
+    let roughness_tex = textureSample(roughness_tex, samp, in.uv);
+    let normal_tex = textureSample(normal_tex, samp, in.uv);
+
     let TBN = mat3x3<f32>(in.T, in.B, in.N);
-    var normal = textureSample(normal_tex, samp, in.uv).xyz;
-    normal = normal * 2.0 - 1.0;
-    normal = normalize(TBN * normal);
+    var normal = normal_tex.xyz;
+    normal = normal * 2.0 - 1.0; // [0,1] -> [-1,1]
+    normal = normalize(TBN * normal); // transform on [-1,1]
+    normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
-    if btn1_pressed() {
-        normal = in.normal;
-    }
+    let roughness = roughness_tex.g;
+    let metalness = roughness_tex.b;
 
-    let light_dir = normalize(light - in.position);
-    let view_dir = normalize(camera.position - in.position);
-    let half_dir = normalize(light_dir + view_dir);
+    var out: FragmentOutput;
+    out.position = vec4<f32>(in.position, 1.0);
+    out.albedo = albedo_tex;
+    out.normal = vec4<f32>(normal, 1.0);
+    out.roughness = roughness_tex;
 
-    let ambient = 0.01;
-    let diffuse = 0.5 * saturate(dot(normal, light_dir));
-    let specular = 1.0 * pow(saturate(dot(normal, half_dir)), 151.0);
-
-    let light = ambient + diffuse + specular;
-    let tex_color = textureSample(albedo_tex, samp, in.uv);
-
-    //return vec4<f32>(light, light, light, 1.0);
-    //return vec4<f32>(normal, 1.0);
-    //return vec4<f32>(in.uv, 0.0, 1.0);
-    //return vec4<f32>(1.0, 1.0, 1.0, 1.0);
-    //return vec4<f32>(light, light, light, 1.0);
-    return tex_color * vec4<f32>(light, light, light, 1.0);
-    //return vec4<f32>(in.tangent.xyz, 1.0);
+    return out;
 }
 
+//if btn1_pressed() {
+//    normal = in.normal;
+//}
+
+//let light_dir = normalize(light - in.position);
+//let view_dir = normalize(camera.position - in.position);
+//let half_dir = normalize(light_dir + view_dir);
+
+//let ambient = 0.01;
+//let diffuse = 0.5 * saturate(dot(normal, light_dir));
+//let specular = 1.0 * pow(saturate(dot(normal, half_dir)), 151.0);
+
+//let light = ambient + diffuse + specular;
+//let albedo_tex = textureSample(albedo_tex, samp, in.uv);
+//let roughness_tex = textureSample(roughness_tex, samp, in.uv);
+//let ambient_occ = roughness_tex.r;
+
+
+//out.albedo = albedo * vec4<f32>(light, light, light, 1.0);
+//return vec4<f32>(light, light, light, 1.0);
+//return vec4<f32>(normal, 1.0);
+//return vec4<f32>(in.uv, 0.0, 1.0);
+//return vec4<f32>(1.0, 1.0, 1.0, 1.0);
+//return vec4<f32>(light, light, light, 1.0);
+//out.roughness = vec4<f32>(metalness, metalness, metalness, 1.0);
+//out.roughness = vec4<f32>(ambient_occ, ambient_occ, ambient_occ, 1.0);
+    //return vec4<f32>(in.tangent.xyz, 1.0);
