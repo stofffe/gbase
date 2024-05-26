@@ -1,14 +1,13 @@
 
 // Vertex shader
 
-@group(0) @binding(0) var<uniform> camera: Camera;
-@group(0) @binding(1) var normal_tex: texture_2d<f32>;
-@group(0) @binding(2) var albedo_tex: texture_2d<f32>;
-@group(0) @binding(3) var roughness_tex: texture_2d<f32>;
-@group(0) @binding(4) var samp: sampler;
-@group(0) @binding(5) var<uniform> light: vec3<f32>;
-@group(0) @binding(6) var<uniform> transform: mat4x4<f32>;
-@group(0) @binding(7) var<uniform> debug_input: DebugInput;
+@group(0) @binding(0) var normal_tex: texture_2d<f32>;
+@group(0) @binding(1) var albedo_tex: texture_2d<f32>;
+@group(0) @binding(2) var roughness_tex: texture_2d<f32>;
+@group(0) @binding(3) var samp: sampler;
+@group(0) @binding(4) var<uniform> camera: Camera;
+@group(0) @binding(5) var<uniform> transform: mat4x4<f32>;
+@group(0) @binding(6) var<uniform> debug_input: DebugInput;
 
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
