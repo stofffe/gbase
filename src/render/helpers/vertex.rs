@@ -511,7 +511,7 @@ impl VertexTrait for VertexNormal {
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct VertexFull {
     pub position: [f32; 3],
-    pub color: [f32; 3],
+    pub color: [f32; 4],
     pub normal: [f32; 3],
     pub uv: [f32; 2],
     pub tangent: [f32; 4],
@@ -520,7 +520,7 @@ pub struct VertexFull {
 impl VertexFull {
     const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
         0=>Float32x3, // pos
-        1=>Float32x3, // color
+        1=>Float32x4, // color
         2=>Float32x3, // normal
         3=>Float32x2, // uv
         4=>Float32x4, // tangent

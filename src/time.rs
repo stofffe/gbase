@@ -60,9 +60,9 @@ impl TimeContext {
         self.last_time = now;
     }
 
-    pub(crate) fn time_since_start(&self) -> f32 {
-        self.time_since_start
-    }
+    // pub(crate) fn time_since_start(&self) -> f32 {
+    //     self.time_since_start
+    // }
 }
 
 pub struct Timer {

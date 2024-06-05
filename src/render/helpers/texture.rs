@@ -131,7 +131,9 @@ impl<'a> TextureBuilder<'a> {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
 
-        let img = image::load_from_memory(bytes).unwrap().to_rgba8();
+        let img = image::load_from_memory(bytes)
+            .expect("could not load texture from bytes")
+            .to_rgba8();
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: self.label,

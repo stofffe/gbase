@@ -19,13 +19,6 @@ pub struct PerspectiveCamera {
     pub zfar: f32,
 }
 
-#[derive(ShaderType)]
-pub struct PerspectiveCameraUniform {
-    view_proj: Mat4,
-    pos: Vec3,
-    facing: Vec3,
-}
-
 impl PerspectiveCamera {
     pub fn new() -> Self {
         Self {
@@ -33,7 +26,7 @@ impl PerspectiveCamera {
             yaw: 0.0,
             pitch: 0.0,
             fov: PI / 2.0,
-            znear: 0.1,
+            znear: 0.01,
             zfar: 1000.0,
         }
     }
@@ -67,6 +60,7 @@ impl PerspectiveCamera {
         .normalize()
     }
 
+    // Make this non mut?
     pub fn uniform(&mut self, ctx: &Context) -> PerspectiveCameraUniform {
         const MIN_PITCH: f32 = -PI / 2.0 + 0.1;
         const MAX_PITCH: f32 = PI / 2.0 - 0.1;
@@ -104,4 +98,11 @@ impl PerspectiveCamera {
         self.pitch = pitch;
         self
     }
+}
+
+#[derive(ShaderType)]
+pub struct PerspectiveCameraUniform {
+    view_proj: Mat4,
+    pos: Vec3,
+    facing: Vec3,
 }

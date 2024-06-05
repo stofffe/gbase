@@ -4,6 +4,24 @@ pub struct GpuModel {
     pub primitives: Vec<GpuPrimitive>,
 }
 
+pub struct GpuPrimitive {
+    pub mesh: GpuMesh,
+    pub material: GpuMaterial,
+    pub bindgroup: wgpu::BindGroup,
+    pub bindgroup_layout: wgpu::BindGroupLayout,
+}
+
+pub struct GpuMaterial {
+    pub albedo_texture: render::Texture,
+    pub normal_texture: render::Texture,
+    pub roughness_texture: render::Texture,
+}
+
+pub struct GpuMesh {
+    pub vertex_buffer: render::VertexBuffer<render::VertexFull>,
+    pub index_buffer: render::IndexBuffer,
+}
+
 impl GpuModel {
     pub fn from_model(
         ctx: &Context,
@@ -14,17 +32,10 @@ impl GpuModel {
         let primitives = model
             .meshes
             .into_iter()
-            .map(|p| GpuPrimitive::new(ctx, p, camera_buffer, model_transform))
+            .map(|primitive| GpuPrimitive::new(ctx, primitive, camera_buffer, model_transform))
             .collect::<Vec<_>>();
         Self { primitives }
     }
-}
-
-pub struct GpuPrimitive {
-    pub mesh: Mesh,
-    pub material: Material,
-    pub bindgroup: wgpu::BindGroup,
-    pub bindgroup_layout: wgpu::BindGroupLayout,
 }
 
 impl GpuPrimitive {
@@ -35,9 +46,25 @@ impl GpuPrimitive {
         model_transform: &render::UniformBuffer,
     ) -> Self {
         let material = &primitive.material;
-        let albedo_texture = material.albedo.as_ref().unwrap();
-        let normal_texture = material.normal.as_ref().unwrap();
-        let roughness_texture = material.roughness.as_ref().unwrap();
+        let albedo_bytes = material.albedo.as_ref().unwrap();
+        let normal_bytes = material.normal.as_ref().unwrap();
+        let roughness_bytes = material.roughness.as_ref().unwrap();
+
+        let texture_usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
+        let albedo_texture = render::TextureBuilder::new()
+            .usage(texture_usage)
+            .build_init(ctx, albedo_bytes);
+        let normal_texture = render::TextureBuilder::new()
+            .usage(texture_usage)
+            .build_init(ctx, normal_bytes);
+        let roughness_texture = render::TextureBuilder::new()
+            .usage(texture_usage)
+            .build_init(ctx, roughness_bytes);
+
+        let mesh = &primitive.mesh;
+        let vertex_buffer = render::VertexBufferBuilder::new(&mesh.vertices).build(ctx);
+        let index_buffer = render::IndexBufferBuilder::new(&mesh.indices).build(ctx);
+
         let sampler = render::SamplerBuilder::new().build(ctx);
         let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[
@@ -68,14 +95,22 @@ impl GpuPrimitive {
             ])
             .build(ctx);
         Self {
-            mesh: primitive.mesh,
-            material: primitive.material,
+            mesh: GpuMesh {
+                vertex_buffer,
+                index_buffer,
+            },
+            material: GpuMaterial {
+                albedo_texture,
+                normal_texture,
+                roughness_texture,
+            },
             bindgroup,
             bindgroup_layout,
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Primitive {
     pub mesh: Mesh,
     pub material: Material,
@@ -87,24 +122,38 @@ impl Primitive {
     }
 }
 
+#[derive(Debug)]
 pub struct Model {
     pub meshes: Vec<Primitive>,
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct Material {
     pub color_factor: [f32; 4],
     pub roughness_factor: f32,
     pub metalness_factor: f32,
-    pub albedo: Option<render::Texture>,
-    pub normal: Option<render::Texture>,
-    pub roughness: Option<render::Texture>,
-    pub other: Vec<render::Texture>,
+    pub albedo: Option<Vec<u8>>,
+    pub normal: Option<Vec<u8>>,
+    pub roughness: Option<Vec<u8>>,
 }
 
+#[derive(Debug)]
 pub struct Mesh {
-    pub vertex_buffer: render::VertexBuffer<render::VertexFull>,
-    pub index_buffer: render::IndexBuffer,
+    pub vertices: Vec<render::VertexFull>,
+    pub indices: Vec<u32>,
+}
+
+impl Default for Material {
+    fn default() -> Self {
+        Self {
+            color_factor: [1.0, 1.0, 1.0, 1.0],
+            roughness_factor: 0.0,
+            metalness_factor: 0.0,
+            albedo: None,
+            normal: None,
+            roughness: None,
+        }
+    }
 }
 
 pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> Model {
@@ -232,25 +281,18 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> Model {
                 });
             }
 
-            let mesh = Mesh {
-                vertex_buffer: render::VertexBufferBuilder::new(&vertices).build(ctx),
-                index_buffer: render::IndexBufferBuilder::new(&indices).build(ctx),
-            };
-
-            let texture_usage =
-                wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
-
             // Normal texture
             if let Some(normal_texture) = mat.normal_texture() {
                 if let gltf::image::Source::View { view, .. } =
                     normal_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
-                    material.normal = Some(
-                        render::TextureBuilder::new()
-                            .usage(texture_usage)
-                            .build_init(ctx, img_buf),
-                    );
+                    material.normal = Some(img_buf.to_vec());
+                    // material.normal = Some(
+                    //     render::TextureBuilder::new()
+                    //         .usage(texture_usage)
+                    //         .build_init(ctx, img_buf),
+                    // );
                 }
             }
 
@@ -260,11 +302,7 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> Model {
                     base_color_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
-                    material.albedo = Some(
-                        render::TextureBuilder::new()
-                            .usage(texture_usage)
-                            .build_init(ctx, img_buf),
-                    );
+                    material.albedo = Some(img_buf.to_vec());
                 }
             }
 
@@ -274,15 +312,14 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> Model {
                     roughness_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
-                    material.roughness = Some(
-                        render::TextureBuilder::new()
-                            .usage(texture_usage)
-                            .build_init(ctx, img_buf),
-                    );
+                    material.roughness = Some(img_buf.to_vec());
                 }
             }
 
-            meshes.push(Primitive::new(mesh, material));
+            meshes.push(Primitive {
+                mesh: Mesh { vertices, indices },
+                material,
+            });
         }
     }
 
