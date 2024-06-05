@@ -1,11 +1,101 @@
 use crate::{render, Context};
 
+pub struct GpuModel {
+    pub primitives: Vec<GpuPrimitive>,
+}
+
+impl GpuModel {
+    pub fn from_model(
+        ctx: &Context,
+        model: Model,
+        camera_buffer: &render::UniformBuffer,
+        model_transform: &render::UniformBuffer,
+    ) -> Self {
+        let primitives = model
+            .meshes
+            .into_iter()
+            .map(|p| GpuPrimitive::new(ctx, p, camera_buffer, model_transform))
+            .collect::<Vec<_>>();
+        Self { primitives }
+    }
+}
+
+pub struct GpuPrimitive {
+    pub mesh: Mesh,
+    pub material: Material,
+    pub bindgroup: wgpu::BindGroup,
+    pub bindgroup_layout: wgpu::BindGroupLayout,
+}
+
+impl GpuPrimitive {
+    pub fn new(
+        ctx: &Context,
+        primitive: Primitive,
+        camera_buffer: &render::UniformBuffer,
+        model_transform: &render::UniformBuffer,
+    ) -> Self {
+        let material = &primitive.material;
+        let albedo_texture = material.albedo.as_ref().unwrap();
+        let normal_texture = material.normal.as_ref().unwrap();
+        let roughness_texture = material.roughness.as_ref().unwrap();
+        let sampler = render::SamplerBuilder::new().build(ctx);
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
+            .entries(&[
+                // normal
+                render::BindGroupCombinedEntry::new(normal_texture.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(normal_texture.binding_type()),
+                // albedo
+                render::BindGroupCombinedEntry::new(albedo_texture.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(albedo_texture.binding_type()),
+                // roughness
+                render::BindGroupCombinedEntry::new(roughness_texture.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(roughness_texture.binding_type()),
+                // sampler
+                render::BindGroupCombinedEntry::new(sampler.resource())
+                    .visibility(wgpu::ShaderStages::FRAGMENT)
+                    .ty(sampler.binding_filtering()),
+                // camera
+                render::BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                    .uniform(),
+                // transform
+                render::BindGroupCombinedEntry::new(model_transform.buf().as_entire_binding())
+                    .visibility(wgpu::ShaderStages::VERTEX)
+                    .uniform(),
+            ])
+            .build(ctx);
+        Self {
+            mesh: primitive.mesh,
+            material: primitive.material,
+            bindgroup,
+            bindgroup_layout,
+        }
+    }
+}
+
+pub struct Primitive {
+    pub mesh: Mesh,
+    pub material: Material,
+}
+
+impl Primitive {
+    pub fn new(mesh: Mesh, material: Material) -> Self {
+        Self { mesh, material }
+    }
+}
+
 pub struct Model {
-    pub meshes: Vec<Mesh>,
+    pub meshes: Vec<Primitive>,
 }
 
 #[derive(Default)]
 pub struct Material {
+    pub color_factor: [f32; 4],
+    pub roughness_factor: f32,
+    pub metalness_factor: f32,
     pub albedo: Option<render::Texture>,
     pub normal: Option<render::Texture>,
     pub roughness: Option<render::Texture>,
@@ -17,22 +107,20 @@ pub struct Mesh {
     pub index_buffer: render::IndexBuffer,
 }
 
-pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> (Model, Material) {
+pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> Model {
     let glb = gltf::Glb::from_slice(glb_bytes).unwrap();
     let info = gltf::Gltf::from_slice(&glb.json).unwrap();
     let buffer = glb.bin.expect("no buffer");
 
     let mut meshes = Vec::new();
-    let mut material = Material::default();
     for mesh in info.meshes() {
         for prim in mesh.primitives() {
             // Load indices
-            let view = prim.indices().unwrap().view().unwrap();
-            let (ind_size, ind_off) = (view.length(), view.offset());
-            let indices = match (
-                prim.indices().unwrap().data_type(),
-                prim.indices().unwrap().dimensions(),
-            ) {
+            let ind = prim.indices().unwrap();
+            let view = ind.view().unwrap();
+            let ind_off = view.offset() + ind.offset();
+            let ind_size = ind.count() * ind.size();
+            let indices = match (ind.data_type(), ind.dimensions()) {
                 (gltf::accessor::DataType::U8, gltf::accessor::Dimensions::Scalar) => {
                     let inds: &[u8] = bytemuck::cast_slice(&buffer[ind_off..ind_off + ind_size]);
                     inds.iter().map(|&i| i as u32).collect::<Vec<_>>()
@@ -49,6 +137,7 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> (Model, Material) {
                     panic!("cringe index format {form:?}")
                 }
             };
+            eprintln!("INDEX {}", indices.len());
 
             // Load pos, albedo, normal, tangent
             let mut positions = Vec::new();
@@ -121,6 +210,15 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> (Model, Material) {
                 }
             }
 
+            // Material
+            let mut material = Material::default();
+            let mat = prim.material();
+            let metallic_roughness = mat.pbr_metallic_roughness();
+
+            material.color_factor = metallic_roughness.base_color_factor();
+            material.roughness_factor = metallic_roughness.roughness_factor();
+            material.metalness_factor = metallic_roughness.metallic_factor();
+
             let mut vertices = Vec::new();
             for (((pos, normal), uv), tangent) in
                 positions.into_iter().zip(normals).zip(uvs).zip(tangents)
@@ -128,82 +226,67 @@ pub fn load_glb(ctx: &Context, glb_bytes: &[u8]) -> (Model, Material) {
                 vertices.push(render::VertexFull {
                     position: [pos.0, pos.1, pos.2],
                     normal: [normal.0, normal.1, normal.2],
-                    color: [1.0, 1.0, 1.0],
+                    color: material.color_factor,
                     uv: [uv.0, uv.1],
                     tangent: [tangent.0, tangent.1, tangent.2, tangent.3],
                 });
             }
 
-            meshes.push(Mesh {
+            let mesh = Mesh {
                 vertex_buffer: render::VertexBufferBuilder::new(&vertices).build(ctx),
                 index_buffer: render::IndexBufferBuilder::new(&indices).build(ctx),
-            });
+            };
+
+            let texture_usage =
+                wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
 
             // Normal texture
-            if let Some(normal_texture) = prim.material().normal_texture() {
+            if let Some(normal_texture) = mat.normal_texture() {
                 if let gltf::image::Source::View { view, .. } =
                     normal_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
                     material.normal = Some(
                         render::TextureBuilder::new()
-                            .usage(
-                                wgpu::TextureUsages::TEXTURE_BINDING
-                                    | wgpu::TextureUsages::COPY_SRC
-                                    | wgpu::TextureUsages::COPY_DST,
-                            )
+                            .usage(texture_usage)
                             .build_init(ctx, img_buf),
                     );
                 }
             }
 
             // Albedo texture
-            if let Some(base_color_texture) = prim
-                .material()
-                .pbr_metallic_roughness()
-                .base_color_texture()
-            {
+            if let Some(base_color_texture) = metallic_roughness.base_color_texture() {
                 if let gltf::image::Source::View { view, .. } =
                     base_color_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
                     material.albedo = Some(
                         render::TextureBuilder::new()
-                            .usage(
-                                wgpu::TextureUsages::TEXTURE_BINDING
-                                    | wgpu::TextureUsages::COPY_SRC
-                                    | wgpu::TextureUsages::COPY_DST,
-                            )
+                            .usage(texture_usage)
                             .build_init(ctx, img_buf),
                     );
                 }
             }
 
             // Metal
-            if let Some(roughness_texture) = prim
-                .material()
-                .pbr_metallic_roughness()
-                .metallic_roughness_texture()
-            {
+            if let Some(roughness_texture) = metallic_roughness.metallic_roughness_texture() {
                 if let gltf::image::Source::View { view, .. } =
                     roughness_texture.texture().source().source()
                 {
                     let img_buf = &buffer[view.offset()..view.offset() + view.length()];
                     material.roughness = Some(
                         render::TextureBuilder::new()
-                            .usage(
-                                wgpu::TextureUsages::TEXTURE_BINDING
-                                    | wgpu::TextureUsages::COPY_SRC
-                                    | wgpu::TextureUsages::COPY_DST,
-                            )
+                            .usage(texture_usage)
                             .build_init(ctx, img_buf),
                     );
                 }
             }
+
+            meshes.push(Primitive::new(mesh, material));
         }
     }
 
-    (Model { meshes }, material)
+    Model { meshes }
 }
 
 // eprintln!("IMAGES {}", info.images().len());
