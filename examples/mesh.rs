@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
@@ -47,20 +49,32 @@ impl App {
         let gizmo_renderer = render::GizmoRenderer::new(ctx);
 
         // Model 1
-        let model1_transform = render::Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::splat(2.0));
+        let model1_transform =
+            render::Transform::new(vec3(-2.0, 0.0, 0.0), Quat::IDENTITY, Vec3::splat(1.00));
         let model1_transform_uni =
             render::UniformBufferBuilder::new().build(ctx, render::TransformUniform::min_size());
-        let model1_bytes = filesystem::load_bytes(ctx, "armor.glb").await.unwrap();
+        let model1_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
         let model1 = render::load_glb(ctx, &model1_bytes);
         let model1 =
             render::GpuModel::from_model(ctx, model1, &camera_buffer, &model1_transform_uni);
 
         // Model 2
-        let model2_transform = render::Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::splat(2.0));
+        let model2_transform = render::Transform::new(
+            vec3(0.0, -0.5, 0.0),
+            Quat::from_rotation_x(-PI / 2.0),
+            Vec3::splat(0.3),
+        );
         let model2_transform_uni =
             render::UniformBufferBuilder::new().build(ctx, render::TransformUniform::min_size());
-        let model2_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
+        let model2_bytes = filesystem::load_bytes(ctx, "penguin2.glb").await.unwrap();
+        // let model2_bytes = filesystem::load_bytes(ctx, "armor.glb").await.unwrap();
         let model2 = render::load_glb(ctx, &model2_bytes);
+
+        let m = &model2.meshes[0].material;
+        eprintln!("Model 2 has albedo: {}", m.albedo.is_some());
+        eprintln!("Model 2 has normal: {}", m.normal.is_some());
+        eprintln!("Model 2 has roughness: {}", m.roughness.is_some());
+
         let model2 =
             render::GpuModel::from_model(ctx, model2, &camera_buffer, &model2_transform_uni);
 
@@ -139,17 +153,17 @@ impl Callbacks for App {
         self.light_buffer.write(ctx, &self.light);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        self.model2_transform = Transform::new(
-            vec3(0.0, 0.5, 0.0),
-            Quat::from_rotation_y(t / 2.0),
-            Vec3::ONE,
-        );
+        // self.model1_transform = Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::splat(10.0));
+        self.model1_transform_uni
+            .write(ctx, &self.model1_transform.uniform());
+        // self.model2_transform = Transform::new(
+        //     vec3(0.0, 0.5, 0.0),
+        //     Quat::from_rotation_y(t / 2.0),
+        //     Vec3::splat(1.0),
+        // );
         self.model2_transform_uni
             .write(ctx, &self.model2_transform.uniform());
 
-        self.model1_transform = Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::ONE);
-        self.model1_transform_uni
-            .write(ctx, &self.model1_transform.uniform());
         let queue = render::queue(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build(ctx);
@@ -199,7 +213,7 @@ impl MeshRenderer {
         deferred_buffers: &render::DeferredBuffers,
         model: &render::GpuModel,
     ) -> Self {
-        eprintln!("LEN {}", model.primitives.len());
+        // eprintln!("LEN {}", model.primitives.len());
         let bindgroup_layout = &model.primitives[0].bindgroup_layout;
         let shader_str = filesystem::load_string(ctx, "mesh.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
@@ -229,7 +243,7 @@ impl MeshRenderer {
 
         mesh_pass.set_pipeline(&self.pipeline);
 
-        for model in models {
+        for model in models.iter() {
             for prim in model.primitives.iter() {
                 let mesh = &prim.mesh;
                 mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));

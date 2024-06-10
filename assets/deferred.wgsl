@@ -53,8 +53,8 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     normal = normalize(normal * 2.0 - 1.0); // [0,1] -> [-1,1]
 
     let ao = textureSample(roughness_tex, samp, in.uv).r;
-    let roughness = textureSample(roughness_tex, samp, in.uv).g; // Invert so higher => more relfection
     let metalness = textureSample(roughness_tex, samp, in.uv).b; // 0 = no metal, 1 = full metal
+    let roughness = textureSample(roughness_tex, samp, in.uv).g; // Invert so higher => more relfection
 
     // Phong shading
     let light_dir = normalize(light - position);

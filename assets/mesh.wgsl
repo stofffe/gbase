@@ -5,8 +5,8 @@
 @group(0) @binding(1) var albedo_tex: texture_2d<f32>;
 @group(0) @binding(2) var roughness_tex: texture_2d<f32>;
 @group(0) @binding(3) var samp: sampler;
-@group(0) @binding(4) var<uniform> camera: Camera;
-@group(0) @binding(5) var<uniform> transform: mat4x4<f32>;
+@group(0) @binding(4) var<uniform> transform: mat4x4<f32>;
+@group(0) @binding(5) var<uniform> camera: Camera;
 @group(0) @binding(6) var<uniform> debug_input: DebugInput;
 
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
@@ -49,7 +49,8 @@ fn vs_main(
     out.T = T;
     out.B = B;
 
-    out.normal = in.normal * in.tangent.w;
+    //out.normal = in.normal * in.tangent.w;
+    out.normal = in.normal;
     return out;
 }
 
@@ -87,8 +88,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     normal = normalize(TBN * normal); // transform on [-1,1]
     normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
-    let roughness = roughness_tex.g;
-    let metalness = roughness_tex.b;
+    //let metalness = roughness_tex.b;
+    //let roughness = roughness_tex.g;
 
     var out: FragmentOutput;
     out.position = vec4<f32>(in.position, 1.0);

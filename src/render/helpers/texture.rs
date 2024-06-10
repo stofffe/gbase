@@ -127,6 +127,27 @@ impl<'a> TextureBuilder<'a> {
         Texture { texture, view }
     }
 
+    pub fn build_single_pixel(self, ctx: &Context, color: [u8; 4]) -> Texture {
+        let texture = self.build(ctx, 1, 1);
+        let queue = render::queue(ctx);
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &texture.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &color,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            texture.texture.size(),
+        );
+        texture
+    }
+
     pub fn build_init(self, ctx: &Context, bytes: &[u8]) -> Texture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
