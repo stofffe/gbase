@@ -1,23 +1,23 @@
-use crate::{input, Context};
+use crate::{input, render, Context};
 use encase::ShaderType;
 use winit::keyboard::KeyCode;
 
 /// Debug information for use in shaders
 pub struct DebugInput {
-    buffer: super::UniformBuffer,
+    buffer: render::UniformBuffer,
     bindgroup_layout: wgpu::BindGroupLayout,
     bindgroup: wgpu::BindGroup,
 }
 
 impl DebugInput {
     pub fn new(ctx: &Context) -> Self {
-        let buffer = super::UniformBufferBuilder::new()
+        let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, DebugInputUniform::min_size());
 
-        let (bindgroup_layout, bindgroup) = super::BindGroupCombinedBuilder::new()
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[
-                super::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
+                render::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
                     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE)
                     .uniform(),
             ])

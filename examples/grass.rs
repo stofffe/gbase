@@ -53,7 +53,9 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let depth_buffer = render::DepthBuffer::new(ctx);
+        let depth_buffer = render::DepthBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
         let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
 
         let plane_buffer = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES)
@@ -99,10 +101,10 @@ impl App {
             .buffers(&[VertexColor::desc()])
             .bind_groups(&[&plane_bindgroup_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer).await;
+        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &depth_buffer).await;
 
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -155,14 +157,15 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                view: self.depth_buffer.view(),
-                depth_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(1.0),
-                    store: wgpu::StoreOp::Store,
-                }),
-                stencil_ops: None,
-            }),
+            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_clear()),
+            // depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+            //     view: self.depth_buffer.framebuffer().view(), // TODO
+            //     depth_ops: Some(wgpu::Operations {
+            //         load: wgpu::LoadOp::Clear(1.0),
+            //         store: wgpu::StoreOp::Store,
+            //     }),
+            //     stencil_ops: None,
+            // }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -184,7 +187,7 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_stencil_attachment_load()),
+            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_load()),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -259,7 +262,11 @@ impl Callbacks for App {
         // hot reload
         #[cfg(not(target_arch = "wasm32"))]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.grass_renderer = pollster::block_on(GrassRenderer::new(ctx, &self.camera_buffer));
+            self.grass_renderer = pollster::block_on(GrassRenderer::new(
+                ctx,
+                &self.camera_buffer,
+                &self.depth_buffer,
+            ));
             println!("reload");
         }
 
@@ -425,7 +432,7 @@ impl GrassRenderer {
                     },
                     resolve_target: None,
                 })],
-                depth_stencil_attachment: Some(depth_buffer.depth_stencil_attachment_load()),
+                depth_stencil_attachment: Some(depth_buffer.depth_render_attachment_load()),
                 timestamp_writes: None,
                 occlusion_query_set: None,
             });
@@ -441,7 +448,11 @@ impl GrassRenderer {
         }
     }
 
-    async fn new(ctx: &Context, camera_buffer: &render::UniformBuffer) -> Self {
+    async fn new(
+        ctx: &Context,
+        camera_buffer: &render::UniformBuffer,
+        depth_buffer: &render::DepthBuffer,
+    ) -> Self {
         let instances = render::RawBufferBuilder::new()
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
             .build(ctx, GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64);
@@ -564,7 +575,7 @@ impl GrassRenderer {
             .buffers(&[GrassInstanceGPU::desc()])
             .bind_groups(&[&render_bindgroup_layout])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .depth_stencil(depth_buffer.depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .build(ctx);
 

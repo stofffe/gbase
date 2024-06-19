@@ -63,6 +63,10 @@ impl App {
             .uniform()])
             .build(ctx);
 
+        let depth_buffer = render::DepthBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
+
         // Shader
         let shader_str = filesystem::load_string(ctx, "bezier.wgsl").await.unwrap();
         let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
@@ -71,10 +75,8 @@ impl App {
             .buffers(&[vertex_buffer.desc()])
             .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            .depth_stencil(render::DepthBuffer::depth_stencil_state())
+            .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
-
-        let depth_buffer = render::DepthBuffer::new(ctx);
 
         render::window(ctx).set_cursor_visible(false);
 
@@ -205,7 +207,7 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_stencil_attachment_clear()),
+            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_load()),
             timestamp_writes: None,
             occlusion_query_set: None,
         });

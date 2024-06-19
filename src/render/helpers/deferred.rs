@@ -82,19 +82,19 @@ impl DeferredRenderer {
                 // position
                 render::BindGroupCombinedEntry::new(buffers.position.resource())
                     .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.position.binding_type_nonfilter()),
+                    .ty(buffers.position.binding_nonfilter()),
                 // albedo
                 render::BindGroupCombinedEntry::new(buffers.albedo.resource())
                     .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.albedo.binding_type_nonfilter()),
+                    .ty(buffers.albedo.binding_nonfilter()),
                 // normal
                 render::BindGroupCombinedEntry::new(buffers.normal.resource())
                     .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.normal.binding_type_nonfilter()),
+                    .ty(buffers.normal.binding_nonfilter()),
                 // roughness
                 render::BindGroupCombinedEntry::new(buffers.roughness.resource())
                     .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.roughness.binding_type_nonfilter()),
+                    .ty(buffers.roughness.binding_nonfilter()),
                 // camera
                 render::BindGroupCombinedEntry::new(camera.buf().as_entire_binding())
                     .visibility(wgpu::ShaderStages::FRAGMENT)

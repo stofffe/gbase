@@ -1,11 +1,11 @@
 use crate::{render, Context};
 
 pub struct DeferredBuffers {
-    pub position: render::ResizableFrameBuffer,
-    pub albedo: render::ResizableFrameBuffer,
-    pub normal: render::ResizableFrameBuffer,
-    pub roughness: render::ResizableFrameBuffer,
-    pub depth: render::ResizableFrameBuffer,
+    pub position: render::FrameBuffer,
+    pub albedo: render::FrameBuffer,
+    pub normal: render::FrameBuffer,
+    pub roughness: render::FrameBuffer,
+    pub depth: render::FrameBuffer,
 }
 
 impl DeferredBuffers {
@@ -13,23 +13,23 @@ impl DeferredBuffers {
         let position_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba32Float)
-            .build_resizable(ctx);
+            .build(ctx);
         let albedo_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba32Float)
-            .build_resizable(ctx);
+            .build(ctx);
         let normal_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba32Float)
-            .build_resizable(ctx);
+            .build(ctx);
         let roughness_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba32Float)
-            .build_resizable(ctx);
+            .build(ctx);
         let depth_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Depth32Float)
-            .build_resizable(ctx);
+            .build(ctx);
         Self {
             position: position_buffer,
             albedo: albedo_buffer,

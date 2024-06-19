@@ -1,6 +1,6 @@
 use encase::ShaderType;
 
-use crate::{time, Context};
+use crate::{render, time, Context};
 
 /// Holds information about the app
 ///
@@ -8,18 +8,18 @@ use crate::{time, Context};
 pub struct AppInfo {
     bindgroup_layout: wgpu::BindGroupLayout,
     bindgroup: wgpu::BindGroup,
-    buffer: super::UniformBuffer,
+    buffer: render::UniformBuffer,
 }
 
 impl AppInfo {
     pub fn new(ctx: &Context) -> Self {
-        let buffer = super::UniformBufferBuilder::new()
+        let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, AppInfoUniform::min_size());
 
-        let (bindgroup_layout, bindgroup) = super::BindGroupCombinedBuilder::new()
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[
-                super::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
+                render::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
                     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE)
                     .uniform(),
             ])

@@ -1,12 +1,15 @@
-use super::{
-    BindGroupCombinedBuilder, BindGroupCombinedEntry, DepthBuffer, DynamicIndexBuffer,
-    DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder,
-    PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder, ShaderBuilder, Transform,
-    UniformBuffer, UniformBufferBuilder, VertexColor,
+use crate::{
+    render::{self, FrameBufferBuilder},
+    Context,
 };
-use crate::{render, Context};
 use encase::ShaderType;
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
+use render::{
+    BindGroupCombinedBuilder, BindGroupCombinedEntry, DynamicIndexBuffer,
+    DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder,
+    PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder, ShaderBuilder, Transform,
+    UniformBufferBuilder, VertexColor,
+};
 use std::f32::consts::PI;
 
 pub struct GizmoRenderer {
@@ -15,8 +18,8 @@ pub struct GizmoRenderer {
     bindgroup: wgpu::BindGroup,
     pipeline: wgpu::RenderPipeline,
 
-    camera_buffer: UniformBuffer,
-    depth_buffer: DepthBuffer,
+    camera_buffer: render::UniformBuffer,
+    depth_buffer: render::DepthBuffer,
 }
 
 const GIZMO_MAX_VERTICES: usize = 10000;
@@ -38,16 +41,18 @@ impl GizmoRenderer {
             ])
             .build(ctx);
 
+        let depth_buffer = render::DepthBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
+
         let shader = ShaderBuilder::new().build(ctx, include_str!("../../../assets/gizmo.wgsl"));
         let pipeline = RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[RenderPipelineBuilder::default_target(ctx)])
-            .depth_stencil(DepthBuffer::depth_stencil_state())
+            .depth_stencil(depth_buffer.depth_stencil_state())
             .bind_groups(&[&bindgroup_layout])
             .topology(wgpu::PrimitiveTopology::LineList)
             .build(ctx);
-
-        let depth_buffer = DepthBuffer::new(ctx);
 
         Self {
             vertex_buffer,
@@ -78,7 +83,7 @@ impl GizmoRenderer {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_stencil_attachment_clear()),
+            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_clear()),
             label: None,
             timestamp_writes: None,
             occlusion_query_set: None,

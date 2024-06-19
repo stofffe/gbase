@@ -2,10 +2,10 @@ use crate::{render, Context};
 use glam::{uvec2, vec2, Vec4};
 use glam::{UVec2, Vec2};
 use std::collections::HashMap;
-use super::VertexTrait;
+use render::VertexTrait;
 
 struct FontAtlas {
-    texture_atlas: super::TextureAtlas,
+    texture_atlas: render::TextureAtlas,
     info: HashMap<char, LetterInfo>,
     line_height: f32,
 }
@@ -35,10 +35,10 @@ impl FontAtlas {
             .unwrap() as u32;
         let line_height = max_height as f32 / FONT_RASTER_SIZE;
 
-        let texture = super::TextureBuilder::new()
+        let texture = render::TextureBuilder::new()
             .format(wgpu::TextureFormat::R8Unorm)
             .build(ctx, texture_dim.x, texture_dim.y);
-        let mut texture_atlas = super::TextureAtlasBuilder::new().build(texture);
+        let mut texture_atlas = render::TextureAtlasBuilder::new().build(texture);
         let mut offset = UVec2::ZERO;
 
         let padding = FONT_ATLAS_PADDING;
@@ -99,8 +99,8 @@ struct LetterInfo {
 }
 
 pub struct GUIRenderer {
-    vertices: super::DynamicVertexBuffer<VertexUI>,
-    indices: super::DynamicIndexBuffer,
+    vertices: render::DynamicVertexBuffer<VertexUI>,
+    indices: render::DynamicIndexBuffer,
 
     pipeline: wgpu::RenderPipeline,
     font_atlas_bindgroup: wgpu::BindGroup,
@@ -114,11 +114,11 @@ impl GUIRenderer {
     pub async fn new(ctx: &Context, vertices_batch_size: u32, indices_batch_size: u32, font_bytes: &[u8], supported_chars: &str) -> Self {
         let surface_config = render::surface_config(ctx);
 
-        let vertices = super::DynamicVertexBufferBuilder::new(vertices_batch_size as usize)
+        let vertices = render::DynamicVertexBufferBuilder::new(vertices_batch_size as usize)
             .build(ctx);
-        let indices = super::DynamicIndexBufferBuilder::new(indices_batch_size as usize).build(ctx);
+        let indices = render::DynamicIndexBufferBuilder::new(indices_batch_size as usize).build(ctx);
 
-        let sampler = super::SamplerBuilder::new().build(ctx);
+        let sampler = render::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(
             ctx,
             font_bytes,
@@ -126,18 +126,18 @@ impl GUIRenderer {
         );
         // println!("A info {:?}", letter_info.get(&'a'));
         
-        let shader = super::ShaderBuilder::new().build(ctx, include_str!("../../../assets/ui.wgsl"));
+        let shader = render::ShaderBuilder::new().build(ctx, include_str!("../../../assets/ui.wgsl"));
 
-        let (bindgroup_layout, bindgroup) = super::BindGroupCombinedBuilder::new().entries(&[
-            super::BindGroupCombinedEntry::new(font_atlas.texture_atlas.texture().resource())
+        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new().entries(&[
+            render::BindGroupCombinedEntry::new(font_atlas.texture_atlas.texture().resource())
                 .ty(font_atlas.texture_atlas.texture().binding_type())
                 .visibility(wgpu::ShaderStages::FRAGMENT),
-            super::BindGroupCombinedEntry::new(sampler.resource())
+            render::BindGroupCombinedEntry::new(sampler.resource())
                 .ty(sampler.binding_filtering())
                 .visibility(wgpu::ShaderStages::FRAGMENT),
         ]).build(ctx);
 
-        let pipeline = super::RenderPipelineBuilder::new(&shader)
+        let pipeline = render::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertices.desc()])
             .bind_groups(&[&bindgroup_layout])
             .targets(&[

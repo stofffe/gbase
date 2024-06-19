@@ -1,4 +1,6 @@
 #![deny(elided_lifetimes_in_paths)]
+#![allow(clippy::new_without_default)]
+
 mod app;
 pub mod audio;
 pub mod filesystem;
