@@ -21,7 +21,7 @@ impl DeferredRenderer {
     ) -> Self {
         let shader_str = filesystem::load_string(ctx, "deferred.wgsl").await.unwrap();
         let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES).build(ctx);
-        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
         let debug_input = render::DebugInput::new(ctx);
         let (bindgroup_layout, bindgroup) =
             Self::bindgroups(ctx, buffers, camera, light, &debug_input);

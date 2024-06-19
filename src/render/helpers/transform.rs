@@ -5,7 +5,7 @@ use glam::{Mat4, Quat, Vec3};
 // Transform
 //
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transform {
     pub pos: Vec3,
     pub rot: Quat,
@@ -16,9 +16,31 @@ impl Transform {
     pub const fn new(pos: Vec3, rot: Quat, scale: Vec3) -> Self {
         Self { pos, rot, scale }
     }
+    pub const fn from_pos(pos: Vec3) -> Self {
+        Self::new(pos, Quat::IDENTITY, Vec3::ONE)
+    }
+    pub const fn from_rot(pos: Vec3) -> Self {
+        Self::new(pos, Quat::IDENTITY, Vec3::ONE)
+    }
+    pub const fn from_scale(pos: Vec3) -> Self {
+        Self::new(pos, Quat::IDENTITY, Vec3::ONE)
+    }
+    pub const fn from_pos_rot(pos: Vec3, rot: Quat) -> Self {
+        Self::new(pos, rot, Vec3::ONE)
+    }
+    pub const fn from_pos_scale(pos: Vec3, scale: Vec3) -> Self {
+        Self::new(pos, Quat::IDENTITY, scale)
+    }
+    pub const fn from_rot_scale(rot: Quat, scale: Vec3) -> Self {
+        Self::new(Vec3::ZERO, rot, scale)
+    }
 
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos)
+    }
+    pub fn from_matrix(matrix: Mat4) -> Self {
+        let (scale, rot, pos) = matrix.to_scale_rotation_translation();
+        Self { pos, rot, scale }
     }
 
     pub fn uniform(&self) -> TransformUniform {

@@ -126,7 +126,7 @@ impl GUIRenderer {
         );
         // println!("A info {:?}", letter_info.get(&'a'));
         
-        let shader = super::ShaderBuilder::new(include_str!("../../../assets/ui.wgsl")).build(ctx);
+        let shader = super::ShaderBuilder::new().build(ctx, include_str!("../../../assets/ui.wgsl"));
 
         let (bindgroup_layout, bindgroup) = super::BindGroupCombinedBuilder::new().entries(&[
             super::BindGroupCombinedEntry::new(font_atlas.texture_atlas.texture().resource())
@@ -167,20 +167,19 @@ impl GUIRenderer {
         // Render batch
         let queue = render::queue(ctx);
         let mut encoder = render::create_encoder(ctx, None);
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+
+        let attachments = &[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+            })];
+        let mut render_pass = render::RenderPassBuilder::new()
+            .color_attachments(attachments)
+            .build(&mut encoder);
+
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertices.slice(..));
         render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());

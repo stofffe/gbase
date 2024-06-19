@@ -54,7 +54,7 @@ pub struct BindGroupLayoutEntry {
 }
 
 impl BindGroupLayoutEntry {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             visibility: wgpu::ShaderStages::VERTEX,
             ty: wgpu::BindingType::Buffer {
@@ -65,29 +65,77 @@ impl BindGroupLayoutEntry {
         }
     }
 
-    pub fn visibility(mut self, value: wgpu::ShaderStages) -> Self {
+    /// Set shader visibility
+    pub const fn visibility(mut self, value: wgpu::ShaderStages) -> Self {
         self.visibility = value;
         self
     }
-    pub fn ty(mut self, value: wgpu::BindingType) -> Self {
+
+    /// Set binding type
+    pub const fn ty(mut self, value: wgpu::BindingType) -> Self {
         self.ty = value;
         self
     }
-    pub fn uniform(mut self) -> Self {
-        self.ty = wgpu::BindingType::Buffer {
+
+    /// Set binding type to ```Uniform```
+    pub const fn uniform(self) -> Self {
+        self.ty(wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Uniform,
             has_dynamic_offset: false,
             min_binding_size: None,
-        };
-        self
+        })
     }
-    pub fn storage(mut self, read_only: bool) -> Self {
-        self.ty = wgpu::BindingType::Buffer {
+
+    /// Set binding type to ```Storage```
+    pub const fn storage(self, read_only: bool) -> Self {
+        self.ty(wgpu::BindingType::Buffer {
             ty: wgpu::BufferBindingType::Storage { read_only },
             has_dynamic_offset: false,
             min_binding_size: None,
-        };
-        self
+        })
+    }
+    /// Add ```Vertex``` to shader visibility
+    pub const fn vertex(self) -> Self {
+        let v = self.visibility;
+        self.visibility(v.union(wgpu::ShaderStages::VERTEX))
+    }
+    /// Add ```Fragment``` to shader visibility
+    pub const fn fragment(self) -> Self {
+        let v = self.visibility;
+        self.visibility(v.union(wgpu::ShaderStages::FRAGMENT))
+    }
+    /// Add ```Compute``` to shader visibility
+    pub const fn compute(self) -> Self {
+        let v = self.visibility;
+        self.visibility(v.union(wgpu::ShaderStages::COMPUTE))
+    }
+    /// Set Binding type to float texture
+    pub const fn texture_float(self, filterable: bool) -> Self {
+        self.ty(wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        })
+    }
+    /// Set Binding type to depth texture
+    pub const fn texture_depth(self) -> Self {
+        self.ty(wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Depth,
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        })
+    }
+    /// Set Binding type to filtering sampler
+    pub const fn sampler_filtering(self) -> Self {
+        self.ty(wgpu::BindingType::Sampler(
+            wgpu::SamplerBindingType::Filtering,
+        ))
+    }
+    /// Set Binding type to non filtering sampler
+    pub const fn sampler_nonfiltering(self) -> Self {
+        self.ty(wgpu::BindingType::Sampler(
+            wgpu::SamplerBindingType::NonFiltering,
+        ))
     }
 }
 
@@ -97,23 +145,21 @@ impl BindGroupLayoutEntry {
 
 pub struct BindGroupBuilder<'a> {
     label: Option<&'a str>,
-    layout: &'a wgpu::BindGroupLayout,
     entries: &'a [BindGroupEntry<'a>],
 }
 
 impl<'a> BindGroupBuilder<'a> {
-    pub fn new(layout: &'a wgpu::BindGroupLayout) -> Self {
+    pub fn new() -> Self {
         Self {
-            layout,
             label: None,
             entries: &[],
         }
     }
-    pub fn build(self, ctx: &Context) -> wgpu::BindGroup {
+    pub fn build(self, ctx: &Context, layout: &'a wgpu::BindGroupLayout) -> wgpu::BindGroup {
         let device = render::device(ctx);
         let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: self.label,
-            layout: self.layout,
+            layout,
             entries: &self
                 .entries
                 .iter()
@@ -145,7 +191,7 @@ pub struct BindGroupEntry<'a> {
 }
 
 impl<'a> BindGroupEntry<'a> {
-    pub fn new(resource: wgpu::BindingResource<'a>) -> Self {
+    pub const fn new(resource: wgpu::BindingResource<'a>) -> Self {
         Self { resource }
     }
 }
@@ -174,10 +220,10 @@ impl<'a> BindGroupCombinedBuilder<'a> {
                 .entries
                 .iter()
                 .enumerate()
-                .map(|(i, e)| wgpu::BindGroupLayoutEntry {
+                .map(|(i, entry)| wgpu::BindGroupLayoutEntry {
                     binding: i as u32,
-                    visibility: e.visibility,
-                    ty: e.ty,
+                    visibility: entry.bindgroup_layout.visibility,
+                    ty: entry.bindgroup_layout.ty,
                     count: None,
                 })
                 .collect::<Vec<_>>(),
@@ -190,9 +236,9 @@ impl<'a> BindGroupCombinedBuilder<'a> {
                 .entries
                 .iter()
                 .enumerate()
-                .map(|(i, e)| wgpu::BindGroupEntry {
+                .map(|(i, entry)| wgpu::BindGroupEntry {
                     binding: i as u32,
-                    resource: e.resource.clone(),
+                    resource: entry.bindgroup.resource.clone(),
                 })
                 .collect::<Vec<_>>(),
         });
@@ -213,46 +259,74 @@ impl<'a> BindGroupCombinedBuilder<'a> {
 }
 
 pub struct BindGroupCombinedEntry<'a> {
-    resource: wgpu::BindingResource<'a>,
-    visibility: wgpu::ShaderStages,
-    ty: wgpu::BindingType,
+    bindgroup: BindGroupEntry<'a>,
+    bindgroup_layout: BindGroupLayoutEntry,
 }
 
 impl<'a> BindGroupCombinedEntry<'a> {
-    pub fn new(resource: wgpu::BindingResource<'a>) -> Self {
+    pub const fn new(resource: wgpu::BindingResource<'a>) -> Self {
         Self {
-            resource,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: None,
-            },
+            bindgroup: BindGroupEntry::new(resource),
+            bindgroup_layout: BindGroupLayoutEntry::new(),
         }
     }
 
-    pub fn visibility(mut self, value: wgpu::ShaderStages) -> Self {
-        self.visibility = value;
+    /// Set shader visibility
+    pub const fn visibility(mut self, value: wgpu::ShaderStages) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.visibility(value);
         self
     }
-    pub fn ty(mut self, value: wgpu::BindingType) -> Self {
-        self.ty = value;
+
+    /// Set binding type
+    pub const fn ty(mut self, value: wgpu::BindingType) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.ty(value);
         self
     }
-    pub fn uniform(mut self) -> Self {
-        self.ty = wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Uniform,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        };
+
+    /// Set binding type to ```Uniform```
+    pub const fn uniform(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.uniform();
         self
     }
-    pub fn storage(mut self, read_only: bool) -> Self {
-        self.ty = wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Storage { read_only },
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        };
+
+    /// Set binding type to ```Storage```
+    pub const fn storage(mut self, read_only: bool) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.storage(read_only);
+        self
+    }
+    /// Add ```Vertex``` to shader visibility
+    pub const fn vertex(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.vertex();
+        self
+    }
+    /// Add ```Fragment``` to shader visibility
+    pub const fn fragment(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.fragment();
+        self
+    }
+    /// Add ```Compute``` to shader visibility
+    pub const fn compute(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.compute();
+        self
+    }
+    /// Set Binding type to float texture
+    pub const fn texture_float(mut self, filterable: bool) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.texture_float(filterable);
+        self
+    }
+    /// Set Binding type to depth texture
+    pub const fn texture_depth(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.texture_depth();
+        self
+    }
+    /// Set Binding type to filtering sampler
+    pub const fn sampler_filtering(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.sampler_filtering();
+        self
+    }
+    /// Set Binding type to non filtering sampler
+    pub const fn sampler_nonfiltering(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.sampler_nonfiltering();
         self
     }
 }

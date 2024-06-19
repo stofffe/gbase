@@ -48,7 +48,7 @@ fn bez_dx(t: f32, start: Vec3, start_handle: Vec3, end_handle: Vec3, end: Vec3) 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         // Camera
-        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 2.0, 3.0));
+        let camera = render::PerspectiveCamera::new();
 
         // Vertex buffer
         let vertex_buffer =
@@ -65,7 +65,7 @@ impl App {
 
         // Shader
         let shader_str = filesystem::load_string(ctx, "bezier.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
         let pipeline = render::RenderPipelineBuilder::new(&shader)
             .bind_groups(&[&camera_bindgroup_layout])
             .buffers(&[vertex_buffer.desc()])
@@ -129,6 +129,9 @@ impl App {
 }
 
 impl Callbacks for App {
+    fn init(&mut self, _ctx: &mut Context) {
+        self.camera.pos = vec3(0.0, 2.0, 3.0);
+    }
     fn update(&mut self, ctx: &mut Context) -> bool {
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
             self.camera.yaw = 0.0;

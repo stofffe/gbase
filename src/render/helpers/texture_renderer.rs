@@ -14,7 +14,7 @@ impl TextureRenderer {
         let shader_src = filesystem::load_string(ctx, "texture_renderer.wgsl")
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new(&shader_src).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, &shader_src);
         let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES).build(ctx);
         let (texture, sampler) = Self::texture(ctx);
         let (bindgroup_layout, bindgroup) = Self::bind_group(ctx, &texture, &sampler);
@@ -68,7 +68,7 @@ impl TextureRenderer {
 
     pub fn render(
         &self,
-        ctx: &Context,
+        _ctx: &Context,
         screen_view: &wgpu::TextureView,
         encoder: &mut wgpu::CommandEncoder,
         texture: &wgpu::Texture,
@@ -93,6 +93,7 @@ impl TextureRenderer {
         );
 
         // Render
+
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {

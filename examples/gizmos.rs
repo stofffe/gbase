@@ -13,7 +13,7 @@ struct App {
 impl App {
     fn new(ctx: &Context) -> Self {
         let gizmo_renderer = render::GizmoRenderer::new(ctx);
-        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 0.0, 1.0));
+        let camera = render::PerspectiveCamera::new();
 
         Self {
             gizmo_renderer,
@@ -31,6 +31,9 @@ const YELLOW: Vec3 = vec3(1.0, 1.0, 0.0);
 const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
+    fn init(&mut self, _ctx: &mut Context) {
+        self.camera.pos = vec3(0.0, 0.0, 1.0);
+    }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let t = time::time_since_start(ctx);
 

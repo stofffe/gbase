@@ -208,7 +208,6 @@ impl<'a> TextureBuilder<'a> {
 
 pub struct Texture {
     texture: wgpu::Texture,
-    // TODO move to framebuffer
     view: wgpu::TextureView,
 }
 

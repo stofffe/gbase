@@ -25,7 +25,7 @@ impl App {
         let sampler = render::SamplerBuilder::new().build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "texture.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
 
         let (texture_bindgroup_layout, texture_bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[

@@ -1,10 +1,10 @@
 
 // Vertex shader
 
-@group(0) @binding(0) var normal_tex: texture_2d<f32>;
-@group(0) @binding(1) var albedo_tex: texture_2d<f32>;
-@group(0) @binding(2) var roughness_tex: texture_2d<f32>;
-@group(0) @binding(3) var samp: sampler;
+@group(0) @binding(0) var samp: sampler;
+@group(0) @binding(1) var normal_tex: texture_2d<f32>;
+@group(0) @binding(2) var albedo_tex: texture_2d<f32>;
+@group(0) @binding(3) var roughness_tex: texture_2d<f32>;
 @group(0) @binding(4) var<uniform> transform: mat4x4<f32>;
 @group(0) @binding(5) var<uniform> camera: Camera;
 @group(0) @binding(6) var<uniform> debug_input: DebugInput;

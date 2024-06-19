@@ -85,19 +85,6 @@ impl PerspectiveCamera {
             facing,
         }
     }
-
-    pub fn pos(mut self, pos: Vec3) -> Self {
-        self.pos = pos;
-        self
-    }
-    pub fn yaw(mut self, yaw: f32) -> Self {
-        self.yaw = yaw;
-        self
-    }
-    pub fn pitch(mut self, pitch: f32) -> Self {
-        self.pitch = pitch;
-        self
-    }
 }
 
 #[derive(ShaderType)]

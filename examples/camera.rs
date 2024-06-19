@@ -33,7 +33,7 @@ impl App {
         let shader_str = filesystem::load_string(ctx, Path::new("camera.wgsl"))
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
@@ -41,18 +41,18 @@ impl App {
             .build(ctx);
 
         // Camera
-        let camera = render::PerspectiveCamera::new().pos(vec3(0.0, 0.0, 2.0));
+        let camera = render::PerspectiveCamera::new();
         let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, render::PerspectiveCameraUniform::min_size());
         let bind_group_layout = render::BindGroupLayoutBuilder::new()
             .entries(&[render::BindGroupLayoutEntry::new().uniform()])
             .build(ctx);
-        let bind_group = render::BindGroupBuilder::new(&bind_group_layout)
+        let bind_group = render::BindGroupBuilder::new()
             .entries(&[render::BindGroupEntry::new(
                 buffer.buf().as_entire_binding(),
             )])
-            .build(ctx);
+            .build(ctx, &bind_group_layout);
 
         // Pipeline
         let pipeline = render::RenderPipelineBuilder::new(&shader)
@@ -78,6 +78,7 @@ impl Callbacks for App {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let queue = render::queue(ctx);
 
+        self.camera.pos = vec3(0.0, 0.0, 2.0);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

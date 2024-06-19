@@ -38,7 +38,7 @@ impl GizmoRenderer {
             ])
             .build(ctx);
 
-        let shader = ShaderBuilder::new(include_str!("../../../assets/gizmo.wgsl")).build(ctx);
+        let shader = ShaderBuilder::new().build(ctx, include_str!("../../../assets/gizmo.wgsl"));
         let pipeline = RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[RenderPipelineBuilder::default_target(ctx)])

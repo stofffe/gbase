@@ -1,4 +1,7 @@
-use crate::{render, Context};
+use crate::{
+    render::{self},
+    Context,
+};
 
 #[derive(Clone)]
 pub struct FrameBufferBuilder {
@@ -52,30 +55,8 @@ impl FrameBufferBuilder {
         }
     }
     pub fn build_resizable(&mut self, ctx: &Context) -> ResizableFrameBuffer {
-        let device = render::device(ctx);
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: self.label.as_deref(),
-            size: self.size,
-            format: self.format,
-            usage: self.usage,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: self.label.as_deref(),
-            aspect: wgpu::TextureAspect::All,
-            format: None,
-            dimension: None,
-            mip_level_count: None,
-            array_layer_count: None,
-            base_mip_level: 0,
-            base_array_layer: 0,
-        });
         ResizableFrameBuffer {
-            texture,
-            view,
+            frame_buffer: self.build(ctx),
             builder: self.clone(),
         }
     }
@@ -91,15 +72,6 @@ impl FrameBufferBuilder {
         self.usage = usage;
         self
     }
-    pub fn screen_size(&mut self, ctx: &Context) -> &mut Self {
-        let surface_conf = render::surface_config(ctx);
-        self.size = wgpu::Extent3d {
-            width: surface_conf.width,
-            height: surface_conf.height,
-            depth_or_array_layers: 1,
-        };
-        self
-    }
     pub fn size(&mut self, width: u32, height: u32) -> &mut Self {
         self.size = wgpu::Extent3d {
             width,
@@ -107,6 +79,10 @@ impl FrameBufferBuilder {
             depth_or_array_layers: 1,
         };
         self
+    }
+    pub fn screen_size(&mut self, ctx: &Context) -> &mut Self {
+        let surface_conf = render::surface_config(ctx);
+        self.size(surface_conf.width, surface_conf.height)
     }
 }
 
@@ -133,17 +109,16 @@ impl FrameBuffer {
 }
 
 pub struct ResizableFrameBuffer {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
+    frame_buffer: FrameBuffer,
     builder: FrameBufferBuilder,
 }
 
 impl ResizableFrameBuffer {
     pub fn texture(&self) -> &wgpu::Texture {
-        &self.texture
+        &self.frame_buffer.texture
     }
     pub fn view(&self) -> &wgpu::TextureView {
-        &self.view
+        &self.frame_buffer.view
     }
     pub fn target(&self) -> wgpu::ColorTargetState {
         wgpu::ColorTargetState {

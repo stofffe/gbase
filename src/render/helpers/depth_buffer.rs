@@ -135,7 +135,7 @@ impl DepthBufferRenderer {
         let sampler = super::SamplerBuilder::new().build(ctx);
         let (bind_group_layout, bind_group) = Self::create_bindgroups(ctx, &sampler, depth_buffer);
         let shader =
-            super::ShaderBuilder::new(include_str!("../../../assets/texture.wgsl")).build(ctx);
+            super::ShaderBuilder::new().build(ctx, include_str!("../../../assets/texture.wgsl"));
         let pipeline = super::RenderPipelineBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
             .targets(&[super::RenderPipelineBuilder::default_target(ctx)])

@@ -5,18 +5,16 @@ use crate::{render, Context};
 //
 
 pub struct RenderPipelineBuilder<'a> {
-    label: Option<&'a str>,
-
     shader: &'a wgpu::ShaderModule,
+
+    label: Option<&'a str>,
     bind_groups: &'a [&'a wgpu::BindGroupLayout],
+    push_constants: &'a [wgpu::PushConstantRange],
     buffers: &'a [wgpu::VertexBufferLayout<'a>],
-
     targets: &'a [Option<wgpu::ColorTargetState>],
-
     topology: wgpu::PrimitiveTopology,
     polygon_mode: wgpu::PolygonMode,
     cull_mode: Option<wgpu::Face>,
-
     depth_stencil: Option<wgpu::DepthStencilState>,
 }
 
@@ -26,6 +24,7 @@ impl<'a> RenderPipelineBuilder<'a> {
             shader,
             label: None,
             bind_groups: &[],
+            push_constants: &[],
             buffers: &[],
             targets: &[],
             topology: wgpu::PrimitiveTopology::TriangleList,
@@ -41,7 +40,7 @@ impl<'a> RenderPipelineBuilder<'a> {
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: self.label,
             bind_group_layouts: self.bind_groups,
-            push_constant_ranges: &[],
+            push_constant_ranges: self.push_constants,
         });
 
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -84,6 +83,10 @@ impl<'a> RenderPipelineBuilder<'a> {
     }
     pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
         self.bind_groups = value;
+        self
+    }
+    pub fn push_constants(mut self, value: &'a [wgpu::PushConstantRange]) -> Self {
+        self.push_constants = value;
         self
     }
     pub fn buffers(mut self, value: &'a [wgpu::VertexBufferLayout<'a>]) -> Self {
@@ -131,6 +134,7 @@ pub struct ComputePipelineBuilder<'a> {
 
     shader: &'a wgpu::ShaderModule,
     bind_groups: &'a [&'a wgpu::BindGroupLayout],
+    push_constants: &'a [wgpu::PushConstantRange],
 }
 
 impl<'a> ComputePipelineBuilder<'a> {
@@ -139,6 +143,7 @@ impl<'a> ComputePipelineBuilder<'a> {
             shader,
             label: None,
             bind_groups: &[],
+            push_constants: &[],
         }
     }
 
@@ -167,6 +172,10 @@ impl<'a> ComputePipelineBuilder<'a> {
     }
     pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
         self.bind_groups = value;
+        self
+    }
+    pub fn push_constants(mut self, value: &'a [wgpu::PushConstantRange]) -> Self {
+        self.push_constants = value;
         self
     }
 }

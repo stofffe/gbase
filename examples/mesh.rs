@@ -1,22 +1,20 @@
-use std::f32::consts::PI;
-
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, Transform},
+    render::{self},
     Callbacks, Context,
 };
 use glam::{vec3, Quat, Vec3};
 
 #[pollster::main]
 async fn main() {
-    let (ctx, ev) = gbase::ContextBuilder::new().build().await;
+    let (ctx, ev) = gbase::ContextBuilder::new().vsync(true).build().await;
     let app = App::new(&ctx).await;
     gbase::run(app, ctx, ev);
 }
 
 struct App {
-    mesh_renderer: MeshRenderer,
+    mesh_renderer: render::MeshRenderer,
     deferred_buffers: render::DeferredBuffers,
     deferred_renderer: render::DeferredRenderer,
     camera: render::PerspectiveCamera,
@@ -26,12 +24,7 @@ struct App {
     gizmo_renderer: render::GizmoRenderer,
     debug_input: render::DebugInput,
     model1: render::GpuModel,
-    model1_transform: Transform,
-    model1_transform_uni: render::UniformBuffer,
-
     model2: render::GpuModel,
-    model2_transform: Transform,
-    model2_transform_uni: render::UniformBuffer,
 }
 
 impl App {
@@ -48,37 +41,16 @@ impl App {
         let debug_input = render::DebugInput::new(ctx);
         let gizmo_renderer = render::GizmoRenderer::new(ctx);
 
-        // Model 1
-        let model1_transform =
-            render::Transform::new(vec3(-2.0, 0.0, 0.0), Quat::IDENTITY, Vec3::splat(1.00));
-        let model1_transform_uni =
-            render::UniformBufferBuilder::new().build(ctx, render::TransformUniform::min_size());
+        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
+
         let model1_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
-        let model1 = render::load_glb(ctx, &model1_bytes);
-        let model1 =
-            render::GpuModel::from_model(ctx, model1, &camera_buffer, &model1_transform_uni);
+        let model1 = render::Model::from_glb_bytes(&model1_bytes);
+        let model1 = render::GpuModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
 
-        // Model 2
-        let model2_transform = render::Transform::new(
-            vec3(0.0, -0.5, 0.0),
-            Quat::from_rotation_x(-PI / 2.0),
-            Vec3::splat(0.3),
-        );
-        let model2_transform_uni =
-            render::UniformBufferBuilder::new().build(ctx, render::TransformUniform::min_size());
-        let model2_bytes = filesystem::load_bytes(ctx, "penguin2.glb").await.unwrap();
-        // let model2_bytes = filesystem::load_bytes(ctx, "armor.glb").await.unwrap();
-        let model2 = render::load_glb(ctx, &model2_bytes);
+        let model2_bytes = filesystem::load_bytes(ctx, "coord2.glb").await.unwrap();
+        let model2 = render::Model::from_glb_bytes(&model2_bytes);
+        let model2 = render::GpuModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 
-        let m = &model2.meshes[0].material;
-        eprintln!("Model 2 has albedo: {}", m.albedo.is_some());
-        eprintln!("Model 2 has normal: {}", m.normal.is_some());
-        eprintln!("Model 2 has roughness: {}", m.roughness.is_some());
-
-        let model2 =
-            render::GpuModel::from_model(ctx, model2, &camera_buffer, &model2_transform_uni);
-
-        let mesh_renderer = MeshRenderer::new(ctx, &deferred_buffers, &model1).await;
         Self {
             mesh_renderer,
             deferred_buffers,
@@ -89,13 +61,7 @@ impl App {
             light_buffer,
             gizmo_renderer,
             debug_input,
-
-            model1_transform,
-            model1_transform_uni,
             model1,
-
-            model2_transform,
-            model2_transform_uni,
             model2,
         }
     }
@@ -111,6 +77,16 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             self.camera.yaw = 0.0;
             self.camera.pitch = 0.0;
+
+            let model1_bytes = filesystem::load_bytes_sync(ctx, "ak47.glb").unwrap();
+            let model1 = render::Model::from_glb_bytes(&model1_bytes);
+            self.model1 =
+                render::GpuModel::from_model(ctx, model1, &self.camera_buffer, &self.mesh_renderer);
+
+            let model2_bytes = filesystem::load_bytes_sync(ctx, "coord2.glb").unwrap();
+            let model2 = render::Model::from_glb_bytes(&model2_bytes);
+            self.model2 =
+                render::GpuModel::from_model(ctx, model2, &self.camera_buffer, &self.mesh_renderer);
         }
 
         // Camera rotation
@@ -147,34 +123,21 @@ impl Callbacks for App {
     }
 
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        // eprintln!("FPS {}", time::fps(ctx));
         let t = gbase::time::time_since_start(ctx);
-        self.light = vec3(5.0, 1.5, 5.0);
-        // self.light = vec3(t.sin() * 5.0, 0.0, t.cos() * 5.0);
+        self.light = vec3(5.0, 1.5, 5.0); // self.light = vec3(t.sin() * 5.0, 0.0, t.cos() * 5.0);
         self.light_buffer.write(ctx, &self.light);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-
-        // self.model1_transform = Transform::new(Vec3::ZERO, Quat::IDENTITY, Vec3::splat(10.0));
-        self.model1_transform_uni
-            .write(ctx, &self.model1_transform.uniform());
-        // self.model2_transform = Transform::new(
-        //     vec3(0.0, 0.5, 0.0),
-        //     Quat::from_rotation_y(t / 2.0),
-        //     Vec3::splat(1.0),
-        // );
-        self.model2_transform_uni
-            .write(ctx, &self.model2_transform.uniform());
+        self.debug_input.update_buffer(ctx);
 
         let queue = render::queue(ctx);
-
         let mut encoder = render::EncoderBuilder::new().build(ctx);
-        // Render albedo
-        self.debug_input.update_buffer(ctx);
-        self.mesh_renderer.render(
-            ctx,
-            &mut encoder,
-            &self.deferred_buffers,
-            &[&self.model1, &self.model2],
-        );
+
+        // Render into gbuffer
+        let meshes = &[&self.model1];
+        // let meshes = &[&self.model1, &self.model2];
+        self.mesh_renderer
+            .render(ctx, &mut encoder, &self.deferred_buffers, meshes);
 
         self.deferred_renderer
             .render(ctx, screen_view, &mut encoder);
@@ -200,57 +163,5 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.light_buffer,
         );
-    }
-}
-
-pub struct MeshRenderer {
-    pipeline: wgpu::RenderPipeline,
-}
-
-impl MeshRenderer {
-    pub async fn new(
-        ctx: &Context,
-        deferred_buffers: &render::DeferredBuffers,
-        model: &render::GpuModel,
-    ) -> Self {
-        // eprintln!("LEN {}", model.primitives.len());
-        let bindgroup_layout = &model.primitives[0].bindgroup_layout;
-        let shader_str = filesystem::load_string(ctx, "mesh.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new(&shader_str).build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .buffers(&[model.primitives[0].mesh.vertex_buffer.desc()])
-            .targets(&deferred_buffers.targets())
-            .bind_groups(&[&bindgroup_layout])
-            .depth_stencil(deferred_buffers.depth_stencil_state())
-            .cull_mode(wgpu::Face::Back)
-            .build(ctx);
-
-        Self { pipeline }
-    }
-
-    fn render(
-        &mut self,
-        ctx: &gbase::Context,
-        encoder: &mut wgpu::CommandEncoder,
-        deferred_buffers: &render::DeferredBuffers,
-        models: &[&render::GpuModel],
-    ) {
-        let color_attachments = deferred_buffers.color_attachments();
-        let mut mesh_pass = render::RenderPassBuilder::new()
-            .color_attachments(&color_attachments)
-            .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_clear())
-            .build(encoder);
-
-        mesh_pass.set_pipeline(&self.pipeline);
-
-        for model in models.iter() {
-            for prim in model.primitives.iter() {
-                let mesh = &prim.mesh;
-                mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                mesh_pass.set_index_buffer(mesh.index_buffer.slice(..), mesh.index_buffer.format());
-                mesh_pass.set_bind_group(0, &prim.bindgroup, &[]);
-                mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
-            }
-        }
     }
 }

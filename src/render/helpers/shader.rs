@@ -5,23 +5,19 @@ use crate::{render, Context};
 //
 
 pub struct ShaderBuilder<'a> {
-    source: &'a str,
     label: Option<&'a str>,
 }
 
 impl<'a> ShaderBuilder<'a> {
-    pub fn new(source: &'a str) -> Self {
-        Self {
-            source,
-            label: None,
-        }
+    pub fn new() -> Self {
+        Self { label: None }
     }
 
-    pub fn build(&self, ctx: &Context) -> wgpu::ShaderModule {
+    pub fn build(&self, ctx: &Context, source: &'a str) -> wgpu::ShaderModule {
         let device = render::device(ctx);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label,
-            source: wgpu::ShaderSource::Wgsl(self.source.into()),
+            source: wgpu::ShaderSource::Wgsl(source.into()),
         });
 
         module

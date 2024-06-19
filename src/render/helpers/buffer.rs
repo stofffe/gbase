@@ -77,6 +77,9 @@ impl RawBuffer {
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
     }
+    pub fn resource(&self) -> wgpu::BindingResource<'_> {
+        self.buffer.as_entire_binding()
+    }
 }
 
 //
@@ -151,5 +154,8 @@ impl UniformBuffer {
     }
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
+    }
+    pub fn resource(&self) -> wgpu::BindingResource<'_> {
+        self.buffer.as_entire_binding()
     }
 }
