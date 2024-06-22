@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, BindGroupCombinedEntry, GpuModel, Transform},
+    render::{self, BindGroupCombinedEntry, DeferredRenderer, GpuModel, MeshRenderer, Transform},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -65,7 +65,7 @@ impl App {
         let deferred_renderer =
             render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
                 .await;
-        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &deferred_buffers).await;
+        let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
 
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -206,9 +206,16 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
             self.grass_renderer = pollster::block_on(GrassRenderer::new(
                 ctx,
-                &self.camera_buffer,
                 &self.deferred_buffers,
+                &self.camera_buffer,
             ));
+            self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
+                ctx,
+                &self.deferred_buffers,
+                &self.camera_buffer,
+                &self.light_buffer,
+            ));
+            self.mesh_renderer = pollster::block_on(MeshRenderer::new(ctx, &self.deferred_buffers));
             println!("reload");
         }
 
@@ -238,7 +245,6 @@ impl App {
         let dt = gbase::time::delta_time(ctx);
 
         // Camera rotation
-        // if input::mouse_button_pressed(ctx, input::MouseButton::Left) {}
         let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
         self.camera.yaw -= 1.0 * dt * mouse_dx;
         self.camera.pitch -= 1.0 * dt * mouse_dy;
@@ -353,21 +359,6 @@ impl GrassRenderer {
                 .color_attachments(attachments)
                 .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
                 .build(&mut encoder);
-            // let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            //     label: Some("render pass"),
-            //     color_attachments: &deferred_buffers.color_attachments(),
-            //     // color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            //     //     view: screen_view,
-            //     //     ops: wgpu::Operations {
-            //     //         load: wgpu::LoadOp::Load,
-            //     //         store: wgpu::StoreOp::Store,
-            //     //     },
-            //     //     resolve_target: None,
-            //     // })],
-            //     depth_stencil_attachment: Some(deferred_buffers.depth_stencil_attachment_load()),
-            //     timestamp_writes: None,
-            //     occlusion_query_set: None,
-            // });
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.instances.slice(..));
@@ -381,8 +372,8 @@ impl GrassRenderer {
 
     async fn new(
         ctx: &Context,
-        camera_buffer: &render::UniformBuffer,
         deferred_buffers: &render::DeferredBuffers,
+        camera_buffer: &render::UniformBuffer,
     ) -> Self {
         let instances = render::RawBufferBuilder::new()
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
