@@ -123,9 +123,9 @@ impl RenderContext {
         &self.window
     }
 
-    pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
-        self.window_size
-    }
+    // pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
+    //     self.window_size
+    // }
 
     pub(crate) fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32

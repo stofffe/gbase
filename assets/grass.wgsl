@@ -8,30 +8,11 @@ struct Instance {
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
-@group(0) @binding(1) var<uniform> app_info: AppInfo;
-@group(0) @binding(2) var<uniform> debug_input: DebugInput;
-@group(0) @binding(3) var<uniform> lights: Lights;
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     facing: vec3<f32>,
-};
-
-struct AppInfo {
-    time_passed: f32,
-};
-
-struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
-fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
-fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
-fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
-fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
-fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
-fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
-
-struct Lights {
-    main: vec3<f32>,
 };
 
 // grass
@@ -42,21 +23,25 @@ const GRASS_BEND = 0.5;
 const GRASS_TIP_EXTENSION = 0.1;
 
 const NORMAL_ROUNDING = PI / 6.0;
-
-const AMBIENT_MOD = 0.2;
-const DIFFUSE_MOD = 0.5;
-const SPECULAR_MOD = 2.0;
-const SPECULAR_INTENSITY = 15.0; // must be odd
-const SPECULAR_BLEND_MAX_DIST = 30.0;
+const SPECULAR_BLEND_MAX_DIST = 50.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
 const TIP_COLOR = vec3<f32>(0.5, 0.5, 0.1);
+
+const AMBIENT_OCCLUSION = 1.0;
+const ROUGHNESS = 0.5;
+const METALNESS = 0.0;
 
 const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
-const X = vec3<f32>(1.0, 0.0, 0.0);
-const Y = vec3<f32>(0.0, 1.0, 0.0);
-const Z = vec3<f32>(0.0, 0.0, 1.0);
+
+//const X = vec3<f32>(1.0, 0.0, 0.0);
+//const Y = vec3<f32>(0.0, 1.0, 0.0);
+//const Z = vec3<f32>(0.0, 0.0, 1.0);
+//const AMBIENT_MOD = 0.2;
+//const DIFFUSE_MOD = 0.5;
+//const SPECULAR_MOD = 2.0;
+//const SPECULAR_INTENSITY = 15.0; // must be odd
 
 @vertex
 fn vs_main(
@@ -99,15 +84,9 @@ fn vs_main(
     // wind
     let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
 
-    var world_pos = instance.pos;
-    // debug light pos
-    //if instance_index == 2000u {
-    //    world_pos = debug_light_pos();
-    //}
-
     // model
     let rot_mat = wind_mat;
-    let model_pos = world_pos + rot_mat * pos;
+    let model_pos = instance.pos + rot_mat * pos;
 
     // rounded normal
     let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(normal + orth * NORMAL_ROUNDING);
@@ -133,70 +112,46 @@ struct VertexOutput {
     @location(3) width_percent: f32,
 };
 
+struct FragmentOutput {
+    @location(0) position: vec4<f32>,
+    @location(1) albedo: vec4<f32>,
+    @location(2) normal: vec4<f32>,
+    @location(3) roughness: vec4<f32>,
+};
+
 @fragment 
 fn fs_main(
     in: VertexOutput,
     @builtin(front_facing) front_facing: bool
-) -> @location(0) vec4<f32> {
+) -> FragmentOutput {
+
+    var normal: vec3<f32>; // [-1,1]
     // flip normals depending on face
-    var normal: vec3<f32>;
     if front_facing {
         normal = mix(in.normal1, in.normal2, in.width_percent);
     } else {
         normal = mix(-in.normal2, -in.normal1, in.width_percent);
     }
-
-    let t = app_info.time_passed;
-    let light_pos = lights.main;
-    //let light_pos = debug_light_pos();
-    let light_dir = normalize(light_pos - in.pos);
-    //let light_dir = normalize(vec3<f32>(-1.0, 0.5, -1.0));
-    let view_dir = normalize(camera.pos - in.pos);
-
-    // Blend specular normal to terrain at distance
+    // blend with terrain at distance
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
-    let specular_normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
-    let reflect_dir = reflect(-light_dir, specular_normal);
+    normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
+    normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
-    // Only reflect on correct side
-    var specular = saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
-    if dot(normal, light_dir) <= 0.0 {
-        specular *= ease_in(dist_factor); // fade as distance increases 
-    }
-    specular *= clamp(ease_out(1.0 - dist_factor), 0.7, 1.0);
+    //specular *= clamp(ease_out(1.0 - dist_factor), 0.7, 1.0);
+    let roughness = ease_out(dist_factor) * 0.8;
+    //let roughness = dist_factor;
 
-    // Phong
-    let ambient = 1.0;
-    let diffuse = saturate(dot(light_dir, normal));
-    var light = saturate(AMBIENT_MOD * ambient + DIFFUSE_MOD * diffuse + SPECULAR_MOD * specular);
-
-    if btn1_pressed() { return vec4<f32>(normal.x, 0.0, normal.z, 1.0); }
-    if btn2_pressed() { return vec4<f32>(specular, specular, specular, 1.0); }
-    if btn3_pressed() { return vec4<f32>(diffuse, diffuse, diffuse, 1.0); }
-
+    // interpolate color based of height
     let p = in.pos.y / 1.5;
     let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
 
-    return vec4<f32>(color * light, 1.0);
-}
+    var out: FragmentOutput;
+    out.position = vec4<f32>(in.pos, 1.0);
+    out.normal = vec4<f32>(normal, 1.0);
+    out.albedo = vec4<f32>(color, 1.0);
+    out.roughness = vec4<f32>(AMBIENT_OCCLUSION, roughness, METALNESS, 1.0); // ao, rough, metal, ?
 
-fn debug_light_pos() -> vec3<f32> {
-    let t = app_info.time_passed;
-
-    var light_pos: vec3<f32>;
-    light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
-    light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
-    light_pos = vec3<f32>(50.0, 16.0, -50.0);
-    return light_pos;
-}
-
-const LIGHT_ROTATION_SPEED = 0.5;
-fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
-    return vec3<f32>(
-        center.x + radius * cos(time * LIGHT_ROTATION_SPEED),
-        center.y,
-        center.z + radius * sin(time * LIGHT_ROTATION_SPEED),
-    );
+    return out;
 }
 
 //
@@ -276,3 +231,55 @@ const DEBUG_IDENT_MAT = mat3x3<f32>(
     0.0, 1.0, 0.0,
     0.0, 0.0, 1.0,
 );
+
+    //let t = app_info.time_passed;
+    //let light_pos = lights.main;
+    ////let light_pos = debug_light_pos();
+    //let light_dir = normalize(light_pos - in.pos);
+    ////let light_dir = normalize(vec3<f32>(-1.0, 0.5, -1.0));
+    //let view_dir = normalize(camera.pos - in.pos);
+
+    //// Blend specular normal to terrain at distance
+    //let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
+    //let specular_normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
+    //let reflect_dir = reflect(-light_dir, specular_normal);
+
+    //// Only reflect on correct side
+    //var specular = saturate(pow(dot(reflect_dir, view_dir), SPECULAR_INTENSITY));
+    //if dot(normal, light_dir) <= 0.0 {
+    //    specular *= ease_in(dist_factor); // fade as distance increases 
+    //}
+    //specular *= clamp(ease_out(1.0 - dist_factor), 0.7, 1.0);
+
+    //// Phong
+    //let ambient = 1.0;
+    //let diffuse = saturate(dot(light_dir, normal));
+    //var light = saturate(AMBIENT_MOD * ambient + DIFFUSE_MOD * diffuse + SPECULAR_MOD * specular);
+
+    ////if btn1_pressed() { return vec4<f32>(normal.x, 0.0, normal.z, 1.0); }
+    ////if btn2_pressed() { return vec4<f32>(specular, specular, specular, 1.0); }
+    ////if btn3_pressed() { return vec4<f32>(diffuse, diffuse, diffuse, 1.0); }
+
+    //let p = in.pos.y / 1.5;
+    //let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
+
+    ////return vec4<f32>(color * light, 1.0);
+//fn debug_light_pos() -> vec3<f32> {
+//    let t = app_info.time_passed;
+//
+//    var light_pos: vec3<f32>;
+//    light_pos = vec3<f32>(15.0 + sin(t / 2.0) * 30.0, 6.0, 40.0);
+//    light_pos = rotate_around(vec3<f32>(25.0, 10.0, 25.0), 30.0, t * 1.0);
+//    light_pos = vec3<f32>(50.0, 16.0, -50.0);
+//    return light_pos;
+//}
+
+//const LIGHT_ROTATION_SPEED = 0.5;
+//fn rotate_around(center: vec3<f32>, radius: f32, time: f32) -> vec3<f32> {
+//    return vec3<f32>(
+//        center.x + radius * cos(time * LIGHT_ROTATION_SPEED),
+//        center.y,
+//        center.z + radius * sin(time * LIGHT_ROTATION_SPEED),
+//    );
+//}
+

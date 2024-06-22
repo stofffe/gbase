@@ -1,9 +1,5 @@
 use crate::{filesystem, render, Context};
 use glam::{Mat4, Quat, Vec3};
-use gltf::{
-    accessor::{DataType, Dimensions},
-    Semantic,
-};
 
 //
 // GPU
@@ -279,15 +275,6 @@ fn parse_scene(
     }
 }
 
-// fn traverse_gltf(node: gltf::Node<'_>, depth: usize) {
-//     let prefix = " ".repeat(depth);
-//     eprintln!("{prefix} {:?}", node.name());
-//     eprintln!("{prefix} {:?}", node.transform());
-//     for child in node.children() {
-//         traverse_gltf(child, depth + 1);
-//     }
-// }
-
 fn parse_mesh(buffer: &[u8], primitive: &gltf::Primitive<'_>) -> Mesh {
     // Load indices
     let ind = primitive.indices().unwrap();
@@ -326,32 +313,52 @@ fn parse_mesh(buffer: &[u8], primitive: &gltf::Primitive<'_>) -> Mesh {
         let dimension = acc.dimensions();
 
         match (sem, typ, dimension) {
-            (Semantic::Positions, DataType::F32, Dimensions::Vec3) => {
+            (
+                gltf::Semantic::Positions,
+                gltf::accessor::DataType::F32,
+                gltf::accessor::Dimensions::Vec3,
+            ) => {
                 let buf: &[f32] = bytemuck::cast_slice(&buffer[offset..offset + size]);
                 for pos in buf.chunks(3) {
                     positions.push((pos[0], pos[1], pos[2]));
                 }
                 eprintln!("POS {:?}", buf.len());
             }
-            (Semantic::Normals, DataType::F32, Dimensions::Vec3) => {
+            (
+                gltf::Semantic::Normals,
+                gltf::accessor::DataType::F32,
+                gltf::accessor::Dimensions::Vec3,
+            ) => {
                 let buf: &[f32] = bytemuck::cast_slice(&buffer[offset..offset + size]);
                 for normal in buf.chunks(3) {
                     normals.push((normal[0], normal[1], normal[2]))
                 }
                 eprintln!("NORMAL {:?}", buf.len());
             }
-            (Semantic::Tangents, DataType::F32, Dimensions::Vec4) => {
+            (
+                gltf::Semantic::Tangents,
+                gltf::accessor::DataType::F32,
+                gltf::accessor::Dimensions::Vec4,
+            ) => {
                 let buf: &[f32] = bytemuck::cast_slice(&buffer[offset..offset + size]);
                 for tangent in buf.chunks(4) {
                     tangents.push((tangent[0], tangent[1], tangent[2], tangent[3]));
                 }
                 eprintln!("TANGENT {:?}", buf.len());
             }
-            (Semantic::Colors(_), DataType::F32, Dimensions::Vec3) => {
+            (
+                gltf::Semantic::Colors(_),
+                gltf::accessor::DataType::F32,
+                gltf::accessor::Dimensions::Vec3,
+            ) => {
                 let buf: &[f32] = bytemuck::cast_slice(&buffer[offset..offset + size]);
                 eprintln!("COLOR {:?}", buf.len());
             }
-            (Semantic::TexCoords(i), DataType::F32, Dimensions::Vec2) => {
+            (
+                gltf::Semantic::TexCoords(i),
+                gltf::accessor::DataType::F32,
+                gltf::accessor::Dimensions::Vec2,
+            ) => {
                 if i == 0 {
                     let buf: &[f32] = bytemuck::cast_slice(&buffer[offset..offset + size]);
                     for uv in buf.chunks(2) {
@@ -557,7 +564,7 @@ impl MeshRenderer {
         let color_attachments = deferred_buffers.color_attachments();
         let mut mesh_pass = render::RenderPassBuilder::new()
             .color_attachments(&color_attachments)
-            .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_clear())
+            .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
             .build(encoder);
 
         mesh_pass.set_pipeline(&self.pipeline);
@@ -580,4 +587,14 @@ impl MeshRenderer {
             }
         }
     }
+
+    // pub fn load_glb(
+    //     &self,
+    //     ctx: &Context,
+    //     bytes: &[u8],
+    //     camera_buffer: &render::UniformBuffer,
+    // ) -> GpuModel {
+    //     let model = Model::from_glb_bytes(bytes);
+    //     GpuModel::from_model(ctx, model, camera_buffer, self)
+    // }
 }

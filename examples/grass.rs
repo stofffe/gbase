@@ -1,11 +1,11 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, BindGroupCombinedEntry, Transform, VertexColor},
+    render::{self, BindGroupCombinedEntry, GpuModel, Transform},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
-use std::{f32::consts::PI, mem::size_of, ops::Div};
+use std::{mem::size_of, ops::Div};
 use winit::{
     keyboard::KeyCode,
     window::{CursorGrabMode, WindowBuilder},
@@ -32,18 +32,16 @@ const PLANE_SIZE: f32 = 500.0;
 const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
 
 struct App {
-    plane_buffer: render::VertexBuffer<render::VertexColor>,
-    plane_transform: render::Transform,
-    plane_transform_buffer: render::UniformBuffer,
-    plane_bind_group: wgpu::BindGroup,
-    plane_pipeline: wgpu::RenderPipeline,
-
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer,
+    light: Vec3,
+    light_buffer: render::UniformBuffer,
+    deferred_buffers: render::DeferredBuffers,
 
-    depth_buffer: render::DepthBuffer,
-    depth_buffer_renderer: render::DepthBufferRenderer,
+    model: render::GpuModel,
 
+    mesh_renderer: render::MeshRenderer,
+    deferred_renderer: render::DeferredRenderer,
     grass_renderer: GrassRenderer,
     gui_renderer: render::GUIRenderer,
     gizmo_renderer: render::GizmoRenderer,
@@ -53,58 +51,21 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let depth_buffer = render::DepthBufferBuilder::new()
-            .screen_size(ctx)
-            .build(ctx);
-        let depth_buffer_renderer = render::DepthBufferRenderer::new(ctx, &depth_buffer);
-
-        let plane_buffer = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES)
-            .usage(wgpu::BufferUsages::VERTEX)
-            .build(ctx);
-
         // Camera
         let camera = render::PerspectiveCamera::new();
         let camera_buffer = render::UniformBufferBuilder::new()
             .label("camera buf")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let light = vec3(10.0, 10.0, -10.0);
+        let light_buffer = render::UniformBufferBuilder::new().build(ctx, Vec3::min_size());
 
-        // Plane
-        let plane_transform = render::Transform::new(
-            vec3(0.0, 0.0, 0.0),
-            Quat::from_rotation_x(PI / 2.0),
-            vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
-        );
-        let plane_transform_buffer = render::UniformBufferBuilder::new()
-            .label("plane buf")
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build_init(ctx, &plane_transform.uniform());
-
-        // Bind group
-        let (plane_bindgroup_layout, plane_bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[
-                // camera
-                render::BindGroupCombinedEntry::new(camera_buffer.resource()).uniform(),
-                // plane transform
-                render::BindGroupCombinedEntry::new(plane_transform_buffer.resource()).uniform(),
-            ])
-            .build(ctx);
-
-        // Shader
-        let shader_str = filesystem::load_string(ctx, "new_shader.wgsl")
-            .await
-            .unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
-
-        // Pipeline
-        let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
-            .buffers(&[VertexColor::desc()])
-            .bind_groups(&[&plane_bindgroup_layout])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .depth_stencil(depth_buffer.depth_stencil_state())
-            .build(ctx);
-
-        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &depth_buffer).await;
+        let deferred_buffers = render::DeferredBuffers::new(ctx);
+        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
+        let deferred_renderer =
+            render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
+                .await;
+        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &deferred_buffers).await;
 
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -116,25 +77,23 @@ impl App {
         .await;
 
         let gizmo_renderer = render::GizmoRenderer::new(ctx);
+        let model_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
+        let model = render::Model::from_glb_bytes(&model_bytes);
+        let model = GpuModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
 
         Self {
-            plane_buffer,
-
             camera,
             camera_buffer,
-
-            plane_transform_buffer,
-            plane_transform,
-
-            plane_bind_group: plane_bindgroup,
-            plane_pipeline,
-
-            depth_buffer,
-            depth_buffer_renderer,
-
+            light,
+            light_buffer,
+            deferred_buffers,
+            mesh_renderer,
+            deferred_renderer,
             grass_renderer,
             gui_renderer,
             gizmo_renderer,
+
+            model,
 
             paused: false,
         }
@@ -146,7 +105,7 @@ impl Callbacks for App {
         let queue = render::queue(ctx);
 
         // Clear background and depth buffer
-        let mut encoder = render::create_encoder(ctx, None);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
         let clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -157,65 +116,43 @@ impl Callbacks for App {
                 },
                 resolve_target: None,
             })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_clear()),
-            // depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-            //     view: self.depth_buffer.framebuffer().view(), // TODO
-            //     depth_ops: Some(wgpu::Operations {
-            //         load: wgpu::LoadOp::Clear(1.0),
-            //         store: wgpu::StoreOp::Store,
-            //     }),
-            //     stencil_ops: None,
-            // }),
+            depth_stencil_attachment: Some(self.deferred_buffers.depth_stencil_attachment_clear()),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
         drop(clear_pass);
+        queue.submit(Some(encoder.finish()));
+        self.deferred_buffers.clear(ctx);
 
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-        self.plane_transform_buffer
-            .write(ctx, &self.plane_transform.uniform());
+        let t = time::time_since_start(ctx);
+        self.light = vec3(t.cos(), 1.0, t.sin()) * 10.0;
+        self.light_buffer.write(ctx, &self.light);
 
-        // Render
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_load()),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+        // Grass
+        self.grass_renderer
+            .render(ctx, &self.camera, &self.deferred_buffers);
+        // Mesh
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+        self.mesh_renderer
+            .render(ctx, &mut encoder, &self.deferred_buffers, &[&self.model]);
 
-        // Plane
-        render_pass.set_pipeline(&self.plane_pipeline);
-        render_pass.set_vertex_buffer(0, self.plane_buffer.slice(..));
-        render_pass.set_bind_group(0, &self.plane_bind_group, &[]);
-        render_pass.draw(0..CENTERED_QUAD_VERTICES.len() as u32, 0..1);
-
-        drop(render_pass);
+        // Deferred
+        self.deferred_renderer
+            .render(ctx, screen_view, &mut encoder);
 
         queue.submit(Some(encoder.finish()));
 
-        self.grass_renderer.render(
-            ctx,
-            screen_view,
-            &self.camera,
-            &self.depth_buffer,
-            &mut self.gizmo_renderer,
-        );
-
+        // Gui
         self.gui_renderer.render(ctx, screen_view);
 
-        if input::key_pressed(ctx, KeyCode::KeyP) {
-            self.depth_buffer_renderer.render(ctx, screen_view);
-        }
-
+        // Gizmo
+        self.gizmo_renderer.draw_sphere(
+            1.0,
+            &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
+            vec3(1.0, 0.0, 0.0),
+        );
         self.gizmo_renderer
             .render(ctx, screen_view, &mut self.camera);
 
@@ -223,14 +160,19 @@ impl Callbacks for App {
     }
 
     fn resize(&mut self, ctx: &mut Context) {
-        self.depth_buffer.resize(ctx);
-        self.depth_buffer_renderer.resize(ctx, &self.depth_buffer);
+        self.deferred_buffers.resize(ctx);
+        self.deferred_renderer.resize(
+            ctx,
+            &self.deferred_buffers,
+            &self.camera_buffer,
+            &self.light_buffer,
+        );
         self.gizmo_renderer.resize(ctx);
     }
 
     fn init(&mut self, _ctx: &mut Context) {
         self.camera.pos = vec3(0.0, 2.0, 1.0);
-        self.camera.pitch = -PI / 4.0;
+        // self.camera.pitch = -PI / 4.0;
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
@@ -254,8 +196,8 @@ impl Callbacks for App {
             return false;
         }
 
-        self.plane_transform.pos.x = self.camera.pos.x;
-        self.plane_transform.pos.z = self.camera.pos.z;
+        // self.plane_transform.pos.x = self.camera.pos.x;
+        // self.plane_transform.pos.z = self.camera.pos.z;
 
         self.camera_movement(ctx);
 
@@ -265,7 +207,7 @@ impl Callbacks for App {
             self.grass_renderer = pollster::block_on(GrassRenderer::new(
                 ctx,
                 &self.camera_buffer,
-                &self.depth_buffer,
+                &self.deferred_buffers,
             ));
             println!("reload");
         }
@@ -337,7 +279,6 @@ struct GrassRenderer {
     instance_count: render::RawBuffer,
     indirect_buffer: render::RawBuffer,
     tile_buffer: render::UniformBuffer,
-    debug_input: render::DebugInput,
     app_info: render::AppInfo,
 
     instance_pipeline: wgpu::ComputePipeline,
@@ -348,32 +289,17 @@ struct GrassRenderer {
 
     render_pipeline: wgpu::RenderPipeline,
     render_bindgroup: wgpu::BindGroup,
-
-    lights: Lights,
-    lights_buffer: render::UniformBuffer,
 }
 
 impl GrassRenderer {
     fn render(
         &mut self,
         ctx: &Context,
-        screen_view: &wgpu::TextureView,
         camera: &render::PerspectiveCamera,
-        depth_buffer: &render::DepthBuffer,
-        gizmo_renderer: &mut render::GizmoRenderer,
+        deferred_buffers: &render::DeferredBuffers,
     ) {
-        self.debug_input.update_buffer(ctx);
-        self.app_info.update_buffer(ctx);
-        self.lights_buffer.write(ctx, &self.lights);
-
-        // DEBUG ligth pos
-        gizmo_renderer.draw_sphere(
-            1.0,
-            &Transform::new(self.lights.main, Quat::default(), Vec3::ONE),
-            vec3(1.0, 0.0, 0.0),
-        );
-
         let queue = render::queue(ctx);
+        self.app_info.update_buffer(ctx);
 
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
@@ -402,8 +328,8 @@ impl GrassRenderer {
                 },
             );
 
-            // run compute
             let mut encoder = render::EncoderBuilder::new().build(ctx);
+            // run compute
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("compute pass"),
                 timestamp_writes: None,
@@ -422,20 +348,26 @@ impl GrassRenderer {
             drop(compute_pass);
 
             // Render
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: screen_view,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: wgpu::StoreOp::Store,
-                    },
-                    resolve_target: None,
-                })],
-                depth_stencil_attachment: Some(depth_buffer.depth_render_attachment_load()),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
+            let attachments = &deferred_buffers.color_attachments();
+            let mut render_pass = render::RenderPassBuilder::new()
+                .color_attachments(attachments)
+                .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
+                .build(&mut encoder);
+            // let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            //     label: Some("render pass"),
+            //     color_attachments: &deferred_buffers.color_attachments(),
+            //     // color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            //     //     view: screen_view,
+            //     //     ops: wgpu::Operations {
+            //     //         load: wgpu::LoadOp::Load,
+            //     //         store: wgpu::StoreOp::Store,
+            //     //     },
+            //     //     resolve_target: None,
+            //     // })],
+            //     depth_stencil_attachment: Some(deferred_buffers.depth_stencil_attachment_load()),
+            //     timestamp_writes: None,
+            //     occlusion_query_set: None,
+            // });
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.instances.slice(..));
@@ -443,7 +375,6 @@ impl GrassRenderer {
             render_pass.draw_indirect(self.indirect_buffer.buf(), 0);
 
             drop(render_pass);
-
             queue.submit(Some(encoder.finish()));
         }
     }
@@ -451,7 +382,7 @@ impl GrassRenderer {
     async fn new(
         ctx: &Context,
         camera_buffer: &render::UniformBuffer,
-        depth_buffer: &render::DepthBuffer,
+        deferred_buffers: &render::DeferredBuffers,
     ) -> Self {
         let instances = render::RawBufferBuilder::new()
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
@@ -472,11 +403,6 @@ impl GrassRenderer {
         let tile_buffer = render::UniformBufferBuilder::new().build(ctx, Tile::min_size());
         let app_info = render::AppInfo::new(ctx);
         let debug_input = render::DebugInput::new(ctx);
-
-        let lights = Lights {
-            main: vec3(30.0, 10.0, 30.0),
-        };
-        let lights_buffer = render::UniformBufferBuilder::new().build(ctx, Lights::min_size());
 
         // Instance
 
@@ -553,18 +479,22 @@ impl GrassRenderer {
         // Render
         let (render_bindgroup_layout, render_bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[
+                // Camera
                 BindGroupCombinedEntry::new(camera_buffer.resource())
                     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
                     .uniform(),
-                BindGroupCombinedEntry::new(app_info.buffer().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                    .uniform(),
-                BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                    .uniform(),
-                BindGroupCombinedEntry::new(lights_buffer.resource())
-                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                    .uniform(),
+                // // Lights
+                // BindGroupCombinedEntry::new(lights_buffer.resource())
+                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                //     .uniform(),
+                // // App info
+                // BindGroupCombinedEntry::new(app_info.buffer().as_entire_binding())
+                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                //     .uniform(),
+                // // Debug input
+                // BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
+                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
+                //     .uniform(),
             ])
             .build(ctx);
 
@@ -574,8 +504,8 @@ impl GrassRenderer {
             .label("render")
             .buffers(&[GrassInstanceGPU::desc()])
             .bind_groups(&[&render_bindgroup_layout])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .depth_stencil(depth_buffer.depth_stencil_state())
+            .targets(&deferred_buffers.targets())
+            .depth_stencil(deferred_buffers.depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .build(ctx);
 
@@ -585,25 +515,20 @@ impl GrassRenderer {
             indirect_buffer,
             tile_buffer,
             app_info,
-            debug_input,
-
             instance_pipeline,
             instance_bindgroup,
             draw_pipeline,
             draw_bindgroup,
             render_pipeline,
             render_bindgroup,
-
-            lights,
-            lights_buffer,
         }
     }
 }
 
-#[derive(ShaderType)]
-struct Lights {
-    main: Vec3,
-}
+// #[derive(ShaderType)]
+// struct Lights {
+//     main: Vec3,
+// }
 
 #[derive(ShaderType)]
 struct Tile {
@@ -642,14 +567,52 @@ impl GrassInstanceGPU {
     }
 }
 
-#[rustfmt::skip]
-const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
-    VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
-    VertexColor { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom right
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
+// #[rustfmt::skip]
+// const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
+//     VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
+//     VertexColor { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom right
+//     VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
+//
+//     VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
+//     VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
+//     VertexColor { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR }, // top left
+//
+// ];
 
-    VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
-    VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
-    VertexColor { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR }, // top left
-
-];
+// Plane
+// let plane_buffer = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES)
+//     .usage(wgpu::BufferUsages::VERTEX)
+//     .build(ctx);
+// let plane_transform = render::Transform::new(
+//     vec3(0.0, 0.0, 0.0),
+//     Quat::from_rotation_x(PI / 2.0),
+//     vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
+// );
+// let plane_transform_buffer = render::UniformBufferBuilder::new()
+//     .label("plane buf")
+//     .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+//     .build_init(ctx, &plane_transform.uniform());
+//
+// // Bind group
+// let (plane_bindgroup_layout, plane_bindgroup) = render::BindGroupCombinedBuilder::new()
+//     .entries(&[
+//         // camera
+//         render::BindGroupCombinedEntry::new(camera_buffer.resource()).uniform(),
+//         // plane transform
+//         render::BindGroupCombinedEntry::new(plane_transform_buffer.resource()).uniform(),
+//     ])
+//     .build(ctx);
+//
+// // Shader
+// let shader_str = filesystem::load_string(ctx, "new_shader.wgsl")
+//     .await
+//     .unwrap();
+// let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+//
+// // Pipeline
+// let plane_pipeline = render::RenderPipelineBuilder::new(&shader)
+//     .buffers(&[VertexColor::desc()])
+//     .bind_groups(&[&plane_bindgroup_layout])
+//     .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+//     .depth_stencil(depth_buffer.depth_stencil_state())
+//     .build(ctx);

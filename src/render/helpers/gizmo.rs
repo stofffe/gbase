@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, FrameBufferBuilder},
+    render::{self},
     Context,
 };
 use encase::ShaderType;

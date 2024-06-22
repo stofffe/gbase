@@ -47,14 +47,14 @@ struct FragmentInput {
 
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
+    // Gather g-buffer data 
     let position = textureSample(position_tex, samp, in.uv).xyz;
     let albedo = textureSample(albedo_tex, samp, in.uv).xyz;
     var normal = textureSample(normal_tex, samp, in.uv).xyz;
     normal = normalize(normal * 2.0 - 1.0); // [0,1] -> [-1,1]
-
     let ao = textureSample(roughness_tex, samp, in.uv).r;
-    let metalness = textureSample(roughness_tex, samp, in.uv).b; // 0 = no metal, 1 = full metal
     let roughness = textureSample(roughness_tex, samp, in.uv).g; // Invert so higher => more relfection
+    let metalness = textureSample(roughness_tex, samp, in.uv).b; // 0 = no metal, 1 = full metal
 
     // Phong shading
     let light_dir = normalize(light - position);
@@ -62,12 +62,14 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let half_dir = normalize(light_dir + view_dir);
 
     let ambient = 0.05;
-    let diffuse = 0.3 * saturate(dot(normal, light_dir)) * (1.0 - metalness);
-    let specular = 0.7 * pow(saturate(dot(normal, half_dir)), 31.0);
+    let diffuse = 0.5 * saturate(dot(normal, light_dir)) * (1.0 - metalness);
+    let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 50.0;
+    var specular = 0.7 * pow(saturate(dot(normal, half_dir)), specular_exponent);
 
-    let light = saturate(ambient + diffuse + specular) * ao;
-    //let light = saturate(specular) * ao;
+    let light = (ambient + diffuse + specular) * ao;
+    let output = vec4<f32>(albedo * light, 1.0);
 
+    // Debug
     if btn1_pressed() {
         return vec4<f32>(albedo, 1.0);
     }
@@ -87,10 +89,13 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         return vec4<f32>(metalness, metalness, metalness, 1.0);
     }
     if btn7_pressed() {
-        return vec4<f32>(diffuse, diffuse, diffuse, 1.0);
+        return vec4<f32>(specular_exponent, specular_exponent, specular_exponent, 1.0);
     }
     if btn8_pressed() {
+        return vec4<f32>(diffuse, diffuse, diffuse, 1.0);
+    }
+    if btn9_pressed() {
         return vec4<f32>(specular, specular, specular, 1.0);
     }
-    return vec4<f32>(albedo * light, 1.0);
+    return output;
 }

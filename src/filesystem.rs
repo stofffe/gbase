@@ -53,10 +53,8 @@ impl FileSystemContext {
     }
 
     /// Loads bytes SYNC from file in assets folder
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn load_bytes_sync(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
-        #[cfg(target_arch = "wasm32")]
-        panic!("load_bytes_sync not supported on wasm32");
-
         let path = self.res_path.join(path);
         let path = path.to_str().ok_or(anyhow!("invalid file path"))?;
         log::info!("load bytes from {:?}", path);
@@ -67,6 +65,7 @@ impl FileSystemContext {
     }
 
     /// Loads string SYNC from file in assets folder
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn load_string_sync(&self, path: &Path) -> anyhow::Result<String> {
         let bytes = self.load_bytes_sync(path)?;
         let str = String::from_utf8(bytes)?;
@@ -86,10 +85,12 @@ pub async fn load_string(ctx: &Context, path: impl Into<PathBuf>) -> anyhow::Res
     ctx.filesystem.load_string(&path.into()).await
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_bytes_sync(ctx: &Context, path: impl Into<PathBuf>) -> anyhow::Result<Vec<u8>> {
     ctx.filesystem.load_bytes_sync(&path.into())
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn load_string_sync(ctx: &Context, path: impl Into<PathBuf>) -> anyhow::Result<String> {
     ctx.filesystem.load_string_sync(&path.into())
 }

@@ -9,6 +9,8 @@ pub struct DeferredBuffers {
 }
 
 impl DeferredBuffers {
+    const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+
     pub fn new(ctx: &Context) -> Self {
         let position_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
@@ -28,7 +30,7 @@ impl DeferredBuffers {
             .build(ctx);
         let depth_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Depth32Float)
+            .format(Self::DEPTH_FORMAT)
             .build(ctx);
         Self {
             position: position_buffer,
@@ -39,6 +41,7 @@ impl DeferredBuffers {
         }
     }
 
+    /// Depth stencil attachment (clear) for depth buffer
     pub fn depth_stencil_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
             view: self.depth.view(),
@@ -50,6 +53,7 @@ impl DeferredBuffers {
         }
     }
 
+    /// Depth stencil attachment (load) for depth buffer
     pub fn depth_stencil_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
             view: self.depth.view(),
@@ -61,9 +65,10 @@ impl DeferredBuffers {
         }
     }
 
+    /// Depth stencil state for depth buffer
     pub fn depth_stencil_state(&self) -> wgpu::DepthStencilState {
         wgpu::DepthStencilState {
-            format: wgpu::TextureFormat::Depth32Float,
+            format: Self::DEPTH_FORMAT,
             depth_write_enabled: true,
             depth_compare: wgpu::CompareFunction::Less,
             bias: wgpu::DepthBiasState::default(),
@@ -71,6 +76,11 @@ impl DeferredBuffers {
         }
     }
 
+    /// Target including
+    /// * Position
+    /// * Albedo
+    /// * Normal
+    /// * Roughness
     pub fn targets(&self) -> [Option<wgpu::ColorTargetState>; 4] {
         [
             Some(self.position.target()),
@@ -80,13 +90,32 @@ impl DeferredBuffers {
         ]
     }
 
+    /// Clear buffers
+    ///
+    /// Usually called at start of frame
+    pub fn clear(&self, ctx: &Context) {
+        let queue = render::queue(ctx);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+        let attachments = &self.color_attachments_clear();
+        let pass = render::RenderPassBuilder::new()
+            .color_attachments(attachments)
+            .build(&mut encoder);
+        drop(pass);
+        queue.submit(Some(encoder.finish()));
+    }
+
     // TODO add loadop option
+    /// Color attachments for (load)
+    /// * Position
+    /// * Albedo
+    /// * Normal
+    /// * Roughness
     pub fn color_attachments(&self) -> [Option<wgpu::RenderPassColorAttachment<'_>>; 4] {
         [
             Some(wgpu::RenderPassColorAttachment {
                 view: self.position.view(),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -94,7 +123,7 @@ impl DeferredBuffers {
             Some(wgpu::RenderPassColorAttachment {
                 view: self.albedo.view(),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -102,7 +131,7 @@ impl DeferredBuffers {
             Some(wgpu::RenderPassColorAttachment {
                 view: self.normal.view(),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -110,7 +139,7 @@ impl DeferredBuffers {
             Some(wgpu::RenderPassColorAttachment {
                 view: self.roughness.view(),
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -118,6 +147,55 @@ impl DeferredBuffers {
         ]
     }
 
+    /// Color attachments for (clear)
+    /// * Position
+    /// * Albedo
+    /// * Normal
+    /// * Roughness
+    pub fn color_attachments_clear(&self) -> [Option<wgpu::RenderPassColorAttachment<'_>>; 4] {
+        const CLEAR_COLOR: wgpu::Color = wgpu::Color::BLACK;
+        [
+            Some(wgpu::RenderPassColorAttachment {
+                view: self.position.view(),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            }),
+            Some(wgpu::RenderPassColorAttachment {
+                view: self.albedo.view(),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            }),
+            Some(wgpu::RenderPassColorAttachment {
+                view: self.normal.view(),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            }),
+            Some(wgpu::RenderPassColorAttachment {
+                view: self.roughness.view(),
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
+                    store: wgpu::StoreOp::Store,
+                },
+                resolve_target: None,
+            }),
+        ]
+    }
+
+    /// Resizes
+    /// * Position
+    /// * Albedo
+    /// * Normal
+    /// * Roughness
+    /// * Depth
     pub fn resize(&mut self, ctx: &Context) {
         self.position.resize(ctx);
         self.albedo.resize(ctx);
