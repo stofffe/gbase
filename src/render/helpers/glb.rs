@@ -14,10 +14,10 @@ pub struct GpuModelNode {
     pub local_transform: render::Transform,
     pub global_transform: render::Transform,
 
-    pub mesh: Option<GpuModelNodeMesh>,
+    pub mesh: Option<GpuDrawCall>,
 }
 
-pub struct GpuModelNodeMesh {
+pub struct GpuDrawCall {
     pub mesh: GpuMesh,
     pub material: GpuMaterial,
     pub bindgroup: wgpu::BindGroup,
@@ -122,7 +122,7 @@ impl GpuModelNode {
                     local_transform: node.local_transform,
                     global_transform: node.global_transform,
 
-                    mesh: Some(GpuModelNodeMesh {
+                    mesh: Some(GpuDrawCall {
                         mesh: GpuMesh {
                             vertex_buffer,
                             index_buffer,
@@ -554,38 +554,50 @@ impl MeshRenderer {
         }
     }
 
+    pub fn render_models(
+        &mut self,
+        ctx: &render::Context,
+        deferred_buffers: &render::DeferredBuffers,
+        models: &[&GpuModel],
+    ) {
+        let mut draws = Vec::new();
+        for model in models.iter() {
+            for node in model.nodes.iter() {
+                if let Some(draw_call) = &node.mesh {
+                    draws.push(draw_call);
+                }
+            }
+        }
+        // eprintln!("meshes {}", draws.len());
+        self.render(ctx, deferred_buffers, &draws);
+    }
     pub fn render(
         &mut self,
-        _ctx: &render::Context,
-        encoder: &mut wgpu::CommandEncoder,
+        ctx: &render::Context,
         deferred_buffers: &render::DeferredBuffers,
-        models: &[&render::GpuModel],
+        draws: &[&GpuDrawCall],
     ) {
+        let queue = render::queue(ctx);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
         let color_attachments = deferred_buffers.color_attachments();
         let mut mesh_pass = render::RenderPassBuilder::new()
             .color_attachments(&color_attachments)
             .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
-            .build(encoder);
+            .build(&mut encoder);
 
         mesh_pass.set_pipeline(&self.pipeline);
 
-        for model in models.iter() {
-            for prim in model.nodes.iter() {
-                match &prim.mesh {
-                    None => continue,
-                    Some(mesh_node) => {
-                        let mesh = &prim.mesh.as_ref().unwrap().mesh;
-                        mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                        mesh_pass.set_index_buffer(
-                            mesh.index_buffer.slice(..),
-                            mesh.index_buffer.format(),
-                        );
-                        mesh_pass.set_bind_group(0, &mesh_node.bindgroup, &[]);
-                        mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
-                    }
-                }
-            }
+        for &draw in draws.iter() {
+            let mesh = &draw.mesh;
+            mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+            mesh_pass.set_index_buffer(mesh.index_buffer.slice(..), mesh.index_buffer.format());
+            mesh_pass.set_bind_group(0, &draw.bindgroup, &[]);
+            mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
         }
+
+        drop(mesh_pass);
+
+        queue.submit(Some(encoder.finish()));
     }
 
     // pub fn load_glb(
@@ -598,3 +610,20 @@ impl MeshRenderer {
     //     GpuModel::from_model(ctx, model, camera_buffer, self)
     // }
 }
+// for model in models.iter() {
+//     for prim in model.nodes.iter() {
+//         match &prim.mesh {
+//             None => continue,
+//             Some(mesh_node) => {
+//                 let mesh = &prim.mesh.as_ref().unwrap().mesh;
+//                 mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+//                 mesh_pass.set_index_buffer(
+//                     mesh.index_buffer.slice(..),
+//                     mesh.index_buffer.format(),
+//                 );
+//                 mesh_pass.set_bind_group(0, &mesh_node.bindgroup, &[]);
+//                 mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
+//             }
+//         }
+//     }
+// }

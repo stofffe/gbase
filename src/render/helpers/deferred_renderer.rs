@@ -38,13 +38,11 @@ impl DeferredRenderer {
         }
     }
 
-    pub fn render(
-        &mut self,
-        ctx: &Context,
-        screen_view: &wgpu::TextureView,
-        encoder: &mut wgpu::CommandEncoder,
-    ) {
+    pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
         self.debug_input.update_buffer(ctx);
+
+        let queue = render::queue(ctx);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         let color_attachments = [Some(wgpu::RenderPassColorAttachment {
             view: screen_view,
@@ -56,7 +54,7 @@ impl DeferredRenderer {
         })];
         let mut render_pass = render::RenderPassBuilder::new()
             .color_attachments(&color_attachments)
-            .build(encoder);
+            .build(&mut encoder);
 
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -64,6 +62,8 @@ impl DeferredRenderer {
         render_pass.draw(0..self.vertex_buffer.len(), 0..1);
 
         drop(render_pass);
+
+        queue.submit(Some(encoder.finish()));
     }
     fn bindgroups(
         ctx: &Context,

@@ -21,10 +21,10 @@ struct App {
     camera_buffer: render::UniformBuffer,
     light: Vec3,
     light_buffer: render::UniformBuffer,
-    gizmo_renderer: render::GizmoRenderer,
     debug_input: render::DebugInput,
     model1: render::GpuModel,
     model2: render::GpuModel,
+    gizmo_renderer: render::GizmoRenderer,
 }
 
 impl App {
@@ -130,19 +130,11 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.debug_input.update_buffer(ctx);
 
-        let queue = render::queue(ctx);
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-
         // Render into gbuffer
-        let meshes = &[&self.model1];
-        // let meshes = &[&self.model1, &self.model2];
+        let meshes = &[&self.model1, &self.model2];
         self.mesh_renderer
-            .render(ctx, &mut encoder, &self.deferred_buffers, meshes);
-
-        self.deferred_renderer
-            .render(ctx, screen_view, &mut encoder);
-        queue.submit(Some(encoder.finish()));
-
+            .render_models(ctx, &self.deferred_buffers, meshes);
+        self.deferred_renderer.render(ctx, screen_view);
         self.gizmo_renderer.draw_sphere(
             0.1,
             &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),

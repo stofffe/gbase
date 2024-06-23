@@ -130,24 +130,12 @@ impl Callbacks for App {
         self.light = vec3(t.cos(), 1.0, t.sin()) * 10.0;
         self.light_buffer.write(ctx, &self.light);
 
-        // Grass
         self.grass_renderer
             .render(ctx, &self.camera, &self.deferred_buffers);
-        // Mesh
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
         self.mesh_renderer
-            .render(ctx, &mut encoder, &self.deferred_buffers, &[&self.model]);
-
-        // Deferred
-        self.deferred_renderer
-            .render(ctx, screen_view, &mut encoder);
-
-        queue.submit(Some(encoder.finish()));
-
-        // Gui
+            .render_models(ctx, &self.deferred_buffers, &[&self.model]);
+        self.deferred_renderer.render(ctx, screen_view);
         self.gui_renderer.render(ctx, screen_view);
-
-        // Gizmo
         self.gizmo_renderer.draw_sphere(
             1.0,
             &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
@@ -335,7 +323,7 @@ impl GrassRenderer {
             );
 
             let mut encoder = render::EncoderBuilder::new().build(ctx);
-            // run compute
+            // Compute
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
                 label: Some("compute pass"),
                 timestamp_writes: None,
@@ -366,6 +354,7 @@ impl GrassRenderer {
             render_pass.draw_indirect(self.indirect_buffer.buf(), 0);
 
             drop(render_pass);
+
             queue.submit(Some(encoder.finish()));
         }
     }
@@ -474,18 +463,6 @@ impl GrassRenderer {
                 BindGroupCombinedEntry::new(camera_buffer.resource())
                     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
                     .uniform(),
-                // // Lights
-                // BindGroupCombinedEntry::new(lights_buffer.resource())
-                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                //     .uniform(),
-                // // App info
-                // BindGroupCombinedEntry::new(app_info.buffer().as_entire_binding())
-                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                //     .uniform(),
-                // // Debug input
-                // BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
-                //     .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT)
-                //     .uniform(),
             ])
             .build(ctx);
 
