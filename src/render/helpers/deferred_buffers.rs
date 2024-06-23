@@ -99,6 +99,7 @@ impl DeferredBuffers {
         let attachments = &self.color_attachments_clear();
         let pass = render::RenderPassBuilder::new()
             .color_attachments(attachments)
+            .depth_stencil_attachment(self.depth_stencil_attachment_clear())
             .build(&mut encoder);
         drop(pass);
         queue.submit(Some(encoder.finish()));

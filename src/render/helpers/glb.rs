@@ -5,11 +5,12 @@ use glam::{Mat4, Quat, Vec3};
 // GPU
 //
 
-pub struct GpuModel {
-    pub nodes: Vec<GpuModelNode>,
+// GLTF
+pub struct GpuGltfModel {
+    pub nodes: Vec<GpuGltfModelNode>,
 }
 
-pub struct GpuModelNode {
+pub struct GpuGltfModelNode {
     pub parent: usize,
     pub local_transform: render::Transform,
     pub global_transform: render::Transform,
@@ -17,10 +18,39 @@ pub struct GpuModelNode {
     pub mesh: Option<GpuDrawCall>,
 }
 
+// Generic
 pub struct GpuDrawCall {
     pub mesh: GpuMesh,
     pub material: GpuMaterial,
     pub bindgroup: wgpu::BindGroup,
+}
+
+impl GpuDrawCall {
+    pub fn new(
+        ctx: &Context,
+        mesh: GpuMesh,
+        material: GpuMaterial,
+        transform: &render::UniformBuffer,
+        camera: &render::UniformBuffer,
+        mesh_renderer: &render::MeshRenderer,
+    ) -> Self {
+        let sampler = render::SamplerBuilder::new().build(ctx);
+        let bindgroup = render::BindGroupBuilder::new()
+            .entries(&[
+                render::BindGroupEntry::new(sampler.resource()),
+                render::BindGroupEntry::new(material.normal_texture.resource()),
+                render::BindGroupEntry::new(material.albedo_texture.resource()),
+                render::BindGroupEntry::new(material.roughness_texture.resource()),
+                render::BindGroupEntry::new(transform.resource()),
+                render::BindGroupEntry::new(camera.resource()),
+            ])
+            .build(ctx, &mesh_renderer.bindgroup_layout);
+        Self {
+            mesh,
+            material,
+            bindgroup,
+        }
+    }
 }
 
 pub struct GpuMaterial {
@@ -29,31 +59,83 @@ pub struct GpuMaterial {
     pub roughness_texture: render::Texture,
 }
 
+impl GpuMaterial {
+    pub fn from_material(ctx: &Context, material: Material) -> Self {
+        let texture_usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
+        let albedo_texture = if let Some(bytes) = &material.albedo {
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_init(ctx, bytes)
+        } else {
+            let color = material.color_factor.map(|a| (a * 255.0) as u8);
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_single_pixel(ctx, color)
+        };
+        let normal_texture = if let Some(bytes) = &material.normal {
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_init(ctx, bytes)
+        } else {
+            let default_normal = [128, 128, 255, 128];
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_single_pixel(ctx, default_normal)
+        };
+        let roughness_texture = if let Some(bytes) = &material.roughness {
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_init(ctx, bytes)
+        } else {
+            let default_roughness = material.roughness_value_u8();
+            render::TextureBuilder::new()
+                .usage(texture_usage)
+                .build_single_pixel(ctx, default_roughness)
+        };
+        Self {
+            albedo_texture,
+            normal_texture,
+            roughness_texture,
+        }
+    }
+}
+
 pub struct GpuMesh {
     pub vertex_buffer: render::VertexBuffer<render::VertexFull>,
     pub index_buffer: render::IndexBuffer,
 }
 
-impl GpuModel {
+impl GpuMesh {
+    pub fn from_mesh(ctx: &Context, mesh: Mesh) -> Self {
+        let vertex_buffer = render::VertexBufferBuilder::new(&mesh.vertices).build(ctx);
+        let index_buffer = render::IndexBufferBuilder::new(&mesh.indices).build(ctx);
+        Self {
+            vertex_buffer,
+            index_buffer,
+        }
+    }
+}
+
+impl GpuGltfModel {
     pub fn from_model(
         ctx: &Context,
-        model: Model,
+        model: GltfModel,
         camera_buffer: &render::UniformBuffer,
         mesh_renderer: &render::MeshRenderer,
     ) -> Self {
         let nodes = model
             .meshes
             .into_iter()
-            .map(|node| GpuModelNode::new(ctx, node, camera_buffer, mesh_renderer))
+            .map(|node| GpuGltfModelNode::new(ctx, node, camera_buffer, mesh_renderer))
             .collect::<Vec<_>>();
         Self { nodes }
     }
 }
 
-impl GpuModelNode {
+impl GpuGltfModelNode {
     pub fn new(
         ctx: &Context,
-        node: ModelNode,
+        node: GltfModelNode,
         camera_buffer: &render::UniformBuffer,
         mesh_renderer: &MeshRenderer,
     ) -> Self {
@@ -69,71 +151,23 @@ impl GpuModelNode {
                 mesh: None,
             },
             Some((mesh, material)) => {
-                let texture_usage =
-                    wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
-                let albedo_texture = if let Some(bytes) = &material.albedo {
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_init(ctx, bytes)
-                } else {
-                    let color = material.color_factor.map(|a| (a * 255.0) as u8);
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_single_pixel(ctx, color)
-                };
-                let normal_texture = if let Some(bytes) = &material.normal {
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_init(ctx, bytes)
-                } else {
-                    let default_normal = [128, 128, 255, 128];
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_single_pixel(ctx, default_normal)
-                };
-                let roughness_texture = if let Some(bytes) = &material.roughness {
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_init(ctx, bytes)
-                } else {
-                    let default_roughness = material.roughness_value_u8();
-                    render::TextureBuilder::new()
-                        .usage(texture_usage)
-                        .build_single_pixel(ctx, default_roughness)
-                };
-
-                let vertex_buffer = render::VertexBufferBuilder::new(&mesh.vertices).build(ctx);
-                let index_buffer = render::IndexBufferBuilder::new(&mesh.indices).build(ctx);
-
-                let sampler = render::SamplerBuilder::new().build(ctx);
-                let bindgroup = render::BindGroupBuilder::new()
-                    .entries(&[
-                        render::BindGroupEntry::new(sampler.resource()),
-                        render::BindGroupEntry::new(normal_texture.resource()),
-                        render::BindGroupEntry::new(albedo_texture.resource()),
-                        render::BindGroupEntry::new(roughness_texture.resource()),
-                        render::BindGroupEntry::new(transform_buffer.resource()),
-                        render::BindGroupEntry::new(camera_buffer.resource()),
-                    ])
-                    .build(ctx, &mesh_renderer.bindgroup_layout);
+                let mesh = GpuMesh::from_mesh(ctx, mesh);
+                let material = GpuMaterial::from_material(ctx, material);
+                let draw_call = GpuDrawCall::new(
+                    ctx,
+                    mesh,
+                    material,
+                    &transform_buffer,
+                    camera_buffer,
+                    mesh_renderer,
+                );
 
                 Self {
                     parent: node.parent,
                     local_transform: node.local_transform,
                     global_transform: node.global_transform,
 
-                    mesh: Some(GpuDrawCall {
-                        mesh: GpuMesh {
-                            vertex_buffer,
-                            index_buffer,
-                        },
-                        material: GpuMaterial {
-                            albedo_texture,
-                            normal_texture,
-                            roughness_texture,
-                        },
-                        bindgroup,
-                    }),
+                    mesh: Some(draw_call),
                 }
             }
         }
@@ -145,12 +179,18 @@ impl GpuModelNode {
 //
 
 #[derive(Debug)]
-pub struct Model {
-    pub meshes: Vec<ModelNode>,
+pub struct GltfModel {
+    pub meshes: Vec<GltfModelNode>,
+}
+
+impl GltfModel {
+    pub fn from_glb_bytes(bytes: &[u8]) -> Self {
+        parse_glb(bytes)
+    }
 }
 
 #[derive(Debug)]
-pub struct ModelNode {
+pub struct GltfModelNode {
     pub mesh: Option<(Mesh, Material)>,
     pub local_transform: render::Transform,
     pub global_transform: render::Transform,
@@ -173,12 +213,6 @@ pub struct Material {
     pub albedo: Option<Vec<u8>>,
     pub normal: Option<Vec<u8>>,
     pub roughness: Option<Vec<u8>>,
-}
-
-impl Model {
-    pub fn from_glb_bytes(bytes: &[u8]) -> Self {
-        parse_glb(bytes)
-    }
 }
 
 impl Material {
@@ -219,7 +253,7 @@ impl Default for Material {
     }
 }
 
-fn parse_glb(bytes: &[u8]) -> Model {
+fn parse_glb(bytes: &[u8]) -> GltfModel {
     let glb = gltf::Glb::from_slice(bytes).unwrap();
     let info = gltf::Gltf::from_slice(&glb.json).unwrap();
     let buffer = glb.bin.expect("no buffer in glb file");
@@ -231,13 +265,13 @@ fn parse_glb(bytes: &[u8]) -> Model {
         }
     }
 
-    Model { meshes }
+    GltfModel { meshes }
 }
 
 fn parse_scene(
     node: gltf::Node<'_>,
     buffer: &[u8],
-    nodes: &mut Vec<ModelNode>,
+    nodes: &mut Vec<GltfModelNode>,
     parent_transform: render::Transform,
     parent: usize,
 ) {
@@ -253,7 +287,7 @@ fn parse_scene(
             for primitive in mesh.primitives() {
                 let mesh = parse_mesh(buffer, &primitive);
                 let material = parse_material(buffer, &primitive);
-                nodes.push(ModelNode {
+                nodes.push(GltfModelNode {
                     mesh: Some((mesh, material)),
                     local_transform: local_transform.clone(),
                     global_transform: global_transform.clone(),
@@ -262,7 +296,7 @@ fn parse_scene(
             }
         }
         None => {
-            nodes.push(ModelNode {
+            nodes.push(GltfModelNode {
                 mesh: None,
                 local_transform: local_transform.clone(),
                 global_transform: global_transform.clone(),
@@ -558,7 +592,7 @@ impl MeshRenderer {
         &mut self,
         ctx: &render::Context,
         deferred_buffers: &render::DeferredBuffers,
-        models: &[&GpuModel],
+        models: &[&GpuGltfModel],
     ) {
         let mut draws = Vec::new();
         for model in models.iter() {

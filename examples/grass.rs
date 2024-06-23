@@ -1,7 +1,10 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, BindGroupCombinedEntry, DeferredRenderer, GpuModel, MeshRenderer, Transform},
+    render::{
+        self, BindGroupCombinedEntry, DeferredRenderer, GpuDrawCall, GpuModel, MeshRenderer,
+        Transform,
+    },
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
@@ -60,13 +63,13 @@ impl App {
         let light = vec3(10.0, 10.0, -10.0);
         let light_buffer = render::UniformBufferBuilder::new().build(ctx, Vec3::min_size());
 
+        // Renderers
         let deferred_buffers = render::DeferredBuffers::new(ctx);
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
         let deferred_renderer =
             render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
                 .await;
         let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
-
         let gui_renderer = render::GUIRenderer::new(
             ctx,
             1000 * 4,

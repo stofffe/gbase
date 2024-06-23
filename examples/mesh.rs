@@ -22,8 +22,8 @@ struct App {
     light: Vec3,
     light_buffer: render::UniformBuffer,
     debug_input: render::DebugInput,
-    model1: render::GpuModel,
-    model2: render::GpuModel,
+    model1: render::GpuGltfModel,
+    model2: render::GpuGltfModel,
     gizmo_renderer: render::GizmoRenderer,
 }
 
@@ -43,13 +43,13 @@ impl App {
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
 
-        let model1_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
-        let model1 = render::Model::from_glb_bytes(&model1_bytes);
-        let model1 = render::GpuModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
+        let model1_bytes = filesystem::load_bytes(ctx, "coord.glb").await.unwrap();
+        let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
+        let model1 = render::GpuGltfModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
 
         let model2_bytes = filesystem::load_bytes(ctx, "coord2.glb").await.unwrap();
-        let model2 = render::Model::from_glb_bytes(&model2_bytes);
-        let model2 = render::GpuModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
+        let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
+        let model2 = render::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 
         Self {
             mesh_renderer,
@@ -79,14 +79,22 @@ impl Callbacks for App {
             self.camera.pitch = 0.0;
 
             let model1_bytes = filesystem::load_bytes_sync(ctx, "ak47.glb").unwrap();
-            let model1 = render::Model::from_glb_bytes(&model1_bytes);
-            self.model1 =
-                render::GpuModel::from_model(ctx, model1, &self.camera_buffer, &self.mesh_renderer);
+            let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
+            self.model1 = render::GpuGltfModel::from_model(
+                ctx,
+                model1,
+                &self.camera_buffer,
+                &self.mesh_renderer,
+            );
 
             let model2_bytes = filesystem::load_bytes_sync(ctx, "coord2.glb").unwrap();
-            let model2 = render::Model::from_glb_bytes(&model2_bytes);
-            self.model2 =
-                render::GpuModel::from_model(ctx, model2, &self.camera_buffer, &self.mesh_renderer);
+            let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
+            self.model2 = render::GpuGltfModel::from_model(
+                ctx,
+                model2,
+                &self.camera_buffer,
+                &self.mesh_renderer,
+            );
         }
 
         // Camera rotation
@@ -124,13 +132,14 @@ impl Callbacks for App {
 
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // eprintln!("FPS {}", time::fps(ctx));
-        let t = gbase::time::time_since_start(ctx);
+        // let t = gbase::time::time_since_start(ctx);
         self.light = vec3(5.0, 1.5, 5.0); // self.light = vec3(t.sin() * 5.0, 0.0, t.cos() * 5.0);
         self.light_buffer.write(ctx, &self.light);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.debug_input.update_buffer(ctx);
 
         // Render into gbuffer
+        self.deferred_buffers.clear(ctx);
         let meshes = &[&self.model1, &self.model2];
         self.mesh_renderer
             .render_models(ctx, &self.deferred_buffers, meshes);
