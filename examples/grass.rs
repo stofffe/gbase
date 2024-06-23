@@ -2,13 +2,13 @@ use encase::ShaderType;
 use gbase::{
     filesystem, input,
     render::{
-        self, BindGroupCombinedEntry, DeferredRenderer, GpuDrawCall, GpuModel, MeshRenderer,
+        self, BindGroupCombinedEntry, DeferredRenderer, GpuDrawCall, GpuGltfModel, MeshRenderer,
         Transform,
     },
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
-use std::{mem::size_of, ops::Div};
+use std::{f32::consts::PI, mem::size_of, ops::Div};
 use winit::{
     keyboard::KeyCode,
     window::{CursorGrabMode, WindowBuilder},
@@ -32,7 +32,7 @@ const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 15.0;
 
 const PLANE_SIZE: f32 = 500.0;
-const PLANE_COLOR: [f32; 3] = [0.025, 0.1, 0.005];
+const PLANE_COLOR: [f32; 4] = [0.025, 0.1, 0.005, 1.0];
 
 struct App {
     camera: render::PerspectiveCamera,
@@ -41,7 +41,7 @@ struct App {
     light_buffer: render::UniformBuffer,
     deferred_buffers: render::DeferredBuffers,
 
-    model: render::GpuModel,
+    model: render::GpuGltfModel,
 
     mesh_renderer: render::MeshRenderer,
     deferred_renderer: render::DeferredRenderer,
@@ -50,6 +50,10 @@ struct App {
     gizmo_renderer: render::GizmoRenderer,
 
     paused: bool,
+
+    plane: render::GpuDrawCall,
+    plane_transform: render::Transform,
+    plane_transform_buffer: render::UniformBuffer,
 }
 
 impl App {
@@ -78,11 +82,44 @@ impl App {
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
-
         let gizmo_renderer = render::GizmoRenderer::new(ctx);
+
+        // Plane mesh
+        let plane_transform = render::Transform::new(
+            vec3(0.0, 0.0, 0.0),
+            Quat::from_rotation_x(-PI / 2.0),
+            vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
+        );
+        let plane_transform_buffer =
+            render::UniformBufferBuilder::new().build_init(ctx, &plane_transform.uniform());
+        let mesh = render::Mesh::new(
+            CENTERED_QUAD_VERTICES.to_vec(),
+            CENTERED_QUAD_INDICES.to_vec(),
+        );
+        let material = render::Material {
+            color_factor: PLANE_COLOR,
+            roughness_factor: 0.5,
+            metalness_factor: 0.0,
+            occlusion_strength: 0.5,
+            albedo: None,
+            normal: None,
+            roughness: None,
+        };
+        let gpu_mesh = render::GpuMesh::from_mesh(ctx, mesh);
+        let gpu_material = render::GpuMaterial::from_material(ctx, material);
+        let plane = render::GpuDrawCall::new(
+            ctx,
+            gpu_mesh,
+            gpu_material,
+            &plane_transform_buffer,
+            &camera_buffer,
+            &mesh_renderer,
+        );
+
+        // Model
         let model_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
-        let model = render::Model::from_glb_bytes(&model_bytes);
-        let model = GpuModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
+        let model = render::GltfModel::from_glb_bytes(&model_bytes);
+        let model = GpuGltfModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
 
         Self {
             camera,
@@ -99,6 +136,10 @@ impl App {
             model,
 
             paused: false,
+
+            plane,
+            plane_transform,
+            plane_transform_buffer,
         }
     }
 }
@@ -132,11 +173,19 @@ impl Callbacks for App {
         let t = time::time_since_start(ctx);
         self.light = vec3(t.cos(), 1.0, t.sin()) * 10.0;
         self.light_buffer.write(ctx, &self.light);
+        self.plane_transform_buffer
+            .write(ctx, &self.plane_transform.uniform());
 
+        // Render
         self.grass_renderer
             .render(ctx, &self.camera, &self.deferred_buffers);
+
+        //Mesh
         self.mesh_renderer
             .render_models(ctx, &self.deferred_buffers, &[&self.model]);
+        self.mesh_renderer
+            .render(ctx, &self.deferred_buffers, &[&self.plane]);
+
         self.deferred_renderer.render(ctx, screen_view);
         self.gui_renderer.render(ctx, screen_view);
         self.gizmo_renderer.draw_sphere(
@@ -187,8 +236,8 @@ impl Callbacks for App {
             return false;
         }
 
-        // self.plane_transform.pos.x = self.camera.pos.x;
-        // self.plane_transform.pos.z = self.camera.pos.z;
+        self.plane_transform.pos.x = self.camera.pos.x;
+        self.plane_transform.pos.z = self.camera.pos.z;
 
         self.camera_movement(ctx);
 
@@ -538,17 +587,23 @@ impl GrassInstanceGPU {
     }
 }
 
-// #[rustfmt::skip]
-// const CENTERED_QUAD_VERTICES: &[VertexColor] = &[
-//     VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
-//     VertexColor { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom right
-//     VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
-//
-//     VertexColor { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR }, // bottom left
-//     VertexColor { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR }, // top right
-//     VertexColor { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR }, // top left
-//
-// ];
+#[rustfmt::skip]
+const CENTERED_QUAD_VERTICES: &[render::VertexFull] = &[
+    render::VertexFull { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom left
+    render::VertexFull { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom right
+    render::VertexFull { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top right
+
+    render::VertexFull { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom left
+    render::VertexFull { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top right
+    render::VertexFull { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top left
+
+];
+
+#[rustfmt::skip]
+const CENTERED_QUAD_INDICES: &[u32] = &[
+    0, 1, 2,
+    3, 4, 5
+];
 
 // Plane
 // let plane_buffer = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES)

@@ -203,6 +203,12 @@ pub struct Mesh {
     pub indices: Vec<u32>,
 }
 
+impl Mesh {
+    pub fn new(vertices: Vec<render::VertexFull>, indices: Vec<u32>) -> Self {
+        Self { vertices, indices }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Material {
     pub color_factor: [f32; 4],
@@ -216,6 +222,17 @@ pub struct Material {
 }
 
 impl Material {
+    // pub fn new() -> Self {
+    //     Self {
+    //         color_factor: todo!(),
+    //         roughness_factor: todo!(),
+    //         metalness_factor: todo!(),
+    //         occlusion_strength: todo!(),
+    //         albedo: todo!(),
+    //         normal: todo!(),
+    //         roughness: todo!(),
+    //     }
+    // }
     pub fn roughness_value_u8(&self) -> [u8; 4] {
         [
             self.occlusion_strength_u8(),
