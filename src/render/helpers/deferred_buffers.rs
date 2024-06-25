@@ -44,7 +44,7 @@ impl DeferredBuffers {
     /// Depth stencil attachment (clear) for depth buffer
     pub fn depth_stencil_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
-            view: self.depth.view(),
+            view: self.depth.view_ref(),
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Clear(1.0),
                 store: wgpu::StoreOp::Store,
@@ -56,7 +56,7 @@ impl DeferredBuffers {
     /// Depth stencil attachment (load) for depth buffer
     pub fn depth_stencil_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
-            view: self.depth.view(),
+            view: self.depth.view_ref(),
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Load,
                 store: wgpu::StoreOp::Store,
@@ -114,7 +114,7 @@ impl DeferredBuffers {
     pub fn color_attachments(&self) -> [Option<wgpu::RenderPassColorAttachment<'_>>; 4] {
         [
             Some(wgpu::RenderPassColorAttachment {
-                view: self.position.view(),
+                view: self.position.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -122,7 +122,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.albedo.view(),
+                view: self.albedo.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -130,7 +130,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.normal.view(),
+                view: self.normal.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -138,7 +138,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.roughness.view(),
+                view: self.roughness.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Load,
                     store: wgpu::StoreOp::Store,
@@ -157,7 +157,7 @@ impl DeferredBuffers {
         const CLEAR_COLOR: wgpu::Color = wgpu::Color::BLACK;
         [
             Some(wgpu::RenderPassColorAttachment {
-                view: self.position.view(),
+                view: self.position.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                     store: wgpu::StoreOp::Store,
@@ -165,7 +165,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.albedo.view(),
+                view: self.albedo.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                     store: wgpu::StoreOp::Store,
@@ -173,7 +173,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.normal.view(),
+                view: self.normal.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                     store: wgpu::StoreOp::Store,
@@ -181,7 +181,7 @@ impl DeferredBuffers {
                 resolve_target: None,
             }),
             Some(wgpu::RenderPassColorAttachment {
-                view: self.roughness.view(),
+                view: self.roughness.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(CLEAR_COLOR),
                     store: wgpu::StoreOp::Store,

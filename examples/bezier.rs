@@ -58,10 +58,10 @@ impl App {
             .build(ctx, render::PerspectiveCameraUniform::min_size());
         let (camera_bindgroup_layout, camera_bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[render::BindGroupCombinedEntry::new(
-                camera_buffer.buf().as_entire_binding(),
+                camera_buffer.buffer().as_entire_binding(),
             )
             .uniform()])
-            .build(ctx);
+            .build_uncached(ctx);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
@@ -69,14 +69,14 @@ impl App {
 
         // Shader
         let shader_str = filesystem::load_string(ctx, "bezier.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
+        let shader = render::ShaderBuilder::new().build_uncached(ctx, &shader_str);
+        let pipeline = render::PipelineLayoutBuilder::new(&shader)
             .bind_groups(&[&camera_bindgroup_layout])
             .buffers(&[vertex_buffer.desc()])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+            .targets(&[render::PipelineLayoutBuilder::default_target(ctx)])
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
             .depth_stencil(depth_buffer.depth_stencil_state())
-            .build(ctx);
+            .build_uncached(ctx);
 
         render::window(ctx).set_cursor_visible(false);
 

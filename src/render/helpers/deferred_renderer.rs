@@ -2,11 +2,15 @@
 // Deferred renderer
 //
 
-use crate::{filesystem, render, Context};
+use crate::{
+    filesystem,
+    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
+    Context,
+};
 
 pub struct DeferredRenderer {
-    pipeline: wgpu::RenderPipeline,
-    bindgroup: wgpu::BindGroup,
+    pipeline: ArcRenderPipeline,
+    bindgroup: ArcBindGroup,
 
     vertex_buffer: render::VertexBuffer<render::VertexUV>,
     debug_input: render::DebugInput,
@@ -14,21 +18,23 @@ pub struct DeferredRenderer {
 
 impl DeferredRenderer {
     pub async fn new(
-        ctx: &Context,
+        ctx: &mut Context,
         buffers: &render::DeferredBuffers,
         camera: &render::UniformBuffer,
         light: &render::UniformBuffer,
     ) -> Self {
         let shader_str = filesystem::load_string(ctx, "deferred.wgsl").await.unwrap();
-        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES).build(ctx);
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES.to_vec()).build(ctx);
+        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
         let debug_input = render::DebugInput::new(ctx);
         let (bindgroup_layout, bindgroup) =
             Self::bindgroups(ctx, buffers, camera, light, &debug_input);
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .bind_groups(&[&bindgroup_layout])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .buffers(&[vertex_buffer.desc()])
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout])
+            .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .buffers(vec![vertex_buffer.desc()])
             .build(ctx);
         Self {
             pipeline,
@@ -66,53 +72,69 @@ impl DeferredRenderer {
         queue.submit(Some(encoder.finish()));
     }
     fn bindgroups(
-        ctx: &Context,
+        ctx: &mut Context,
         buffers: &render::DeferredBuffers,
         camera: &render::UniformBuffer,
         light: &render::UniformBuffer,
         debug_input: &render::DebugInput,
-    ) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
+    ) -> (ArcBindGroupLayout, ArcBindGroup) {
         let sampler = render::SamplerBuilder::new().build(ctx);
-        render::BindGroupCombinedBuilder::new()
-            .entries(&[
-                //sampler
-                render::BindGroupCombinedEntry::new(sampler.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(sampler.binding_nonfiltering()),
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                // sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_nonfiltering()
+                    .fragment(),
                 // position
-                render::BindGroupCombinedEntry::new(buffers.position.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.position.binding_nonfilter()),
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_nonfilterable()
+                    .fragment(),
                 // albedo
-                render::BindGroupCombinedEntry::new(buffers.albedo.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.albedo.binding_nonfilter()),
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_nonfilterable()
+                    .fragment(),
                 // normal
-                render::BindGroupCombinedEntry::new(buffers.normal.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.normal.binding_nonfilter()),
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_nonfilterable()
+                    .fragment(),
                 // roughness
-                render::BindGroupCombinedEntry::new(buffers.roughness.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(buffers.roughness.binding_nonfilter()),
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_nonfilterable()
+                    .fragment(),
                 // camera
-                render::BindGroupCombinedEntry::new(camera.buf().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .uniform(),
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // light
-                render::BindGroupCombinedEntry::new(light.buf().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .uniform(),
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // debug input
-                render::BindGroupCombinedEntry::new(debug_input.buffer().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .uniform(),
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
             ])
-            .build(ctx)
+            .build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![
+                // sampler
+                render::BindGroupEntry::Sampler(sampler),
+                // position
+                render::BindGroupEntry::Texture(buffers.position.view()),
+                // albedo
+                render::BindGroupEntry::Texture(buffers.albedo.view()),
+                // normal
+                render::BindGroupEntry::Texture(buffers.normal.view()),
+                // roughness
+                render::BindGroupEntry::Texture(buffers.roughness.view()),
+                // camera
+                render::BindGroupEntry::Buffer(camera.buffer()),
+                // light
+                render::BindGroupEntry::Buffer(light.buffer()),
+                // debug input
+                render::BindGroupEntry::Buffer(debug_input.buffer()),
+            ])
+            .build(ctx);
+
+        (bindgroup_layout, bindgroup)
     }
     pub fn resize(
         &mut self,
-        ctx: &Context,
+        ctx: &mut Context,
         buffers: &render::DeferredBuffers,
         camera: &render::UniformBuffer,
         light: &render::UniformBuffer,

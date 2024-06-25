@@ -1,26 +1,33 @@
-use crate::{input, render, Context};
+use crate::{
+    input,
+    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcBuffer},
+    Context,
+};
 use encase::ShaderType;
 use winit::keyboard::KeyCode;
 
 /// Debug information for use in shaders
 pub struct DebugInput {
     buffer: render::UniformBuffer,
-    bindgroup_layout: wgpu::BindGroupLayout,
-    bindgroup: wgpu::BindGroup,
+    bindgroup_layout: ArcBindGroupLayout,
+    bindgroup: ArcBindGroup,
 }
 
 impl DebugInput {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, DebugInputUniform::min_size());
 
-        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[
-                render::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE)
-                    .uniform(),
-            ])
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![render::BindGroupLayoutEntry::new()
+                .vertex()
+                .fragment()
+                .compute()
+                .uniform()])
+            .build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![render::BindGroupEntry::Buffer(buffer.buffer())])
             .build(ctx);
         Self {
             buffer,
@@ -53,8 +60,11 @@ impl DebugInput {
     pub fn bindgroup(&self) -> &wgpu::BindGroup {
         &self.bindgroup
     }
-    pub fn buffer(&self) -> &wgpu::Buffer {
-        self.buffer.buf()
+    pub fn buffer(&self) -> ArcBuffer {
+        self.buffer.buffer()
+    }
+    pub fn buffer_ref(&self) -> &wgpu::Buffer {
+        self.buffer.buffer_ref()
     }
 }
 

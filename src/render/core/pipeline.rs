@@ -1,60 +1,120 @@
 use crate::{render, Context};
+use render::{
+    ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule,
+};
+
+//
+// Pipeline layout builder
+//
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct PipelineLayoutBuilder {
+    label: Option<String>,
+    bind_groups: Vec<ArcBindGroupLayout>,
+    push_constants: Vec<wgpu::PushConstantRange>,
+}
+
+impl PipelineLayoutBuilder {
+    pub fn new() -> Self {
+        Self {
+            label: None,
+            bind_groups: Vec::new(),
+            push_constants: Vec::new(),
+        }
+    }
+
+    pub fn build_uncached(&self, ctx: &Context) -> ArcPipelineLayout {
+        let device = render::device(ctx);
+
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: self.label.as_deref(),
+            bind_group_layouts: &self
+                .bind_groups
+                .iter()
+                .map(|b| b.as_ref())
+                .collect::<Vec<_>>(),
+            push_constant_ranges: &self.push_constants,
+        });
+
+        ArcPipelineLayout::new(layout)
+    }
+    pub fn build(&self, ctx: &mut Context) -> ArcPipelineLayout {
+        if let Some(pipeline_layout) = ctx.render.cache.pipeline_layouts.get(self) {
+            log::info!("Fetch cached pipeline layout");
+            return pipeline_layout.clone();
+        }
+
+        log::info!("Create cached pipeline layout");
+        let pipeline_layout = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .pipeline_layouts
+            .insert(self.clone(), pipeline_layout.clone());
+        pipeline_layout
+    }
+}
+
+impl PipelineLayoutBuilder {
+    pub fn label(mut self, value: String) -> Self {
+        self.label = Some(value);
+        self
+    }
+    pub fn bind_groups(mut self, value: Vec<ArcBindGroupLayout>) -> Self {
+        self.bind_groups = value;
+        self
+    }
+    pub fn push_constants(mut self, value: Vec<wgpu::PushConstantRange>) -> Self {
+        self.push_constants = value;
+        self
+    }
+}
 
 //
 // Render Pipeline Builder
 //
 
-pub struct RenderPipelineBuilder<'a> {
-    shader: &'a wgpu::ShaderModule,
-
-    label: Option<&'a str>,
-    bind_groups: &'a [&'a wgpu::BindGroupLayout],
-    push_constants: &'a [wgpu::PushConstantRange],
-    buffers: &'a [wgpu::VertexBufferLayout<'a>],
-    targets: &'a [Option<wgpu::ColorTargetState>],
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct RenderPipelineBuilder {
+    layout: ArcPipelineLayout,
+    label: Option<String>,
+    shader: ArcShaderModule,
+    buffers: Vec<wgpu::VertexBufferLayout<'static>>,
+    targets: Vec<Option<wgpu::ColorTargetState>>,
     topology: wgpu::PrimitiveTopology,
     polygon_mode: wgpu::PolygonMode,
     cull_mode: Option<wgpu::Face>,
     depth_stencil: Option<wgpu::DepthStencilState>,
 }
 
-impl<'a> RenderPipelineBuilder<'a> {
-    pub fn new(shader: &'a wgpu::ShaderModule) -> Self {
+impl RenderPipelineBuilder {
+    pub fn new(shader: ArcShaderModule, layout: ArcPipelineLayout) -> Self {
         Self {
+            layout,
             shader,
-            label: None,
-            bind_groups: &[],
-            push_constants: &[],
-            buffers: &[],
-            targets: &[],
+            buffers: Vec::new(),
+            targets: Vec::new(),
             topology: wgpu::PrimitiveTopology::TriangleList,
             polygon_mode: wgpu::PolygonMode::Fill,
             cull_mode: None,
             depth_stencil: None,
+            label: None,
         }
     }
 
-    pub fn build(self, ctx: &Context) -> wgpu::RenderPipeline {
+    pub fn build_uncached(&self, ctx: &Context) -> ArcRenderPipeline {
         let device = render::device(ctx);
-
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: self.label,
-            bind_group_layouts: self.bind_groups,
-            push_constant_ranges: self.push_constants,
-        });
-
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: self.label,
-            layout: Some(&layout),
+        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: self.label.as_deref(),
+            layout: Some(&self.layout),
             vertex: wgpu::VertexState {
-                module: self.shader,
+                module: &self.shader,
                 entry_point: "vs_main",
-                buffers: self.buffers,
+                buffers: &self.buffers,
             },
             fragment: Some(wgpu::FragmentState {
-                module: self.shader,
+                module: &self.shader,
                 entry_point: "fs_main",
-                targets: self.targets,
+                targets: &self.targets,
             }),
             primitive: wgpu::PrimitiveState {
                 topology: self.topology,
@@ -65,35 +125,43 @@ impl<'a> RenderPipelineBuilder<'a> {
                 conservative: false,
                 unclipped_depth: false,
             },
-            depth_stencil: self.depth_stencil,
+            depth_stencil: self.depth_stencil.clone(),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
-        })
+        });
+
+        ArcRenderPipeline::new(pipeline)
+    }
+    pub fn build(&self, ctx: &mut Context) -> ArcRenderPipeline {
+        if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(self) {
+            log::info!("Fetch cached render pipeline");
+            return render_pipeline.clone();
+        }
+
+        log::info!("Create cached render pipeline");
+        let render_pipeline = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .render_pipelines
+            .insert(self.clone(), render_pipeline.clone());
+        render_pipeline
     }
 }
 
-impl<'a> RenderPipelineBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl RenderPipelineBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
-    pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
-        self.bind_groups = value;
-        self
-    }
-    pub fn push_constants(mut self, value: &'a [wgpu::PushConstantRange]) -> Self {
-        self.push_constants = value;
-        self
-    }
-    pub fn buffers(mut self, value: &'a [wgpu::VertexBufferLayout<'a>]) -> Self {
+    pub fn buffers(mut self, value: Vec<wgpu::VertexBufferLayout<'static>>) -> Self {
         self.buffers = value;
         self
     }
-    pub fn targets(mut self, value: &'a [Option<wgpu::ColorTargetState>]) -> Self {
+    pub fn targets(mut self, value: Vec<Option<wgpu::ColorTargetState>>) -> Self {
         self.targets = value;
         self
     }
@@ -129,53 +197,54 @@ impl<'a> RenderPipelineBuilder<'a> {
 // Compute Pipeline Builder
 //
 
-pub struct ComputePipelineBuilder<'a> {
-    label: Option<&'a str>,
-
-    shader: &'a wgpu::ShaderModule,
-    bind_groups: &'a [&'a wgpu::BindGroupLayout],
-    push_constants: &'a [wgpu::PushConstantRange],
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct ComputePipelineBuilder {
+    layout: ArcPipelineLayout,
+    shader: ArcShaderModule,
+    label: Option<String>,
 }
 
-impl<'a> ComputePipelineBuilder<'a> {
-    pub fn new(shader: &'a wgpu::ShaderModule) -> Self {
+impl ComputePipelineBuilder {
+    pub fn new(shader: ArcShaderModule, layout: ArcPipelineLayout) -> Self {
         Self {
+            layout,
             shader,
             label: None,
-            bind_groups: &[],
-            push_constants: &[],
         }
     }
 
-    pub fn build(self, ctx: &Context) -> wgpu::ComputePipeline {
+    pub fn build_uncached(&self, ctx: &Context) -> ArcComputePipeline {
         let device = render::device(ctx);
 
-        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: self.label,
-            bind_group_layouts: self.bind_groups,
-            push_constant_ranges: &[],
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: self.label.as_deref(),
+            layout: Some(&self.layout),
+            module: &self.shader,
+            entry_point: "cs_main",
         });
 
-        device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: self.label,
-            layout: Some(&layout),
-            module: self.shader,
-            entry_point: "cs_main",
-        })
+        ArcComputePipeline::new(pipeline)
+    }
+
+    pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {
+        if let Some(compute_pipeline) = ctx.render.cache.compute_pipeline.get(self) {
+            log::info!("Fetch cached compute pipeline");
+            return compute_pipeline.clone();
+        }
+
+        log::info!("Create cached compute pipeline");
+        let compute_pipeline = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .compute_pipeline
+            .insert(self.clone(), compute_pipeline.clone());
+        compute_pipeline
     }
 }
 
-impl<'a> ComputePipelineBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl ComputePipelineBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
-        self
-    }
-    pub fn bind_groups(mut self, value: &'a [&'a wgpu::BindGroupLayout]) -> Self {
-        self.bind_groups = value;
-        self
-    }
-    pub fn push_constants(mut self, value: &'a [wgpu::PushConstantRange]) -> Self {
-        self.push_constants = value;
         self
     }
 }

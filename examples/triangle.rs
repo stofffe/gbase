@@ -1,32 +1,38 @@
 use gbase::{
     filesystem,
-    render::{self, Vertex},
+    render::{self, ArcRenderPipeline, Vertex},
     Callbacks, Context, ContextBuilder,
 };
 
 #[pollster::main]
 pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new().build().await;
+    let (mut ctx, ev) = ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .build()
+        .await;
     let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev);
 }
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: wgpu::RenderPipeline,
+    pipeline: ArcRenderPipeline,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())
             .usage(wgpu::BufferUsages::VERTEX)
             .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "triangle.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .buffers(&[vertex_buffer.desc()])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+        let shader = render::ShaderBuilder::new()
+            .source(shader_str.to_string())
+            .build(ctx);
+        let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
+            .buffers(vec![vertex_buffer.desc()])
+            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
             .build(ctx);
 
         Self {

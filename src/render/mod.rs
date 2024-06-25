@@ -5,7 +5,7 @@ pub mod helpers;
 pub use helpers::*;
 
 use crate::Context;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
@@ -17,6 +17,8 @@ pub(crate) struct RenderContext {
 
     window: Arc<winit::window::Window>,
     window_size: winit::dpi::PhysicalSize<u32>,
+
+    cache: RenderCache,
 }
 
 impl RenderContext {
@@ -87,6 +89,8 @@ impl RenderContext {
         };
         surface.configure(&device, &surface_config);
 
+        let cache = RenderCache::empty();
+
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -97,6 +101,8 @@ impl RenderContext {
 
             window_size,
             window,
+
+            cache,
         }
     }
 

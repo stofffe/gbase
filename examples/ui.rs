@@ -3,12 +3,12 @@ use glam::{vec2, vec4};
 
 #[pollster::main]
 pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
+    let (mut ctx, ev) = ContextBuilder::new()
         .log_level(gbase::LogLevel::Warn)
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&ctx).await;
+    let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev);
 }
 
@@ -17,7 +17,7 @@ struct App {
 }
 
 impl App {
-    async fn new(ctx: &Context) -> Self {
+    async fn new(ctx: &mut Context) -> Self {
         let quads = 1000;
         let gui_renderer = render::GUIRenderer::new(
             ctx,

@@ -8,8 +8,12 @@ use glam::{vec3, Quat, Vec3};
 
 #[pollster::main]
 async fn main() {
-    let (ctx, ev) = gbase::ContextBuilder::new().vsync(true).build().await;
-    let app = App::new(&ctx).await;
+    let (mut ctx, ev) = gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .vsync(true)
+        .build()
+        .await;
+    let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev);
 }
 
@@ -28,7 +32,7 @@ struct App {
 }
 
 impl App {
-    async fn new(ctx: &Context) -> Self {
+    async fn new(ctx: &mut Context) -> Self {
         let deferred_buffers = render::DeferredBuffers::new(ctx);
         let camera = render::PerspectiveCamera::new();
         let camera_buffer = render::UniformBufferBuilder::new()
@@ -43,7 +47,7 @@ impl App {
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
 
-        let model1_bytes = filesystem::load_bytes(ctx, "coord.glb").await.unwrap();
+        let model1_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
         let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
         let model1 = render::GpuGltfModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
 

@@ -1,4 +1,7 @@
-use crate::{render, Context};
+use crate::{
+    render::{self, ArcBuffer},
+    Context,
+};
 use std::{marker::PhantomData, ops::RangeBounds};
 
 pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
@@ -10,31 +13,30 @@ use wgpu::util::DeviceExt;
 // Vertex Buffer
 //
 
-pub struct VertexBufferBuilder<'a, T: VertexTrait> {
-    data: &'a [T],
-
-    label: Option<&'a str>,
+pub struct VertexBufferBuilder<T: VertexTrait> {
+    data: Vec<T>,
+    label: Option<String>,
     usage: wgpu::BufferUsages,
 }
 
-impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
-    pub fn new(data: &'a [T]) -> Self {
+impl<T: VertexTrait> VertexBufferBuilder<T> {
+    pub fn new(data: Vec<T>) -> Self {
         Self {
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            label: None,
             data,
+            label: None,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         }
     }
     pub fn build(self, ctx: &Context) -> VertexBuffer<T> {
         let device = render::device(ctx);
 
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             usage: self.usage,
-            contents: bytemuck::cast_slice(self.data),
+            contents: bytemuck::cast_slice(&self.data),
         });
         VertexBuffer {
-            buffer,
+            buffer: ArcBuffer::new(buffer),
             capacity: self.data.len(),
             len: self.data.len() as u32,
             ty: PhantomData::<T>,
@@ -42,9 +44,13 @@ impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
     }
 }
 
-impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl<T: VertexTrait> VertexBufferBuilder<T> {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
+        self
+    }
+    pub fn data(mut self, value: Vec<T>) -> Self {
+        self.data = value;
         self
     }
     pub fn usage(mut self, value: wgpu::BufferUsages) -> Self {
@@ -54,7 +60,7 @@ impl<'a, T: VertexTrait> VertexBufferBuilder<'a, T> {
 }
 
 pub struct VertexBuffer<T: VertexTrait> {
-    buffer: wgpu::Buffer,
+    buffer: ArcBuffer,
     capacity: usize,
     len: u32,
     ty: PhantomData<T>,
@@ -76,8 +82,11 @@ impl<T: VertexTrait> VertexBuffer<T> {
         T::desc()
     }
 
-    pub fn buf(&self) -> &wgpu::Buffer {
+    pub fn buf_ref(&self) -> &wgpu::Buffer {
         &self.buffer
+    }
+    pub fn buf(&self) -> ArcBuffer {
+        self.buffer.clone()
     }
 
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {

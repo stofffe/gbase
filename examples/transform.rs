@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     filesystem,
-    render::{self, Vertex},
+    render::{self, ArcBindGroup, ArcRenderPipeline, Vertex},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{Quat, Vec3};
@@ -9,7 +9,7 @@ use glam::{Quat, Vec3};
 #[pollster::main]
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Warn)
+        .log_level(LogLevel::Info)
         .vsync(false)
         .build()
         .await;
@@ -19,11 +19,11 @@ pub async fn main() {
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: wgpu::RenderPipeline,
+    pipeline: ArcRenderPipeline,
 
     transform: render::Transform,
     transform_buffer: render::UniformBuffer,
-    transform_bindgroup: wgpu::BindGroup,
+    transform_bindgroup: ArcBindGroup,
 }
 
 impl App {
@@ -32,10 +32,10 @@ impl App {
         let shader_str = filesystem::load_string(ctx, "transform.wgsl")
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 
@@ -44,20 +44,27 @@ impl App {
         let transform_buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
             .build(ctx, render::TransformUniform::min_size());
-        let (transform_bindgroup_layout, transform_bindgroup) =
-            render::BindGroupCombinedBuilder::new()
-                .entries(&[render::BindGroupCombinedEntry::new(
-                    transform_buffer.buf().as_entire_binding(),
-                )
-                .uniform()])
-                .build(ctx);
+        let transform_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                // Transform
+                render::BindGroupLayoutEntry::new().uniform(),
+            ])
+            .build(ctx);
+        let transform_bindgroup = render::BindGroupBuilder::new(transform_bindgroup_layout.clone())
+            .entries(vec![
+                // Transform
+                render::BindGroupEntry::Buffer(transform_buffer.buffer()),
+            ])
+            .build(ctx);
 
         // Pipeline
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .buffers(&[Vertex::desc()])
-            .bind_groups(&[&transform_bindgroup_layout])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![transform_bindgroup_layout])
             .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
+            .buffers(vec![Vertex::desc()])
+            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .build_uncached(ctx);
 
         Self {
             vertex_buffer,

@@ -1,13 +1,19 @@
+mod arc;
 mod bind_group;
 mod buffer;
+mod cache;
 mod framebuffer;
 mod pipeline;
 mod render_pass;
 mod shader;
+mod texture;
 
+pub use arc::*;
 pub use bind_group::*;
 pub use buffer::*;
+pub use cache::*;
 pub use framebuffer::*;
 pub use pipeline::*;
 pub use render_pass::*;
 pub use shader::*;
+pub use texture::*;

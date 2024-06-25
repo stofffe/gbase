@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self},
+    render::{self, ArcBuffer},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec3, Vec3};
@@ -23,7 +23,7 @@ struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: wgpu::RenderPipeline,
     camera: render::PerspectiveCamera,
-    camera_bind_group: wgpu::BindGroup,
+    camera_bindgroup: wgpu::BindGroup,
     camera_buffer: render::UniformBuffer,
 }
 
@@ -33,10 +33,13 @@ impl App {
         let shader_str = filesystem::load_string(ctx, Path::new("camera.wgsl"))
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+        let shader = render::ShaderBuilder::new()
+            .source(shader_str)
+            .build_uncached(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
+        let vertex_buffer = render::VertexBufferBuilder::new()
+            .data(TRIANGLE_VERTICES.to_vec())
             .usage(wgpu::BufferUsages::VERTEX)
             .build(ctx);
 
@@ -45,21 +48,33 @@ impl App {
         let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, render::PerspectiveCameraUniform::min_size());
-        let bind_group_layout = render::BindGroupLayoutBuilder::new()
-            .entries(&[render::BindGroupLayoutEntry::new().uniform()])
-            .build(ctx);
-        let bind_group = render::BindGroupBuilder::new()
-            .entries(&[render::BindGroupEntry::new(
-                buffer.buf().as_entire_binding(),
-            )])
-            .build(ctx, &bind_group_layout);
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                // Camera
+                render::BindGroupLayoutEntry::new().uniform(),
+            ])
+            .build_uncached(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![
+                // Camera
+                render::BindGroupEntry::Buffer(buffer.buffer()),
+            ])
+            .build_uncached(ctx);
+        // let bind_group_layout = render::BindGroupLayoutBuilder::new()
+        //     .entries(&[render::BindGroupLayoutEntry::new().uniform()])
+        //     .build(ctx);
+        // let bind_group = render::BindGroupBuilder::new()
+        //     .entries(&[render::BindGroupEntry::new(
+        //         buffer.buf().as_entire_binding(),
+        //     )])
+        //     .build(ctx, &bind_group_layout);
 
         // Pipeline
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
+        let pipeline = render::PipelineLayoutBuilder::new(&shader)
             .buffers(&[vertex_buffer.desc()])
-            .bind_groups(&[&bind_group_layout])
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .build(ctx);
+            .bind_groups(&[&bindgroup_layout])
+            .targets(&[render::PipelineLayoutBuilder::default_target(ctx)])
+            .build_uncached(ctx);
 
         render::window(ctx).set_cursor_visible(false);
 
@@ -67,7 +82,7 @@ impl App {
             vertex_buffer,
             pipeline,
             camera,
-            camera_bind_group: bind_group,
+            camera_bindgroup: bindgroup,
             camera_buffer: buffer,
         }
     }
@@ -96,8 +111,8 @@ impl Callbacks for App {
             occlusion_query_set: None,
         });
         render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.buf().slice(..));
-        render_pass.set_bind_group(0, &self.camera_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.buf_ref().slice(..));
+        render_pass.set_bind_group(0, &self.camera_bindgroup, &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
         drop(render_pass);
 

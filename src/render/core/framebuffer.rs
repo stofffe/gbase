@@ -1,7 +1,4 @@
-use crate::{
-    render::{self},
-    Context,
-};
+use crate::{render, Context};
 
 #[derive(Clone)]
 pub struct FrameBufferBuilder {
@@ -49,8 +46,8 @@ impl FrameBufferBuilder {
             base_array_layer: 0,
         });
         FrameBuffer {
-            texture,
-            view,
+            texture: render::ArcTexture::new(texture),
+            view: render::ArcTextureView::new(view),
             format: self.format,
             builder: self.clone(),
         }
@@ -83,17 +80,23 @@ impl FrameBufferBuilder {
 }
 
 pub struct FrameBuffer {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
+    texture: render::ArcTexture,
+    view: render::ArcTextureView,
     format: wgpu::TextureFormat,
     builder: FrameBufferBuilder,
 }
 
 impl FrameBuffer {
-    pub fn texture(&self) -> &wgpu::Texture {
+    pub fn texture(&self) -> render::ArcTexture {
+        self.texture.clone()
+    }
+    pub fn view(&self) -> render::ArcTextureView {
+        self.view.clone()
+    }
+    pub fn texture_ref(&self) -> &wgpu::Texture {
         &self.texture
     }
-    pub fn view(&self) -> &wgpu::TextureView {
+    pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
     }
     pub fn target(&self) -> wgpu::ColorTargetState {
@@ -105,23 +108,6 @@ impl FrameBuffer {
     }
     pub fn resize(&mut self, ctx: &Context) {
         *self = self.builder.screen_size(ctx).build(ctx);
-    }
-    pub fn resource(&self) -> wgpu::BindingResource<'_> {
-        wgpu::BindingResource::TextureView(self.view())
-    }
-    pub fn binding_filter(&self) -> wgpu::BindingType {
-        wgpu::BindingType::Texture {
-            sample_type: wgpu::TextureSampleType::Float { filterable: true }, // TODO option?
-            view_dimension: wgpu::TextureViewDimension::D2,
-            multisampled: false,
-        }
-    }
-    pub fn binding_nonfilter(&self) -> wgpu::BindingType {
-        wgpu::BindingType::Texture {
-            sample_type: wgpu::TextureSampleType::Float { filterable: false }, // TODO option?
-            view_dimension: wgpu::TextureViewDimension::D2,
-            multisampled: false,
-        }
     }
 }
 
@@ -194,7 +180,7 @@ impl DepthBuffer {
     }
     pub fn depth_render_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
-            view: self.framebuffer.view(),
+            view: self.framebuffer.view_ref(),
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Load,
                 store: wgpu::StoreOp::Store,
@@ -204,7 +190,7 @@ impl DepthBuffer {
     }
     pub fn depth_render_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
         wgpu::RenderPassDepthStencilAttachment {
-            view: self.framebuffer.view(),
+            view: self.framebuffer.view_ref(),
             depth_ops: Some(wgpu::Operations {
                 load: wgpu::LoadOp::Clear(1.0),
                 store: wgpu::StoreOp::Store,

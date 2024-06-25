@@ -6,23 +6,29 @@ use crate::{render, time, Context};
 ///
 /// Can easily be sent as uniform to shaders
 pub struct AppInfo {
-    bindgroup_layout: wgpu::BindGroupLayout,
-    bindgroup: wgpu::BindGroup,
+    bindgroup_layout: render::ArcBindGroupLayout,
+    bindgroup: render::ArcBindGroup,
     buffer: render::UniformBuffer,
 }
 
 impl AppInfo {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let buffer = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, AppInfoUniform::min_size());
 
-        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[
-                render::BindGroupCombinedEntry::new(buffer.buf().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::VERTEX_FRAGMENT | wgpu::ShaderStages::COMPUTE)
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                //
+                render::BindGroupLayoutEntry::new()
+                    .vertex()
+                    .fragment()
+                    .compute()
                     .uniform(),
             ])
+            .build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![render::BindGroupEntry::Buffer(buffer.buffer())])
             .build(ctx);
 
         Self {
@@ -39,8 +45,11 @@ impl AppInfo {
         self.buffer.write(ctx, &uniform);
     }
 
-    pub fn buffer(&self) -> &wgpu::Buffer {
-        self.buffer.buf()
+    pub fn buffer(&self) -> render::ArcBuffer {
+        self.buffer.buffer()
+    }
+    pub fn buffer_ref(&self) -> &wgpu::Buffer {
+        self.buffer.buffer_ref()
     }
     pub fn bindgroup_layout(&self) -> &wgpu::BindGroupLayout {
         &self.bindgroup_layout

@@ -1,49 +1,67 @@
-use gbase::{filesystem, render, Callbacks, Context, ContextBuilder};
+use gbase::{
+    filesystem,
+    render::{self, ArcBindGroup, ArcRenderPipeline},
+    Callbacks, Context, ContextBuilder,
+};
 use std::path::Path;
 
 #[pollster::main]
 pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new().build().await;
+    let (mut ctx, ev) = ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .build()
+        .await;
     let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev);
 }
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::VertexUV>,
-    texture_bindgroup: wgpu::BindGroup,
-    pipeline: wgpu::RenderPipeline,
+    texture_bindgroup: ArcBindGroup,
+    pipeline: ArcRenderPipeline,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES).build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES.to_vec()).build(ctx);
 
         let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
             .await
             .unwrap();
-        let texture = render::TextureBuilder::new().build_init(ctx, &texture_bytes);
+        let texture =
+            render::TextureBuilder::new(render::TextureSource::Bytes(texture_bytes)).build(ctx);
         let sampler = render::SamplerBuilder::new().build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "texture.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
 
-        let (texture_bindgroup_layout, texture_bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[
+        let texture_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
                 // texture
-                render::BindGroupCombinedEntry::new(texture.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(texture.binding_type()),
+                render::BindGroupLayoutEntry::new()
+                    .fragment()
+                    .texture_float(true),
                 // sampler
-                render::BindGroupCombinedEntry::new(sampler.resource())
-                    .visibility(wgpu::ShaderStages::FRAGMENT)
-                    .ty(sampler.binding_filtering()),
+                render::BindGroupLayoutEntry::new()
+                    .fragment()
+                    .sampler_filtering(),
+            ])
+            .build(ctx);
+        let texture_bindgroup = render::BindGroupBuilder::new(texture_bindgroup_layout.clone())
+            .entries(vec![
+                // texture
+                render::BindGroupEntry::Texture(texture.view()),
+                // sampler
+                render::BindGroupEntry::Sampler(sampler),
             ])
             .build(ctx);
 
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .targets(&[render::RenderPipelineBuilder::default_target(ctx)])
-            .buffers(&[vertex_buffer.desc()])
-            .bind_groups(&[&texture_bindgroup_layout])
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![texture_bindgroup_layout.clone()])
+            .build_uncached(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .buffers(vec![vertex_buffer.desc()])
             .build(ctx);
 
         Self {

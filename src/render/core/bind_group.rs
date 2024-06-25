@@ -1,25 +1,27 @@
 use crate::{render, Context};
+use render::{ArcBindGroup, ArcBindGroupLayout, ArcBuffer, ArcSampler, ArcTextureView};
 
 //
 // Bind Group Layout
 //
 
-pub struct BindGroupLayoutBuilder<'a> {
-    label: Option<&'a str>,
-    entries: &'a [BindGroupLayoutEntry],
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct BindGroupLayoutBuilder {
+    label: Option<String>,
+    entries: Vec<BindGroupLayoutEntry>,
 }
 
-impl<'a> BindGroupLayoutBuilder<'a> {
+impl BindGroupLayoutBuilder {
     pub fn new() -> Self {
         Self {
             label: None,
-            entries: &[],
+            entries: Vec::new(),
         }
     }
-    pub fn build(self, ctx: &Context) -> wgpu::BindGroupLayout {
+    pub fn build_uncached(&self, ctx: &Context) -> ArcBindGroupLayout {
         let device = render::device(ctx);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             entries: &self
                 .entries
                 .iter()
@@ -33,21 +35,37 @@ impl<'a> BindGroupLayoutBuilder<'a> {
                 .collect::<Vec<_>>(),
         });
 
-        layout
+        ArcBindGroupLayout::new(layout)
+    }
+
+    pub fn build(&self, ctx: &mut Context) -> ArcBindGroupLayout {
+        if let Some(bindgroup_layout) = ctx.render.cache.bindgroup_layouts.get(self) {
+            log::info!("Fetch cached bindgroup layout");
+            return bindgroup_layout.clone();
+        }
+
+        log::info!("Create cached bindgroup layout");
+        let bindgrouo_layout = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .bindgroup_layouts
+            .insert(self.clone(), bindgrouo_layout.clone());
+        bindgrouo_layout
     }
 }
 
-impl<'a> BindGroupLayoutBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl BindGroupLayoutBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
-    pub fn entries(mut self, value: &'a [BindGroupLayoutEntry]) -> Self {
+    pub fn entries(mut self, value: Vec<BindGroupLayoutEntry>) -> Self {
         self.entries = value;
         self
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct BindGroupLayoutEntry {
     visibility: wgpu::ShaderStages,
     ty: wgpu::BindingType,
@@ -56,7 +74,7 @@ pub struct BindGroupLayoutEntry {
 impl BindGroupLayoutEntry {
     pub const fn new() -> Self {
         Self {
-            visibility: wgpu::ShaderStages::VERTEX,
+            visibility: wgpu::ShaderStages::empty(),
             ty: wgpu::BindingType::Buffer {
                 ty: wgpu::BufferBindingType::Uniform,
                 has_dynamic_offset: false,
@@ -87,9 +105,18 @@ impl BindGroupLayoutEntry {
     }
 
     /// Set binding type to ```Storage```
-    pub const fn storage(self, read_only: bool) -> Self {
+    pub const fn storage_readonly(self) -> Self {
         self.ty(wgpu::BindingType::Buffer {
-            ty: wgpu::BufferBindingType::Storage { read_only },
+            ty: wgpu::BufferBindingType::Storage { read_only: true },
+            has_dynamic_offset: false,
+            min_binding_size: None,
+        })
+    }
+
+    /// Set binding type to ```Storage```
+    pub const fn storage(self) -> Self {
+        self.ty(wgpu::BindingType::Buffer {
+            ty: wgpu::BufferBindingType::Storage { read_only: false },
             has_dynamic_offset: false,
             min_binding_size: None,
         })
@@ -109,10 +136,18 @@ impl BindGroupLayoutEntry {
         let v = self.visibility;
         self.visibility(v.union(wgpu::ShaderStages::COMPUTE))
     }
-    /// Set Binding type to float texture
-    pub const fn texture_float(self, filterable: bool) -> Self {
+    /// Set Binding type to float texture filtering
+    pub const fn texture_float_nonfilterable(self) -> Self {
         self.ty(wgpu::BindingType::Texture {
-            sample_type: wgpu::TextureSampleType::Float { filterable },
+            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+            view_dimension: wgpu::TextureViewDimension::D2,
+            multisampled: false,
+        })
+    }
+    /// Set Binding type to float texture nonfiltering
+    pub const fn texture_float_filterable(self) -> Self {
+        self.ty(wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
             view_dimension: wgpu::TextureViewDimension::D2,
             multisampled: false,
         })
@@ -143,56 +178,86 @@ impl BindGroupLayoutEntry {
 // Bind Group
 //
 
-pub struct BindGroupBuilder<'a> {
-    label: Option<&'a str>,
-    entries: &'a [BindGroupEntry<'a>],
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct BindGroupBuilder {
+    layout: ArcBindGroupLayout,
+    label: Option<String>,
+    entries: Vec<BindGroupEntry>,
 }
 
-impl<'a> BindGroupBuilder<'a> {
-    pub fn new() -> Self {
+impl BindGroupBuilder {
+    pub fn new(layout: ArcBindGroupLayout) -> Self {
         Self {
+            layout,
             label: None,
-            entries: &[],
+            entries: Vec::new(),
         }
     }
-    pub fn build(self, ctx: &Context, layout: &'a wgpu::BindGroupLayout) -> wgpu::BindGroup {
+    pub fn build_uncached(&self, ctx: &Context) -> ArcBindGroup {
         let device = render::device(ctx);
-        let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: self.label,
-            layout,
+
+        let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: self.label.as_deref(),
+            layout: &self.layout,
             entries: &self
                 .entries
                 .iter()
                 .enumerate()
                 .map(|(i, e)| wgpu::BindGroupEntry {
                     binding: i as u32,
-                    resource: e.resource.clone(),
+                    resource: e.resource(),
                 })
                 .collect::<Vec<_>>(),
         });
 
-        group
+        ArcBindGroup::new(bindgroup)
+    }
+
+    pub fn build(&self, ctx: &mut Context) -> ArcBindGroup {
+        if let Some(bindgroup) = ctx.render.cache.bindgroups.get(self) {
+            log::info!("Fetch cached bindgroup");
+            return bindgroup.clone();
+        }
+
+        log::info!("Create cached bindgroup");
+        let bindgroup = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .bindgroups
+            .insert(self.clone(), bindgroup.clone());
+        bindgroup
     }
 }
 
-impl<'a> BindGroupBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl BindGroupBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
-    pub fn entries(mut self, value: &'a [BindGroupEntry<'_>]) -> Self {
+    pub fn layout(mut self, value: ArcBindGroupLayout) -> Self {
+        self.layout = value;
+        self
+    }
+    pub fn entries(mut self, value: Vec<BindGroupEntry>) -> Self {
         self.entries = value;
         self
     }
 }
 
-pub struct BindGroupEntry<'a> {
-    resource: wgpu::BindingResource<'a>,
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub enum BindGroupEntry {
+    Buffer(ArcBuffer), // TODO add offset and size
+    Texture(ArcTextureView),
+    Sampler(ArcSampler),
 }
 
-impl<'a> BindGroupEntry<'a> {
-    pub const fn new(resource: wgpu::BindingResource<'a>) -> Self {
-        Self { resource }
+impl BindGroupEntry {
+    pub fn resource(&self) -> wgpu::BindingResource<'_> {
+        match self {
+            BindGroupEntry::Buffer(buffer) => buffer.as_entire_binding(),
+            BindGroupEntry::Texture(texture) => wgpu::BindingResource::TextureView(texture),
+            BindGroupEntry::Sampler(sampler) => wgpu::BindingResource::Sampler(sampler),
+        }
     }
 }
 
@@ -200,22 +265,32 @@ impl<'a> BindGroupEntry<'a> {
 // Combined
 //
 
-pub struct BindGroupCombinedBuilder<'a> {
-    label: Option<&'a str>,
-    entries: &'a [BindGroupCombinedEntry<'a>],
+// pub struct CombinedBingroupBuilder {
+//     label: Option<String>,
+//     entries: Vec<CombinedBindgroupEntry>,
+// }
+//
+// pub struct CombinedBindgroupEntry {
+//     bindgroup_layout: BindGroupLayoutEntry,
+//     bindgroup: BindGroupEntry,
+// }
+
+pub struct BindGroupCombinedBuilder {
+    label: Option<String>,
+    entries: Vec<BindGroupCombinedEntry>,
 }
 
-impl<'a> BindGroupCombinedBuilder<'a> {
+impl BindGroupCombinedBuilder {
     pub fn new() -> Self {
         Self {
             label: None,
-            entries: &[],
+            entries: Vec::new(),
         }
     }
-    pub fn build(self, ctx: &Context) -> (wgpu::BindGroupLayout, wgpu::BindGroup) {
+    pub fn build_uncached(self, ctx: &Context) -> (ArcBindGroupLayout, ArcBindGroup) {
         let device = render::device(ctx);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             entries: &self
                 .entries
                 .iter()
@@ -230,7 +305,7 @@ impl<'a> BindGroupCombinedBuilder<'a> {
         });
 
         let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             layout: &layout,
             entries: &self
                 .entries
@@ -238,35 +313,67 @@ impl<'a> BindGroupCombinedBuilder<'a> {
                 .enumerate()
                 .map(|(i, entry)| wgpu::BindGroupEntry {
                     binding: i as u32,
-                    resource: entry.bindgroup.resource.clone(),
+                    resource: entry.bindgroup.resource().clone(),
                 })
                 .collect::<Vec<_>>(),
         });
 
-        (layout, bindgroup)
+        (
+            ArcBindGroupLayout::new(layout),
+            ArcBindGroup::new(bindgroup),
+        )
+    }
+    pub fn build(&self, ctx: &mut Context) -> (ArcBindGroupLayout, ArcBindGroup) {
+        let mut bindgroup_layout = BindGroupLayoutBuilder::new();
+        bindgroup_layout.entries = self
+            .entries
+            .iter()
+            .map(|b| b.bindgroup_layout.clone())
+            .collect::<Vec<_>>();
+        bindgroup_layout.label = self.label.clone();
+
+        let bindgroup_layout = match ctx.render.cache.bindgroup_layouts.get(&bindgroup_layout) {
+            Some(bindgroup_layout) => bindgroup_layout.clone(),
+            None => bindgroup_layout.build(ctx),
+        };
+
+        let mut bindgroup = BindGroupBuilder::new(bindgroup_layout.clone());
+        bindgroup.entries = self
+            .entries
+            .iter()
+            .map(|b| b.bindgroup.clone())
+            .collect::<Vec<_>>();
+        bindgroup.label = self.label.clone();
+
+        let bindgroup = match ctx.render.cache.bindgroups.get(&bindgroup) {
+            Some(bindgroup) => bindgroup.clone(),
+            None => bindgroup.build(ctx),
+        };
+
+        (bindgroup_layout, bindgroup)
     }
 }
 
-impl<'a> BindGroupCombinedBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl BindGroupCombinedBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
-    pub fn entries(mut self, value: &'a [BindGroupCombinedEntry<'a>]) -> Self {
+    pub fn entries(mut self, value: Vec<BindGroupCombinedEntry>) -> Self {
         self.entries = value;
         self
     }
 }
 
-pub struct BindGroupCombinedEntry<'a> {
-    bindgroup: BindGroupEntry<'a>,
+pub struct BindGroupCombinedEntry {
+    bindgroup: BindGroupEntry,
     bindgroup_layout: BindGroupLayoutEntry,
 }
 
-impl<'a> BindGroupCombinedEntry<'a> {
-    pub const fn new(resource: wgpu::BindingResource<'a>) -> Self {
+impl BindGroupCombinedEntry {
+    pub const fn new(resource: BindGroupEntry) -> Self {
         Self {
-            bindgroup: BindGroupEntry::new(resource),
+            bindgroup: resource,
             bindgroup_layout: BindGroupLayoutEntry::new(),
         }
     }
@@ -290,8 +397,13 @@ impl<'a> BindGroupCombinedEntry<'a> {
     }
 
     /// Set binding type to ```Storage```
-    pub const fn storage(mut self, read_only: bool) -> Self {
-        self.bindgroup_layout = self.bindgroup_layout.storage(read_only);
+    pub const fn storage(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.storage();
+        self
+    }
+    /// Set binding type to ```Storage``` readonly
+    pub const fn storage_readonly(mut self) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.storage_readonly();
         self
     }
     /// Add ```Vertex``` to shader visibility
@@ -309,9 +421,14 @@ impl<'a> BindGroupCombinedEntry<'a> {
         self.bindgroup_layout = self.bindgroup_layout.compute();
         self
     }
-    /// Set Binding type to float texture
-    pub const fn texture_float(mut self, filterable: bool) -> Self {
-        self.bindgroup_layout = self.bindgroup_layout.texture_float(filterable);
+    /// Set Binding type to float texture filterable
+    pub const fn texture_float_filterable(mut self, filterable: bool) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.texture_float_filterable();
+        self
+    }
+    /// Set Binding type to float texture nonfilterable
+    pub const fn texture_float_nonfilterable(mut self, filterable: bool) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.texture_float_nonfilterable();
         self
     }
     /// Set Binding type to depth texture

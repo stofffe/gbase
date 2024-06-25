@@ -40,22 +40,22 @@ impl App {
         let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
             .entries(&[
                 // input
-                render::BindGroupCombinedEntry::new(input_buffer.buf().as_entire_binding())
+                render::BindGroupCombinedEntry::new(input_buffer.buffer().as_entire_binding())
                     .visibility(wgpu::ShaderStages::COMPUTE)
                     .storage(true),
                 // output
-                render::BindGroupCombinedEntry::new(output_buffer.buf().as_entire_binding())
+                render::BindGroupCombinedEntry::new(output_buffer.buffer().as_entire_binding())
                     .visibility(wgpu::ShaderStages::COMPUTE)
                     .storage(false),
             ])
-            .build(ctx);
+            .build_uncached(ctx);
 
         let shader_str = filesystem::load_string(ctx, "compute.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
+        let shader = render::ShaderBuilder::new().build_uncached(ctx, &shader_str);
 
         let compute_pipeline = render::ComputePipelineBuilder::new(&shader)
             .bind_groups(&[&bindgroup_layout])
-            .build(ctx);
+            .build_uncached(ctx);
 
         Self {
             compute_pipeline,
@@ -94,9 +94,9 @@ impl Callbacks for App {
         drop(compute_pass);
 
         encoder.copy_buffer_to_buffer(
-            self.output_buffer.buf(),
+            self.output_buffer.buffer(),
             0,
-            self.cpu_buffer.buf(),
+            self.cpu_buffer.buffer(),
             0,
             OUTPUT_MEM_SIZE,
         );
@@ -104,7 +104,7 @@ impl Callbacks for App {
         queue.submit(Some(encoder.finish()));
 
         // read data from output buffer
-        let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buf());
+        let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buffer());
         println!("DATA {:?}", data);
 
         false

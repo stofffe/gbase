@@ -1,22 +1,21 @@
 use crate::{
-    render::{self},
+    render::{self, ArcBindGroup, ArcRenderPipeline},
     Context,
 };
 use encase::ShaderType;
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
 use render::{
-    BindGroupCombinedBuilder, BindGroupCombinedEntry, DynamicIndexBuffer,
-    DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder,
-    PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder, ShaderBuilder, Transform,
-    UniformBufferBuilder, VertexColor,
+    DynamicIndexBuffer, DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder,
+    EncoderBuilder, PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder,
+    ShaderBuilder, Transform, UniformBufferBuilder, VertexColor,
 };
 use std::f32::consts::PI;
 
 pub struct GizmoRenderer {
     vertex_buffer: DynamicVertexBuffer<VertexColor>,
     index_buffer: DynamicIndexBuffer,
-    bindgroup: wgpu::BindGroup,
-    pipeline: wgpu::RenderPipeline,
+    bindgroup: ArcBindGroup,
+    pipeline: ArcRenderPipeline,
 
     camera_buffer: render::UniformBuffer,
     depth_buffer: render::DepthBuffer,
@@ -26,31 +25,34 @@ const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
         let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
 
         let camera_buffer = UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, PerspectiveCameraUniform::min_size());
-        let (bindgroup_layout, bindgroup) = BindGroupCombinedBuilder::new()
-            .entries(&[
-                BindGroupCombinedEntry::new(camera_buffer.buf().as_entire_binding())
-                    .uniform()
-                    .visibility(wgpu::ShaderStages::VERTEX),
-            ])
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![render::BindGroupLayoutEntry::new().vertex().uniform()])
+            .build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![render::BindGroupEntry::Buffer(camera_buffer.buffer())])
             .build(ctx);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
 
-        let shader = ShaderBuilder::new().build(ctx, include_str!("../../../assets/gizmo.wgsl"));
-        let pipeline = RenderPipelineBuilder::new(&shader)
-            .buffers(&[vertex_buffer.desc()])
-            .targets(&[RenderPipelineBuilder::default_target(ctx)])
+        let shader = ShaderBuilder::new()
+            .source(include_str!("../../../assets/gizmo.wgsl").to_string())
+            .build(ctx);
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout])
+            .build(ctx);
+        let pipeline = RenderPipelineBuilder::new(shader, pipeline_layout)
+            .buffers(vec![vertex_buffer.desc()])
+            .targets(vec![RenderPipelineBuilder::default_target(ctx)])
             .depth_stencil(depth_buffer.depth_stencil_state())
-            .bind_groups(&[&bindgroup_layout])
             .topology(wgpu::PrimitiveTopology::LineList)
             .build(ctx);
 

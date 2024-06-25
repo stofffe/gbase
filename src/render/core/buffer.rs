@@ -1,19 +1,19 @@
-use std::ops::RangeBounds;
-
 use crate::{render, Context};
 use encase::{internal::WriteInto, ShaderType};
+use render::ArcBuffer;
+use std::ops::RangeBounds;
 use wgpu::util::DeviceExt;
 
 //
 // Raw Buffer
 //
 
-pub struct RawBufferBuilder<'a> {
-    label: Option<&'a str>,
+pub struct RawBufferBuilder {
+    label: Option<String>,
     usage: wgpu::BufferUsages,
 }
 
-impl<'a> RawBufferBuilder<'a> {
+impl RawBufferBuilder {
     pub fn new() -> Self {
         Self {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
@@ -24,30 +24,34 @@ impl<'a> RawBufferBuilder<'a> {
     pub fn build(self, ctx: &Context, size: impl Into<u64>) -> RawBuffer {
         let device = render::device(ctx);
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             size: size.into(),
             usage: self.usage,
             mapped_at_creation: false,
         });
 
-        RawBuffer { buffer }
+        RawBuffer {
+            buffer: ArcBuffer::new(buffer),
+        }
     }
 
     pub fn build_init(self, ctx: &Context, data: &[impl bytemuck::NoUninit]) -> RawBuffer {
         let device = render::device(ctx);
 
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             usage: self.usage,
             contents: bytemuck::cast_slice(data),
         });
 
-        RawBuffer { buffer }
+        RawBuffer {
+            buffer: ArcBuffer::new(buffer),
+        }
     }
 }
 
-impl<'a> RawBufferBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl RawBufferBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
@@ -58,7 +62,7 @@ impl<'a> RawBufferBuilder<'a> {
 }
 
 pub struct RawBuffer {
-    buffer: wgpu::Buffer,
+    buffer: ArcBuffer,
 }
 
 impl RawBuffer {
@@ -71,27 +75,30 @@ impl RawBuffer {
 }
 
 impl RawBuffer {
-    pub fn buf(&self) -> &wgpu::Buffer {
+    pub fn buffer(&self) -> ArcBuffer {
+        self.buffer.clone()
+    }
+    pub fn buffer_ref(&self) -> &wgpu::Buffer {
         &self.buffer
     }
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
     }
-    pub fn resource(&self) -> wgpu::BindingResource<'_> {
-        self.buffer.as_entire_binding()
-    }
+    // pub fn resource(&self) -> wgpu::BindingResource<'_> {
+    //     self.buffer.as_entire_binding()
+    // }
 }
 
 //
 // Uniform buffer
 //
 
-pub struct UniformBufferBuilder<'a> {
-    label: Option<&'a str>,
+pub struct UniformBufferBuilder {
+    label: Option<String>,
     usage: wgpu::BufferUsages,
 }
 
-impl<'a> UniformBufferBuilder<'a> {
+impl UniformBufferBuilder {
     pub fn new() -> Self {
         Self {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -102,13 +109,15 @@ impl<'a> UniformBufferBuilder<'a> {
     pub fn build(self, ctx: &Context, size: impl Into<u64>) -> UniformBuffer {
         let device = render::device(ctx);
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             size: size.into(),
             usage: self.usage,
             mapped_at_creation: false,
         });
 
-        UniformBuffer { buffer }
+        UniformBuffer {
+            buffer: ArcBuffer::new(buffer),
+        }
     }
 
     pub fn build_init(self, ctx: &Context, data: &(impl ShaderType + WriteInto)) -> UniformBuffer {
@@ -117,17 +126,19 @@ impl<'a> UniformBufferBuilder<'a> {
         let mut buffer = encase::UniformBuffer::new(Vec::new());
         buffer.write(data).expect("could not write to buffer");
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: self.label,
+            label: self.label.as_deref(),
             usage: self.usage,
             contents: &buffer.into_inner(),
         });
 
-        UniformBuffer { buffer }
+        UniformBuffer {
+            buffer: ArcBuffer::new(buffer),
+        }
     }
 }
 
-impl<'a> UniformBufferBuilder<'a> {
-    pub fn label(mut self, value: &'a str) -> Self {
+impl UniformBufferBuilder {
+    pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
         self
     }
@@ -138,7 +149,7 @@ impl<'a> UniformBufferBuilder<'a> {
 }
 
 pub struct UniformBuffer {
-    buffer: wgpu::Buffer,
+    buffer: ArcBuffer,
 }
 
 impl UniformBuffer {
@@ -149,7 +160,10 @@ impl UniformBuffer {
             .expect("could not write to transform buffer");
         render::queue(ctx).write_buffer(&self.buffer, 0, &buffer.into_inner());
     }
-    pub fn buf(&self) -> &wgpu::Buffer {
+    pub fn buffer(&self) -> ArcBuffer {
+        self.buffer.clone()
+    }
+    pub fn buffer_ref(&self) -> &wgpu::Buffer {
         &self.buffer
     }
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {

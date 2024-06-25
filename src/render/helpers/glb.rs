@@ -1,4 +1,8 @@
-use crate::{filesystem, render, Context};
+use crate::{
+    filesystem,
+    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
+    Context,
+};
 use glam::{Mat4, Quat, Vec3};
 
 //
@@ -22,12 +26,12 @@ pub struct GpuGltfModelNode {
 pub struct GpuDrawCall {
     pub mesh: GpuMesh,
     pub material: GpuMaterial,
-    pub bindgroup: wgpu::BindGroup,
+    pub bindgroup: ArcBindGroup,
 }
 
 impl GpuDrawCall {
     pub fn new(
-        ctx: &Context,
+        ctx: &mut Context,
         mesh: GpuMesh,
         material: GpuMaterial,
         transform: &render::UniformBuffer,
@@ -35,16 +39,16 @@ impl GpuDrawCall {
         mesh_renderer: &render::MeshRenderer,
     ) -> Self {
         let sampler = render::SamplerBuilder::new().build(ctx);
-        let bindgroup = render::BindGroupBuilder::new()
-            .entries(&[
-                render::BindGroupEntry::new(sampler.resource()),
-                render::BindGroupEntry::new(material.normal_texture.resource()),
-                render::BindGroupEntry::new(material.albedo_texture.resource()),
-                render::BindGroupEntry::new(material.roughness_texture.resource()),
-                render::BindGroupEntry::new(transform.resource()),
-                render::BindGroupEntry::new(camera.resource()),
+        let bindgroup = render::BindGroupBuilder::new(mesh_renderer.bindgroup_layout.clone())
+            .entries(vec![
+                render::BindGroupEntry::Sampler(sampler),
+                render::BindGroupEntry::Texture(material.normal_texture.view()),
+                render::BindGroupEntry::Texture(material.albedo_texture.view()),
+                render::BindGroupEntry::Texture(material.roughness_texture.view()),
+                render::BindGroupEntry::Buffer(transform.buffer()),
+                render::BindGroupEntry::Buffer(camera.buffer()),
             ])
-            .build(ctx, &mesh_renderer.bindgroup_layout);
+            .build(ctx);
         Self {
             mesh,
             material,
@@ -60,37 +64,54 @@ pub struct GpuMaterial {
 }
 
 impl GpuMaterial {
-    pub fn from_material(ctx: &Context, material: Material) -> Self {
+    pub fn from_material(ctx: &mut Context, material: Material) -> Self {
         let texture_usage = wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST;
-        let albedo_texture = if let Some(bytes) = &material.albedo {
-            render::TextureBuilder::new()
+
+        let Material {
+            color_factor,
+            roughness_factor,
+            metalness_factor,
+            occlusion_strength,
+            albedo,
+            normal,
+            roughness,
+        } = material;
+
+        let albedo_texture = if let Some(bytes) = albedo {
+            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
-                .build_init(ctx, bytes)
+                .build(ctx)
         } else {
-            let color = material.color_factor.map(|a| (a * 255.0) as u8);
-            render::TextureBuilder::new()
+            let default_color = color_factor.map(|a| (a * 255.0) as u8).to_vec();
+            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_color.to_vec()))
                 .usage(texture_usage)
-                .build_single_pixel(ctx, color)
+                .build(ctx)
         };
-        let normal_texture = if let Some(bytes) = &material.normal {
-            render::TextureBuilder::new()
+        let normal_texture = if let Some(bytes) = normal {
+            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
-                .build_init(ctx, bytes)
+                .build(ctx)
         } else {
-            let default_normal = [128, 128, 255, 128];
-            render::TextureBuilder::new()
+            let default_normal = [128, 128, 255, 128].to_vec();
+            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_normal))
                 .usage(texture_usage)
-                .build_single_pixel(ctx, default_normal)
+                .build(ctx)
         };
-        let roughness_texture = if let Some(bytes) = &material.roughness {
-            render::TextureBuilder::new()
+        let roughness_texture = if let Some(bytes) = roughness {
+            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
-                .build_init(ctx, bytes)
+                .build(ctx)
         } else {
-            let default_roughness = material.roughness_value_u8();
-            render::TextureBuilder::new()
+            let default_roughness = [
+                (occlusion_strength * 255.0) as u8,
+                (roughness_factor * 255.0) as u8,
+                (metalness_factor * 255.0) as u8,
+                0,
+            ]
+            .to_vec();
+            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_roughness))
                 .usage(texture_usage)
-                .build_single_pixel(ctx, default_roughness)
+                .build(ctx)
         };
         Self {
             albedo_texture,
@@ -107,7 +128,7 @@ pub struct GpuMesh {
 
 impl GpuMesh {
     pub fn from_mesh(ctx: &Context, mesh: Mesh) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(&mesh.vertices).build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(mesh.vertices).build(ctx);
         let index_buffer = render::IndexBufferBuilder::new(&mesh.indices).build(ctx);
         Self {
             vertex_buffer,
@@ -118,7 +139,7 @@ impl GpuMesh {
 
 impl GpuGltfModel {
     pub fn from_model(
-        ctx: &Context,
+        ctx: &mut Context,
         model: GltfModel,
         camera_buffer: &render::UniformBuffer,
         mesh_renderer: &render::MeshRenderer,
@@ -134,7 +155,7 @@ impl GpuGltfModel {
 
 impl GpuGltfModelNode {
     pub fn new(
-        ctx: &Context,
+        ctx: &mut Context,
         node: GltfModelNode,
         camera_buffer: &render::UniformBuffer,
         mesh_renderer: &MeshRenderer,
@@ -219,40 +240,6 @@ pub struct Material {
     pub albedo: Option<Vec<u8>>,
     pub normal: Option<Vec<u8>>,
     pub roughness: Option<Vec<u8>>,
-}
-
-impl Material {
-    // pub fn new() -> Self {
-    //     Self {
-    //         color_factor: todo!(),
-    //         roughness_factor: todo!(),
-    //         metalness_factor: todo!(),
-    //         occlusion_strength: todo!(),
-    //         albedo: todo!(),
-    //         normal: todo!(),
-    //         roughness: todo!(),
-    //     }
-    // }
-    pub fn roughness_value_u8(&self) -> [u8; 4] {
-        [
-            self.occlusion_strength_u8(),
-            self.roughness_factor_u8(),
-            self.metalness_factor_u8(),
-            0,
-        ]
-    }
-    pub fn color_factor_u8(&self) -> [u8; 4] {
-        self.color_factor.map(|v| (v * 255.0) as u8)
-    }
-    pub fn roughness_factor_u8(&self) -> u8 {
-        (self.roughness_factor * 255.0) as u8
-    }
-    pub fn metalness_factor_u8(&self) -> u8 {
-        (self.metalness_factor * 255.0) as u8
-    }
-    pub fn occlusion_strength_u8(&self) -> u8 {
-        (self.occlusion_strength * 255.0) as u8
-    }
 }
 
 impl Default for Material {
@@ -555,14 +542,14 @@ fn parse_transform(transform: gltf::scene::Transform) -> render::Transform {
 //
 
 pub struct MeshRenderer {
-    pipeline: wgpu::RenderPipeline,
-    bindgroup_layout: wgpu::BindGroupLayout,
+    pipeline: ArcRenderPipeline,
+    bindgroup_layout: ArcBindGroupLayout,
 }
 
 impl MeshRenderer {
-    pub async fn new(ctx: &Context, deferred_buffers: &render::DeferredBuffers) -> Self {
+    pub async fn new(ctx: &mut Context, deferred_buffers: &render::DeferredBuffers) -> Self {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
-            .entries(&[
+            .entries(vec![
                 // Sampler
                 render::BindGroupLayoutEntry::new()
                     .fragment()
@@ -570,15 +557,15 @@ impl MeshRenderer {
                 // Normal
                 render::BindGroupLayoutEntry::new()
                     .fragment()
-                    .texture_float(true),
+                    .texture_float_filterable(),
                 // Albedo
                 render::BindGroupLayoutEntry::new()
                     .fragment()
-                    .texture_float(true),
+                    .texture_float_filterable(),
                 // Albedo
                 render::BindGroupLayoutEntry::new()
                     .fragment()
-                    .texture_float(true),
+                    .texture_float_filterable(),
                 // Transform
                 render::BindGroupLayoutEntry::new().vertex().uniform(),
                 // Camera
@@ -590,11 +577,13 @@ impl MeshRenderer {
             .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "mesh.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build(ctx, &shader_str);
-        let pipeline = render::RenderPipelineBuilder::new(&shader)
-            .buffers(&[render::VertexFull::desc()])
-            .targets(&deferred_buffers.targets())
-            .bind_groups(&[&bindgroup_layout])
+        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout.clone()])
+            .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+            .buffers(vec![render::VertexFull::desc()])
+            .targets(deferred_buffers.targets().to_vec())
             .depth_stencil(deferred_buffers.depth_stencil_state())
             .cull_mode(wgpu::Face::Back)
             .build(ctx);
@@ -678,3 +667,4 @@ impl MeshRenderer {
 //         }
 //     }
 // }
+//
