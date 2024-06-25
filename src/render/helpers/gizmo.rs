@@ -2,7 +2,6 @@ use crate::{
     render::{self, ArcBindGroup, ArcRenderPipeline},
     Context,
 };
-use encase::ShaderType;
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
 use render::{
     DynamicIndexBuffer, DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder,
@@ -17,7 +16,6 @@ pub struct GizmoRenderer {
     bindgroup: ArcBindGroup,
     pipeline: ArcRenderPipeline,
 
-    camera_buffer: render::UniformBuffer,
     depth_buffer: render::DepthBuffer,
 }
 
@@ -25,13 +23,10 @@ const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, camera_buffer: &render::UniformBuffer) -> Self {
         let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
         let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
 
-        let camera_buffer = UniformBufferBuilder::new()
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, PerspectiveCameraUniform::min_size());
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![render::BindGroupLayoutEntry::new().vertex().uniform()])
             .build(ctx);
@@ -61,19 +56,13 @@ impl GizmoRenderer {
             index_buffer,
             pipeline,
             depth_buffer,
-            camera_buffer,
             bindgroup,
         }
     }
-    pub fn render(
-        &mut self,
-        ctx: &Context,
-        view: &wgpu::TextureView,
-        camera: &mut PerspectiveCamera,
-    ) {
+    pub fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
         self.vertex_buffer.update_buffer(ctx);
         self.index_buffer.update_buffer(ctx);
-        self.camera_buffer.write(ctx, &camera.uniform(ctx));
+        // self.camera_buffer.write(ctx, &camera.uniform(ctx));
 
         let mut encoder = EncoderBuilder::new().build(ctx);
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

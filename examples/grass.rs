@@ -82,7 +82,7 @@ impl App {
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
-        let gizmo_renderer = render::GizmoRenderer::new(ctx);
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer);
 
         // Plane mesh
         let plane_transform = render::Transform::new(
@@ -193,13 +193,13 @@ impl Callbacks for App {
             &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
-        self.gizmo_renderer
-            .render(ctx, screen_view, &mut self.camera);
+        self.gizmo_renderer.render(ctx, screen_view);
 
         false
     }
 
     fn resize(&mut self, ctx: &mut Context) {
+        log::info!("resize");
         self.deferred_buffers.resize(ctx);
         self.deferred_renderer.resize(
             ctx,
