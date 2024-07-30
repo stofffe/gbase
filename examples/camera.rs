@@ -1,9 +1,5 @@
 use encase::ShaderType;
-use gbase::{
-    filesystem, input,
-    render::{self, ArcBuffer},
-    Callbacks, Context, ContextBuilder, LogLevel,
-};
+use gbase::{filesystem, input, render, Callbacks, Context, ContextBuilder, LogLevel};
 use glam::{vec3, Vec3};
 use std::path::Path;
 use winit::keyboard::KeyCode;
@@ -21,9 +17,9 @@ pub async fn main() {
 
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
-    pipeline: wgpu::RenderPipeline,
+    pipeline: render::ArcRenderPipeline,
     camera: render::PerspectiveCamera,
-    camera_bindgroup: wgpu::BindGroup,
+    camera_bindgroup: render::ArcBindGroup,
     camera_buffer: render::UniformBuffer,
 }
 
@@ -33,25 +29,21 @@ impl App {
         let shader_str = filesystem::load_string(ctx, Path::new("camera.wgsl"))
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new()
-            .source(shader_str)
-            .build_uncached(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build_uncached(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new()
-            .data(TRIANGLE_VERTICES.to_vec())
+        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
             .usage(wgpu::BufferUsages::VERTEX)
             .build(ctx);
 
         // Camera
         let camera = render::PerspectiveCamera::new();
         let buffer = render::UniformBufferBuilder::new()
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx, render::PerspectiveCameraUniform::min_size());
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Camera
-                render::BindGroupLayoutEntry::new().uniform(),
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
             ])
             .build_uncached(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
@@ -60,20 +52,14 @@ impl App {
                 render::BindGroupEntry::Buffer(buffer.buffer()),
             ])
             .build_uncached(ctx);
-        // let bind_group_layout = render::BindGroupLayoutBuilder::new()
-        //     .entries(&[render::BindGroupLayoutEntry::new().uniform()])
-        //     .build(ctx);
-        // let bind_group = render::BindGroupBuilder::new()
-        //     .entries(&[render::BindGroupEntry::new(
-        //         buffer.buf().as_entire_binding(),
-        //     )])
-        //     .build(ctx, &bind_group_layout);
 
         // Pipeline
-        let pipeline = render::PipelineLayoutBuilder::new(&shader)
-            .buffers(&[vertex_buffer.desc()])
-            .bind_groups(&[&bindgroup_layout])
-            .targets(&[render::PipelineLayoutBuilder::default_target(ctx)])
+        let pipeline_layoyt = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout])
+            .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layoyt)
+            .buffers(vec![vertex_buffer.desc()])
+            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
             .build_uncached(ctx);
 
         render::window(ctx).set_cursor_visible(false);

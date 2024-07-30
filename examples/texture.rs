@@ -33,14 +33,14 @@ impl App {
         let sampler = render::SamplerBuilder::new().build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "texture.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let texture_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // texture
                 render::BindGroupLayoutEntry::new()
                     .fragment()
-                    .texture_float(true),
+                    .texture_float_filterable(),
                 // sampler
                 render::BindGroupLayoutEntry::new()
                     .fragment()

@@ -1,6 +1,5 @@
-use encase::ShaderType;
-
 use crate::{render, time, Context};
+use encase::ShaderType;
 
 /// Holds information about the app
 ///

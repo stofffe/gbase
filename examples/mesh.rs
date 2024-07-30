@@ -43,7 +43,7 @@ impl App {
             render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
                 .await;
         let debug_input = render::DebugInput::new(ctx);
-        let gizmo_renderer = render::GizmoRenderer::new(ctx);
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
 
@@ -153,8 +153,7 @@ impl Callbacks for App {
             &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
-        self.gizmo_renderer
-            .render(ctx, screen_view, &mut self.camera);
+        self.gizmo_renderer.render(ctx, screen_view);
         false
     }
 

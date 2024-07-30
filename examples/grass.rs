@@ -82,7 +82,7 @@ impl App {
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer);
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
 
         // Plane mesh
         let plane_transform = render::Transform::new(
@@ -486,9 +486,7 @@ impl GrassRenderer {
         let instance_shader_str = filesystem::load_string(ctx, "grass_compute_instance.wgsl")
             .await
             .unwrap();
-        let instance_shader = render::ShaderBuilder::new()
-            .source(instance_shader_str)
-            .build(ctx);
+        let instance_shader = render::ShaderBuilder::new(instance_shader_str).build(ctx);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![instance_bindgroup_layout])
@@ -519,9 +517,7 @@ impl GrassRenderer {
         let draw_shader_str = filesystem::load_string(ctx, "grass_compute_draw.wgsl")
             .await
             .unwrap();
-        let draw_compute_shader = render::ShaderBuilder::new()
-            .source(draw_shader_str)
-            .build(ctx);
+        let draw_compute_shader = render::ShaderBuilder::new(draw_shader_str).build(ctx);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![draw_bindgroup_layout])
@@ -549,9 +545,7 @@ impl GrassRenderer {
             .build_uncached(ctx);
 
         let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
-        let render_shader = render::ShaderBuilder::new()
-            .source(render_shader_str)
-            .build(ctx);
+        let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout])
             .build(ctx);

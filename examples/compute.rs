@@ -21,8 +21,8 @@ struct App {
     input_buffer: render::RawBuffer,
     output_buffer: render::RawBuffer,
     cpu_buffer: render::RawBuffer,
-    bindgroup: wgpu::BindGroup,
-    compute_pipeline: wgpu::ComputePipeline,
+    bindgroup: render::ArcBindGroup,
+    compute_pipeline: render::ArcComputePipeline,
 }
 
 impl App {
@@ -37,25 +37,33 @@ impl App {
         let cpu_buffer = render::RawBufferBuilder::new()
             .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
             .build(ctx, OUTPUT_MEM_SIZE);
-        let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
-            .entries(&[
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
                 // input
-                render::BindGroupCombinedEntry::new(input_buffer.buffer().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::COMPUTE)
-                    .storage(true),
+                render::BindGroupLayoutEntry::new()
+                    .compute()
+                    .storage_readonly(),
                 // output
-                render::BindGroupCombinedEntry::new(output_buffer.buffer().as_entire_binding())
-                    .visibility(wgpu::ShaderStages::COMPUTE)
-                    .storage(false),
+                render::BindGroupLayoutEntry::new().compute().storage(),
             ])
-            .build_uncached(ctx);
+            .build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .entries(vec![
+                // input
+                render::BindGroupEntry::Buffer(input_buffer.buffer()),
+                // output
+                render::BindGroupEntry::Buffer(output_buffer.buffer()),
+            ])
+            .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "compute.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().build_uncached(ctx, &shader_str);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
-        let compute_pipeline = render::ComputePipelineBuilder::new(&shader)
-            .bind_groups(&[&bindgroup_layout])
-            .build_uncached(ctx);
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout])
+            .build(ctx);
+        let compute_pipeline =
+            render::ComputePipelineBuilder::new(shader, pipeline_layout).build(ctx);
 
         Self {
             compute_pipeline,
@@ -94,9 +102,9 @@ impl Callbacks for App {
         drop(compute_pass);
 
         encoder.copy_buffer_to_buffer(
-            self.output_buffer.buffer(),
+            self.output_buffer.buffer_ref(),
             0,
-            self.cpu_buffer.buffer(),
+            self.cpu_buffer.buffer_ref(),
             0,
             OUTPUT_MEM_SIZE,
         );
@@ -104,7 +112,7 @@ impl Callbacks for App {
         queue.submit(Some(encoder.finish()));
 
         // read data from output buffer
-        let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buffer());
+        let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buffer_ref());
         println!("DATA {:?}", data);
 
         false

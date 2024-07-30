@@ -1,5 +1,5 @@
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
-use crate::{render, Context};
+use crate::{filesystem, render, Context};
 use glam::{uvec2, vec2, Vec4};
 use glam::{UVec2, Vec2};
 use render::VertexTrait;
@@ -133,9 +133,8 @@ impl GUIRenderer {
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
         // println!("A info {:?}", letter_info.get(&'a'));
 
-        let shader = render::ShaderBuilder::new()
-            .source(include_str!("../../../assets/ui.wgsl").to_string())
-            .build(ctx);
+        let shader_str = filesystem::load_string(ctx, "ui.wgsl").await.unwrap();
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

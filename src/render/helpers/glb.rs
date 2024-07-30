@@ -577,7 +577,7 @@ impl MeshRenderer {
             .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "mesh.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);

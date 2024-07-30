@@ -1,3 +1,4 @@
+use encase::ShaderType;
 use gbase::{
     input::{self, KeyCode},
     render::{self, Transform},
@@ -6,18 +7,22 @@ use gbase::{
 use glam::{vec2, vec3, Quat, Vec3};
 
 struct App {
-    gizmo_renderer: render::GizmoRenderer,
     camera: render::PerspectiveCamera,
+    camera_buffer: render::UniformBuffer,
+    gizmo_renderer: render::GizmoRenderer,
 }
 
 impl App {
-    fn new(ctx: &Context) -> Self {
-        let gizmo_renderer = render::GizmoRenderer::new(ctx);
+    async fn new(ctx: &mut Context) -> Self {
         let camera = render::PerspectiveCamera::new();
+        let camera_buffer = render::UniformBufferBuilder::new()
+            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
 
         Self {
-            gizmo_renderer,
             camera,
+            camera_buffer,
+            gizmo_renderer,
         }
     }
 }
@@ -36,6 +41,7 @@ impl Callbacks for App {
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let t = time::time_since_start(ctx);
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         self.gizmo_renderer
             .draw_sphere(0.01, &Transform::default(), WHITE);
@@ -58,8 +64,7 @@ impl Callbacks for App {
             WHITE,
         );
 
-        self.gizmo_renderer
-            .render(ctx, screen_view, &mut self.camera);
+        self.gizmo_renderer.render(ctx, screen_view);
         false
     }
 
@@ -109,10 +114,10 @@ impl Callbacks for App {
 
 #[pollster::main]
 pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
+    let (mut ctx, ev) = ContextBuilder::new()
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let app = App::new(&ctx);
+    let app = App::new(&mut ctx).await;
     gbase::run(app, ctx, ev);
 }

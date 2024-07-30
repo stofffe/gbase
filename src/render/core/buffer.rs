@@ -84,9 +84,6 @@ impl RawBuffer {
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
     }
-    // pub fn resource(&self) -> wgpu::BindingResource<'_> {
-    //     self.buffer.as_entire_binding()
-    // }
 }
 
 //
@@ -138,8 +135,8 @@ impl UniformBufferBuilder {
 }
 
 impl UniformBufferBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn usage(mut self, value: wgpu::BufferUsages) -> Self {
@@ -160,6 +157,7 @@ impl UniformBuffer {
             .expect("could not write to transform buffer");
         render::queue(ctx).write_buffer(&self.buffer, 0, &buffer.into_inner());
     }
+
     pub fn buffer(&self) -> ArcBuffer {
         self.buffer.clone()
     }
@@ -168,8 +166,5 @@ impl UniformBuffer {
     }
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
-    }
-    pub fn resource(&self) -> wgpu::BindingResource<'_> {
-        self.buffer.as_entire_binding()
     }
 }

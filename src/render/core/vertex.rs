@@ -20,9 +20,9 @@ pub struct VertexBufferBuilder<T: VertexTrait> {
 }
 
 impl<T: VertexTrait> VertexBufferBuilder<T> {
-    pub fn new(data: Vec<T>) -> Self {
+    pub fn new(data: impl Into<Vec<T>>) -> Self {
         Self {
-            data,
+            data: data.into(),
             label: None,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         }

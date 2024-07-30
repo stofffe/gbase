@@ -7,6 +7,7 @@ mod pipeline;
 mod render_pass;
 mod shader;
 mod texture;
+mod vertex;
 
 pub use arc::*;
 pub use bind_group::*;
@@ -17,3 +18,4 @@ pub use pipeline::*;
 pub use render_pass::*;
 pub use shader::*;
 pub use texture::*;
+pub use vertex::*;

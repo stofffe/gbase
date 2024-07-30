@@ -32,7 +32,7 @@ impl App {
         let shader_str = filesystem::load_string(ctx, "transform.wgsl")
             .await
             .unwrap();
-        let shader = render::ShaderBuilder::new().source(shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())

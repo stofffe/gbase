@@ -1,5 +1,4 @@
 use crate::{render, Context};
-
 pub struct DeferredBuffers {
     pub position: render::FrameBuffer,
     pub albedo: render::FrameBuffer,

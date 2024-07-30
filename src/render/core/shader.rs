@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
-use crate::{render, Context};
-
 use super::ArcShaderModule;
+use crate::{render, Context};
 
 //
 // Shader Builder
@@ -10,15 +7,15 @@ use super::ArcShaderModule;
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
-    label: Option<String>,
     source: String,
+    label: Option<String>,
 }
 
 impl ShaderBuilder {
-    pub fn new() -> Self {
+    pub fn new(source: String) -> Self {
         Self {
+            source,
             label: None,
-            source: String::new(),
         }
     }
 

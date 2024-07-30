@@ -1,13 +1,13 @@
 use crate::{
-    render::{self, ArcBindGroup, ArcRenderPipeline},
+    filesystem,
+    render::{
+        self, ArcBindGroup, ArcRenderPipeline, DynamicIndexBuffer, DynamicIndexBufferBuilder,
+        DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder, RenderPipelineBuilder,
+        ShaderBuilder, Transform, VertexColor,
+    },
     Context,
 };
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
-use render::{
-    DynamicIndexBuffer, DynamicIndexBufferBuilder, DynamicVertexBuffer, DynamicVertexBufferBuilder,
-    EncoderBuilder, PerspectiveCamera, PerspectiveCameraUniform, RenderPipelineBuilder,
-    ShaderBuilder, Transform, UniformBufferBuilder, VertexColor,
-};
 use std::f32::consts::PI;
 
 pub struct GizmoRenderer {
@@ -23,24 +23,29 @@ const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
-    pub fn new(ctx: &mut Context, camera_buffer: &render::UniformBuffer) -> Self {
+    pub async fn new(ctx: &mut Context, camera_buffer: &render::UniformBuffer) -> Self {
         let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
         let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
-            .entries(vec![render::BindGroupLayoutEntry::new().vertex().uniform()])
+            .entries(vec![
+                // camera
+                render::BindGroupLayoutEntry::new().vertex().uniform(),
+            ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
-            .entries(vec![render::BindGroupEntry::Buffer(camera_buffer.buffer())])
+            .entries(vec![
+                // camera
+                render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+            ])
             .build(ctx);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
 
-        let shader = ShaderBuilder::new()
-            .source(include_str!("../../../assets/gizmo.wgsl").to_string())
-            .build(ctx);
+        let shader_str = filesystem::load_string(ctx, "gizmo.wgsl").await.unwrap();
+        let shader = ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
@@ -62,23 +67,20 @@ impl GizmoRenderer {
     pub fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
         self.vertex_buffer.update_buffer(ctx);
         self.index_buffer.update_buffer(ctx);
-        // self.camera_buffer.write(ctx, &camera.uniform(ctx));
 
         let mut encoder = EncoderBuilder::new().build(ctx);
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(self.depth_buffer.depth_render_attachment_clear()),
-            label: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+        let attachments = vec![Some(wgpu::RenderPassColorAttachment {
+            view,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        })];
+        let mut pass = render::RenderPassBuilder::new()
+            .color_attachments(&attachments)
+            .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
+            .build(&mut encoder);
 
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
@@ -93,6 +95,7 @@ impl GizmoRenderer {
         self.vertex_buffer.clear();
         self.index_buffer.clear();
     }
+
     pub fn resize(&mut self, ctx: &Context) {
         self.depth_buffer.resize(ctx);
     }

@@ -21,14 +21,14 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
+        println!("NORMAL PRINT");
+        eprintln!("DEBUG PRINT");
         let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())
             .usage(wgpu::BufferUsages::VERTEX)
             .build(ctx);
 
         let shader_str = filesystem::load_string(ctx, "triangle.wgsl").await.unwrap();
-        let shader = render::ShaderBuilder::new()
-            .source(shader_str.to_string())
-            .build(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
             .buffers(vec![vertex_buffer.desc()])
