@@ -1,6 +1,6 @@
 use crate::{filesystem, render, Context};
 
-use super::VertexUV;
+use render::VertexUV;
 
 pub struct TextureRenderer {
     pipeline: wgpu::RenderPipeline,

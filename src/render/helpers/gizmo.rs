@@ -1,7 +1,4 @@
-use crate::{
-    render::{self, FrameBufferBuilder},
-    Context,
-};
+use crate::{render, Context};
 use encase::ShaderType;
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
 use render::{
