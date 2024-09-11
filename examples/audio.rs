@@ -1,18 +1,18 @@
 use gbase::{
-    audio::{self, AudioHandle},
+    audio::{self, SoundSource},
     input::{self, KeyCode},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 
 struct App {
-    sound: AudioHandle,
+    sound: SoundSource,
 }
 
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Space) {
             log::info!("play boom");
-            audio::play_audio_source(ctx, self.sound);
+            audio::play_audio_source(ctx, &self.sound);
         }
         false
     }

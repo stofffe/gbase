@@ -7,8 +7,6 @@ pub type SoundSource = Buffered<Decoder<Cursor<Vec<u8>>>>;
 
 pub(crate) struct AudioContext {
     raw_handle: AudioHandleRaw,
-
-    sources: Vec<SoundSource>,
 }
 
 struct AudioHandleRaw {
@@ -27,28 +25,20 @@ impl AudioHandleRaw {
 impl AudioContext {
     pub(crate) fn new() -> Self {
         let raw_handle = AudioHandleRaw::new();
-        let sources = Vec::new();
-        Self {
-            raw_handle,
-            sources,
-        }
+        Self { raw_handle }
     }
 
-    fn load_audio_source(&mut self, bytes: Vec<u8>) -> AudioHandle {
-        let source = rodio::Decoder::new(Cursor::new(bytes))
+    fn load_audio_source(&mut self, bytes: Vec<u8>) -> SoundSource {
+        rodio::Decoder::new(Cursor::new(bytes))
             .expect("could not decode audio")
-            .buffered();
-        self.sources.push(source);
-        self.sources.len() - 1
+            .buffered()
     }
 
-    fn play_sound(&self, handle: AudioHandle) {
-        let source = self.sources[handle].clone();
-
+    fn play_sound(&self, source: &SoundSource) {
         // TODO handle error
         self.raw_handle
             .handle
-            .play_raw(source.convert_samples())
+            .play_raw(source.clone().convert_samples())
             .expect("could not play sound");
     }
 }
@@ -58,7 +48,7 @@ impl AudioContext {
 //
 
 // Load audio source
-pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> AudioHandle {
+pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> SoundSource {
     let bytes = ctx
         .filesystem
         .load_bytes(&path.into())
@@ -68,6 +58,6 @@ pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> A
 }
 
 /// Play audio source as raw sound
-pub fn play_audio_source(ctx: &Context, handle: AudioHandle) {
-    ctx.audio.play_sound(handle);
+pub fn play_audio_source(ctx: &Context, source: &SoundSource) {
+    ctx.audio.play_sound(source);
 }
