@@ -35,6 +35,29 @@ impl Transform {
         Self::new(Vec3::ZERO, rot, scale)
     }
 
+    pub const fn with_pos(mut self, pos: Vec3) -> Self {
+        self.pos = pos;
+        self
+    }
+    pub const fn with_rot(mut self, rot: Quat) -> Self {
+        self.rot = rot;
+        self
+    }
+    pub const fn with_scale(mut self, scale: Vec3) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    pub fn set_pos(&mut self, pos: Vec3) {
+        self.pos = pos;
+    }
+    pub fn set_rot(&mut self, rot: Quat) {
+        self.rot = rot;
+    }
+    pub fn set_scale(&mut self, scale: Vec3) {
+        self.scale = scale;
+    }
+
     pub fn matrix(&self) -> Mat4 {
         Mat4::from_scale_rotation_translation(self.scale, self.rot, self.pos)
     }
