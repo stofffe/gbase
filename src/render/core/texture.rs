@@ -2,7 +2,6 @@ use crate::{
     render::{self, ArcSampler, ArcTexture, ArcTextureView},
     Context,
 };
-use glam::UVec2;
 
 //
 // Sampler
@@ -114,7 +113,7 @@ impl TextureBuilder {
             source,
             label: None,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
         }
     }
 

@@ -83,6 +83,8 @@ impl PerspectiveCamera {
             view_proj,
             pos,
             facing,
+            view,
+            proj,
         }
     }
 }
@@ -92,4 +94,6 @@ pub struct PerspectiveCameraUniform {
     view_proj: Mat4,
     pos: Vec3,
     facing: Vec3,
+    view: Mat4,
+    proj: Mat4,
 }

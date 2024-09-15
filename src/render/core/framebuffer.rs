@@ -6,6 +6,7 @@ pub struct FrameBufferBuilder {
     usage: wgpu::TextureUsages,
     format: wgpu::TextureFormat,
     size: wgpu::Extent3d,
+    view_formats: Vec<wgpu::TextureFormat>,
 }
 
 impl FrameBufferBuilder {
@@ -15,12 +16,13 @@ impl FrameBufferBuilder {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: wgpu::TextureFormat::Bgra8UnormSrgb, // TODO default to BRGA instead?
             size: wgpu::Extent3d {
                 width: 0,
                 height: 0,
                 depth_or_array_layers: 0,
             },
+            view_formats: Vec::new(),
         }
     }
     pub fn build(&self, ctx: &Context) -> FrameBuffer {
@@ -33,7 +35,7 @@ impl FrameBufferBuilder {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            view_formats: &[],
+            view_formats: &self.view_formats,
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
             label: self.label.as_deref(),
@@ -63,6 +65,14 @@ impl FrameBufferBuilder {
     }
     pub fn usage(&mut self, usage: wgpu::TextureUsages) -> &mut Self {
         self.usage = usage;
+        self
+    }
+    pub fn view(&mut self, usage: wgpu::TextureUsages) -> &mut Self {
+        self.usage = usage;
+        self
+    }
+    pub fn view_formats(&mut self, view_formats: Vec<wgpu::TextureFormat>) -> &mut Self {
+        self.view_formats = view_formats;
         self
     }
     pub fn size(&mut self, width: u32, height: u32) -> &mut Self {
