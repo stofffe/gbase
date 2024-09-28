@@ -3,7 +3,7 @@ use gbase::{filesystem, render, time, Callbacks, Context};
 #[pollster::main]
 async fn main() {
     let (mut ctx, ev) = gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Warn)
+        .log_level(gbase::LogLevel::Info)
         .vsync(false)
         .build()
         .await;
@@ -49,7 +49,8 @@ impl App {
             .usage(
                 wgpu::TextureUsages::STORAGE_BINDING
                     | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC,
             )
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
@@ -78,7 +79,7 @@ impl App {
 
 impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
-        log::warn!("fps {}", time::fps(ctx));
+        // log::warn!("fps {}", time::fps(ctx));
         false
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
@@ -86,20 +87,16 @@ impl Callbacks for App {
         self.texture_renderer_base.render(
             ctx,
             self.base_texture.view(),
-            self.middle_texture.view_ref(),
+            self.render_texture.view_ref(),
         );
 
-        self.box_filter.apply_filter(
-            ctx,
-            self.middle_texture.view(),
-            self.render_unorm_view.clone(),
-            self.render_texture.texture().width(),
-            self.render_texture.texture().height(),
-        );
+        self.box_filter.apply_filter(ctx, &self.render_texture);
 
         // final
         self.texture_renderer_final
             .render(ctx, self.render_texture.view(), screen_view);
+        // self.texture_renderer_final
+        //     .render(ctx, self.box_filter.copy_texture.view(), screen_view);
         false
     }
 }

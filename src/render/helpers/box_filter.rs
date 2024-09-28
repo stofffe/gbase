@@ -4,12 +4,12 @@ use crate::{
     Context,
 };
 
-use super::debug_input;
-
 pub struct BoxFilter {
     pipeline: render::ArcComputePipeline,
     bindgroup_layout: render::ArcBindGroupLayout,
     debug_input: render::DebugInput,
+
+    pub copy_texture: render::FrameBuffer,
 }
 
 impl BoxFilter {
@@ -50,37 +50,55 @@ impl BoxFilter {
 
         let pipeline = render::ComputePipelineBuilder::new(shader, pipeline_layout).build(ctx);
 
+        let copy_texture = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .usage(wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING)
+            .build(ctx);
+
         Self {
             pipeline,
             bindgroup_layout,
             debug_input,
+            copy_texture,
         }
     }
 
-    pub fn apply_filter(
-        &mut self,
-        ctx: &mut Context,
-        in_texture: render::ArcTextureView,
-        out_texture: render::ArcTextureView,
-        width: u32,
-        height: u32,
-        // in_texture: &render::FrameBuffer,
-        // out_texture: &render::FrameBuffer,
-    ) {
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-        // if in_texture.texture().width() != out_texture.texture().width()
-        //     || in_texture.texture().height() != out_texture.texture().height()
-        // {
-        //     log::error!("in and out texture of box blur must have same size");
-        // }
-
+    pub fn apply_filter(&mut self, ctx: &mut Context, in_texture: &render::FrameBuffer) {
+        // Update buffers
         self.debug_input.update_buffer(ctx);
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+
+        if in_texture.texture().size() != self.copy_texture.texture().size() {
+            log::error!("in and out texture of box blur must have same size");
+        }
+
+        // Copy current texture to copy texture
+        let width = in_texture.texture().width();
+        let height = in_texture.texture().height();
+        self.copy_texture.resize(ctx, width, height);
+        encoder.copy_texture_to_texture(
+            wgpu::ImageCopyTextureBase {
+                texture: &in_texture.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            wgpu::ImageCopyTextureBase {
+                texture: &self.copy_texture.texture(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            in_texture.texture().size(),
+        );
+
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // in
-                render::BindGroupEntry::Texture(in_texture),
+                render::BindGroupEntry::Texture(self.copy_texture.view()),
                 // out
-                render::BindGroupEntry::Texture(out_texture),
+                render::BindGroupEntry::Texture(in_texture.view()),
                 // debug
                 render::BindGroupEntry::Buffer(self.debug_input.buffer()),
             ])

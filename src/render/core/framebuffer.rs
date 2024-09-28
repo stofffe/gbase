@@ -116,7 +116,10 @@ impl FrameBuffer {
             blend: None,
         }
     }
-    pub fn resize(&mut self, ctx: &Context) {
+    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
+        *self = self.builder.size(width, height).build(ctx);
+    }
+    pub fn resize_screen(&mut self, ctx: &Context) {
         *self = self.builder.screen_size(ctx).build(ctx);
     }
 }
@@ -212,6 +215,6 @@ impl DepthBuffer {
         &self.framebuffer
     }
     pub fn resize(&mut self, ctx: &Context) {
-        self.framebuffer.resize(ctx);
+        self.framebuffer.resize_screen(ctx);
     }
 }
