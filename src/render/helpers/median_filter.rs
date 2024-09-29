@@ -4,7 +4,7 @@ use crate::{
     Context,
 };
 
-pub struct BoxFilter {
+pub struct MedianFilter {
     pipeline: render::ArcComputePipeline,
     bindgroup_layout: render::ArcBindGroupLayout,
     debug_input: render::DebugInput,
@@ -12,9 +12,9 @@ pub struct BoxFilter {
     pub copy_texture: render::FrameBuffer,
 }
 
-impl BoxFilter {
+impl MedianFilter {
     pub async fn new(ctx: &mut Context) -> Self {
-        let shader_str = filesystem::load_string(ctx, "box_filter.wgsl")
+        let shader_str = filesystem::load_string(ctx, "median_filter.wgsl")
             .await
             .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);

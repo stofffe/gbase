@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::{
     filesystem,
     render::{self, ArcTextureView, VertexUV},
