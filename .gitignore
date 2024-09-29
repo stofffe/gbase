@@ -1,5 +1,12 @@
-/target
-/Cargo.lock
+**/target
+**/Cargo.lock
+**/.DS_Store
+
 /web/pkg
 web/assets/*
-**/.DS_Store
+assets/kenney*
+assets/*.glb
+assets/*.ttf
+assets/*.otf
+assets/nissan/*
+assets/blue_flower/*

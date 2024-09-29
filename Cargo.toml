@@ -18,7 +18,6 @@ encase = { version = "0.6.1", features = ["glam"] }
 fontdue = "0.8.0"
 gltf = "1.4.0"
 
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
 env_logger = "0.10.1"

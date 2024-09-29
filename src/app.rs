@@ -19,7 +19,7 @@ pub trait Callbacks {
     ///
     /// Return value determines wether to exit game or not
     ///
-    /// Must create at least one render pass, panics otherwise
+    /// Must submit at least one render pass, panics otherwise
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
@@ -78,6 +78,7 @@ where
                 return false;
             }
         };
+        // TODO make this ARC?
         let view = output
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());

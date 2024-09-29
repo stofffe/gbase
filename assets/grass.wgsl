@@ -8,12 +8,26 @@ struct Instance {
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
+@group(0) @binding(1) var<uniform> debug_input: DebugInput;
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     facing: vec3<f32>,
+    view: mat4x4<f32>,
+    proj: mat4x4<f32>,
 };
+
+struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
+fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
+fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
+fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
+fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
+fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
+fn btn7_pressed() -> bool { return debug_input.btn7 == 1u; }
+fn btn8_pressed() -> bool { return debug_input.btn8 == 1u; }
+fn btn9_pressed() -> bool { return debug_input.btn9 == 1u; }
 
 // grass
 const GRASS_WIDTH = 0.1;
@@ -91,13 +105,26 @@ fn vs_main(
     // rounded normal
     let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(normal + orth * NORMAL_ROUNDING);
     let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(normal - orth * NORMAL_ROUNDING);
+    let normal3 = transpose(inverse_3x3(rot_mat)) * normalize(normal);
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
+    //out.clip_position = camera.proj * camera.view * vec4<f32>(model_pos, 1.0);
     out.normal1 = normal1.xyz;
     out.normal2 = normal2.xyz;
     out.width_percent = width_percent;
     out.pos = model_pos.xyz;
+
+    //if btn9_pressed() {
+    //let view_dir = out.clip_position.xyz;
+    //let value = abs(dot(normal3.xyz, view_dir));
+    //out.debug = value;
+        //if  <= 0.1 {
+        //    out.debug = 1;
+        //} else {
+        //    out.debug = 0;
+        //}
+    //}
 
     return out;
 }
@@ -110,6 +137,7 @@ struct VertexOutput {
     @location(1) normal1: vec3<f32>,
     @location(2) normal2: vec3<f32>,
     @location(3) width_percent: f32,
+    //@location(4) debug: f32,
 };
 
 struct FragmentOutput {
@@ -150,6 +178,8 @@ fn fs_main(
     out.normal = vec4<f32>(normal, 1.0);
     out.albedo = vec4<f32>(color, 1.0);
     out.roughness = vec4<f32>(AMBIENT_OCCLUSION, roughness, METALNESS, 1.0); // ao, rough, metal, ?
+
+    //out.albedo = vec4<f32>(in.debug, 0.0, 0.0, 1.0);
 
     return out;
 }

@@ -1,4 +1,5 @@
 use crate::{render, Context};
+
 pub struct DeferredBuffers {
     pub position: render::FrameBuffer,
     pub albedo: render::FrameBuffer,
@@ -197,10 +198,10 @@ impl DeferredBuffers {
     /// * Roughness
     /// * Depth
     pub fn resize(&mut self, ctx: &Context) {
-        self.position.resize(ctx);
-        self.albedo.resize(ctx);
-        self.normal.resize(ctx);
-        self.roughness.resize(ctx);
-        self.depth.resize(ctx);
+        self.position.resize_screen(ctx);
+        self.albedo.resize_screen(ctx);
+        self.normal.resize_screen(ctx);
+        self.roughness.resize_screen(ctx);
+        self.depth.resize_screen(ctx);
     }
 }

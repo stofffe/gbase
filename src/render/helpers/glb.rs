@@ -639,17 +639,18 @@ impl MeshRenderer {
 
         queue.submit(Some(encoder.finish()));
     }
-
-    // pub fn load_glb(
-    //     &self,
-    //     ctx: &Context,
-    //     bytes: &[u8],
-    //     camera_buffer: &render::UniformBuffer,
-    // ) -> GpuModel {
-    //     let model = Model::from_glb_bytes(bytes);
-    //     GpuModel::from_model(ctx, model, camera_buffer, self)
-    // }
 }
+
+// pub fn load_glb(
+//     &self,
+//     ctx: &Context,
+//     bytes: &[u8],
+//     camera_buffer: &render::UniformBuffer,
+// ) -> GpuModel {
+//     let model = Model::from_glb_bytes(bytes);
+//     GpuModel::from_model(ctx, model, camera_buffer, self)
+// }
+
 // for model in models.iter() {
 //     for prim in model.nodes.iter() {
 //         match &prim.mesh {
@@ -667,4 +668,3 @@ impl MeshRenderer {
 //         }
 //     }
 // }
-//

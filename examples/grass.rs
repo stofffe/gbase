@@ -335,6 +335,8 @@ struct GrassRenderer {
 
     render_pipeline: ArcRenderPipeline,
     render_bindgroup: ArcBindGroup,
+
+    debug_input: render::DebugInput,
 }
 
 impl GrassRenderer {
@@ -346,6 +348,7 @@ impl GrassRenderer {
     ) {
         let queue = render::queue(ctx);
         self.app_info.update_buffer(ctx);
+        self.debug_input.update_buffer(ctx);
 
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
@@ -535,14 +538,21 @@ impl GrassRenderer {
                     .uniform()
                     .vertex()
                     .fragment(),
+                // Debug input
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
             ])
-            .build_uncached(ctx);
+            .build(ctx);
         let render_bindgroup = render::BindGroupBuilder::new(render_bindgroup_layout.clone())
             .entries(vec![
                 // Camera
                 render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                // Debug
+                render::BindGroupEntry::Buffer(debug_input.buffer()),
             ])
-            .build_uncached(ctx);
+            .build(ctx);
 
         let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
         let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
@@ -570,6 +580,8 @@ impl GrassRenderer {
             draw_bindgroup,
             render_pipeline,
             render_bindgroup,
+
+            debug_input,
         }
     }
 }

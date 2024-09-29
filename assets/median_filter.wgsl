@@ -11,6 +11,7 @@ fn luminance(color: vec4<f32>) -> f32 {
 }
 
 // Bubble sort based on luminance
+// TODO lower 100 to 49?
 fn sort(arr: ptr<function, array<vec4<f32>, 100>>, length: u32) {
     var temp: vec4<f32>;
 
