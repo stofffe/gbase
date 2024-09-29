@@ -27,7 +27,7 @@ impl App {
         let surface_config = render::surface_config(ctx);
 
         // Shader
-        let shader_bytes = filesystem::load_bytes(ctx, Path::new("shader.wgsl"))
+        let shader_bytes = filesystem::load_bytes(ctx, Path::new("shaders/shader.wgsl"))
             .await
             .unwrap();
         let shader_str = String::from_utf8(shader_bytes).unwrap();

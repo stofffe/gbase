@@ -15,7 +15,7 @@ struct App {}
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let txt = filesystem::load_bytes(ctx, "test.txt").await.unwrap();
+        let txt = filesystem::load_bytes(ctx, "other/test.txt").await.unwrap();
         info!("txt content {:?}", String::from_utf8(txt));
         Self {}
     }

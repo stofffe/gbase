@@ -47,11 +47,15 @@ impl App {
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
 
-        let model1_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
+        let model1_bytes = filesystem::load_bytes(ctx, "models/ak47.glb")
+            .await
+            .unwrap();
         let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
         let model1 = render::GpuGltfModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
 
-        let model2_bytes = filesystem::load_bytes(ctx, "coord2.glb").await.unwrap();
+        let model2_bytes = filesystem::load_bytes(ctx, "models/coord2.glb")
+            .await
+            .unwrap();
         let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
         let model2 = render::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 

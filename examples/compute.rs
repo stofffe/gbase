@@ -56,7 +56,9 @@ impl App {
             ])
             .build(ctx);
 
-        let shader_str = filesystem::load_string(ctx, "compute.wgsl").await.unwrap();
+        let shader_str = filesystem::load_string(ctx, "shaders/compute.wgsl")
+            .await
+            .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()

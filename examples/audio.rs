@@ -24,7 +24,7 @@ pub async fn main() {
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let sound = audio::load_audio_source(&mut ctx, "boom.mp3").await;
+    let sound = audio::load_audio_source(&mut ctx, "sounds/boom.mp3").await;
     let app = App { sound };
     gbase::run(app, ctx, ev);
 }

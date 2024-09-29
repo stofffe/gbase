@@ -25,14 +25,16 @@ impl App {
     async fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES.to_vec()).build(ctx);
 
-        let texture_bytes = filesystem::load_bytes(ctx, Path::new("texture.jpeg"))
+        let texture_bytes = filesystem::load_bytes(ctx, Path::new("textures/texture.jpeg"))
             .await
             .unwrap();
         let texture =
             render::TextureBuilder::new(render::TextureSource::Bytes(texture_bytes)).build(ctx);
         let sampler = render::SamplerBuilder::new().build(ctx);
 
-        let shader_str = filesystem::load_string(ctx, "texture.wgsl").await.unwrap();
+        let shader_str = filesystem::load_string(ctx, "shaders/texture.wgsl")
+            .await
+            .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let texture_bindgroup_layout = render::BindGroupLayoutBuilder::new()

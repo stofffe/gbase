@@ -23,7 +23,7 @@ impl App {
             ctx,
             4 * quads,
             6 * quads,
-            &filesystem::load_bytes(ctx, "font.ttf").await.unwrap(),
+            &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;

@@ -78,7 +78,7 @@ impl App {
             ctx,
             1000 * 4,
             1000 * 6,
-            &filesystem::load_bytes(ctx, "font.ttf").await.unwrap(),
+            &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
@@ -117,7 +117,9 @@ impl App {
         );
 
         // Model
-        let model_bytes = filesystem::load_bytes(ctx, "ak47.glb").await.unwrap();
+        let model_bytes = filesystem::load_bytes(ctx, "models/ak47.glb")
+            .await
+            .unwrap();
         let model = render::GltfModel::from_glb_bytes(&model_bytes);
         let model = GpuGltfModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
 
@@ -429,7 +431,7 @@ impl GrassRenderer {
         let indirect_buffer = render::RawBufferBuilder::new()
             .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
             .build(ctx, size_of::<wgpu::util::DrawIndirectArgs>() as u64);
-        let perlin_noise_bytes = filesystem::load_bytes(ctx, "perlin_noise.png")
+        let perlin_noise_bytes = filesystem::load_bytes(ctx, "textures/perlin_noise.png")
             .await
             .unwrap();
         let perlin_noise_texture =
@@ -486,9 +488,10 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_str = filesystem::load_string(ctx, "grass_compute_instance.wgsl")
-            .await
-            .unwrap();
+        let instance_shader_str =
+            filesystem::load_string(ctx, "shaders/grass_compute_instance.wgsl")
+                .await
+                .unwrap();
         let instance_shader = render::ShaderBuilder::new(instance_shader_str).build(ctx);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -517,7 +520,7 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let draw_shader_str = filesystem::load_string(ctx, "grass_compute_draw.wgsl")
+        let draw_shader_str = filesystem::load_string(ctx, "shaders/grass_compute_draw.wgsl")
             .await
             .unwrap();
         let draw_compute_shader = render::ShaderBuilder::new(draw_shader_str).build(ctx);
@@ -554,7 +557,9 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_shader_str = filesystem::load_string(ctx, "grass.wgsl").await.unwrap();
+        let render_shader_str = filesystem::load_string(ctx, "shaders/grass.wgsl")
+            .await
+            .unwrap();
         let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout])

@@ -16,7 +16,7 @@ pub struct MedianFilter {
 
 impl MedianFilter {
     pub async fn new(ctx: &mut Context) -> Self {
-        let shader_str = filesystem::load_string(ctx, "median_filter.wgsl")
+        let shader_str = filesystem::load_string(ctx, "shaders/median_filter.wgsl")
             .await
             .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);

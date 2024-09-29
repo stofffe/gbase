@@ -16,7 +16,7 @@ pub struct BoxFilter {
 
 impl BoxFilter {
     pub async fn new(ctx: &mut Context) -> Self {
-        let shader_str = filesystem::load_string(ctx, "box_filter.wgsl")
+        let shader_str = filesystem::load_string(ctx, "shaders/box_filter.wgsl")
             .await
             .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);

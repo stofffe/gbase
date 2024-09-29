@@ -28,7 +28,9 @@ struct App {
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         // base
-        let texture_bytes = filesystem::load_bytes(ctx, "hellokitty.jpg").await.unwrap();
+        let texture_bytes = filesystem::load_bytes(ctx, "textures/hellokitty.jpg")
+            .await
+            .unwrap();
         let base_texture = render::TextureBuilder::new(render::TextureSource::Bytes(texture_bytes))
             .format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .build(ctx);

@@ -29,7 +29,7 @@ struct App {
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         // Shader
-        let shader_str = filesystem::load_string(ctx, "transform.wgsl")
+        let shader_str = filesystem::load_string(ctx, "shaders/transform.wgsl")
             .await
             .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
