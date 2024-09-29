@@ -9,7 +9,6 @@ use crate::{
 pub struct BoxFilter {
     pipeline: render::ArcComputePipeline,
     bindgroup_layout: render::ArcBindGroupLayout,
-    debug_input: render::DebugInput,
     params_buffer: render::UniformBuffer,
 
     copy_texture: render::FrameBuffer,
@@ -21,8 +20,6 @@ impl BoxFilter {
             .await
             .unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
-
-        let debug_input = render::DebugInput::new(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -43,8 +40,6 @@ impl BoxFilter {
                     })
                     .compute(),
                 // params
-                render::BindGroupLayoutEntry::new().uniform().compute(),
-                // debug
                 render::BindGroupLayoutEntry::new().uniform().compute(),
             ])
             .build(ctx);
@@ -67,7 +62,6 @@ impl BoxFilter {
         Self {
             pipeline,
             bindgroup_layout,
-            debug_input,
             copy_texture,
             params_buffer,
         }
@@ -86,7 +80,6 @@ impl BoxFilter {
         let height = texture.texture().height();
 
         // Update buffers
-        self.debug_input.update_buffer(ctx);
         self.params_buffer.write(ctx, &params);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
@@ -119,10 +112,8 @@ impl BoxFilter {
                 render::BindGroupEntry::Texture(self.copy_texture.view()),
                 // out
                 render::BindGroupEntry::Texture(texture.view()),
-                // Params
+                // params
                 render::BindGroupEntry::Buffer(self.params_buffer.buffer()),
-                // debug
-                render::BindGroupEntry::Buffer(self.debug_input.buffer()),
             ])
             .build(ctx);
 
