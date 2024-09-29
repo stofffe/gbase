@@ -72,10 +72,37 @@ impl Callbacks for App {
             );
         }
         if input::key_just_pressed(ctx, KeyCode::F1) {
-            self.box_filter.apply_filter(ctx, &self.framebuffer);
+            self.box_filter
+                .apply_filter(ctx, &self.framebuffer, &render::BoxFilterParams::new(1));
         }
         if input::key_just_pressed(ctx, KeyCode::F2) {
-            self.median_filter.apply_filter(ctx, &self.framebuffer);
+            self.box_filter
+                .apply_filter(ctx, &self.framebuffer, &render::BoxFilterParams::new(2));
+        }
+        if input::key_just_pressed(ctx, KeyCode::F3) {
+            self.box_filter
+                .apply_filter(ctx, &self.framebuffer, &render::BoxFilterParams::new(3));
+        }
+        if input::key_just_pressed(ctx, KeyCode::F4) {
+            self.median_filter.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::MedianFilterParams::new(1),
+            );
+        }
+        if input::key_just_pressed(ctx, KeyCode::F5) {
+            self.median_filter.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::MedianFilterParams::new(2),
+            );
+        }
+        if input::key_just_pressed(ctx, KeyCode::F6) {
+            self.median_filter.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::MedianFilterParams::new(3),
+            );
         }
         false
     }

@@ -1,3 +1,5 @@
+use encase::ShaderType;
+
 use crate::{
     filesystem,
     render::{self},
@@ -8,8 +10,9 @@ pub struct BoxFilter {
     pipeline: render::ArcComputePipeline,
     bindgroup_layout: render::ArcBindGroupLayout,
     debug_input: render::DebugInput,
+    params_buffer: render::UniformBuffer,
 
-    pub copy_texture: render::FrameBuffer,
+    copy_texture: render::FrameBuffer,
 }
 
 impl BoxFilter {
@@ -39,6 +42,8 @@ impl BoxFilter {
                         view_dimension: wgpu::TextureViewDimension::D2,
                     })
                     .compute(),
+                // params
+                render::BindGroupLayoutEntry::new().uniform().compute(),
                 // debug
                 render::BindGroupLayoutEntry::new().uniform().compute(),
             ])
@@ -56,23 +61,33 @@ impl BoxFilter {
             .usage(wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING)
             .build(ctx);
 
+        let params_buffer =
+            render::UniformBufferBuilder::new().build(ctx, BoxFilterParams::min_size());
+
         Self {
             pipeline,
             bindgroup_layout,
             debug_input,
             copy_texture,
+            params_buffer,
         }
     }
 
     /// Applies box filter to the specificed texture
     ///
     /// NOTE, it overrides the texture
-    pub fn apply_filter(&mut self, ctx: &mut Context, texture: &render::FrameBuffer) {
+    pub fn apply_filter(
+        &mut self,
+        ctx: &mut Context,
+        texture: &render::FrameBuffer,
+        params: &BoxFilterParams,
+    ) {
         let width = texture.texture().width();
         let height = texture.texture().height();
 
         // Update buffers
         self.debug_input.update_buffer(ctx);
+        self.params_buffer.write(ctx, &params);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         if texture.texture().size() != self.copy_texture.texture().size() {
@@ -104,6 +119,8 @@ impl BoxFilter {
                 render::BindGroupEntry::Texture(self.copy_texture.view()),
                 // out
                 render::BindGroupEntry::Texture(texture.view()),
+                // Params
+                render::BindGroupEntry::Buffer(self.params_buffer.buffer()),
                 // debug
                 render::BindGroupEntry::Buffer(self.debug_input.buffer()),
             ])
@@ -122,5 +139,16 @@ impl BoxFilter {
 
         let queue = render::queue(ctx);
         queue.submit(Some(encoder.finish()));
+    }
+}
+
+#[derive(ShaderType)]
+pub struct BoxFilterParams {
+    kernel_size: i32,
+}
+
+impl BoxFilterParams {
+    pub fn new(kernel_size: i32) -> Self {
+        Self { kernel_size }
     }
 }
