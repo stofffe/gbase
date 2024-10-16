@@ -202,7 +202,7 @@ impl Callbacks for App {
 
     fn resize(&mut self, ctx: &mut Context) {
         log::info!("resize");
-        self.deferred_buffers.resize(ctx);
+        self.deferred_buffers.resize_screen(ctx);
         self.deferred_renderer.resize(
             ctx,
             &self.deferred_buffers,

@@ -9,7 +9,7 @@ use glam::{vec3, Quat, Vec3};
 #[pollster::main]
 async fn main() {
     let (mut ctx, ev) = gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Info)
+        .log_level(gbase::LogLevel::Warn)
         .vsync(true)
         .build()
         .await;
@@ -29,6 +29,9 @@ struct App {
     model1: render::GpuGltfModel,
     model2: render::GpuGltfModel,
     gizmo_renderer: render::GizmoRenderer,
+
+    framebuffer: render::FrameBuffer,
+    framebuffer_renderer: render::TextureRenderer,
 }
 
 impl App {
@@ -59,6 +62,12 @@ impl App {
         let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
         let model2 = render::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 
+        let framebuffer = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
+        let framebuffer_renderer =
+            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
+
         Self {
             mesh_renderer,
             deferred_buffers,
@@ -71,6 +80,9 @@ impl App {
             debug_input,
             model1,
             model2,
+
+            framebuffer,
+            framebuffer_renderer,
         }
     }
 }
@@ -83,10 +95,18 @@ impl Callbacks for App {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            self.camera.yaw = 0.0;
-            self.camera.pitch = 0.0;
+            // self.camera.yaw = 0.0;
+            // self.camera.pitch = 0.0;
+            self.mesh_renderer =
+                pollster::block_on(render::MeshRenderer::new(ctx, &self.deferred_buffers));
+            self.deferred_renderer = pollster::block_on(render::DeferredRenderer::new(
+                ctx,
+                &self.deferred_buffers,
+                &self.camera_buffer,
+                &self.light_buffer,
+            ));
 
-            let model1_bytes = filesystem::load_bytes_sync(ctx, "ak47.glb").unwrap();
+            let model1_bytes = filesystem::load_bytes_sync(ctx, "models/ak47.glb").unwrap();
             let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
             self.model1 = render::GpuGltfModel::from_model(
                 ctx,
@@ -95,7 +115,7 @@ impl Callbacks for App {
                 &self.mesh_renderer,
             );
 
-            let model2_bytes = filesystem::load_bytes_sync(ctx, "coord2.glb").unwrap();
+            let model2_bytes = filesystem::load_bytes_sync(ctx, "models/coord2.glb").unwrap();
             let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
             self.model2 = render::GpuGltfModel::from_model(
                 ctx,
@@ -151,25 +171,30 @@ impl Callbacks for App {
         let meshes = &[&self.model1, &self.model2];
         self.mesh_renderer
             .render_models(ctx, &self.deferred_buffers, meshes);
-        self.deferred_renderer.render(ctx, screen_view);
+        self.deferred_renderer
+            .render(ctx, self.framebuffer.view_ref());
         self.gizmo_renderer.draw_sphere(
             0.1,
             &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
-        self.gizmo_renderer.render(ctx, screen_view);
+        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+
+        self.framebuffer_renderer
+            .render(ctx, self.framebuffer.view(), screen_view);
+
         false
     }
 
     fn resize(&mut self, ctx: &mut Context) {
         self.gizmo_renderer.resize(ctx);
-
-        self.deferred_buffers.resize(ctx);
+        self.deferred_buffers.resize_screen(ctx);
         self.deferred_renderer.resize(
             ctx,
             &self.deferred_buffers,
             &self.camera_buffer,
             &self.light_buffer,
         );
+        self.framebuffer.resize_screen(ctx);
     }
 }

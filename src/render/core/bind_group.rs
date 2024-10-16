@@ -422,12 +422,12 @@ impl BindGroupCombinedEntry {
         self
     }
     /// Set Binding type to float texture filterable
-    pub const fn texture_float_filterable(mut self, filterable: bool) -> Self {
+    pub const fn texture_float_filterable(mut self) -> Self {
         self.bindgroup_layout = self.bindgroup_layout.texture_float_filterable();
         self
     }
     /// Set Binding type to float texture nonfilterable
-    pub const fn texture_float_nonfilterable(mut self, filterable: bool) -> Self {
+    pub const fn texture_float_nonfilterable(mut self) -> Self {
         self.bindgroup_layout = self.bindgroup_layout.texture_float_nonfilterable();
         self
     }

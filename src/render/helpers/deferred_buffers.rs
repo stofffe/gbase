@@ -197,7 +197,21 @@ impl DeferredBuffers {
     /// * Normal
     /// * Roughness
     /// * Depth
-    pub fn resize(&mut self, ctx: &Context) {
+    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
+        self.position.resize(ctx, width, height);
+        self.albedo.resize(ctx, width, height);
+        self.normal.resize(ctx, width, height);
+        self.roughness.resize(ctx, width, height);
+        self.depth.resize(ctx, width, height);
+    }
+
+    /// Resizes using current screen dimensions
+    /// * Position
+    /// * Albedo
+    /// * Normal
+    /// * Roughness
+    /// * Depth
+    pub fn resize_screen(&mut self, ctx: &Context) {
         self.position.resize_screen(ctx);
         self.albedo.resize_screen(ctx);
         self.normal.resize_screen(ctx);
