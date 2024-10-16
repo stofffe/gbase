@@ -63,7 +63,8 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
     let ambient = 0.05;
     let diffuse = 0.5 * saturate(dot(normal, light_dir)) * (1.0 - metalness);
-    let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 50.0;
+    //let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 50.0;
+    let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 150.0;
     var specular = 0.7 * pow(saturate(dot(normal, half_dir)), specular_exponent);
 
     let light = (ambient + diffuse + specular) * ao;
