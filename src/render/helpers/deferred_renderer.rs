@@ -19,6 +19,7 @@ pub struct DeferredRenderer {
 impl DeferredRenderer {
     pub async fn new(
         ctx: &mut Context,
+        output_format: wgpu::TextureFormat,
         buffers: &render::DeferredBuffers,
         camera: &render::UniformBuffer,
         light: &render::UniformBuffer,
@@ -35,7 +36,12 @@ impl DeferredRenderer {
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .targets(vec![Some(wgpu::ColorTargetState {
+                format: output_format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })])
+            // .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
             .buffers(vec![vertex_buffer.desc()])
             .build(ctx);
         Self {

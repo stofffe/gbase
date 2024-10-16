@@ -70,9 +70,14 @@ impl App {
         // Renderers
         let deferred_buffers = render::DeferredBuffers::new(ctx);
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
-        let deferred_renderer =
-            render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
-                .await;
+        let deferred_renderer = render::DeferredRenderer::new(
+            ctx,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
+            &deferred_buffers,
+            &camera_buffer,
+            &light_buffer,
+        )
+        .await;
         let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -253,6 +258,7 @@ impl Callbacks for App {
             ));
             self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
                 ctx,
+                wgpu::TextureFormat::Bgra8UnormSrgb,
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,

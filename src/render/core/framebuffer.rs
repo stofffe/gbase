@@ -16,7 +16,7 @@ impl FrameBufferBuilder {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,
-            format: wgpu::TextureFormat::Bgra8UnormSrgb, // TODO default to BRGA instead?
+            format: wgpu::TextureFormat::Rgba8Unorm, // TODO default to BRGA instead?
             size: wgpu::Extent3d {
                 width: 0,
                 height: 0,

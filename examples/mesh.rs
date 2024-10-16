@@ -32,6 +32,7 @@ struct App {
 
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: render::TextureRenderer,
+    sobel_filter: render::SobelFilter,
 }
 
 impl App {
@@ -42,9 +43,14 @@ impl App {
             .build(ctx, render::PerspectiveCameraUniform::min_size());
         let light = Vec3::ZERO;
         let light_buffer = render::UniformBufferBuilder::new().build_init(ctx, &light);
-        let deferred_renderer =
-            render::DeferredRenderer::new(ctx, &deferred_buffers, &camera_buffer, &light_buffer)
-                .await;
+        let deferred_renderer = render::DeferredRenderer::new(
+            ctx,
+            wgpu::TextureFormat::Rgba8Unorm,
+            &deferred_buffers,
+            &camera_buffer,
+            &light_buffer,
+        )
+        .await;
         let debug_input = render::DebugInput::new(ctx);
         let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
 
@@ -63,10 +69,17 @@ impl App {
         let model2 = render::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 
         let framebuffer = render::FrameBufferBuilder::new()
+            .usage(
+                wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC,
+            )
             .screen_size(ctx)
             .build(ctx);
         let framebuffer_renderer =
             render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
+        let sobel_filter = render::SobelFilter::new(ctx).await;
 
         Self {
             mesh_renderer,
@@ -83,6 +96,7 @@ impl App {
 
             framebuffer,
             framebuffer_renderer,
+            sobel_filter,
         }
     }
 }
@@ -101,6 +115,7 @@ impl Callbacks for App {
                 pollster::block_on(render::MeshRenderer::new(ctx, &self.deferred_buffers));
             self.deferred_renderer = pollster::block_on(render::DeferredRenderer::new(
                 ctx,
+                wgpu::TextureFormat::Rgba8Unorm,
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,
@@ -173,13 +188,20 @@ impl Callbacks for App {
             .render_models(ctx, &self.deferred_buffers, meshes);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
-        self.gizmo_renderer.draw_sphere(
-            0.1,
-            &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
-            vec3(1.0, 0.0, 0.0),
-        );
-        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+        // self.gizmo_renderer.draw_sphere(
+        //     0.1,
+        //     &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
+        //     vec3(1.0, 0.0, 0.0),
+        // );
+        // self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
 
+        if input::key_pressed(ctx, input::KeyCode::KeyP) {
+            self.sobel_filter.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::SobelFilterParams::new(1),
+            );
+        }
         self.framebuffer_renderer
             .render(ctx, self.framebuffer.view(), screen_view);
 
