@@ -214,7 +214,10 @@ impl DepthBuffer {
     pub fn framebuffer(&self) -> &FrameBuffer {
         &self.framebuffer
     }
-    pub fn resize(&mut self, ctx: &Context) {
+    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
+        self.framebuffer.resize(ctx, width, height);
+    }
+    pub fn resize_screen(&mut self, ctx: &Context) {
         self.framebuffer.resize_screen(ctx);
     }
 }

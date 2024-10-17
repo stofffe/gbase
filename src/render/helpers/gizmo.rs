@@ -107,8 +107,11 @@ impl GizmoRenderer {
         self.index_buffer.clear();
     }
 
-    pub fn resize(&mut self, ctx: &Context) {
-        self.depth_buffer.resize(ctx);
+    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
+        self.depth_buffer.resize(ctx, width, height);
+    }
+    pub fn resize_screen(&mut self, ctx: &Context) {
+        self.depth_buffer.resize_screen(ctx);
     }
 }
 

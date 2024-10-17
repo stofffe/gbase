@@ -140,7 +140,7 @@ impl DeferredRenderer {
 
         (bindgroup_layout, bindgroup)
     }
-    pub fn resize(
+    pub fn rebuild_bindgroup(
         &mut self,
         ctx: &mut Context,
         buffers: &render::DeferredBuffers,
