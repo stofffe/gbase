@@ -47,7 +47,7 @@ impl App {
         let transform_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Transform
-                render::BindGroupLayoutEntry::new().uniform(),
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
             ])
             .build(ctx);
         let transform_bindgroup = render::BindGroupBuilder::new(transform_bindgroup_layout.clone())

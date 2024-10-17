@@ -112,13 +112,14 @@ pub struct GUIRenderer {
 }
 
 pub const DEFAULT_SUPPORTED_CHARS: &str =
-    "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ";
+    "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ()[]{}";
 pub const DEFAULT_SUPPORTED_CHARS_SE: &str =
-    "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ";
+    "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ()[]{}";
 
 impl GUIRenderer {
     pub async fn new(
         ctx: &mut Context,
+        output_format: wgpu::TextureFormat,
         vertices_batch_size: u32,
         indices_batch_size: u32,
         font_bytes: &[u8],
@@ -165,7 +166,7 @@ impl GUIRenderer {
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertices.desc()])
             .targets(vec![Some(wgpu::ColorTargetState {
-                format: render::surface_config(ctx).format,
+                format: output_format,
                 blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })])

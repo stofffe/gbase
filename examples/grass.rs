@@ -54,6 +54,10 @@ struct App {
     plane: render::GpuDrawCall,
     plane_transform: render::Transform,
     plane_transform_buffer: render::UniformBuffer,
+
+    framebuffer: render::FrameBuffer,
+    framebuffer_renderer: render::TextureRenderer,
+    sobel_filter: render::SobelFilter,
 }
 
 impl App {
@@ -72,7 +76,7 @@ impl App {
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
         let deferred_renderer = render::DeferredRenderer::new(
             ctx,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
+            wgpu::TextureFormat::Rgba8Unorm,
             &deferred_buffers,
             &camera_buffer,
             &light_buffer,
@@ -81,6 +85,7 @@ impl App {
         let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
+            wgpu::TextureFormat::Rgba8Unorm,
             1000 * 4,
             1000 * 6,
             &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
@@ -88,8 +93,7 @@ impl App {
         )
         .await;
         let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer)
-                .await;
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer).await;
 
         // Plane mesh
         let plane_transform = render::Transform::new(
@@ -130,6 +134,20 @@ impl App {
         let model = render::GltfModel::from_glb_bytes(&model_bytes);
         let model = GpuGltfModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
 
+        let framebuffer = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .usage(
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+            )
+            .build(ctx);
+        let framebuffer_renderer =
+            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
+        let sobel_filter = render::SobelFilter::new(ctx).await;
+
         Self {
             camera,
             camera_buffer,
@@ -149,6 +167,10 @@ impl App {
             plane,
             plane_transform,
             plane_transform_buffer,
+
+            framebuffer,
+            framebuffer_renderer,
+            sobel_filter,
         }
     }
 }
@@ -162,7 +184,7 @@ impl Callbacks for App {
         let clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
+                view: self.framebuffer.view_ref(),
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
                     store: wgpu::StoreOp::Store,
@@ -194,29 +216,41 @@ impl Callbacks for App {
             .render_models(ctx, &self.deferred_buffers, &[&self.model]);
         self.mesh_renderer
             .render(ctx, &self.deferred_buffers, &[&self.plane]);
-
-        self.deferred_renderer.render(ctx, screen_view);
-        self.gui_renderer.render(ctx, screen_view);
+        self.deferred_renderer
+            .render(ctx, self.framebuffer.view_ref());
+        self.gui_renderer.render(ctx, self.framebuffer.view_ref());
         self.gizmo_renderer.draw_sphere(
             1.0,
             &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
-        self.gizmo_renderer.render(ctx, screen_view);
+        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+
+        if input::key_pressed(ctx, KeyCode::KeyP) {
+            self.sobel_filter.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::SobelFilterParams::new(1),
+            );
+        }
+
+        self.framebuffer_renderer
+            .render(ctx, self.framebuffer.view(), screen_view);
 
         false
     }
 
     fn resize(&mut self, ctx: &mut Context) {
         log::info!("resize");
+        self.gizmo_renderer.resize_screen(ctx);
         self.deferred_buffers.resize_screen(ctx);
-        self.deferred_renderer.resize(
+        self.framebuffer.resize_screen(ctx);
+        self.deferred_renderer.rebuild_bindgroup(
             ctx,
             &self.deferred_buffers,
             &self.camera_buffer,
             &self.light_buffer,
         );
-        self.gizmo_renderer.resize(ctx);
     }
 
     fn init(&mut self, _ctx: &mut Context) {
@@ -242,6 +276,13 @@ impl Callbacks for App {
             }
         }
         if self.paused {
+            self.gui_renderer.draw_text(
+                "pause (esc)",
+                vec2(0.0, 0.0),
+                0.05,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                None,
+            );
             return false;
         }
 
@@ -260,7 +301,7 @@ impl Callbacks for App {
             ));
             self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
                 ctx,
-                wgpu::TextureFormat::Bgra8UnormSrgb,
+                wgpu::TextureFormat::Rgba8Unorm,
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,

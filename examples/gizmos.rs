@@ -110,7 +110,7 @@ impl Callbacks for App {
         false
     }
     fn resize(&mut self, ctx: &mut Context) {
-        self.gizmo_renderer.resize(ctx);
+        self.gizmo_renderer.resize_screen(ctx);
     }
 }
 

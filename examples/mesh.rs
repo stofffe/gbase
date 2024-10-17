@@ -203,6 +203,7 @@ impl Callbacks for App {
                 &render::SobelFilterParams::new(1),
             );
         }
+
         self.framebuffer_renderer
             .render(ctx, self.framebuffer.view(), screen_view);
 
@@ -210,14 +211,14 @@ impl Callbacks for App {
     }
 
     fn resize(&mut self, ctx: &mut Context) {
-        self.gizmo_renderer.resize(ctx);
+        self.gizmo_renderer.resize_screen(ctx);
+        self.framebuffer.resize_screen(ctx);
         self.deferred_buffers.resize_screen(ctx);
-        self.deferred_renderer.resize(
+        self.deferred_renderer.rebuild_bindgroup(
             ctx,
             &self.deferred_buffers,
             &self.camera_buffer,
             &self.light_buffer,
         );
-        self.framebuffer.resize_screen(ctx);
     }
 }

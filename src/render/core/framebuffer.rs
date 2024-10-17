@@ -122,6 +122,9 @@ impl FrameBuffer {
     pub fn resize_screen(&mut self, ctx: &Context) {
         *self = self.builder.screen_size(ctx).build(ctx);
     }
+    pub fn format(&self) -> wgpu::TextureFormat {
+        self.format
+    }
 }
 
 //
