@@ -23,7 +23,11 @@ const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
-    pub async fn new(ctx: &mut Context, camera_buffer: &render::UniformBuffer) -> Self {
+    pub async fn new(
+        ctx: &mut Context,
+        output_format: wgpu::TextureFormat,
+        camera_buffer: &render::UniformBuffer,
+    ) -> Self {
         let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
         let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
 
@@ -53,7 +57,12 @@ impl GizmoRenderer {
             .build(ctx);
         let pipeline = RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertex_buffer.desc()])
-            .targets(vec![RenderPipelineBuilder::default_target(ctx)])
+            // .targets(vec![RenderPipelineBuilder::default_target(ctx)])
+            .targets(vec![Some(wgpu::ColorTargetState {
+                format: output_format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })])
             .depth_stencil(depth_buffer.depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::LineList)
             .build(ctx);

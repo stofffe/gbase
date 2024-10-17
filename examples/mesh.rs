@@ -52,7 +52,8 @@ impl App {
         )
         .await;
         let debug_input = render::DebugInput::new(ctx);
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
+        let gizmo_renderer =
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer).await;
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
 
@@ -188,12 +189,12 @@ impl Callbacks for App {
             .render_models(ctx, &self.deferred_buffers, meshes);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
-        // self.gizmo_renderer.draw_sphere(
-        //     0.1,
-        //     &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
-        //     vec3(1.0, 0.0, 0.0),
-        // );
-        // self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+        self.gizmo_renderer.draw_sphere(
+            0.1,
+            &render::Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
+            vec3(1.0, 0.0, 0.0),
+        );
+        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
 
         if input::key_pressed(ctx, input::KeyCode::KeyP) {
             self.sobel_filter.apply_filter(

@@ -87,7 +87,9 @@ impl App {
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
+        let gizmo_renderer =
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer)
+                .await;
 
         // Plane mesh
         let plane_transform = render::Transform::new(

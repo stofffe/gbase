@@ -17,7 +17,9 @@ impl App {
         let camera = render::PerspectiveCamera::new();
         let camera_buffer = render::UniformBufferBuilder::new()
             .build(ctx, render::PerspectiveCameraUniform::min_size());
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, &camera_buffer).await;
+        let gizmo_renderer =
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer)
+                .await;
 
         Self {
             camera,
