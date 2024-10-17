@@ -11,22 +11,23 @@ pub struct DeferredBuffers {
 impl DeferredBuffers {
     const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 
+    // TODO should all of these be 32float?
     pub fn new(ctx: &Context) -> Self {
         let position_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba32Float)
+            .format(wgpu::TextureFormat::Rgba16Float)
             .build(ctx);
         let albedo_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba32Float)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
         let normal_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba32Float)
+            .format(wgpu::TextureFormat::Rgba16Float)
             .build(ctx);
         let roughness_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba32Float)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
         let depth_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
