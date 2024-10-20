@@ -18,7 +18,7 @@ use winit::{
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .window_builder(WindowBuilder::new().with_maximized(true))
-        .log_level(LogLevel::Warn)
+        .log_level(LogLevel::Info)
         .vsync(false)
         .build()
         .await;
@@ -27,6 +27,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: u32 = 150;
+const TILES_PER_SIDE: i32 = 3;
 const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 15.0;
@@ -210,8 +211,10 @@ impl Callbacks for App {
             .write(ctx, &self.plane_transform.uniform());
 
         // Render
+        let pt = time::ProfileTimer::new("GRASS");
         self.grass_renderer
             .render(ctx, &self.camera, &self.deferred_buffers);
+        pt.log();
 
         //Mesh
         self.mesh_renderer
@@ -319,10 +322,18 @@ impl Callbacks for App {
 
         // fps counter
         if input::key_pressed(ctx, KeyCode::KeyF) {
-            let fps_text = (1.0 / time::frame_time(ctx)).to_string();
+            let ms = time::frame_time(ctx) * 1000.0;
+            let fps = 1.0 / time::frame_time(ctx);
             self.gui_renderer.draw_text(
-                &fps_text,
+                &fps.to_string(),
                 vec2(0.0, 0.0),
+                0.05,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                None,
+            );
+            self.gui_renderer.draw_text(
+                &ms.to_string(),
+                vec2(0.0, 0.05),
                 0.05,
                 vec4(1.0, 1.0, 1.0, 1.0),
                 None,
@@ -405,17 +416,17 @@ impl GrassRenderer {
 
         let tile_size = TILE_SIZE as f32;
         let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
-        let tiles = [
-            vec2(curr_tile.x, curr_tile.y),                          // mid
-            vec2(curr_tile.x + tile_size, curr_tile.y + 0.0),        // mid right
-            vec2(curr_tile.x + -tile_size, curr_tile.y + 0.0),       // mid left
-            vec2(curr_tile.x + 0.0, curr_tile.y + tile_size),        // top
-            vec2(curr_tile.x + tile_size, curr_tile.y + tile_size),  // top right
-            vec2(curr_tile.x + -tile_size, curr_tile.y + tile_size), // top left
-            vec2(curr_tile.x + 0.0, curr_tile.y - tile_size),        // bot
-            vec2(curr_tile.x + tile_size, curr_tile.y - tile_size),  // bot right
-            vec2(curr_tile.x + -tile_size, curr_tile.y - tile_size), // bot left
-        ];
+
+        let lower = -TILES_PER_SIDE / 2;
+        let upper = TILES_PER_SIDE / 2;
+
+        let mut tiles = Vec::new();
+        for y in lower..=upper {
+            for x in lower..=upper {
+                let tile = curr_tile + vec2(x as f32, y as f32) * tile_size;
+                tiles.push(tile);
+            }
+        }
 
         // TODO use one compute pass but buffers of instance counts and tiles?
         for tile in tiles {
@@ -437,6 +448,7 @@ impl GrassRenderer {
                 timestamp_writes: None,
             });
 
+            let pt = time::ProfileTimer::new("GRASS INSTANCE");
             // instance
             compute_pass.set_pipeline(&self.instance_pipeline);
             compute_pass.set_bind_group(0, &self.instance_bindgroup, &[]);
@@ -448,7 +460,9 @@ impl GrassRenderer {
             compute_pass.dispatch_workgroups(1, 1, 1);
 
             drop(compute_pass);
+            pt.log();
 
+            let pt = time::ProfileTimer::new("GRASS DRAW");
             // Render
             let attachments = &deferred_buffers.color_attachments();
             let mut render_pass = render::RenderPassBuilder::new()
@@ -464,6 +478,7 @@ impl GrassRenderer {
             drop(render_pass);
 
             queue.submit(Some(encoder.finish()));
+            pt.log();
         }
     }
 
