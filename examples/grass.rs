@@ -18,7 +18,7 @@ use winit::{
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .window_builder(WindowBuilder::new().with_maximized(true))
-        .log_level(LogLevel::Info)
+        .log_level(LogLevel::Warn)
         .vsync(false)
         .build()
         .await;
@@ -62,6 +62,20 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
+        // Framebuffer
+        let framebuffer = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .usage(
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_SRC
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+            )
+            .build(ctx);
+        let framebuffer_renderer =
+            render::TextureRenderer::new(ctx, render::surface_config(ctx).format).await;
+
         // Camera
         let camera = render::PerspectiveCamera::new();
         let camera_buffer = render::UniformBufferBuilder::new()
@@ -76,7 +90,7 @@ impl App {
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
         let deferred_renderer = render::DeferredRenderer::new(
             ctx,
-            wgpu::TextureFormat::Rgba8Unorm,
+            framebuffer.format(),
             &deferred_buffers,
             &camera_buffer,
             &light_buffer,
@@ -85,7 +99,7 @@ impl App {
         let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
-            wgpu::TextureFormat::Rgba8Unorm,
+            framebuffer.format(),
             1000 * 4,
             1000 * 6,
             &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
@@ -93,7 +107,7 @@ impl App {
         )
         .await;
         let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer).await;
+            render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer).await;
 
         // Plane mesh
         let plane_transform = render::Transform::new(
@@ -134,18 +148,6 @@ impl App {
         let model = render::GltfModel::from_glb_bytes(&model_bytes);
         let model = GpuGltfModel::from_model(ctx, model, &camera_buffer, &mesh_renderer);
 
-        let framebuffer = render::FrameBufferBuilder::new()
-            .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba8Unorm)
-            .usage(
-                wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_SRC
-                    | wgpu::TextureUsages::STORAGE_BINDING,
-            )
-            .build(ctx);
-        let framebuffer_renderer =
-            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
         let sobel_filter = render::SobelFilter::new(ctx).await;
 
         Self {
@@ -301,7 +303,7 @@ impl Callbacks for App {
             ));
             self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
                 ctx,
-                wgpu::TextureFormat::Rgba8Unorm,
+                self.framebuffer.format(),
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,
