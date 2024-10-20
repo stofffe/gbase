@@ -1,3 +1,9 @@
+mod profile;
+mod timer;
+
+pub use profile::*;
+pub use timer::*;
+
 #[cfg(target_arch = "wasm32")]
 use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
@@ -58,33 +64,6 @@ impl TimeContext {
         self.time_since_start = Instant::now().duration_since(self.start_time).as_secs_f32();
 
         self.last_time = now;
-    }
-
-    // pub(crate) fn time_since_start(&self) -> f32 {
-    //     self.time_since_start
-    // }
-}
-
-pub struct Timer {
-    d: std::time::Duration,
-    start: Instant,
-}
-
-impl Timer {
-    pub fn new(d: std::time::Duration) -> Self {
-        Self {
-            d,
-            start: Instant::now(),
-        }
-    }
-
-    pub fn ticked(&mut self) -> bool {
-        let now = Instant::now();
-        if now.duration_since(self.start) > self.d {
-            self.start = now;
-            return true;
-        }
-        false
     }
 }
 
