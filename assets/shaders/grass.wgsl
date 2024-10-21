@@ -49,14 +49,6 @@ const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
 
-//const X = vec3<f32>(1.0, 0.0, 0.0);
-//const Y = vec3<f32>(0.0, 1.0, 0.0);
-//const Z = vec3<f32>(0.0, 0.0, 1.0);
-//const AMBIENT_MOD = 0.2;
-//const DIFFUSE_MOD = 0.5;
-//const SPECULAR_MOD = 2.0;
-//const SPECULAR_INTENSITY = 15.0; // must be odd
-
 @vertex
 fn vs_main(
     instance: Instance,
@@ -74,57 +66,30 @@ fn vs_main(
     let c = vec3<f32>(facing.x, 1.0 * height, facing.y);
     let d = vec3<f32>(facing.x, 1.0 * height, facing.y);
     let orth = vec3<f32>(-instance.facing.y, 0.0, instance.facing.x);
-
     var pos = bez(t, a, b, c, d);
     let dx = bez_dx(t, a, b, c, d);
-    let normal = cross(dx, orth);
-    var width_percent: f32;
+    var normal = cross(dx, orth);
 
     // tip
     if index == GRASS_MAX_VERT_INDEX {
         let dx = normalize(bez_dx(t - 1.0 / f32(GRASS_MAX_VERT_INDEX), a, b, c, d));
         pos += dx * GRASS_TIP_EXTENSION;
-        width_percent = 0.5;
     // left
     } else if index % 2u == 0u {
         pos += orth * GRASS_WIDTH * 0.5;
-        width_percent = 0.0;
+        normal = normalize(normal + orth * NORMAL_ROUNDING);
     // right
     } else {
         pos -= orth * GRASS_WIDTH * 0.5;
-        width_percent = 1.0;
+        normal = normalize(normal - orth * NORMAL_ROUNDING);
     }
 
-    // wind
-    let wind_mat = rot_x(instance.wind.y) * rot_z(-instance.wind.x);
-
-    // model
-    let rot_mat = wind_mat;
-    let model_pos = instance.pos + rot_mat * pos;
-
-    // rounded normal
-    let normal1 = transpose(inverse_3x3(rot_mat)) * normalize(normal + orth * NORMAL_ROUNDING);
-    let normal2 = transpose(inverse_3x3(rot_mat)) * normalize(normal - orth * NORMAL_ROUNDING);
-    let normal3 = transpose(inverse_3x3(rot_mat)) * normalize(normal);
+    let model_pos = instance.pos + pos;
 
     var out: VertexOutput;
     out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
-    //out.clip_position = camera.proj * camera.view * vec4<f32>(model_pos, 1.0);
-    out.normal1 = normal1.xyz;
-    out.normal2 = normal2.xyz;
-    out.width_percent = width_percent;
     out.pos = model_pos.xyz;
-
-    //if btn9_pressed() {
-    //let view_dir = out.clip_position.xyz;
-    //let value = abs(dot(normal3.xyz, view_dir));
-    //out.debug = value;
-        //if  <= 0.1 {
-        //    out.debug = 1;
-        //} else {
-        //    out.debug = 0;
-        //}
-    //}
+    out.normal = normal;
 
     return out;
 }
@@ -134,10 +99,7 @@ fn vs_main(
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) pos: vec3<f32>,
-    @location(1) normal1: vec3<f32>,
-    @location(2) normal2: vec3<f32>,
-    @location(3) width_percent: f32,
-    //@location(4) debug: f32,
+    @location(1) normal: vec3<f32>,
 };
 
 struct FragmentOutput {
@@ -153,21 +115,16 @@ fn fs_main(
     @builtin(front_facing) front_facing: bool
 ) -> FragmentOutput {
 
-    var normal: vec3<f32>; // [-1,1]
-    // flip normals depending on face
-    if front_facing {
-        normal = mix(in.normal1, in.normal2, in.width_percent);
-    } else {
-        normal = mix(-in.normal2, -in.normal1, in.width_percent);
+    var normal = in.normal;
+    if !front_facing {
+        normal = -normal;
     }
-    // blend with terrain at distance
+
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
     normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
     normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
-    //specular *= clamp(ease_out(1.0 - dist_factor), 0.7, 1.0);
     let roughness = ease_out(dist_factor) * 0.8;
-    //let roughness = dist_factor;
 
     // interpolate color based of height
     let p = in.pos.y / 1.5;
@@ -178,8 +135,6 @@ fn fs_main(
     out.normal = vec4<f32>(normal, 1.0);
     out.albedo = vec4<f32>(color, 1.0);
     out.roughness = vec4<f32>(AMBIENT_OCCLUSION, roughness, METALNESS, 1.0); // ao, rough, metal, ?
-
-    //out.albedo = vec4<f32>(in.debug, 0.0, 0.0, 1.0);
 
     return out;
 }
@@ -204,63 +159,63 @@ fn ease_out(t: f32) -> f32 {
     return 1.0 - pow(1.0 - t, 3.0);
 }
 
-fn rot_x(angle: f32) -> mat3x3<f32> {
-    let s = sin(angle);
-    let c = cos(angle);
-    return mat3x3<f32>(
-        1.0, 0.0, 0.0,
-        0.0, c, s,
-        0.0, -s, c,
-    );
-}
-fn rot_y(angle: f32) -> mat3x3<f32> {
-    let s = sin(angle);
-    let c = cos(angle);
-    return mat3x3<f32>(
-        c, 0.0, -s,
-        0.0, 1.0, 0.0,
-        s, 0.0, c,
-    );
-}
-fn rot_z(angle: f32) -> mat3x3<f32> {
-    let s = sin(angle);
-    let c = cos(angle);
-    return mat3x3<f32>(
-        c, s, 0.0,
-        -s, c, 0.0,
-        0.0, 0.0, 1.0,
-    );
-}
+//fn rot_x(angle: f32) -> mat3x3<f32> {
+//    let s = sin(angle);
+//    let c = cos(angle);
+//    return mat3x3<f32>(
+//        1.0, 0.0, 0.0,
+//        0.0, c, s,
+//        0.0, -s, c,
+//    );
+//}
+//fn rot_y(angle: f32) -> mat3x3<f32> {
+//    let s = sin(angle);
+//    let c = cos(angle);
+//    return mat3x3<f32>(
+//        c, 0.0, -s,
+//        0.0, 1.0, 0.0,
+//        s, 0.0, c,
+//    );
+//}
+//fn rot_z(angle: f32) -> mat3x3<f32> {
+//    let s = sin(angle);
+//    let c = cos(angle);
+//    return mat3x3<f32>(
+//        c, s, 0.0,
+//        -s, c, 0.0,
+//        0.0, 0.0, 1.0,
+//    );
+//}
+//
+//// Function to calculate the inverse of a 3x3 matrix
+//fn inverse_3x3(input_matrix: mat3x3<f32>) -> mat3x3<f32> {
+//    // Calculate the determinant of the input matrix
+//    let det = input_matrix[0][0] * (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) - input_matrix[0][1] * (input_matrix[1][0] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][0]) + input_matrix[0][2] * (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]);
+//
+//    // Calculate the inverse of the determinant
+//    let invDet = 1.0 / det;
+//
+//    // Calculate the elements of the inverse matrix
+//    var inverse_matrix: mat3x3<f32>;
+//    inverse_matrix[0][0] = (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) * invDet;
+//    inverse_matrix[0][1] = (input_matrix[0][2] * input_matrix[2][1] - input_matrix[0][1] * input_matrix[2][2]) * invDet;
+//    inverse_matrix[0][2] = (input_matrix[0][1] * input_matrix[1][2] - input_matrix[0][2] * input_matrix[1][1]) * invDet;
+//    inverse_matrix[1][0] = (input_matrix[1][2] * input_matrix[2][0] - input_matrix[1][0] * input_matrix[2][2]) * invDet;
+//    inverse_matrix[1][1] = (input_matrix[0][0] * input_matrix[2][2] - input_matrix[0][2] * input_matrix[2][0]) * invDet;
+//    inverse_matrix[1][2] = (input_matrix[0][2] * input_matrix[1][0] - input_matrix[0][0] * input_matrix[1][2]) * invDet;
+//    inverse_matrix[2][0] = (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]) * invDet;
+//    inverse_matrix[2][1] = (input_matrix[0][1] * input_matrix[2][0] - input_matrix[0][0] * input_matrix[2][1]) * invDet;
+//    inverse_matrix[2][2] = (input_matrix[0][0] * input_matrix[1][1] - input_matrix[0][1] * input_matrix[1][0]) * invDet;
+//
+//    return inverse_matrix;
+//}
 
-// Function to calculate the inverse of a 3x3 matrix
-fn inverse_3x3(input_matrix: mat3x3<f32>) -> mat3x3<f32> {
-    // Calculate the determinant of the input matrix
-    let det = input_matrix[0][0] * (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) - input_matrix[0][1] * (input_matrix[1][0] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][0]) + input_matrix[0][2] * (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]);
-
-    // Calculate the inverse of the determinant
-    let invDet = 1.0 / det;
-
-    // Calculate the elements of the inverse matrix
-    var inverse_matrix: mat3x3<f32>;
-    inverse_matrix[0][0] = (input_matrix[1][1] * input_matrix[2][2] - input_matrix[1][2] * input_matrix[2][1]) * invDet;
-    inverse_matrix[0][1] = (input_matrix[0][2] * input_matrix[2][1] - input_matrix[0][1] * input_matrix[2][2]) * invDet;
-    inverse_matrix[0][2] = (input_matrix[0][1] * input_matrix[1][2] - input_matrix[0][2] * input_matrix[1][1]) * invDet;
-    inverse_matrix[1][0] = (input_matrix[1][2] * input_matrix[2][0] - input_matrix[1][0] * input_matrix[2][2]) * invDet;
-    inverse_matrix[1][1] = (input_matrix[0][0] * input_matrix[2][2] - input_matrix[0][2] * input_matrix[2][0]) * invDet;
-    inverse_matrix[1][2] = (input_matrix[0][2] * input_matrix[1][0] - input_matrix[0][0] * input_matrix[1][2]) * invDet;
-    inverse_matrix[2][0] = (input_matrix[1][0] * input_matrix[2][1] - input_matrix[1][1] * input_matrix[2][0]) * invDet;
-    inverse_matrix[2][1] = (input_matrix[0][1] * input_matrix[2][0] - input_matrix[0][0] * input_matrix[2][1]) * invDet;
-    inverse_matrix[2][2] = (input_matrix[0][0] * input_matrix[1][1] - input_matrix[0][1] * input_matrix[1][0]) * invDet;
-
-    return inverse_matrix;
-}
-
-const DEBUG_RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
-const DEBUG_IDENT_MAT = mat3x3<f32>(
-    1.0, 0.0, 0.0,
-    0.0, 1.0, 0.0,
-    0.0, 0.0, 1.0,
-);
+//const DEBUG_RED = vec4<f32>(1.0, 0.0, 0.0, 1.0);
+//const DEBUG_IDENT_MAT = mat3x3<f32>(
+//    1.0, 0.0, 0.0,
+//    0.0, 1.0, 0.0,
+//    0.0, 0.0, 1.0,
+//);
 
     //let t = app_info.time_passed;
     //let light_pos = lights.main;
