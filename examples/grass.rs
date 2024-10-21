@@ -7,7 +7,7 @@ use gbase::{
     },
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
-use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles};
+use glam::{vec2, vec3, vec4, Quat, Vec2, Vec3, Vec3Swizzles, Vec4};
 use std::{f32::consts::PI, mem::size_of, ops::Div};
 use winit::{
     keyboard::KeyCode,
@@ -27,7 +27,7 @@ pub async fn main() {
 }
 
 const TILE_SIZE: u32 = 150;
-const TILES_PER_SIDE: i32 = 3;
+const TILES_PER_SIDE: i32 = 1;
 const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 15.0;
@@ -103,7 +103,9 @@ impl App {
             framebuffer.format(),
             1000 * 4,
             1000 * 6,
-            &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
+            &filesystem::load_bytes(ctx, "fonts/meslo.ttf")
+                .await
+                .unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
@@ -320,24 +322,23 @@ impl Callbacks for App {
             log::info!("{}", self.camera.pos);
         }
 
-        // fps counter
+        // debug text
         if input::key_pressed(ctx, KeyCode::KeyF) {
-            let ms = time::frame_time(ctx) * 1000.0;
-            let fps = 1.0 / time::frame_time(ctx);
-            self.gui_renderer.draw_text(
-                &fps.to_string(),
-                vec2(0.0, 0.0),
-                0.05,
-                vec4(1.0, 1.0, 1.0, 1.0),
-                None,
-            );
-            self.gui_renderer.draw_text(
-                &ms.to_string(),
-                vec2(0.0, 0.05),
-                0.05,
-                vec4(1.0, 1.0, 1.0, 1.0),
-                None,
-            );
+            let avg_ms = time::frame_time(ctx) * 1000.0;
+            let avg_fps = 1.0 / time::frame_time(ctx);
+            let strings = [format!("fps {avg_fps:.5}"), format!("ms  {avg_ms:.5}")];
+
+            const DEBUG_HEIGH: f32 = 0.05;
+            const DEBUG_COLOR: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
+            for (i, text) in strings.iter().enumerate() {
+                self.gui_renderer.draw_text(
+                    text,
+                    vec2(0.0, DEBUG_HEIGH * i as f32),
+                    DEBUG_HEIGH,
+                    DEBUG_COLOR,
+                    None,
+                );
+            }
         }
 
         false
