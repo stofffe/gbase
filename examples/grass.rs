@@ -26,8 +26,8 @@ pub async fn main() {
     gbase::run(app, ctx, ev);
 }
 
-const TILE_SIZE: u32 = 150;
-const TILES_PER_SIDE: i32 = 1;
+const TILE_SIZE: f32 = 150.0;
+const TILES_PER_SIDE: i32 = 3;
 const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 const CAMERA_MOVE_SPEED: f32 = 15.0;
@@ -182,26 +182,6 @@ impl App {
 
 impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        let queue = render::queue(ctx);
-
-        // Clear background and depth buffer
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-        let clear_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: None,
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: self.framebuffer.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })],
-            depth_stencil_attachment: Some(self.deferred_buffers.depth_stencil_attachment_clear()),
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-        drop(clear_pass);
-        queue.submit(Some(encoder.finish()));
         self.deferred_buffers.clear(ctx);
 
         // update buffers
@@ -213,10 +193,10 @@ impl Callbacks for App {
             .write(ctx, &self.plane_transform.uniform());
 
         // Render
-        let pt = time::ProfileTimer::new("GRASS");
+        // let pt = time::ProfileTimer::new("GRASS");
         self.grass_renderer
             .render(ctx, &self.camera, &self.deferred_buffers);
-        pt.log();
+        // pt.log();
 
         //Mesh
         self.mesh_renderer
@@ -415,8 +395,7 @@ impl GrassRenderer {
         self.app_info.update_buffer(ctx);
         self.debug_input.update_buffer(ctx);
 
-        let tile_size = TILE_SIZE as f32;
-        let curr_tile = camera.pos.xz().div(tile_size).floor() * tile_size;
+        let curr_tile = camera.pos.xz().div(TILE_SIZE).floor() * TILE_SIZE;
 
         let lower = -TILES_PER_SIDE / 2;
         let upper = TILES_PER_SIDE / 2;
@@ -424,7 +403,7 @@ impl GrassRenderer {
         let mut tiles = Vec::new();
         for y in lower..=upper {
             for x in lower..=upper {
-                let tile = curr_tile + vec2(x as f32, y as f32) * tile_size;
+                let tile = curr_tile + vec2(x as f32, y as f32) * TILE_SIZE;
                 tiles.push(tile);
             }
         }
@@ -437,7 +416,7 @@ impl GrassRenderer {
                 ctx,
                 &Tile {
                     pos: tile,
-                    size: TILE_SIZE as f32,
+                    size: TILE_SIZE,
                     blades_per_side: BLADES_PER_SIDE as f32,
                 },
             );
