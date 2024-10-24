@@ -21,6 +21,7 @@ impl App {
         let quads = 1000;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
+            wgpu::TextureFormat::Bgra8UnormSrgb,
             4 * quads,
             6 * quads,
             &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),

@@ -112,9 +112,9 @@ pub struct GUIRenderer {
 }
 
 pub const DEFAULT_SUPPORTED_CHARS: &str =
-    "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ()[]{}";
+    "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ()[]{}:";
 pub const DEFAULT_SUPPORTED_CHARS_SE: &str =
-    "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ()[]{}";
+    "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ()[]{}:";
 
 impl GUIRenderer {
     pub async fn new(
