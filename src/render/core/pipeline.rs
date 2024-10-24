@@ -110,11 +110,13 @@ impl RenderPipelineBuilder {
                 module: &self.shader,
                 entry_point: "vs_main",
                 buffers: &self.buffers,
+                compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             },
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
                 entry_point: "fs_main",
                 targets: &self.targets,
+                compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             }),
             primitive: wgpu::PrimitiveState {
                 topology: self.topology,
@@ -132,6 +134,7 @@ impl RenderPipelineBuilder {
                 alpha_to_coverage_enabled: false,
             },
             multiview: None,
+            cache: None,
         });
 
         ArcRenderPipeline::new(pipeline)
@@ -221,6 +224,8 @@ impl ComputePipelineBuilder {
             layout: Some(&self.layout),
             module: &self.shader,
             entry_point: "cs_main",
+            compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
+            cache: None,
         });
 
         ArcComputePipeline::new(pipeline)

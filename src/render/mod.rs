@@ -5,7 +5,7 @@ pub mod helpers;
 pub use helpers::*;
 
 use crate::Context;
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
@@ -56,6 +56,7 @@ impl RenderContext {
                     required_features: device_features,
                     required_limits: adapter.limits(),
                     label: None,
+                    memory_hints: wgpu::MemoryHints::Performance,
                 },
                 None,
             )
