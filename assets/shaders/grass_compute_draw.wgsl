@@ -1,5 +1,5 @@
 @group(0) @binding(0) var<storage, read_write> draw_args: DrawArgs;
-@group(0) @binding(1) var<storage, read_write> instace_count: u32;
+@group(0) @binding(1) var<storage, read> instace_count: u32; // readonly?
 
 struct DrawArgs {
     vertex_count: u32,
@@ -9,7 +9,6 @@ struct DrawArgs {
 };
 
 const vertices_size = 15u;
-//const instances_size = 50u * 50u;
 
 @compute
 @workgroup_size(1, 1, 1)
