@@ -65,14 +65,13 @@ fn vs_main(
     let b = vec3<f32>(0.0, 1.0 * height, 0.0);
     let c = vec3<f32>(facing.x, 1.0 * height, facing.y);
     let d = vec3<f32>(facing.x, 1.0 * height, facing.y);
-    let orth = vec3<f32>(-instance.facing.y, 0.0, instance.facing.x);
     var pos = bez(t, a, b, c, d);
-    let dx = bez_dx(t, a, b, c, d);
+    let dx = normalize(bez_dx(t, a, b, c, d));
+    let orth = normalize(vec3<f32>(-instance.facing.y, 0.0, instance.facing.x));
     var normal = cross(dx, orth);
 
     // tip
     if index == GRASS_MAX_VERT_INDEX {
-        let dx = normalize(bez_dx(t - 1.0 / f32(GRASS_MAX_VERT_INDEX), a, b, c, d));
         pos += dx * GRASS_TIP_EXTENSION;
     // left
     } else if index % 2u == 0u {
