@@ -1,6 +1,6 @@
 use encase::ShaderType;
 use gbase::{
-    filesystem, input,
+    filesystem,
     render::{self, ArcBindGroup, ArcComputePipeline, ArcRenderPipeline},
     Context,
 };
@@ -14,8 +14,8 @@ const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 pub struct GrassRenderer {
     instances: [render::RawBuffer; 2],
-    instance_count: render::RawBuffer,
     indirect_buffer: [render::RawBuffer; 2],
+    instance_count: render::RawBuffer,
     tile_buffer: render::UniformBuffer,
     app_info: render::AppInfo,
 
@@ -288,6 +288,11 @@ impl GrassRenderer {
                     .uniform()
                     .vertex()
                     .fragment(),
+                // app info
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
             ])
             .build(ctx);
         let render_bindgroup = render::BindGroupBuilder::new(render_bindgroup_layout.clone())
@@ -296,6 +301,8 @@ impl GrassRenderer {
                 render::BindGroupEntry::Buffer(camera_buffer.buffer()),
                 // Debug
                 render::BindGroupEntry::Buffer(debug_input.buffer()),
+                // App info
+                render::BindGroupEntry::Buffer(app_info.buffer()),
             ])
             .build(ctx);
 

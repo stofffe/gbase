@@ -3,7 +3,7 @@ mod grass;
 use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self, DeferredRenderer, GpuGltfModel, MeshRenderer, Transform},
+    render::{self, DeferredRenderer, MeshRenderer, Transform},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
@@ -18,7 +18,7 @@ use winit::{
 pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .window_builder(WindowBuilder::new().with_maximized(true))
-        .log_level(LogLevel::Info)
+        .log_level(LogLevel::Warn)
         .vsync(false)
         .build()
         .await;
@@ -172,6 +172,7 @@ impl App {
 
 impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        // log::warn!("RENDER");
         self.deferred_buffers.clear(ctx);
 
         // update buffers
@@ -234,6 +235,7 @@ impl Callbacks for App {
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
+        // log::warn!("UPDATE");
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;

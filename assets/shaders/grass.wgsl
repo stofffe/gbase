@@ -9,6 +9,7 @@ struct Instance {
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(0) @binding(1) var<uniform> debug_input: DebugInput;
+@group(0) @binding(2) var<uniform> app_info: AppInfo;
 
 struct CameraUniform {
     view_proj: mat4x4<f32>,
@@ -28,6 +29,10 @@ fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
 fn btn7_pressed() -> bool { return debug_input.btn7 == 1u; }
 fn btn8_pressed() -> bool { return debug_input.btn8 == 1u; }
 fn btn9_pressed() -> bool { return debug_input.btn9 == 1u; }
+
+struct AppInfo {
+    time_passed: f32
+};
 
 // grass
 const GRASS_WIDTH = 0.1;
@@ -61,12 +66,17 @@ fn vs_main(
 
     // Generate vertex (High LOD)
     let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
-    let a = vec3<f32>(0.0, 0.0, 0.0);
-    let b = vec3<f32>(0.0, 1.0 * height, 0.0);
-    let c = vec3<f32>(facing.x, 1.0 * height, facing.y);
-    let d = vec3<f32>(facing.x, 1.0 * height, facing.y);
-    var pos = bez(t, a, b, c, d);
-    let dx = normalize(bez_dx(t, a, b, c, d));
+
+    // TODO 
+    let off = sin(app_info.time_passed) * height * 0.1;
+
+    let start = vec3<f32>(0.0, 0.0, 0.0);
+    let start_handle = vec3<f32>(0.0, 1.0 * height, 0.0);
+    let end_handle = vec3<f32>(facing.x, 1.0 * height, facing.y);
+    let end = vec3<f32>(facing.x, 1.0 * height, facing.y);
+
+    var pos = bez(t, start, start_handle, end_handle, end);
+    let dx = normalize(bez_dx(t, start, start_handle, end_handle, end));
     let orth = normalize(vec3<f32>(-instance.facing.y, 0.0, instance.facing.x));
     var normal = cross(dx, orth);
 
@@ -76,11 +86,11 @@ fn vs_main(
     // left
     } else if index % 2u == 0u {
         pos += orth * GRASS_WIDTH * 0.5;
-        normal = normalize(normal + orth * NORMAL_ROUNDING);
+        normal = normalize(normal - orth * NORMAL_ROUNDING);
     // right
     } else {
         pos -= orth * GRASS_WIDTH * 0.5;
-        normal = normalize(normal - orth * NORMAL_ROUNDING);
+        normal = normalize(normal + orth * NORMAL_ROUNDING);
     }
 
     let model_pos = instance.pos + pos;
@@ -267,3 +277,14 @@ fn ease_out(t: f32) -> f32 {
 //    );
 //}
 
+
+    // branchless
+    // tip
+    //pos += select(0.0, 1.0, index == GRASS_MAX_VERT_INDEX) * dx * GRASS_TIP_EXTENSION;
+    //// right
+    //pos += select(0.0, 1.0, index % 2 == 0u) * orth * GRASS_WIDTH * 0.5;
+    //normal += orth * NORMAL_ROUNDING;
+    //// left
+    //pos -= select(0.0, 1.0, index % 2 != 0u) * orth * GRASS_WIDTH * 0.5;
+    //normal -= orth * NORMAL_ROUNDING;
+    //normal = normalize(normal);
