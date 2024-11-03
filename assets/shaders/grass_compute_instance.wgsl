@@ -68,6 +68,8 @@ const ORTH_LIM = 0.4; // what dot_value orth rotation should start at
 const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
 const ORTH_DIST_BOUNDS = vec2<f32>(2.0, 4.0); // between which distances to smoothstep orth rotation
 
+const GRASS_CULL_DIST = 100.0;
+
 const PI = 3.1415927;
 
 @compute
@@ -97,6 +99,16 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // CULL
     var cull = false;
     if dot(camera.facing, pos - camera.pos) < 0.0 {
+        cull = true;
+    }
+
+    // cull 3/4 grass blades at distance
+
+    let dist = length(pos - camera.pos);
+    //if dist > 100.0 && (x % 2 == 0u) {
+    //    cull = true;
+    //}
+    if dist > GRASS_CULL_DIST && (x % 2 == 0u || z % 2 == 0u) {
         cull = true;
     }
     //let dist = length(camera.pos - pos);
@@ -163,6 +175,9 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT);
         instances[i].bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
         instances[i].width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
+        if dist > GRASS_CULL_DIST {
+            instances[i].width *= 3.0;
+        }
     }
 }
 
