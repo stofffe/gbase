@@ -45,6 +45,16 @@ struct FragmentInput {
     @location(0) uv: vec2<f32>,
 };
 
+const SPECULAR_INTENSITY = 150.0;
+const SPECULAR_MODIFIER = 0.7;
+const SPECULAR_DITHER = 0.3;
+
+const DIFFUSE_MODIFIER = 0.5;
+const DIFFUSE_DITHER = 0.0;
+
+const AMBIENT_MODIFIER = 0.15;
+const AMBIENT_DITHER = 0.15;
+
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     // Gather g-buffer data 
@@ -61,14 +71,23 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let view_dir = normalize(camera.position - position);
     let half_dir = normalize(light_dir + view_dir);
 
-    let ambient = 0.05;
-    let diffuse = 0.5 * saturate(dot(normal, light_dir)) * (1.0 - metalness);
-    //let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 50.0;
-    let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 150.0;
-    var specular = 0.7 * pow(saturate(dot(normal, half_dir)), specular_exponent);
+    let dither = rand(in.clip_position.xy) - 0.5;
 
-    let light = (ambient + diffuse + specular) * ao;
+    let ambient = AMBIENT_MODIFIER;
+    let ambient_light = ambient + dither * AMBIENT_DITHER * ambient;
+
+    let diffuse = DIFFUSE_MODIFIER * saturate(dot(normal, light_dir)) * (1.0 - metalness);
+    let diffuse_light = diffuse + dither * DIFFUSE_DITHER * diffuse;
+
+    //let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * 50.0;
+    let specular_exponent = clamp(1.0 - roughness, 0.1, 1.0) * SPECULAR_INTENSITY;
+    var specular = SPECULAR_MODIFIER * pow(saturate(dot(normal, half_dir)), specular_exponent);
+    let specular_light = specular + dither * SPECULAR_DITHER * specular;
+
+    let light = (ambient_light + diffuse_light + specular_light) * ao;
+
     let output = vec4<f32>(albedo * light, 1.0);
+    //let output = vec4<f32>(albedo * light, 1.0);
 
     // Debug
     if btn1_pressed() {
@@ -90,7 +109,7 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         return vec4<f32>(metalness, metalness, metalness, 1.0);
     }
     if btn7_pressed() {
-        return vec4<f32>(specular_exponent, specular_exponent, specular_exponent, 1.0);
+        return vec4<f32>(ambient, ambient, ambient, 1.0);
     }
     if btn8_pressed() {
         return vec4<f32>(diffuse, diffuse, diffuse, 1.0);
@@ -99,4 +118,8 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
         return vec4<f32>(specular, specular, specular, 1.0);
     }
     return output;
+}
+
+fn rand(co: vec2<f32>) -> f32 {
+    return fract(sin(dot(co, vec2<f32>(12.9898, 78.233))) * 43758.5453);
 }
