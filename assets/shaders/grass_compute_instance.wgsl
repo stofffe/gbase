@@ -22,7 +22,7 @@ struct GrassInstance {
     height: f32,                
     tilt: f32,                  
     bend: f32,                  
-    pad: f32,                  
+    width: f32,                  
 };
 
 struct CameraUniform {
@@ -57,8 +57,12 @@ const GRASS_MAX_HEIGHT = 4.0;
 
 const GRASS_MIN_TILT = 0.1;
 const GRASS_MAX_TILT = 1.5;
+
 const GRASS_MIN_BEND = 0.0;
 const GRASS_MAX_BEND = 0.5;
+
+const GRASS_MIN_WIDTH = 0.1;
+const GRASS_MAX_WIDTH = 0.15;
 
 const ORTH_LIM = 0.4; // what dot_value orth rotation should start at
 const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
@@ -158,6 +162,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].height = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
         instances[i].tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT);
         instances[i].bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
+        instances[i].width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
     }
 }
 

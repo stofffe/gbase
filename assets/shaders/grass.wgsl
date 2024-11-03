@@ -6,7 +6,7 @@ struct Instance {
     @location(5) height: f32,
     @location(6) tilt: f32,
     @location(7) bend: f32,
-    @location(8) pad: f32,
+    @location(8) width: f32,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -37,7 +37,6 @@ struct AppInfo {
 };
 
 // grass
-const GRASS_WIDTH = 0.1;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 14u;
 const GRASS_TIP_EXTENSION = 0.1;
@@ -67,6 +66,7 @@ fn vs_main(
     let height = instance.height;
     let tilt = instance.tilt;
     let bend = instance.bend;
+    let width = instance.width;
 
     // Generate vertex (High LOD)
     let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
@@ -96,11 +96,11 @@ fn vs_main(
         //pos += dx * GRASS_TIP_EXTENSION;
     // left
     } else if index % 2u == 0u {
-        pos += orth * GRASS_WIDTH * 0.5;
+        pos += orth * width * 0.5;
         normal = normalize(normal - orth * NORMAL_ROUNDING);
     // right
     } else {
-        pos -= orth * GRASS_WIDTH * 0.5;
+        pos -= orth * width * 0.5;
         normal = normalize(normal + orth * NORMAL_ROUNDING);
     }
 
