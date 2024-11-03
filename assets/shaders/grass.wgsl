@@ -3,8 +3,10 @@ struct Instance {
     @location(2) hash: u32,
     @location(3) facing: vec2<f32>,
     @location(4) wind: vec2<f32>,
-    @location(5) pad: vec3<f32>,
-    @location(6) height: f32,
+    @location(5) height: f32,
+    @location(6) tilt: f32,
+    @location(7) bend: f32,
+    @location(8) pad: f32,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -38,8 +40,8 @@ struct AppInfo {
 const GRASS_WIDTH = 0.1;
 const GRASS_QUAD_AMOUNT = 4u;
 const GRASS_MAX_VERT_INDEX = 14u;
-const GRASS_BEND = 0.5;
 const GRASS_TIP_EXTENSION = 0.1;
+const GRASS_MAX_HEIGHT = 2.0;
 
 const NORMAL_ROUNDING = PI / 6.0;
 const SPECULAR_BLEND_MAX_DIST = 50.0;
@@ -61,8 +63,10 @@ fn vs_main(
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
 
-    let facing = instance.facing * GRASS_BEND; // multiply to move further away
+    let facing = instance.facing; // multiply to move further away
     let height = instance.height;
+    let tilt = instance.tilt;
+    let bend = instance.bend;
 
     // Generate vertex (High LOD)
     let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
@@ -70,10 +74,17 @@ fn vs_main(
     // TODO 
     let off = sin(app_info.time_passed) * height * 0.1;
 
+    //let start = vec3<f32>(0.0, 0.0, 0.0);
+    //let start_handle = vec3<f32>(0.0, 1.0 * height, 0.0);
+    //let end_handle = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
+    //let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
     let start = vec3<f32>(0.0, 0.0, 0.0);
-    let start_handle = vec3<f32>(0.0, 1.0 * height, 0.0);
-    let end_handle = vec3<f32>(facing.x, 1.0 * height, facing.y);
-    let end = vec3<f32>(facing.x, 1.0 * height, facing.y);
+    let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
+    let start_handle = mix(start, end, 0.33) + vec3<f32>(0.0, 1.0, 0.0) * bend * tilt;
+    let end_handle = mix(start, end, 0.66) + vec3<f32>(0.0, 1.0, 0.0) * bend * tilt;
+
+    //let start_handle = end * vec3<f32>(0.2, 0.8, 0.2);
+    //let end_handle = end * vec3<f32>(0.6, 1.0, 0.6);
 
     var pos = bez(t, start, start_handle, end_handle, end);
     let dx = normalize(bez_dx(t, start, start_handle, end_handle, end));
@@ -82,7 +93,7 @@ fn vs_main(
 
     // tip
     if index == GRASS_MAX_VERT_INDEX {
-        pos += dx * GRASS_TIP_EXTENSION;
+        //pos += dx * GRASS_TIP_EXTENSION;
     // left
     } else if index % 2u == 0u {
         pos += orth * GRASS_WIDTH * 0.5;
@@ -134,10 +145,12 @@ fn fs_main(
     normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
     let roughness = ease_out(dist_factor) * 0.8;
+    //let roughness = 0.5;
 
     // interpolate color based of height
-    let p = in.pos.y / 1.5;
+    let p = in.pos.y / GRASS_MAX_HEIGHT;
     let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
+    //let color = BASE_COLOR;
 
     var out: FragmentOutput;
     out.position = vec4<f32>(in.pos, 1.0);

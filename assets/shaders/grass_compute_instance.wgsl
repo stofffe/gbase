@@ -14,13 +14,15 @@ struct Tile {
 };
 
 // instances tightly packed => size must be multiple of align 
-struct GrassInstance {          // align 16 size 48
-    pos: vec3<f32>,             // align 16 size 12 start 0
-    hash: u32,                  // align 4  size 4  start 12
-    facing: vec2<f32>,          // align 8  size 8  start 16
-    wind: vec2<f32>,            // align 8  size 8  start 24
-    pad: vec3<f32>,             // align 16 size 12 start 32
-    height: f32,                // align 4  size 4  start 44
+struct GrassInstance {          
+    pos: vec3<f32>,             
+    hash: u32,                  
+    facing: vec2<f32>,          
+    wind: vec2<f32>,            
+    height: f32,                
+    tilt: f32,                  
+    bend: f32,                  
+    pad: f32,                  
 };
 
 struct CameraUniform {
@@ -50,6 +52,14 @@ const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
 const WIND_DIR = vec2<f32>(1.0, 1.0); // TODO sample from texture instead
 const WIND_FACING_MODIFIER = 2.0;
 
+const GRASS_MIN_HEIGHT = 1.0;
+const GRASS_MAX_HEIGHT = 4.0;
+
+const GRASS_MIN_TILT = 0.1;
+const GRASS_MAX_TILT = 1.5;
+const GRASS_MIN_BEND = 0.0;
+const GRASS_MAX_BEND = 0.5;
+
 const ORTH_LIM = 0.4; // what dot_value orth rotation should start at
 const ORTHOGONAL_ROTATE_MODIFIER = 1.0;
 const ORTH_DIST_BOUNDS = vec2<f32>(2.0, 4.0); // between which distances to smoothstep orth rotation
@@ -75,9 +85,9 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // POS
     let pos = vec3<f32>(
-        tile.pos.x + f32(x) * blade_dist_between + hash_to_range_neg(hash) * blade_max_offset,
+        tile.pos.x + f32(x) * blade_dist_between + hash_to_snorm(hash) * blade_max_offset,
         0.0,
-        (tile.pos.y + f32(z) * blade_dist_between + hash_to_range_neg(hash) * blade_max_offset),
+        (tile.pos.y + f32(z) * blade_dist_between + hash_to_snorm(hash) * blade_max_offset),
     );
 
     // CULL
@@ -85,13 +95,17 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if dot(camera.facing, pos - camera.pos) < 0.0 {
         cull = true;
     }
+    //let dist = length(camera.pos - pos);
+    //if hash_to_range(hash) > 500.0 / pow(length(camera.pos - pos), 2.0) {
+    //    cull = true;
+    //}
 
 
     if !cull {
         let t = app_info.time_passed;
 
         // FACING
-        var facing = normalize(hash_to_vec2_neg(hash));
+        var facing = normalize(hash_to_vec2_snorm(hash));
         // Rotate orthogonal verticies towards camera 
         //let camera_dir = normalize(camera.pos.xz - pos.xz);
         //let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
@@ -129,8 +143,8 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // local sway offset by hash
         let local_wind = vec2<f32>(
-            facing.x * sin(t + 2.0 * PI * hash_to_range(hash)),
-            facing.y * sin(t + 2.0 * PI * hash_to_range(hash ^ 0x732846u)),
+            facing.x * sin(t + 2.0 * PI * hash_to_unorm(hash)),
+            facing.y * sin(t + 2.0 * PI * hash_to_unorm(hash ^ 0x732846u)),
         ) * WIND_LOCAL_POWER;
 
         let wind = global_wind + local_wind;
@@ -141,7 +155,9 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].hash = hash;
         instances[i].facing = facing;
         instances[i].wind = wind;
-        instances[i].height = 2.0;
+        instances[i].height = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+        instances[i].tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT);
+        instances[i].bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
     }
 }
 
@@ -175,29 +191,34 @@ fn hash_2d(x: u32, y: u32) -> u32 {
     return hash;
 }
 
+// generate float in range [low, high]
+fn hash_to_range(hash: u32, low: f32, high: f32) -> f32 {
+    return low + (high - low) * hash_to_unorm(hash);
+}
+
 // generates float in range [0, 1]
-fn hash_to_range(hash: u32) -> f32 {
+fn hash_to_unorm(hash: u32) -> f32 {
     return f32(hash) * 2.3283064e-10; // hash * 1 / 2^32
 }
 
 // generates float in range [-1, 1]
-fn hash_to_range_neg(hash: u32) -> f32 {
+fn hash_to_snorm(hash: u32) -> f32 {
     return (f32(hash) * 2.3283064e-10) * 2.0 - 1.0; // hash * 1 / 2^32
 }
 
 // generates vec2 with values in range [0, 1]
-fn hash_to_vec2(hash: u32) -> vec2<f32> {
+fn hash_to_vec2_unorm(hash: u32) -> vec2<f32> {
     return vec2<f32>(
-        hash_to_range(hash ^ 0x36753621u),
-        hash_to_range(hash ^ 0x12345678u),
+        hash_to_unorm(hash ^ 0x36753621u),
+        hash_to_unorm(hash ^ 0x12345678u),
     );
 }
 
 // generates vec2 with values in range [-1, 1]
-fn hash_to_vec2_neg(hash: u32) -> vec2<f32> {
+fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
     return vec2<f32>(
-        hash_to_range_neg(hash ^ 0x36753621u),
-        hash_to_range_neg(hash ^ 0x12345678u),
+        hash_to_snorm(hash ^ 0x36753621u),
+        hash_to_snorm(hash ^ 0x12345678u),
     );
 }
 
