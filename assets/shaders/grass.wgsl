@@ -2,11 +2,12 @@ struct Instance {
     @location(1) pos: vec3<f32>,
     @location(2) hash: u32,
     @location(3) facing: vec2<f32>,
-    @location(4) wind: vec2<f32>,
-    @location(5) height: f32,
-    @location(6) tilt: f32,
-    @location(7) bend: f32,
-    @location(8) width: f32,
+    @location(4) wind: f32,
+    @location(5) pad: f32,
+    @location(6) height: f32,
+    @location(7) tilt: f32,
+    @location(8) bend: f32,
+    @location(9) width: f32,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -42,6 +43,15 @@ const GRASS_MAX_VERT_INDEX = 14u;
 const GRASS_TIP_EXTENSION = 0.1;
 const GRASS_MAX_HEIGHT = 2.0;
 
+const GLOBAL_WIND = 0.5;
+const WIND_HEIGHT_MULT = 0.2 * GLOBAL_WIND;
+const WIND_TILT_MULT = 0.2 * GLOBAL_WIND;
+const WIND_BEND_TOP_MULT = 1.5 * GLOBAL_WIND;
+const WIND_BEND_BOT_MULT = 0.0 * GLOBAL_WIND;
+
+const WIND_FREQUENCY = 0.25;
+const WIND_AMPLITUDE = 0.5;
+
 const NORMAL_ROUNDING = PI / 6.0;
 const SPECULAR_BLEND_MAX_DIST = 50.0;
 const BASE_COLOR = vec3<f32>(0.05, 0.2, 0.01);
@@ -54,6 +64,11 @@ const METALNESS = 0.0;
 const TERRAIN_NORMAL = vec3<f32>(0.0, 1.0, 0.0);
 
 const PI = 3.1415927;
+const PI2 = PI / 2.0;
+const PI4 = PI / 4.0;
+const PI8 = PI / 8.0;
+
+const UP = vec3<f32>(0.0, 1.0, 0.0);
 
 @vertex
 fn vs_main(
@@ -66,36 +81,91 @@ fn vs_main(
     let height = instance.height;
     let tilt = instance.tilt;
     let bend = instance.bend;
-    let width = instance.width;
+
+    //let width = instance.width;
+    let wind = instance.wind;
+    let hash = instance.hash;
 
     // Generate vertex (High LOD)
-    let t = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
+    let p = f32(index / 2u * 2u) / f32(GRASS_MAX_VERT_INDEX);
+    let t = app_info.time_passed * 3.0;
+
+    let width = mix(instance.width, 0.0, ease_in_cubic(p));
 
     // TODO 
-    let off = sin(app_info.time_passed) * height * 0.1;
+    //let h = hash_to_range(hash, 0.0, PI * 2.0);
+    //var freq = WIND_FREQUENCY / ease_in(height / GRASS_MAX_HEIGHT);
+    //var amplitude = WIND_AMPLITUDE * height / GRASS_MAX_HEIGHT;
+
+    // new
+    let T = tilt;
+    let H = height;
+    let B = bend;
+    //let T = 1.0;
+    //let H = 1.5;
+    //let B = 0.3;
+    let F = 1.5;
+    let A = 0.1;
+    let A_1 = 0.3;
+    let A_2 = 0.4;
+    let A_3 = 0.5;
+    let a = 0.5;
+    let b = 0.75;
+    let O_1 = PI2 + PI8;
+    let O_2 = PI2;
+    let O_3 = 0.0;
+    let tt = (t + hash_to_range(hash, 0.0, 12.0 * PI)) * F;
 
     //let start = vec3<f32>(0.0, 0.0, 0.0);
-    //let start_handle = vec3<f32>(0.0, 1.0 * height, 0.0);
-    //let end_handle = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
-    //let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
-    let start = vec3<f32>(0.0, 0.0, 0.0);
-    let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
-    let start_handle = mix(start, end, 0.33) + vec3<f32>(0.0, 1.0, 0.0) * bend * tilt;
-    let end_handle = mix(start, end, 0.66) + vec3<f32>(0.0, 1.0, 0.0) * bend * tilt;
 
-    //let start_handle = end * vec3<f32>(0.2, 0.8, 0.2);
-    //let end_handle = end * vec3<f32>(0.6, 1.0, 0.6);
+    let p0 = vec3<f32>(0.0, 0.0, 0.0);
+    var p3 = vec3<f32>(facing.x * T, H, facing.y * T);
+    var p1 = mix(p0, p3, a);
+    var p2 = mix(p0, p3, b);
 
-    var pos = bez(t, start, start_handle, end_handle, end);
-    let dx = normalize(bez_dx(t, start, start_handle, end_handle, end));
+    let p1_bend = vec3<f32>((-T) * B, abs(T) * B, (-T) * B) * vec3<f32>(facing.x, 1.0, facing.y);
+    let p2_bend = vec3<f32>((-T) * B, abs(T) * B, (-T) * B) * vec3<f32>(facing.x, 1.0, facing.y);
+
+    let p1_wind = A * A_1 * vec3<f32>(
+        cos(tt + PI2 + O_1),
+        sin(tt + O_1),
+        cos(tt + PI2 + O_1)
+    ) * vec3<f32>(facing.x, 1.0, facing.y);
+    let p2_wind = A * A_2 * vec3<f32>(
+        cos(tt + PI2 + O_2),
+        sin(tt + O_2),
+        cos(tt + PI2 + O_2)
+    ) * vec3<f32>(facing.x, 1.0, facing.y);
+    let p3_wind = A * A_3 * vec3<f32>(
+        cos(tt + PI2 + O_3),
+        sin(tt + O_3),
+        cos(tt + PI2 + O_3)
+    ) * vec3<f32>(facing.x, 1.0, facing.y);
+
+    p1 += p1_wind + p1_bend;
+    p2 += p2_wind + p2_bend;
+    p3 += p3_wind;
+
+    var pos = bez(p, p0, p1, p2, p3);
+    let dx = normalize(bez_dx(p, p0, p1, p2, p3));
     let orth = normalize(vec3<f32>(-instance.facing.y, 0.0, instance.facing.x));
     var normal = cross(dx, orth);
 
+    // old
+    //let start = vec3<f32>(0.0, 0.0, 0.0);
+    //let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
+    //var start_handle = mix(start, end, 0.6);
+    //var end_handle = mix(start, end, 0.9);
+    //start_handle += vec3<f32>(facing.x * (-tilt) * bend, abs(tilt) * bend, facing.y * (-tilt) * bend);
+    //end_handle += vec3<f32>(facing.x * (-tilt) * bend, abs(tilt) * bend, facing.y * (-tilt) * bend);
+
+    //var pos = bez(p, start, start_handle, end_handle, end);
+    //let dx = normalize(bez_dx(p, start, start_handle, end_handle, end));
+    //let orth = normalize(vec3<f32>(-instance.facing.y, 0.0, instance.facing.x));
+    //var normal = cross(dx, orth);
+
     // tip
-    if index == GRASS_MAX_VERT_INDEX {
-        //pos += dx * GRASS_TIP_EXTENSION;
-    // left
-    } else if index % 2u == 0u {
+    if index % 2u == 0u {
         pos += orth * width * 0.5;
         normal = normalize(normal - orth * NORMAL_ROUNDING);
     // right
@@ -110,6 +180,7 @@ fn vs_main(
     out.clip_position = camera.view_proj * vec4<f32>(model_pos, 1.0);
     out.pos = model_pos.xyz;
     out.normal = normal;
+    out.p = p;
 
     return out;
 }
@@ -120,6 +191,7 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) pos: vec3<f32>,
     @location(1) normal: vec3<f32>,
+    @location(2) p: f32,
 };
 
 struct FragmentOutput {
@@ -145,12 +217,9 @@ fn fs_main(
     normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
     let roughness = ease_out(dist_factor) * 0.8;
-    //let roughness = 0.5;
 
-    // interpolate color based of height
-    let p = in.pos.y / GRASS_MAX_HEIGHT;
-    let color = mix(BASE_COLOR, TIP_COLOR, ease_in(p)); // better interpolation function?
-    //let color = BASE_COLOR;
+    // interpolate color based of length
+    let color = mix(BASE_COLOR, TIP_COLOR, ease_in(in.p)); // better interpolation function?
 
     var out: FragmentOutput;
     out.position = vec4<f32>(in.pos, 1.0);
@@ -161,24 +230,52 @@ fn fs_main(
     return out;
 }
 
-//
-// UTILS
-//
 
-fn bez(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
-    return a * (pow(-t, 3.0) + 3.0 * pow(t, 2.0) - 3.0 * t + 1.0) + b * (3.0 * pow(t, 3.0) - 6.0 * pow(t, 2.0) + 3.0 * t) + c * (-3.0 * pow(t, 3.0) + 3.0 * pow(t, 2.0)) + d * (pow(t, 3.0));
+fn bez(p: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (pow(-p, 3.0) + 3.0 * pow(p, 2.0) - 3.0 * p + 1.0) + b * (3.0 * pow(p, 3.0) - 6.0 * pow(p, 2.0) + 3.0 * p) + c * (-3.0 * pow(p, 3.0) + 3.0 * pow(p, 2.0)) + d * (pow(p, 3.0));
 }
 
-fn bez_dx(t: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
-    return a * (-3.0 * pow(t, 2.0) + 6.0 * t - 3.0) + b * (9.0 * pow(t, 2.0) - 12.0 * t + 3.0) + c * (-9.0 * pow(t, 2.0) + 6.0 * t) + d * (3.0 * pow(t, 2.0));
+fn bez_dx(p: f32, a: vec3<f32>, b: vec3<f32>, c: vec3<f32>, d: vec3<f32>) -> vec3<f32> {
+    return a * (-3.0 * pow(p, 2.0) + 6.0 * p - 3.0) + b * (9.0 * pow(p, 2.0) - 12.0 * p + 3.0) + c * (-9.0 * pow(p, 2.0) + 6.0 * p) + d * (3.0 * pow(p, 2.0));
 }
+
+//
+// Easing functions
+//
 
 fn ease_in(p: f32) -> f32 {
     return p * p;
 }
 
-fn ease_out(t: f32) -> f32 {
-    return 1.0 - pow(1.0 - t, 3.0);
+fn ease_in_cubic(p: f32) -> f32 {
+    return p * p * p;
+}
+
+fn ease_out(p: f32) -> f32 {
+    return 1.0 - pow(1.0 - p, 3.0);
+}
+
+//fn ease_high_then_drop(t: f32) -> f32 {
+//    if t < 0.7 {
+//        // Holds high (close to 1) for the first 70% of the duration
+//        return 1.0 - (0.5 * pow(t / 0.7, 3.0));
+//    } else {
+//        // Quickly drops off in the last 30% of the duration
+//        return 0.5 * pow((1.0 - t) / 0.3, 3.0);
+//    }
+//}
+
+
+//
+// Hashing
+//
+
+fn hash_to_unorm(hash: u32) -> f32 {
+    return f32(hash) * 2.3283064e-10; // hash * 1 / 2^32
+}
+
+fn hash_to_range(hash: u32, low: f32, high: f32) -> f32 {
+    return low + (high - low) * hash_to_unorm(hash);
 }
 
 //fn rot_x(angle: f32) -> mat3x3<f32> {
@@ -301,3 +398,31 @@ fn ease_out(t: f32) -> f32 {
     //pos -= select(0.0, 1.0, index % 2 != 0u) * orth * GRASS_WIDTH * 0.5;
     //normal -= orth * NORMAL_ROUNDING;
     //normal = normalize(normal);
+
+    //if index == GRASS_MAX_VERT_INDEX {
+    //    //pos += dx * GRASS_TIP_EXTENSION;
+    //// left
+    //} else if index % 2u == 0u {
+    //    pos += orth * width * 0.5;
+    //    normal = normalize(normal - orth * NORMAL_ROUNDING);
+    //// right
+    //} else {
+    //    pos -= orth * width * 0.5;
+    //    normal = normalize(normal + orth * NORMAL_ROUNDING);
+    //}
+    //let sin1 = amplitude * sin(freq * (t + h));
+    //let cos1 = amplitude * cos(freq * (t + h));
+    //let sin2 = amplitude * sin(freq * (t + h + PI));
+    //let cos2 = amplitude * cos(freq * (t + h + PI));
+    //let local_wind = vec3<f32>(sin1 * WIND_TILT_MULT * facing.x, cos1 * WIND_HEIGHT_MULT, sin1 * WIND_TILT_MULT * facing.y);
+    //let start = vec3<f32>(0.0, 0.0, 0.0);
+    //let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt) + local_wind;
+    //let start_handle = mix(start, end, 0.6) + UP * bend * cos2 * WIND_BEND_BOT_MULT;
+    //let end_handle = mix(start, end, 0.8) + UP * bend * cos2 * WIND_BEND_TOP_MULT;
+    
+    //let local_wind = vec3<f32>(sin1 * WIND_TILT_MULT * facing.x, cos1 * WIND_HEIGHT_MULT, sin1 * WIND_TILT_MULT * facing.y);
+
+    //let start = vec3<f32>(0.0, 0.0, 0.0);
+    //let end = vec3<f32>(facing.x * tilt, height, facing.y * tilt);
+    //let start_handle = mix(start, end, 0.6) + UP * bend;
+    //let end_handle = mix(start, end, 0.8) + UP * bend;

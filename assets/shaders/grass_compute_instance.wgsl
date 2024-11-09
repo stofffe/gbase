@@ -18,7 +18,8 @@ struct GrassInstance {
     pos: vec3<f32>,             
     hash: u32,                  
     facing: vec2<f32>,          
-    wind: vec2<f32>,            
+    wind: f32,
+    pad: f32,
     height: f32,                
     tilt: f32,                  
     bend: f32,                  
@@ -55,11 +56,11 @@ const WIND_FACING_MODIFIER = 2.0;
 const GRASS_MIN_HEIGHT = 1.0;
 const GRASS_MAX_HEIGHT = 4.0;
 
-const GRASS_MIN_TILT = 0.1;
-const GRASS_MAX_TILT = 1.5;
+const GRASS_MIN_TILT = 0.0;
+const GRASS_MAX_TILT = 1.3;
 
-const GRASS_MIN_BEND = 0.0;
-const GRASS_MAX_BEND = 0.5;
+const GRASS_MIN_BEND = 0.1;
+const GRASS_MAX_BEND = 0.2;
 
 const GRASS_MIN_WIDTH = 0.1;
 const GRASS_MAX_WIDTH = 0.15;
@@ -85,7 +86,8 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let x = global_id.x;
     let z = global_id.y;
-    let hash = hash_2d(x, z);
+    //let hash = hash_2d(x, z);
+    let hash = hash_2d_improved(x, z);
     let blade_dist_between = tile.size / tile.blades_per_side;
     let blade_max_offset = blade_dist_between * 0.5;
 
@@ -121,7 +123,11 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let t = app_info.time_passed;
 
         // FACING
-        var facing = normalize(hash_to_vec2_snorm(hash));
+        let facing_angle = hash_to_range(hash, 0.0, 2.0 * PI);
+        var facing = normalize(vec2<f32>(
+            cos(facing_angle),
+            sin(facing_angle)
+        ));
         // Rotate orthogonal verticies towards camera 
         //let camera_dir = normalize(camera.pos.xz - pos.xz);
         //let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
@@ -134,36 +140,41 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         //    facing = mix(facing, -camera_dir, rotate_factor);
         //}
 
+        // let global_wind_power = textureGather(1, perlin_tex, perlin_sam, uv).x; // think x = y = z // TODO filtering?
+
         // WIND
-        // global wind from perline noise
         let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / tile.blades_per_side;
         let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
-        let uv = tile_uv + scroll;
-        // let global_wind_power = textureGather(1, perlin_tex, perlin_sam, uv).x; // think x = y = z // TODO filtering?
-        let wind_sample_power = bilinear_r(uv);
+        let wind_uv = tile_uv + scroll;
+        let wind = bilinear_r(wind_uv);
+        // global wind from perline noise
+        //let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / tile.blades_per_side;
+        //let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
+        //let uv = tile_uv + scroll;
+        //let wind_sample_power = bilinear_r(uv);
 
         //let wind_sample_power = textureSample(perlin_tex, perlin_sam, uv) * WIND_GLOBAL_POWER;
-        var global_wind_dir = normalize(WIND_DIR);
-        var global_wind = vec2<f32>(
-            abs(facing.x * global_wind_dir.x), // dot product on x 
-            abs(facing.y * global_wind_dir.y), // dot product on z
-        ) * global_wind_dir * wind_sample_power * WIND_GLOBAL_POWER;
+        //var global_wind_dir = normalize(WIND_DIR);
+        //var global_wind = vec2<f32>(
+        //    abs(facing.x * global_wind_dir.x), // dot product on x 
+        //    abs(facing.y * global_wind_dir.y), // dot product on z
+        //) * global_wind_dir * wind_sample_power * WIND_GLOBAL_POWER;
 
         // blade curls towards normal, this affects how much wind is caught
-        if global_wind.x * facing.x <= 0.0 {
-            global_wind.x *= WIND_FACING_MODIFIER;
-        }
-        if global_wind.y * facing.y <= 0.0 {
-            global_wind.y *= WIND_FACING_MODIFIER;
-        }
+        //if global_wind.x * facing.x <= 0.0 {
+        //    global_wind.x *= WIND_FACING_MODIFIER;
+        //}
+        //if global_wind.y * facing.y <= 0.0 {
+        //    global_wind.y *= WIND_FACING_MODIFIER;
+        //}
 
         // local sway offset by hash
-        let local_wind = vec2<f32>(
-            facing.x * sin(t + 2.0 * PI * hash_to_unorm(hash)),
-            facing.y * sin(t + 2.0 * PI * hash_to_unorm(hash ^ 0x732846u)),
-        ) * WIND_LOCAL_POWER;
+        //let local_wind = vec2<f32>(
+        //    facing.x * sin(t + 2.0 * PI * hash_to_unorm(hash)),
+        //    facing.y * sin(t + 2.0 * PI * hash_to_unorm(hash ^ 0x732846u)),
+        //) * WIND_LOCAL_POWER;
 
-        let wind = global_wind + local_wind;
+        //let wind = global_wind + local_wind;
 
         // UPDATE INSTANCE DATA
         let i = atomicAdd(&instance_count, 1u);
@@ -211,6 +222,18 @@ fn hash_2d(x: u32, y: u32) -> u32 {
     return hash;
 }
 
+// generates hash from two u32:s
+fn hash_2d_improved(x: u32, y: u32) -> u32 {
+    // Use Wang hash for better distribution
+    var hash: u32 = x;
+    hash = hash ^ (y << 16u | y >> 16u);
+    hash = hash * 0x85ebca6bu;
+    hash = hash ^ (hash >> 13u);
+    hash = hash * 0xc2b2ae35u;
+    hash = hash ^ (hash >> 16u);
+    return hash;
+}
+
 // generate float in range [low, high]
 fn hash_to_range(hash: u32, low: f32, high: f32) -> f32 {
     return low + (high - low) * hash_to_unorm(hash);
@@ -241,4 +264,3 @@ fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
         hash_to_snorm(hash ^ 0x12345678u),
     );
 }
-

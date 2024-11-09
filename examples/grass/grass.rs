@@ -320,6 +320,7 @@ impl GrassRenderer {
                 .targets(deferred_buffers.targets().to_vec())
                 .depth_stencil(deferred_buffers.depth_stencil_state())
                 .topology(wgpu::PrimitiveTopology::TriangleStrip)
+                // .polygon_mode(wgpu::PolygonMode::Line)
                 .build(ctx);
 
         Self {
@@ -353,24 +354,26 @@ struct GrassInstanceGPU {
     position: [f32; 3],
     hash: [u32; 1],
     facing: [f32; 2],
-    wind: [f32; 2],
+    wind: [f32; 1],
+    pad: [f32; 1],
     height: [f32; 1],
     tilt: [f32; 1],
     bend: [f32; 1],
-    pad: [f32; 1],
+    width: [f32; 1],
 }
 
 impl GrassInstanceGPU {
     const SIZE: u64 = std::mem::size_of::<Self>() as u64;
-    const ATTRIBUTES: [wgpu::VertexAttribute; 8] = wgpu::vertex_attr_array![
+    const ATTRIBUTES: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
         1=>Float32x3,   // pos
         2=>Uint32,      // hash
         3=>Float32x2,   // facing
-        4=>Float32x2,   // wind
-        5=>Float32,     // height
-        6=>Float32,     // tilt
-        7=>Float32,     // bend
-        8=>Float32,     // pad
+        4=>Float32,     // wind
+        5=>Float32,     // pad
+        6=>Float32,     // height
+        7=>Float32,     // tilt
+        8=>Float32,     // bend
+        9=>Float32,     // width
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

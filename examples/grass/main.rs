@@ -19,7 +19,7 @@ pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .window_builder(WindowBuilder::new().with_maximized(true))
         .log_level(LogLevel::Warn)
-        .vsync(false)
+        // .vsync(false)
         .build()
         .await;
     let app = App::new(&mut ctx).await;
@@ -29,7 +29,7 @@ pub async fn main() {
 const CAMERA_MOVE_SPEED: f32 = 15.0;
 
 const PLANE_SIZE: f32 = 500.0;
-const PLANE_COLOR: [f32; 4] = [1.0, 0.0, 0.0, 1.0];
+const PLANE_COLOR: [f32; 4] = [0.0, 0.4, 0.0, 1.0];
 
 struct App {
     camera: render::PerspectiveCamera,
@@ -108,9 +108,9 @@ impl App {
 
         // Plane mesh
         let plane_transform = render::Transform::new(
-            vec3(-10.0, 8.0, -10.0),
-            Quat::from_rotation_y(PI / 1.0),
-            // Quat::from_rotation_x(-PI / 2.0),
+            // vec3(-10.0, 8.0, -10.0),
+            vec3(0.0, 0.0, 0.0),
+            Quat::from_rotation_x(-PI / 2.0),
             vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
         );
         let plane_transform_buffer =
@@ -190,8 +190,8 @@ impl Callbacks for App {
         // pt.log();
 
         //Mesh
-        // self.mesh_renderer
-        //     .render(ctx, &self.deferred_buffers, &[&self.plane]);
+        self.mesh_renderer
+            .render(ctx, &self.deferred_buffers, &[&self.plane]);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
         self.gui_renderer.render(ctx, self.framebuffer.view_ref());
