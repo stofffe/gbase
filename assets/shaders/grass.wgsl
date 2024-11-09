@@ -41,9 +41,9 @@ struct AppInfo {
 const HIGH_LOD = 15u;
 const ANIM_FREQ = 3.0;
 const ANIM_AMP = 0.2;
-const ANIM_AMP_1 = 0.3;
-const ANIM_AMP_2 = 0.4;
-const ANIM_AMP_3 = 0.5;
+const ANIM_AMP_1 = ANIM_AMP * 0.3;
+const ANIM_AMP_2 = ANIM_AMP * 0.4;
+const ANIM_AMP_3 = ANIM_AMP * 0.5;
 const ANIM_OFFSET_1 = PI1_2 + PI1_8;
 const ANIM_OFFSET_2 = PI1_2;
 const ANIM_OFFSET_3 = 0.0;
@@ -86,9 +86,6 @@ fn vs_main(
     let wind = instance.wind;
     let hash = instance.hash;
 
-    //tilt += wind * GLOBAL_WIND_MULT;
-    //height -= wind * GLOBAL_WIND_MULT;
-
     let animation_offset = hash_to_range(hash, 0.0, 12.0 * PI);
     //let anim_freq = ANIM_FREQ * (height / MAX_HEIGHT);
     let anim_freq = ANIM_FREQ;
@@ -103,9 +100,9 @@ fn vs_main(
     // bend and wind
     let p1_bend = vec3<f32>((-tilt) * bend, abs(tilt) * bend, (-tilt) * bend);
     let p2_bend = vec3<f32>((-tilt) * bend, abs(tilt) * bend, (-tilt) * bend);
-    let p1_wind = ANIM_AMP * ANIM_AMP_1 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_1), sin(t + ANIM_OFFSET_1), cos(t + PI1_2 + ANIM_OFFSET_1));
-    let p2_wind = ANIM_AMP * ANIM_AMP_2 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_2), sin(t + ANIM_OFFSET_2), cos(t + PI1_2 + ANIM_OFFSET_2));
-    let p3_wind = ANIM_AMP * ANIM_AMP_3 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_3), sin(t + ANIM_OFFSET_3), cos(t + PI1_2 + ANIM_OFFSET_3));
+    let p1_wind = ANIM_AMP_1 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_1), sin(t + ANIM_OFFSET_1), cos(t + PI1_2 + ANIM_OFFSET_1));
+    let p2_wind = ANIM_AMP_2 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_2), sin(t + ANIM_OFFSET_2), cos(t + PI1_2 + ANIM_OFFSET_2));
+    let p3_wind = ANIM_AMP_3 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_3), sin(t + ANIM_OFFSET_3), cos(t + PI1_2 + ANIM_OFFSET_3));
     p1 += p1_wind + p1_bend;
     p2 += p2_wind + p2_bend;
     p3 += p3_wind;

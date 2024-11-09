@@ -45,9 +45,12 @@ fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
 fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
 
 // wind
-const WIND_SCROLL_SPEED = 0.1;
-const WIND_SCROLL_DIR = vec2<f32>(1.0, 1.0);
-const WIND_MULTIPLIER = 3.0;
+const WIND_SCROLL_SPEED = 0.2;
+const WIND_SCROLL_DIR = vec2<f32>(-1.0, 1.0); // TODO: something wrong with dir
+const WIND_DIR = vec2<f32>(1.0, 1.0);
+const WIND_MULTIPLIER = 0.5;
+const WIND_TILT_MULTIPLIER = WIND_MULTIPLIER * 3.0;
+const WIND_HEIGHT_MULTIPLIER = WIND_MULTIPLIER * 2.0;
 
 // grass shape
 const GRASS_MIN_HEIGHT = 1.0;
@@ -121,7 +124,21 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let wind_uv = tile_uv + scroll;
         let wind = bilinear_r(wind_uv);
 
-        let wind_facing_alignment = dot(facing, WIND_SCROLL_DIR);
+        // tilt
+        let wind_facing_alignment = dot(facing, WIND_DIR);
+        let wind_tilt = wind * wind_facing_alignment * WIND_TILT_MULTIPLIER;
+        let tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT) + wind_tilt;
+
+        // height
+        let arclen = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+        let wind_height = -wind * saturate(wind_facing_alignment) * WIND_HEIGHT_MULTIPLIER; // TODO: acts weird when tilt becomes negative
+        let height = arclen + wind_height;
+
+        let bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
+        var width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
+        if dist > GRASS_CULL_DIST {
+            width *= 3.0;
+        }
 
         // UPDATE INSTANCE DATA
         let i = atomicAdd(&instance_count, 1u);
@@ -129,13 +146,10 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].hash = hash;
         instances[i].facing = facing;
         instances[i].wind = wind;
-        instances[i].height = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
-        instances[i].tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT) + wind * wind_facing_alignment * WIND_MULTIPLIER;
-        instances[i].bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
-        instances[i].width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
-        if dist > GRASS_CULL_DIST {
-            instances[i].width *= 3.0;
-        }
+        instances[i].height = height;
+        instances[i].tilt = tilt;
+        instances[i].bend = bend;
+        instances[i].width = width;
     }
 }
 
