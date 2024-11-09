@@ -19,7 +19,7 @@ pub async fn main() {
     let (mut ctx, ev) = ContextBuilder::new()
         .window_builder(WindowBuilder::new().with_maximized(true))
         .log_level(LogLevel::Warn)
-        // .vsync(false)
+        .vsync(false)
         .build()
         .await;
     let app = App::new(&mut ctx).await;
@@ -53,6 +53,7 @@ struct App {
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: render::TextureRenderer,
     sobel_filter: render::SobelFilter,
+    gamma_correction: render::GammaCorrection,
 }
 
 impl App {
@@ -144,6 +145,7 @@ impl App {
         );
 
         let sobel_filter = render::SobelFilter::new(ctx).await;
+        let gamma_correction = render::GammaCorrection::new(ctx).await;
 
         Self {
             camera,
@@ -166,6 +168,7 @@ impl App {
             framebuffer,
             framebuffer_renderer,
             sobel_filter,
+            gamma_correction,
         }
     }
 }
@@ -210,6 +213,12 @@ impl Callbacks for App {
             );
         }
 
+        // not super efficient but its fine :))
+        let surface_conf = render::surface_config(ctx).format;
+        if !surface_conf.is_srgb() {
+            self.gamma_correction.apply(ctx, &self.framebuffer);
+        }
+
         self.framebuffer_renderer
             .render(ctx, self.framebuffer.view(), screen_view);
 
@@ -235,6 +244,24 @@ impl Callbacks for App {
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {
+        // hot reload
+        #[cfg(not(target_arch = "wasm32"))]
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            self.grass_renderer = pollster::block_on(GrassRenderer::new(
+                ctx,
+                &self.deferred_buffers,
+                &self.camera_buffer,
+            ));
+            self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
+                ctx,
+                self.framebuffer.format(),
+                &self.deferred_buffers,
+                &self.camera_buffer,
+                &self.light_buffer,
+            ));
+            self.mesh_renderer = pollster::block_on(MeshRenderer::new(ctx, &self.deferred_buffers));
+            println!("reload");
+        }
         // log::warn!("UPDATE");
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
@@ -267,25 +294,6 @@ impl Callbacks for App {
         self.plane_transform.pos.z = self.camera.pos.z;
 
         self.camera_movement(ctx);
-
-        // hot reload
-        #[cfg(not(target_arch = "wasm32"))]
-        if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.grass_renderer = pollster::block_on(GrassRenderer::new(
-                ctx,
-                &self.deferred_buffers,
-                &self.camera_buffer,
-            ));
-            self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
-                ctx,
-                self.framebuffer.format(),
-                &self.deferred_buffers,
-                &self.camera_buffer,
-                &self.light_buffer,
-            ));
-            self.mesh_renderer = pollster::block_on(MeshRenderer::new(ctx, &self.deferred_buffers));
-            println!("reload");
-        }
 
         // debug camera pos
         if input::key_pressed(ctx, KeyCode::KeyC) {
