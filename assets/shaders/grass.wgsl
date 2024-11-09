@@ -38,9 +38,9 @@ struct AppInfo {
 };
 
 // grass
-const HIGH_LOD = 14u;
+const HIGH_LOD = 15u;
 const ANIM_FREQ = 3.0;
-const ANIM_AMP = 0.1;
+const ANIM_AMP = 0.2;
 const ANIM_AMP_1 = 0.3;
 const ANIM_AMP_2 = 0.4;
 const ANIM_AMP_3 = 0.5;
@@ -48,7 +48,9 @@ const ANIM_OFFSET_1 = PI1_2 + PI1_8;
 const ANIM_OFFSET_2 = PI1_2;
 const ANIM_OFFSET_3 = 0.0;
 
+const WIND_DIR = vec2<f32>(1.0, 1.0);
 const GLOBAL_WIND_MULT = 1.0;
+//const GLOBAL_WIND_FREQ_MULT = 0.10;
 
 const BEND_POINT_1 = 0.5;
 const BEND_POINT_2 = 0.75;
@@ -88,21 +90,22 @@ fn vs_main(
     //height -= wind * GLOBAL_WIND_MULT;
 
     let animation_offset = hash_to_range(hash, 0.0, 12.0 * PI);
-    let t = (app_info.time_passed + animation_offset) * ANIM_FREQ;
+    //let anim_freq = ANIM_FREQ * (height / MAX_HEIGHT);
+    let anim_freq = ANIM_FREQ;
+    let t = (app_info.time_passed + animation_offset) * anim_freq;
 
-    // Generate bezier curve
+    // Generate bezier points
     let p0 = vec3<f32>(0.0, 0.0, 0.0);
     var p3 = vec3<f32>(tilt, height, tilt);
     var p1 = mix(p0, p3, BEND_POINT_1);
     var p2 = mix(p0, p3, BEND_POINT_2);
 
+    // bend and wind
     let p1_bend = vec3<f32>((-tilt) * bend, abs(tilt) * bend, (-tilt) * bend);
     let p2_bend = vec3<f32>((-tilt) * bend, abs(tilt) * bend, (-tilt) * bend);
     let p1_wind = ANIM_AMP * ANIM_AMP_1 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_1), sin(t + ANIM_OFFSET_1), cos(t + PI1_2 + ANIM_OFFSET_1));
     let p2_wind = ANIM_AMP * ANIM_AMP_2 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_2), sin(t + ANIM_OFFSET_2), cos(t + PI1_2 + ANIM_OFFSET_2));
     let p3_wind = ANIM_AMP * ANIM_AMP_3 * vec3<f32>(cos(t + PI1_2 + ANIM_OFFSET_3), sin(t + ANIM_OFFSET_3), cos(t + PI1_2 + ANIM_OFFSET_3));
-
-    // bend and wind
     p1 += p1_wind + p1_bend;
     p2 += p2_wind + p2_bend;
     p3 += p3_wind;
