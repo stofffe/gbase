@@ -7,7 +7,7 @@ use gbase::{
 use glam::{vec2, Vec2, Vec3Swizzles};
 use std::{mem::size_of, ops::Div};
 
-const TILE_SIZE: f32 = 150.0;
+const TILE_SIZE: f32 = 128.0;
 const TILES_PER_SIDE: i32 = 3;
 const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;

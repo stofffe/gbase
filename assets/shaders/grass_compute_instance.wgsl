@@ -53,6 +53,8 @@ const WIND_TILT_MULTIPLIER = WIND_MULTIPLIER * 3.0;
 const WIND_HEIGHT_MULTIPLIER = WIND_MULTIPLIER * 2.0;
 
 // grass shape
+const GRASS_OFFSET_MULTIPLIER = 0.5;
+
 const GRASS_MIN_HEIGHT = 1.0;
 const GRASS_MAX_HEIGHT = 4.0;
 
@@ -69,6 +71,10 @@ const GRASS_MAX_WIDTH = 0.15;
 const GRASS_CULL_DIST = 100.0;
 const GRASS_CULL_WIDTH_INCREASE = 3.0;
 
+// clumps
+const CLUMPS_PER_SIDE = 32;
+const CLUMP_OFFSET_MULTIPLIER = 0.5;
+
 // constants
 const PI = 3.1415927;
 
@@ -81,71 +87,107 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let x = global_id.x;
     let z = global_id.y;
-    //let hash = hash_2d(x, z);
-    let hash = hash_2d(x, z);
+    let blade_hash = hash_2d(x, z);
     let blade_dist_between = tile.size / tile.blades_per_side;
-    let blade_max_offset = blade_dist_between * 0.5;
 
     // POS
-    let pos = vec3<f32>(
-        tile.pos.x + f32(x) * blade_dist_between + hash_to_snorm(hash) * blade_max_offset,
+    var pos = vec3<f32>(
+        tile.pos.x + f32(x) * blade_dist_between + hash_to_snorm(blade_hash) * blade_dist_between * GRASS_OFFSET_MULTIPLIER,
         0.0,
-        (tile.pos.y + f32(z) * blade_dist_between + hash_to_snorm(hash) * blade_max_offset),
+        tile.pos.y + f32(z) * blade_dist_between + hash_to_snorm(blade_hash ^ 0x2345624) * blade_dist_between * GRASS_OFFSET_MULTIPLIER,
     );
 
-    // CULL
-    var cull = false;
-    if dot(camera.facing, pos - camera.pos) < 0.0 {
-        cull = true;
-    }
-    // cull 3/4 grass blades at distance
-    let dist = length(pos - camera.pos);
-    if dist > GRASS_CULL_DIST && (x % 2 == 0u || z % 2 == 0u) {
-        cull = true;
-    }
+    // clumps
+    let clump_dist_between = i32(tile.size) / CLUMPS_PER_SIDE;
+    let center_clump_x = i32(f32(x) / tile.blades_per_side * tile.size / f32(clump_dist_between));
+    let center_clump_z = i32(f32(z) / tile.blades_per_side * tile.size / f32(clump_dist_between));
+    var closest_clump_pos = vec3<f32>(0.0);
+    var closest_clump_dist = 999999.0;
+    var closest_clump_hash = 0u;
+    for (var j = 1; j <= 1; j += 1) {
+        for (var i = -1; i <= 1; i += 1) {
+            let cur_clump_x = center_clump_x + i;
+            let cur_clump_z = center_clump_z + j;
 
-    if !cull {
-        let t = app_info.time_passed;
+            // oob check
+            if cur_clump_x < 0 || cur_clump_z < 0 || cur_clump_x >= CLUMPS_PER_SIDE || cur_clump_z >= CLUMPS_PER_SIDE {
+                continue;
+            }
 
-        let facing_angle = hash_to_range(hash, 0.0, 2.0 * PI);
-        var facing = normalize(vec2<f32>(
-            cos(facing_angle),
-            sin(facing_angle)
-        ));
-
-        // caluclate wind
-        let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / tile.blades_per_side;
-        let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
-        let wind_uv = tile_uv + scroll;
-        let wind = bilinear_r(wind_uv);
-
-        // adjust tilt based of wind
-        let wind_facing_alignment = dot(facing, WIND_DIR);
-        let wind_tilt = wind * wind_facing_alignment * WIND_TILT_MULTIPLIER;
-        let tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT) + wind_tilt;
-
-        // adjust height beased of wind
-        let arclen = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
-        let wind_height = -wind * saturate(wind_facing_alignment) * WIND_HEIGHT_MULTIPLIER; // TODO: acts weird when tilt becomes negative
-        let height = arclen + wind_height;
-
-        let bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
-        var width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
-        if dist > GRASS_CULL_DIST {
-            width *= GRASS_CULL_WIDTH_INCREASE;
+            let clump_hash = hash_2d(u32(cur_clump_x), u32(cur_clump_z)); // 28, ?
+            let clump_pos = vec3<f32>(
+                tile.pos.x + f32(cur_clump_x * clump_dist_between) + hash_to_snorm(clump_hash) * f32(clump_dist_between) * CLUMP_OFFSET_MULTIPLIER,
+                0.0,
+                tile.pos.y + f32(cur_clump_z * clump_dist_between) + hash_to_snorm(clump_hash ^ 0x42423432) * f32(clump_dist_between) * CLUMP_OFFSET_MULTIPLIER,
+            );
+            let clump_dist = length(pos - clump_pos);
+            if clump_dist < closest_clump_dist {
+                closest_clump_dist = clump_dist;
+                closest_clump_pos = clump_pos;
+                closest_clump_hash = clump_hash;
+            }
         }
-
-        // update instance data
-        let i = atomicAdd(&instance_count, 1u);
-        instances[i].pos = pos;
-        instances[i].hash = hash;
-        instances[i].facing = facing;
-        instances[i].wind = wind;
-        instances[i].height = height;
-        instances[i].tilt = tilt;
-        instances[i].bend = bend;
-        instances[i].width = width;
     }
+    let clump_hash = closest_clump_hash;
+    let clump_origin = closest_clump_pos;
+
+    //pos = mix(pos, clump_origin, 0.3);
+
+    // frustum cull
+    // simple dot check, TODO imporve
+    if dot(camera.facing, pos - camera.pos) < 0.0 {
+        return;
+    }
+    // distance cull
+    // cull 3/4 grass blades at distance
+    if length(pos - camera.pos) > GRASS_CULL_DIST && (x % 2 == 0u || z % 2 == 0u) {
+        return;
+    }
+
+    // facing angle
+    let facing_angle = hash_to_range(blade_hash, 0.0, 2.0 * PI);
+    var facing = normalize(vec2<f32>(
+        cos(facing_angle),
+        sin(facing_angle)
+    ));
+
+    // caluclate wind
+    let t = app_info.time_passed;
+    let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / tile.blades_per_side;
+    let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
+    let wind_uv = tile_uv + scroll;
+    let wind = bilinear_r(wind_uv);
+
+    // adjust tilt based of wind
+    let wind_facing_alignment = dot(facing, WIND_DIR);
+    let wind_tilt = wind * wind_facing_alignment * WIND_TILT_MULTIPLIER;
+    let tilt = hash_to_range(blade_hash, GRASS_MIN_TILT, GRASS_MAX_TILT) + wind_tilt;
+
+    // adjust height beased of wind
+    let arclen = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+    let wind_height = -wind * saturate(wind_facing_alignment) * WIND_HEIGHT_MULTIPLIER; // TODO: acts weird when tilt becomes negative
+    let height = arclen + wind_height;
+
+    let bend = hash_to_range(blade_hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
+    var width = hash_to_range(blade_hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
+    let dist = length(pos - camera.pos);
+
+    // TODO: enable again
+
+    if dist > GRASS_CULL_DIST {
+        width *= GRASS_CULL_WIDTH_INCREASE;
+    }
+
+    // update instance data
+    let i = atomicAdd(&instance_count, 1u);
+    instances[i].pos = pos;
+    instances[i].hash = blade_hash;
+    instances[i].facing = facing;
+    instances[i].wind = wind;
+    instances[i].height = height;
+    instances[i].tilt = tilt;
+    instances[i].bend = bend;
+    instances[i].width = width;
 }
 
 //
@@ -177,6 +219,18 @@ fn hash_2d(x: u32, y: u32) -> u32 {
     hash = hash ^ (hash >> 13u);
     hash = hash * 0xc2b2ae35u;
     hash = hash ^ (hash >> 16u);
+    return hash;
+}
+
+// TODO: temp
+fn hash_2d_i32(x: i32, y: i32) -> i32 {
+    // Use Wang hash for better distribution
+    var hash: i32 = x;
+    hash = hash ^ ((y << 16) | (y >> 16));
+    hash = hash * 0x85ebca6;
+    hash = hash ^ (hash >> 13);
+    hash = hash * 0xc2b2ae3;
+    hash = hash ^ (hash >> 16);
     return hash;
 }
 
