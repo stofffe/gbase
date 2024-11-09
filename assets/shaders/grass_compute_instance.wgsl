@@ -57,7 +57,7 @@ const GRASS_MIN_HEIGHT = 1.0;
 const GRASS_MAX_HEIGHT = 4.0;
 
 const GRASS_MIN_TILT = 0.0;
-const GRASS_MAX_TILT = 1.3;
+const GRASS_MAX_TILT = 1.0;
 
 const GRASS_MIN_BEND = 0.1;
 const GRASS_MAX_BEND = 0.2;
@@ -183,6 +183,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         instances[i].facing = facing;
         instances[i].wind = wind;
         instances[i].height = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+        // instances[i].height = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0)) + hash_to_range(hash, -0.5, 0.5);
         instances[i].tilt = hash_to_range(hash, GRASS_MIN_TILT, GRASS_MAX_TILT);
         instances[i].bend = hash_to_range(hash, GRASS_MIN_BEND, GRASS_MAX_BEND);
         instances[i].width = hash_to_range(hash, GRASS_MIN_WIDTH, GRASS_MAX_WIDTH);
@@ -226,7 +227,7 @@ fn hash_2d(x: u32, y: u32) -> u32 {
 fn hash_2d_improved(x: u32, y: u32) -> u32 {
     // Use Wang hash for better distribution
     var hash: u32 = x;
-    hash = hash ^ (y << 16u | y >> 16u);
+    hash = hash ^ ((y << 16u) | (y >> 16u));
     hash = hash * 0x85ebca6bu;
     hash = hash ^ (hash >> 13u);
     hash = hash * 0xc2b2ae35u;

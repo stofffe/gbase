@@ -48,6 +48,8 @@ const ANIM_OFFSET_1 = PI1_2 + PI1_8;
 const ANIM_OFFSET_2 = PI1_2;
 const ANIM_OFFSET_3 = 0.0;
 
+const GLOBAL_WIND_MULT = 1.0;
+
 const BEND_POINT_1 = 0.5;
 const BEND_POINT_2 = 0.75;
 
@@ -76,11 +78,14 @@ fn vs_main(
     @builtin(instance_index) instance_index: u32,
 ) -> VertexOutput {
     let facing = instance.facing;
-    let height = instance.height;
-    let tilt = instance.tilt;
+    var height = instance.height;
+    var tilt = instance.tilt;
     let bend = instance.bend;
     let wind = instance.wind;
     let hash = instance.hash;
+
+    //tilt += wind * GLOBAL_WIND_MULT;
+    //height -= wind * GLOBAL_WIND_MULT;
 
     let animation_offset = hash_to_range(hash, 0.0, 12.0 * PI);
     let t = (app_info.time_passed + animation_offset) * ANIM_FREQ;
@@ -116,7 +121,7 @@ fn vs_main(
 
     // width and normal
     let width = mix(instance.width, 0.0, ease_in_cubic(p));
-    pos += orth * width * 0.5 * select(-1.0, 1.0, index % 2u == 0u);
+    pos = pos + orth * width * 0.5 * select(-1.0, 1.0, index % 2u == 0u);
     normal = normalize(normal + orth * NORMAL_ROUNDING * select(1.0, -1.0, index % 2u == 0u));
 
     let world_pos = instance.pos + pos;
@@ -199,16 +204,6 @@ fn ease_in_cubic(p: f32) -> f32 {
 fn ease_out(p: f32) -> f32 {
     return 1.0 - pow(1.0 - p, 3.0);
 }
-
-//fn ease_high_then_drop(t: f32) -> f32 {
-//    if t < 0.7 {
-//        // Holds high (close to 1) for the first 70% of the duration
-//        return 1.0 - (0.5 * pow(t / 0.7, 3.0));
-//    } else {
-//        // Quickly drops off in the last 30% of the duration
-//        return 0.5 * pow((1.0 - t) / 0.3, 3.0);
-//    }
-//}
 
 
 //
