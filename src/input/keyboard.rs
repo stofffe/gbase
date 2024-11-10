@@ -99,13 +99,13 @@ impl KeyboardContext {
 
     /// Save current keys in previous
     /// Should be called each frame
-    pub(crate) fn save_keys(&mut self) {
+    pub(crate) fn store_keys(&mut self) {
         self.previous_pressed = self.pressed.clone();
     }
 
     /// Save current modifiers in previous
     /// Should be called each frame
-    pub(crate) fn save_modifiers(&mut self) {
+    pub(crate) fn store_modifiers(&mut self) {
         self.previous_pressed_modifiers = self.pressed_modifiers.clone();
     }
 }
@@ -169,13 +169,13 @@ mod tests {
         assert!(kc.key_pressed(KeyCode::KeyA));
         assert!(!kc.key_pressed(KeyCode::KeyB));
 
-        kc.save_keys();
+        kc.store_keys();
         kc.set_key(KeyCode::KeyB);
 
         assert!(kc.key_pressed(KeyCode::KeyA));
         assert!(kc.key_pressed(KeyCode::KeyB));
 
-        kc.save_keys();
+        kc.store_keys();
         kc.release_key(KeyCode::KeyA);
 
         assert!(!kc.key_pressed(KeyCode::KeyA));
@@ -189,7 +189,7 @@ mod tests {
 
         assert!(kc.key_just_pressed(KeyCode::KeyA));
 
-        kc.save_keys();
+        kc.store_keys();
         kc.set_key(KeyCode::KeyA);
 
         assert!(!kc.key_just_pressed(KeyCode::KeyA));
@@ -202,7 +202,7 @@ mod tests {
 
         assert!(!kc.key_released(KeyCode::KeyA));
 
-        kc.save_keys();
+        kc.store_keys();
         kc.release_key(KeyCode::KeyA);
 
         assert!(kc.key_released(KeyCode::KeyA));

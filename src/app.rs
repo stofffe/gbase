@@ -58,8 +58,15 @@ impl<C> App<C>
 where
     C: Callbacks + 'static,
 {
-    // TODO return enum with success, skip, exit?
-    pub(crate) fn render(&mut self, ctx: &mut Context) -> bool {
+    pub(crate) fn update_and_render(&mut self, ctx: &mut Context) -> bool {
+        // time
+        ctx.time.update_time();
+
+        // update
+        if self.callbacks.update(ctx) {
+            return true;
+        }
+
         // render
         let surface = render::surface(ctx);
         let output = surface.get_current_texture();
@@ -78,34 +85,19 @@ where
                 return false;
             }
         };
-        // TODO make this ARC?
-        let view = output
+        let view = output // TODO: make this ARC?
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
         if self.callbacks.render(ctx, &view) {
             return true;
         }
-
         output.present();
 
-        false
-    }
-    /// Main loop which is called from window event loop
-    /// Returns true if app should exit
-    pub(crate) fn update(&mut self, ctx: &mut Context) -> bool {
-        // Update callback
-        if self.callbacks.update(ctx) {
-            return true;
-        }
-
-        // time
-        ctx.time.update_time();
-
         // input
-        ctx.input.keyboard.save_keys();
-        ctx.input.keyboard.save_modifiers();
-        ctx.input.mouse.save_buttons();
+        ctx.input.keyboard.store_keys();
+        ctx.input.keyboard.store_modifiers();
+        ctx.input.mouse.store_buttons();
         ctx.input.mouse.set_mouse_delta((0.0, 0.0));
 
         false

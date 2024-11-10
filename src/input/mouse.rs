@@ -69,7 +69,7 @@ impl MouseContext {
 
     /// Save current buttons in previous
     /// Should be called each frame
-    pub(crate) fn save_buttons(&mut self) {
+    pub(crate) fn store_buttons(&mut self) {
         self.previous_pressed = self.pressed.clone()
     }
 }

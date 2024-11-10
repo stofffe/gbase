@@ -65,10 +65,7 @@ pub(crate) fn run_window<C: Callbacks + 'static>(
             Event::WindowEvent { ref event, .. } => {
                 match event {
                     WindowEvent::RedrawRequested => {
-                        if app.update(&mut ctx) {
-                            target.exit();
-                        }
-                        if app.render(&mut ctx) {
+                        if app.update_and_render(&mut ctx) {
                             target.exit();
                         }
                     }
