@@ -36,13 +36,17 @@ struct AppInfo {
     time_passed: f32
 };
 
+const ENABLE_INPUT = true;
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
-fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
-fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
-fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
-fn btn4_pressed() -> bool { return debug_input.btn4 == 1u; }
-fn btn5_pressed() -> bool { return debug_input.btn5 == 1u; }
-fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
+fn btn1_pressed() -> bool { return debug_input.btn1 == 1u && ENABLE_INPUT; }
+fn btn2_pressed() -> bool { return debug_input.btn2 == 1u && ENABLE_INPUT; }
+fn btn3_pressed() -> bool { return debug_input.btn3 == 1u && ENABLE_INPUT; }
+fn btn4_pressed() -> bool { return debug_input.btn4 == 1u && ENABLE_INPUT; }
+fn btn5_pressed() -> bool { return debug_input.btn5 == 1u && ENABLE_INPUT; }
+fn btn6_pressed() -> bool { return debug_input.btn6 == 1u && ENABLE_INPUT; }
+fn btn7_pressed() -> bool { return debug_input.btn7 == 1u && ENABLE_INPUT; }
+fn btn8_pressed() -> bool { return debug_input.btn8 == 1u && ENABLE_INPUT; }
+fn btn9_pressed() -> bool { return debug_input.btn9 == 1u && ENABLE_INPUT; }
 
 // wind
 const WIND_SCROLL_SPEED = 0.2;
@@ -56,27 +60,34 @@ const WIND_HEIGHT_MULTIPLIER = WIND_MULTIPLIER * 2.0;
 const GRASS_OFFSET_MULTIPLIER = 0.5;
 
 const GRASS_MIN_HEIGHT = 1.0;
-const GRASS_MAX_HEIGHT = 4.0;
+const GRASS_MAX_HEIGHT = 2.5;
 
 const GRASS_MIN_TILT = 0.0;
 const GRASS_MAX_TILT = 1.0;
 
 const GRASS_MIN_BEND = 0.1;
-const GRASS_MAX_BEND = 0.2;
+const GRASS_MAX_BEND = 0.5;
 
 const GRASS_MIN_WIDTH = 0.1;
 const GRASS_MAX_WIDTH = 0.15;
+
+//const GRASS_MAX_ANGLE = 2.0 * PI;
+const GRASS_MAX_ANGLE = PI / 4.0;
 
 // culling
 const GRASS_CULL_DIST = 100.0;
 const GRASS_CULL_WIDTH_INCREASE = 3.0;
 
 // clumps
-const CLUMPS_PER_SIDE = 32;
-const CLUMP_OFFSET_MULTIPLIER = 0.5;
+const CLUMPS_PER_SIDE = 16;
+const CLUMP_OFFSET_MULTIPLIER = 0.3;
 
 // constants
 const PI = 3.1415927;
+const PI2 = PI * 2.0;
+const PI1_2 = PI / 2.0;
+const PI1_4 = PI / 4.0;
+const PI1_8 = PI / 8.0;
 
 @compute
 @workgroup_size(16,16,1)
@@ -104,13 +115,13 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var closest_clump_pos = vec3<f32>(0.0);
     var closest_clump_dist = 999999.0;
     var closest_clump_hash = 0u;
-    for (var j = 1; j <= 1; j += 1) {
+    for (var j = -1; j <= 1; j += 1) {
         for (var i = -1; i <= 1; i += 1) {
             let cur_clump_x = center_clump_x + i;
             let cur_clump_z = center_clump_z + j;
 
             // oob check
-            if cur_clump_x < 0 || cur_clump_z < 0 || cur_clump_x >= CLUMPS_PER_SIDE || cur_clump_z >= CLUMPS_PER_SIDE {
+            if cur_clump_x < 0 || cur_clump_z < 0 || cur_clump_x > CLUMPS_PER_SIDE || cur_clump_z > CLUMPS_PER_SIDE {
                 continue;
             }
 
@@ -131,6 +142,12 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let clump_hash = closest_clump_hash;
     let clump_origin = closest_clump_pos;
 
+    if btn3_pressed() {
+        pos = mix(pos, clump_origin, 0.2);
+    }
+    if btn4_pressed() {
+        pos = mix(pos, clump_origin, 1.0);
+    }
     //pos = mix(pos, clump_origin, 0.3);
 
     // frustum cull
@@ -145,8 +162,14 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // facing angle
-    let facing_angle = hash_to_range(blade_hash, 0.0, 2.0 * PI);
-    var facing = normalize(vec2<f32>(
+    //var facing = normalize(pos - clump_origin).xz;
+    var facing_angle = 0.0;
+
+    let blade_clump_dir = (pos - clump_origin).xz;
+
+    facing_angle += atan2(blade_clump_dir.y, blade_clump_dir.x);
+    facing_angle += hash_to_range(blade_hash, -GRASS_MAX_ANGLE, GRASS_MAX_ANGLE);
+    let facing = normalize(vec2<f32>(
         cos(facing_angle),
         sin(facing_angle)
     ));
@@ -164,7 +187,8 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let tilt = hash_to_range(blade_hash, GRASS_MIN_TILT, GRASS_MAX_TILT) + wind_tilt;
 
     // adjust height beased of wind
-    let arclen = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+    //let arclen = mix(GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT, bilinear_r(tile_uv * 5.0));
+    let arclen = hash_to_range(blade_hash, GRASS_MIN_HEIGHT, GRASS_MAX_HEIGHT);
     let wind_height = -wind * saturate(wind_facing_alignment) * WIND_HEIGHT_MULTIPLIER; // TODO: acts weird when tilt becomes negative
     let height = arclen + wind_height;
 
