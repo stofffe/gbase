@@ -23,9 +23,13 @@ impl App {
     async fn new(ctx: &mut Context) -> Self {
         println!("NORMAL PRINT");
         eprintln!("DEBUG PRINT");
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())
-            .usage(wgpu::BufferUsages::VERTEX)
-            .build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            TRIANGLE_VERTICES.to_vec(),
+        ))
+        .usage(wgpu::BufferUsages::VERTEX)
+        .build(ctx);
+
+        // let a = UniformBufferSource::Empty(64);
 
         let shader_str = filesystem::load_string(ctx, "shaders/triangle.wgsl")
             .await

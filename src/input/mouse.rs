@@ -1,8 +1,9 @@
+use glam::{vec2, Vec2};
 pub use winit::event::MouseButton;
 
 use std::collections::HashSet;
 
-use crate::Context;
+use crate::{render, Context};
 
 #[derive(Default)]
 pub(crate) struct MouseContext {
@@ -93,6 +94,12 @@ pub fn mouse_on_screen(ctx: &Context) -> bool {
 pub fn mouse_pos(ctx: &Context) -> (f32, f32) {
     let (x, y) = ctx.input.mouse.pos;
     (x as f32, y as f32)
+}
+
+pub fn mouse_pos_unorm(ctx: &Context) -> Vec2 {
+    let (x, y) = ctx.input.mouse.pos;
+    let size = render::surface_size(ctx);
+    vec2(x as f32 / size.width as f32, y as f32 / size.height as f32)
 }
 
 /// Returns true if MouseButton is pressed

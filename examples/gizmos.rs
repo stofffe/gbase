@@ -1,22 +1,21 @@
-use encase::ShaderType;
 use gbase::{
     input::{self, KeyCode},
-    render::{self, Transform},
+    render::{self, CameraUniform, Transform},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec3};
 
 struct App {
     camera: render::PerspectiveCamera,
-    camera_buffer: render::UniformBuffer,
+    camera_buffer: render::UniformBuffer<CameraUniform>,
     gizmo_renderer: render::GizmoRenderer,
 }
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         let camera = render::PerspectiveCamera::new();
-        let camera_buffer = render::UniformBufferBuilder::new()
-            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let gizmo_renderer =
             render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer)
                 .await;

@@ -1,13 +1,14 @@
 use crate::{render, Context};
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
-use std::ops::RangeBounds;
+use std::{marker::PhantomData, ops::RangeBounds};
 use wgpu::util::DeviceExt;
 
 //
 // Raw Buffer
 //
 
+// TODO: add type to this
 pub struct RawBufferBuilder {
     label: Option<String>,
     usage: wgpu::BufferUsages,
@@ -90,51 +91,62 @@ impl RawBuffer {
 // Uniform buffer
 //
 
-pub struct UniformBufferBuilder {
+pub enum UniformBufferSource<T: ShaderType + WriteInto> {
+    Data(T),
+    Empty,
+}
+
+pub struct UniformBufferBuilder<T: ShaderType + WriteInto> {
+    source: UniformBufferSource<T>,
     label: Option<String>,
     usage: wgpu::BufferUsages,
 }
 
-impl UniformBufferBuilder {
-    pub fn new() -> Self {
+impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
+    pub fn new(source: UniformBufferSource<T>) -> Self {
         Self {
+            source,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             label: None,
         }
     }
 
-    pub fn build(self, ctx: &Context, size: impl Into<u64>) -> UniformBuffer {
-        let device = render::device(ctx);
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label.as_deref(),
-            size: size.into(),
-            usage: self.usage,
-            mapped_at_creation: false,
-        });
-
-        UniformBuffer {
-            buffer: ArcBuffer::new(buffer),
-        }
-    }
-
-    pub fn build_init(self, ctx: &Context, data: &(impl ShaderType + WriteInto)) -> UniformBuffer {
+    pub fn build(self, ctx: &Context) -> UniformBuffer<T> {
         let device = render::device(ctx);
 
-        let mut buffer = encase::UniformBuffer::new(Vec::new());
-        buffer.write(data).expect("could not write to buffer");
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: self.label.as_deref(),
-            usage: self.usage,
-            contents: &buffer.into_inner(),
-        });
+        match self.source {
+            UniformBufferSource::Data(data) => {
+                let mut buffer = encase::UniformBuffer::new(Vec::new());
+                buffer.write(&data).expect("could not write to buffer");
+                let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: self.label.as_deref(),
+                    usage: self.usage,
+                    contents: &buffer.into_inner(),
+                });
 
-        UniformBuffer {
-            buffer: ArcBuffer::new(buffer),
+                UniformBuffer {
+                    buffer: ArcBuffer::new(buffer),
+                    ty: PhantomData,
+                }
+            }
+            UniformBufferSource::Empty => {
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: self.label.as_deref(),
+                    size: u64::from(T::min_size()),
+                    usage: self.usage,
+                    mapped_at_creation: false,
+                });
+
+                UniformBuffer {
+                    buffer: ArcBuffer::new(buffer),
+                    ty: PhantomData,
+                }
+            }
         }
     }
 }
 
-impl UniformBufferBuilder {
+impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.label = Some(value.into());
         self
@@ -145,12 +157,13 @@ impl UniformBufferBuilder {
     }
 }
 
-pub struct UniformBuffer {
+pub struct UniformBuffer<T: ShaderType + WriteInto> {
     buffer: ArcBuffer,
+    ty: PhantomData<T>,
 }
 
-impl UniformBuffer {
-    pub fn write(&self, ctx: &Context, uniform: &(impl ShaderType + WriteInto)) {
+impl<T: ShaderType + WriteInto> UniformBuffer<T> {
+    pub fn write(&self, ctx: &Context, uniform: &T) {
         let mut buffer = encase::UniformBuffer::new(Vec::new());
         buffer
             .write(&uniform)

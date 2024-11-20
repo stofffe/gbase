@@ -37,6 +37,7 @@ struct VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // Have to sample outside
     let alpha = textureSample(letter_tex, letter_sampler, in.uv).x;
+
     if in.ty == TYPE_TEXT {
         return vec4<f32>(in.color.xyz, alpha);
     }

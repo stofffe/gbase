@@ -1,8 +1,12 @@
+use glam::Vec3;
+
 use crate::{
     filesystem,
     render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
     Context,
 };
+
+use super::CameraUniform;
 
 //
 // Deferred renderer
@@ -21,13 +25,16 @@ impl DeferredRenderer {
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
         buffers: &render::DeferredBuffers,
-        camera: &render::UniformBuffer,
-        light: &render::UniformBuffer,
+        camera: &render::UniformBuffer<CameraUniform>,
+        light: &render::UniformBuffer<Vec3>,
     ) -> Self {
         let shader_str = filesystem::load_string(ctx, "shaders/deferred.wgsl")
             .await
             .unwrap();
-        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES.to_vec()).build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            QUAD_VERTICES.to_vec(),
+        ))
+        .build(ctx);
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let debug_input = render::DebugInput::new(ctx);
         let (bindgroup_layout, bindgroup) =
@@ -82,8 +89,8 @@ impl DeferredRenderer {
     fn bindgroups(
         ctx: &mut Context,
         buffers: &render::DeferredBuffers,
-        camera: &render::UniformBuffer,
-        light: &render::UniformBuffer,
+        camera: &render::UniformBuffer<CameraUniform>,
+        light: &render::UniformBuffer<Vec3>,
         debug_input: &render::DebugInput,
     ) -> (ArcBindGroupLayout, ArcBindGroup) {
         let sampler = render::SamplerBuilder::new().build(ctx);
@@ -144,8 +151,8 @@ impl DeferredRenderer {
         &mut self,
         ctx: &mut Context,
         buffers: &render::DeferredBuffers,
-        camera: &render::UniformBuffer,
-        light: &render::UniformBuffer,
+        camera: &render::UniformBuffer<CameraUniform>,
+        light: &render::UniformBuffer<Vec3>,
     ) {
         let (_, bindgroup) = Self::bindgroups(ctx, buffers, camera, light, &self.debug_input);
         self.bindgroup = bindgroup;

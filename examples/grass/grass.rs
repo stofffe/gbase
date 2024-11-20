@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     filesystem,
-    render::{self, ArcBindGroup, ArcComputePipeline, ArcRenderPipeline},
+    render::{self, ArcBindGroup, ArcComputePipeline, ArcRenderPipeline, CameraUniform},
     Context,
 };
 use glam::{vec2, Vec2, Vec3Swizzles};
@@ -16,7 +16,7 @@ pub struct GrassRenderer {
     instances: [render::RawBuffer; 2],
     indirect_buffer: [render::RawBuffer; 2],
     instance_count: render::RawBuffer,
-    tile_buffer: render::UniformBuffer,
+    tile_buffer: render::UniformBuffer<Tile>,
     app_info: render::AppInfo,
 
     instance_pipeline: ArcComputePipeline,
@@ -112,7 +112,7 @@ impl GrassRenderer {
     pub async fn new(
         ctx: &mut Context,
         deferred_buffers: &render::DeferredBuffers,
-        camera_buffer: &render::UniformBuffer,
+        camera_buffer: &render::UniformBuffer<CameraUniform>,
     ) -> Self {
         let instances = [
             render::RawBufferBuilder::new()
@@ -145,7 +145,8 @@ impl GrassRenderer {
                 .build(ctx);
         let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
 
-        let tile_buffer = render::UniformBufferBuilder::new().build(ctx, Tile::min_size());
+        let tile_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let app_info = render::AppInfo::new(ctx);
         let debug_input = render::DebugInput::new(ctx);
 

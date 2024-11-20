@@ -7,6 +7,7 @@ use render::{
 // Pipeline layout builder
 //
 
+// TODO: add all options
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct PipelineLayoutBuilder {
     label: Option<String>,

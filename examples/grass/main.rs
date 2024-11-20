@@ -1,9 +1,7 @@
 mod grass;
-
-use encase::ShaderType;
 use gbase::{
-    filesystem, input,
-    render::{self, DeferredRenderer, MeshRenderer, Transform},
+    collision, filesystem, input,
+    render::{self, CameraUniform, DeferredRenderer, MeshRenderer, Transform, TransformUniform},
     time, Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
@@ -33,9 +31,9 @@ const PLANE_COLOR: [f32; 4] = [0.0, 0.4, 0.0, 1.0];
 
 struct App {
     camera: render::PerspectiveCamera,
-    camera_buffer: render::UniformBuffer,
+    camera_buffer: render::UniformBuffer<CameraUniform>,
     light: Vec3,
-    light_buffer: render::UniformBuffer,
+    light_buffer: render::UniformBuffer<Vec3>,
     deferred_buffers: render::DeferredBuffers,
 
     mesh_renderer: render::MeshRenderer,
@@ -48,7 +46,7 @@ struct App {
 
     plane: render::GpuDrawCall,
     plane_transform: render::Transform,
-    plane_transform_buffer: render::UniformBuffer,
+    plane_transform_buffer: render::UniformBuffer<TransformUniform>,
 
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: render::TextureRenderer,
@@ -74,12 +72,13 @@ impl App {
 
         // Camera
         let camera = render::PerspectiveCamera::new();
-        let camera_buffer = render::UniformBufferBuilder::new()
+        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .label("camera buf".to_string())
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, render::PerspectiveCameraUniform::min_size());
+            .build(ctx);
         let light = vec3(10.0, 10.0, -10.0);
-        let light_buffer = render::UniformBufferBuilder::new().build(ctx, Vec3::min_size());
+        let light_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         // Renderers
         let deferred_buffers = render::DeferredBuffers::new(ctx);
@@ -115,7 +114,7 @@ impl App {
             vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
         );
         let plane_transform_buffer =
-            render::UniformBufferBuilder::new().build(ctx, render::TransformUniform::min_size());
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let gpu_mesh = render::GpuMesh::from_mesh(
             ctx,
             render::Mesh::new(
@@ -280,12 +279,12 @@ impl Callbacks for App {
             }
         }
         if self.paused {
-            self.gui_renderer.draw_text(
+            self.gui_renderer.text(
                 "pause (esc)",
-                vec2(0.0, 0.0),
+                collision::Quad::new(vec2(0.0, 0.0), vec2(0.5, 0.5)),
                 0.05,
                 vec4(1.0, 1.0, 1.0, 1.0),
-                None,
+                false,
             );
             return false;
         }
@@ -309,12 +308,12 @@ impl Callbacks for App {
             const DEBUG_HEIGH: f32 = 0.05;
             const DEBUG_COLOR: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
             for (i, text) in strings.iter().enumerate() {
-                self.gui_renderer.draw_text(
+                self.gui_renderer.text(
                     text,
-                    vec2(0.0, DEBUG_HEIGH * i as f32),
+                    collision::Quad::new(vec2(0.0, DEBUG_HEIGH * i as f32), vec2(0.5, 0.5)),
                     DEBUG_HEIGH,
                     DEBUG_COLOR,
-                    None,
+                    false,
                 );
             }
         }

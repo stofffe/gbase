@@ -5,6 +5,8 @@ use crate::{
 };
 use glam::{Mat4, Quat, Vec3};
 
+use super::CameraUniform;
+
 //
 // GPU
 //
@@ -34,8 +36,8 @@ impl GpuDrawCall {
         ctx: &mut Context,
         mesh: GpuMesh,
         material: GpuMaterial,
-        transform: &render::UniformBuffer,
-        camera: &render::UniformBuffer,
+        transform: &render::UniformBuffer<render::TransformUniform>,
+        camera: &render::UniformBuffer<CameraUniform>,
         mesh_renderer: &render::MeshRenderer,
     ) -> Self {
         let sampler = render::SamplerBuilder::new().build(ctx);
@@ -128,8 +130,12 @@ pub struct GpuMesh {
 
 impl GpuMesh {
     pub fn from_mesh(ctx: &Context, mesh: Mesh) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(mesh.vertices).build(ctx);
-        let index_buffer = render::IndexBufferBuilder::new(&mesh.indices).build(ctx);
+        let vertex_buffer =
+            render::VertexBufferBuilder::new(render::VertexBufferSource::Data(mesh.vertices))
+                .build(ctx);
+        let index_buffer =
+            render::IndexBufferBuilder::new(render::IndexBufferSource::Data(mesh.indices))
+                .build(ctx);
         Self {
             vertex_buffer,
             index_buffer,
@@ -141,7 +147,7 @@ impl GpuGltfModel {
     pub fn from_model(
         ctx: &mut Context,
         model: GltfModel,
-        camera_buffer: &render::UniformBuffer,
+        camera_buffer: &render::UniformBuffer<CameraUniform>,
         mesh_renderer: &render::MeshRenderer,
     ) -> Self {
         let nodes = model
@@ -157,12 +163,14 @@ impl GpuGltfModelNode {
     pub fn new(
         ctx: &mut Context,
         node: GltfModelNode,
-        camera_buffer: &render::UniformBuffer,
+        camera_buffer: &render::UniformBuffer<CameraUniform>,
         mesh_renderer: &MeshRenderer,
     ) -> Self {
         let transform = node.global_transform.clone();
-        let transform_buffer =
-            render::UniformBufferBuilder::new().build_init(ctx, &transform.uniform());
+        let transform_buffer = render::UniformBufferBuilder::new(
+            render::UniformBufferSource::Data(transform.uniform()),
+        )
+        .build(ctx);
 
         match node.mesh {
             None => Self {

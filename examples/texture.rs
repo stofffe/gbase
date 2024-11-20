@@ -1,6 +1,6 @@
 use gbase::{
     filesystem,
-    render::{self, ArcBindGroup, ArcRenderPipeline},
+    render::{self, ArcBindGroup, ArcRenderPipeline, VertexBufferBuilder, VertexBufferSource},
     Callbacks, Context, ContextBuilder,
 };
 use std::path::Path;
@@ -23,7 +23,8 @@ struct App {
 
 impl App {
     async fn new(ctx: &mut Context) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(QUAD_VERTICES.to_vec()).build(ctx);
+        let vertex_buffer =
+            VertexBufferBuilder::new(VertexBufferSource::Data(QUAD_VERTICES.to_vec())).build(ctx);
 
         let texture_bytes = filesystem::load_bytes(ctx, Path::new("textures/texture.jpeg"))
             .await

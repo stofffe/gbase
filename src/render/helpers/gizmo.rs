@@ -1,8 +1,7 @@
 use crate::{
     filesystem,
     render::{
-        self, ArcBindGroup, ArcRenderPipeline, DynamicIndexBuffer, DynamicIndexBufferBuilder,
-        DynamicVertexBuffer, DynamicVertexBufferBuilder, EncoderBuilder, RenderPipelineBuilder,
+        self, ArcBindGroup, ArcRenderPipeline, EncoderBuilder, RenderPipelineBuilder,
         ShaderBuilder, Transform, VertexColor,
     },
     Context,
@@ -10,9 +9,14 @@ use crate::{
 use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
 use std::f32::consts::PI;
 
+use super::CameraUniform;
+
 pub struct GizmoRenderer {
-    vertex_buffer: DynamicVertexBuffer<VertexColor>,
-    index_buffer: DynamicIndexBuffer,
+    dynamic_vertex_buffer: Vec<VertexColor>,
+    dynamic_index_buffer: Vec<u32>,
+
+    vertex_buffer: render::VertexBuffer<VertexColor>,
+    index_buffer: render::IndexBuffer,
     bindgroup: ArcBindGroup,
     pipeline: ArcRenderPipeline,
 
@@ -26,10 +30,18 @@ impl GizmoRenderer {
     pub async fn new(
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
-        camera_buffer: &render::UniformBuffer,
+        camera_buffer: &render::UniformBuffer<CameraUniform>,
     ) -> Self {
-        let vertex_buffer = DynamicVertexBufferBuilder::new(GIZMO_MAX_VERTICES).build(ctx);
-        let index_buffer = DynamicIndexBufferBuilder::new(GIZMO_MAX_INDICES).build(ctx);
+        let dynamic_vertex_buffer = Vec::with_capacity(GIZMO_MAX_VERTICES);
+        let dynamic_index_buffer = Vec::with_capacity(GIZMO_MAX_INDICES);
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Empty(
+            GIZMO_MAX_VERTICES as u64,
+        ))
+        .build(ctx);
+        let index_buffer = render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(
+            GIZMO_MAX_INDICES as u64,
+        ))
+        .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -68,6 +80,8 @@ impl GizmoRenderer {
             .build(ctx);
 
         Self {
+            dynamic_vertex_buffer,
+            dynamic_index_buffer,
             vertex_buffer,
             index_buffer,
             pipeline,
@@ -76,8 +90,8 @@ impl GizmoRenderer {
         }
     }
     pub fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
-        self.vertex_buffer.update_buffer(ctx);
-        self.index_buffer.update_buffer(ctx);
+        self.vertex_buffer.write(ctx, &self.dynamic_vertex_buffer);
+        self.index_buffer.write(ctx, &self.dynamic_index_buffer);
 
         let mut encoder = EncoderBuilder::new().build(ctx);
         let attachments = vec![Some(wgpu::RenderPassColorAttachment {
@@ -103,8 +117,8 @@ impl GizmoRenderer {
         let queue = render::queue(ctx);
         queue.submit(Some(encoder.finish()));
 
-        self.vertex_buffer.clear();
-        self.index_buffer.clear();
+        self.dynamic_vertex_buffer.clear();
+        self.dynamic_index_buffer.clear();
     }
 
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
@@ -117,17 +131,17 @@ impl GizmoRenderer {
 
 impl GizmoRenderer {
     pub fn draw_line(&mut self, start: Vec3, end: Vec3, color: Vec3) {
-        let vertex_start = self.vertex_buffer.len();
-        self.vertex_buffer.add(VertexColor {
+        let vertex_start = self.dynamic_vertex_buffer.len();
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: start.to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: end.to_array(),
             color: color.to_array(),
         });
-        self.index_buffer.add(vertex_start);
-        self.index_buffer.add(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start as u32);
+        self.dynamic_index_buffer.push(vertex_start as u32 + 1);
     }
 
     pub fn draw_sphere(&mut self, radius: f32, transform: &Transform, color: Vec3) {
@@ -140,12 +154,12 @@ impl GizmoRenderer {
             let angle = p * 2.0 * PI;
             let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
             let pos = (transform * pos.extend(1.0)).xyz();
-            self.vertex_buffer.add(VertexColor {
+            self.dynamic_vertex_buffer.push(VertexColor {
                 position: pos.to_array(),
                 color: color.to_array(),
             });
-            self.index_buffer.add(vertex_start + i);
-            self.index_buffer.add(vertex_start + (i + 1) % n);
+            self.dynamic_index_buffer.push(vertex_start + i);
+            self.dynamic_index_buffer.push(vertex_start + (i + 1) % n);
         }
         for i in 0..n {
             let p = i as f32 / n as f32;
@@ -153,12 +167,13 @@ impl GizmoRenderer {
             let pos = Quat::from_rotation_x(PI / 2.0)
                 * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
             let pos = (transform * pos.extend(1.0)).xyz();
-            self.vertex_buffer.add(VertexColor {
+            self.dynamic_vertex_buffer.push(VertexColor {
                 position: pos.to_array(),
                 color: color.to_array(),
             });
-            self.index_buffer.add(vertex_start + n + i);
-            self.index_buffer.add(vertex_start + n + (i + 1) % n);
+            self.dynamic_index_buffer.push(vertex_start + n + i);
+            self.dynamic_index_buffer
+                .push(vertex_start + n + (i + 1) % n);
         }
         for i in 0..n {
             let p = i as f32 / n as f32;
@@ -166,19 +181,20 @@ impl GizmoRenderer {
             let pos = Quat::from_rotation_y(PI / 2.0)
                 * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
             let pos = (transform * pos.extend(1.0)).xyz();
-            self.vertex_buffer.add(VertexColor {
+            self.dynamic_vertex_buffer.push(VertexColor {
                 position: pos.to_array(),
                 color: color.to_array(),
             });
-            self.index_buffer.add(vertex_start + 2 * n + i);
-            self.index_buffer.add(vertex_start + 2 * n + (i + 1) % n);
+            self.dynamic_index_buffer.push(vertex_start + 2 * n + i);
+            self.dynamic_index_buffer
+                .push(vertex_start + 2 * n + (i + 1) % n);
         }
     }
 
     pub fn draw_cube(&mut self, dimensions: Vec3, transform: &Transform, color: Vec3) {
         let d = dimensions;
         let t = transform.matrix();
-        let vertex_start = self.vertex_buffer.len();
+        let vertex_start = self.dynamic_vertex_buffer.len() as u32;
 
         let lbl = vec3(-d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom left
         let lbr = vec3(d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom right
@@ -191,83 +207,83 @@ impl GizmoRenderer {
         let utl = vec3(-d.x * 0.5, d.y * 0.5, d.z * 0.5); // upper top left
 
         // Bottom
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * lbl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * lbr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * ltr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * ltl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
 
         // Top
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * ubl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * ubr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * utr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * utl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
 
         // Bottom
-        self.index_buffer.add(vertex_start);
-        self.index_buffer.add(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start);
+        self.dynamic_index_buffer.push(vertex_start + 1);
 
-        self.index_buffer.add(vertex_start + 1);
-        self.index_buffer.add(vertex_start + 2);
+        self.dynamic_index_buffer.push(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start + 2);
 
-        self.index_buffer.add(vertex_start + 2);
-        self.index_buffer.add(vertex_start + 3);
+        self.dynamic_index_buffer.push(vertex_start + 2);
+        self.dynamic_index_buffer.push(vertex_start + 3);
 
-        self.index_buffer.add(vertex_start + 3);
-        self.index_buffer.add(vertex_start);
+        self.dynamic_index_buffer.push(vertex_start + 3);
+        self.dynamic_index_buffer.push(vertex_start);
 
         // Top
-        self.index_buffer.add(vertex_start + 4);
-        self.index_buffer.add(vertex_start + 5);
+        self.dynamic_index_buffer.push(vertex_start + 4);
+        self.dynamic_index_buffer.push(vertex_start + 5);
 
-        self.index_buffer.add(vertex_start + 5);
-        self.index_buffer.add(vertex_start + 6);
+        self.dynamic_index_buffer.push(vertex_start + 5);
+        self.dynamic_index_buffer.push(vertex_start + 6);
 
-        self.index_buffer.add(vertex_start + 6);
-        self.index_buffer.add(vertex_start + 7);
+        self.dynamic_index_buffer.push(vertex_start + 6);
+        self.dynamic_index_buffer.push(vertex_start + 7);
 
-        self.index_buffer.add(vertex_start + 7);
-        self.index_buffer.add(vertex_start + 4);
+        self.dynamic_index_buffer.push(vertex_start + 7);
+        self.dynamic_index_buffer.push(vertex_start + 4);
 
         // Connections
-        self.index_buffer.add(vertex_start);
-        self.index_buffer.add(vertex_start + 4);
+        self.dynamic_index_buffer.push(vertex_start);
+        self.dynamic_index_buffer.push(vertex_start + 4);
 
-        self.index_buffer.add(vertex_start + 1);
-        self.index_buffer.add(vertex_start + 5);
+        self.dynamic_index_buffer.push(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start + 5);
 
-        self.index_buffer.add(vertex_start + 2);
-        self.index_buffer.add(vertex_start + 6);
+        self.dynamic_index_buffer.push(vertex_start + 2);
+        self.dynamic_index_buffer.push(vertex_start + 6);
 
-        self.index_buffer.add(vertex_start + 3);
-        self.index_buffer.add(vertex_start + 7);
+        self.dynamic_index_buffer.push(vertex_start + 3);
+        self.dynamic_index_buffer.push(vertex_start + 7);
     }
 
     pub fn draw_quad(&mut self, dimensions: Vec2, transform: &Transform, color: Vec3) {
-        let vertex_start = self.vertex_buffer.len();
+        let vertex_start = self.dynamic_vertex_buffer.len() as u32;
         let d = dimensions;
         let t = transform.matrix();
 
@@ -276,54 +292,55 @@ impl GizmoRenderer {
         let tr = vec3(d.x * 0.5, d.y * 0.5, 0.0);
         let tl = vec3(-d.x * 0.5, d.y * 0.5, 0.0);
 
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * bl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * br.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * tr.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
-        self.vertex_buffer.add(VertexColor {
+        self.dynamic_vertex_buffer.push(VertexColor {
             position: (t * tl.extend(1.0)).xyz().to_array(),
             color: color.to_array(),
         });
 
-        self.index_buffer.add(vertex_start);
-        self.index_buffer.add(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start);
+        self.dynamic_index_buffer.push(vertex_start + 1);
 
-        self.index_buffer.add(vertex_start + 1);
-        self.index_buffer.add(vertex_start + 2);
+        self.dynamic_index_buffer.push(vertex_start + 1);
+        self.dynamic_index_buffer.push(vertex_start + 2);
 
-        self.index_buffer.add(vertex_start + 2);
-        self.index_buffer.add(vertex_start + 3);
+        self.dynamic_index_buffer.push(vertex_start + 2);
+        self.dynamic_index_buffer.push(vertex_start + 3);
 
-        self.index_buffer.add(vertex_start + 3);
-        self.index_buffer.add(vertex_start);
+        self.dynamic_index_buffer.push(vertex_start + 3);
+        self.dynamic_index_buffer.push(vertex_start);
     }
     pub fn draw_circle(&mut self, radius: f32, transform: &Transform, color: Vec3) {
         let n = GIZMO_RESOLUTION;
         let t = transform.matrix();
 
-        let vertex_start = self.vertex_buffer.len();
+        let vertex_start = self.dynamic_vertex_buffer.len();
 
         for i in 0..n {
             let p = i as f32 / n as f32;
             let angle = p * 2.0 * PI;
             let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
-            self.vertex_buffer.add(VertexColor {
+            self.dynamic_vertex_buffer.push(VertexColor {
                 position: (t * pos.extend(1.0)).xyz().to_array(),
                 color: color.to_array(),
             });
         }
 
         for i in 0..n {
-            self.index_buffer.add(vertex_start + i);
-            self.index_buffer.add(vertex_start + (i + 1) % n);
+            self.dynamic_index_buffer.push(vertex_start as u32 + i);
+            self.dynamic_index_buffer
+                .push(vertex_start as u32 + (i + 1) % n);
         }
     }
 }

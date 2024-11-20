@@ -15,6 +15,11 @@ pub struct SamplerBuilder {
     address_mode_w: wgpu::AddressMode,
     mag_filter: wgpu::FilterMode,
     min_filter: wgpu::FilterMode,
+    lod_min_clamp_u32: u32, // 1 => 0.1
+    lod_max_clamp_u32: u32,
+    anisotropy_clamp: u16,
+    compare: Option<wgpu::CompareFunction>,
+    border_color: Option<wgpu::SamplerBorderColor>,
 }
 
 impl SamplerBuilder {
@@ -26,10 +31,19 @@ impl SamplerBuilder {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Nearest,
             min_filter: wgpu::FilterMode::Nearest,
+            lod_min_clamp_u32: 0,
+            lod_max_clamp_u32: 0,
+            anisotropy_clamp: 1,
+            compare: None,
+            border_color: None,
         }
     }
     pub fn build_uncached(&self, ctx: &Context) -> ArcSampler {
         let device = render::device(ctx);
+
+        let lod_min_clamp_f32 = self.lod_min_clamp_u32 as f32 / 10.0;
+        let lod_max_clamp_f32 = self.lod_max_clamp_u32 as f32 / 10.0;
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: self.label.as_deref(),
             address_mode_u: self.address_mode_u,
@@ -38,11 +52,11 @@ impl SamplerBuilder {
             mag_filter: self.mag_filter,
             min_filter: self.min_filter,
             mipmap_filter: wgpu::FilterMode::Nearest,
-            lod_min_clamp: 0.0,
-            lod_max_clamp: 0.0,
-            anisotropy_clamp: 1,
-            compare: None,
-            border_color: None,
+            lod_min_clamp: lod_min_clamp_f32,
+            lod_max_clamp: lod_max_clamp_f32,
+            anisotropy_clamp: self.anisotropy_clamp,
+            compare: self.compare,
+            border_color: self.border_color,
         });
 
         ArcSampler::new(sampler)
@@ -84,6 +98,23 @@ impl SamplerBuilder {
         self.address_mode_w = w;
         self
     }
+    pub fn lod_clamp(mut self, min: f32, max: f32) -> Self {
+        self.lod_min_clamp_u32 = (min * 10.0) as u32;
+        self.lod_max_clamp_u32 = (max * 10.0) as u32;
+        self
+    }
+    pub fn anisotropy_clamp(mut self, value: u16) -> Self {
+        self.anisotropy_clamp = value;
+        self
+    }
+    pub fn compare(mut self, value: wgpu::CompareFunction) -> Self {
+        self.compare = Some(value);
+        self
+    }
+    pub fn border_color(mut self, value: wgpu::SamplerBorderColor) -> Self {
+        self.border_color = Some(value);
+        self
+    }
 }
 
 //
@@ -105,6 +136,11 @@ pub struct TextureBuilder {
     label: Option<String>,
     usage: wgpu::TextureUsages,
     format: wgpu::TextureFormat,
+    depth_or_array_layers: u32,
+    mip_level_count: u32,
+    sample_count: u32,
+    dimension: wgpu::TextureDimension,
+    view_formats: Vec<wgpu::TextureFormat>,
 }
 
 impl TextureBuilder {
@@ -114,6 +150,11 @@ impl TextureBuilder {
             label: None,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            depth_or_array_layers: 1,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            view_formats: Vec::new(),
         }
     }
 
@@ -127,14 +168,14 @@ impl TextureBuilder {
                     size: wgpu::Extent3d {
                         width: *width,
                         height: *height,
-                        depth_or_array_layers: 1,
+                        depth_or_array_layers: self.depth_or_array_layers,
                     },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
+                    mip_level_count: self.mip_level_count,
+                    sample_count: self.sample_count,
+                    dimension: self.dimension,
                     format: self.format,
                     usage: self.usage,
-                    view_formats: &[],
+                    view_formats: &self.view_formats,
                 });
 
                 let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -150,14 +191,14 @@ impl TextureBuilder {
                     size: wgpu::Extent3d {
                         width: *width,
                         height: *height,
-                        depth_or_array_layers: 1,
+                        depth_or_array_layers: self.depth_or_array_layers,
                     },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
+                    mip_level_count: self.mip_level_count,
+                    sample_count: self.sample_count,
+                    dimension: self.dimension,
                     format: self.format,
                     usage: self.usage,
-                    view_formats: &[],
+                    view_formats: &self.view_formats,
                 });
                 queue.write_texture(
                     wgpu::ImageCopyTexture {
@@ -195,14 +236,14 @@ impl TextureBuilder {
                     size: wgpu::Extent3d {
                         width: img.width(),
                         height: img.height(),
-                        depth_or_array_layers: 1,
+                        depth_or_array_layers: self.depth_or_array_layers,
                     },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
+                    mip_level_count: self.mip_level_count,
+                    sample_count: self.sample_count,
+                    dimension: self.dimension,
                     format: self.format,
                     usage: self.usage,
-                    view_formats: &[],
+                    view_formats: &self.view_formats,
                 });
                 queue.write_texture(
                     wgpu::ImageCopyTexture {
@@ -256,6 +297,26 @@ impl TextureBuilder {
     }
     pub fn format(mut self, value: wgpu::TextureFormat) -> Self {
         self.format = value;
+        self
+    }
+    pub fn depth_or_array_layers(mut self, value: u32) -> Self {
+        self.depth_or_array_layers = value;
+        self
+    }
+    pub fn mip_level_count(mut self, value: u32) -> Self {
+        self.mip_level_count = value;
+        self
+    }
+    pub fn sample_count(mut self, value: u32) -> Self {
+        self.sample_count = value;
+        self
+    }
+    pub fn dimension(mut self, value: wgpu::TextureDimension) -> Self {
+        self.dimension = value;
+        self
+    }
+    pub fn view_formats(mut self, value: Vec<wgpu::TextureFormat>) -> Self {
+        self.view_formats = value;
         self
     }
 }

@@ -7,14 +7,14 @@ use encase::ShaderType;
 pub struct AppInfo {
     bindgroup_layout: render::ArcBindGroupLayout,
     bindgroup: render::ArcBindGroup,
-    buffer: render::UniformBuffer,
+    buffer: render::UniformBuffer<AppInfoUniform>,
 }
 
 impl AppInfo {
     pub fn new(ctx: &mut Context) -> Self {
-        let buffer = render::UniformBufferBuilder::new()
+        let buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, AppInfoUniform::min_size());
+            .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

@@ -234,10 +234,6 @@ impl BindGroupBuilder {
         self.label = Some(value);
         self
     }
-    pub fn layout(mut self, value: ArcBindGroupLayout) -> Self {
-        self.layout = value;
-        self
-    }
     pub fn entries(mut self, value: Vec<BindGroupEntry>) -> Self {
         self.entries = value;
         self

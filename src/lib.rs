@@ -3,6 +3,7 @@
 
 mod app;
 pub mod audio;
+pub mod collision;
 pub mod filesystem;
 pub mod input;
 pub mod render;

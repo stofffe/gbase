@@ -25,7 +25,7 @@ impl FrameBufferBuilder {
             view_formats: Vec::new(),
         }
     }
-    pub fn build(&self, ctx: &Context) -> FrameBuffer {
+    pub fn build(self, ctx: &Context) -> FrameBuffer {
         let device = render::device(ctx);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: self.label.as_deref(),
@@ -51,31 +51,31 @@ impl FrameBufferBuilder {
             texture: render::ArcTexture::new(texture),
             view: render::ArcTextureView::new(view),
             format: self.format,
-            builder: self.clone(),
+            builder: self,
         }
     }
 
-    pub fn label(&mut self, label: &str) -> &mut Self {
+    pub fn label(mut self, label: &str) -> Self {
         self.label = Some(label.to_string());
         self
     }
-    pub fn format(&mut self, format: wgpu::TextureFormat) -> &mut Self {
+    pub fn format(mut self, format: wgpu::TextureFormat) -> Self {
         self.format = format;
         self
     }
-    pub fn usage(&mut self, usage: wgpu::TextureUsages) -> &mut Self {
+    pub fn usage(mut self, usage: wgpu::TextureUsages) -> Self {
         self.usage = usage;
         self
     }
-    pub fn view(&mut self, usage: wgpu::TextureUsages) -> &mut Self {
+    pub fn view(mut self, usage: wgpu::TextureUsages) -> Self {
         self.usage = usage;
         self
     }
-    pub fn view_formats(&mut self, view_formats: Vec<wgpu::TextureFormat>) -> &mut Self {
+    pub fn view_formats(mut self, view_formats: Vec<wgpu::TextureFormat>) -> Self {
         self.view_formats = view_formats;
         self
     }
-    pub fn size(&mut self, width: u32, height: u32) -> &mut Self {
+    pub fn size(mut self, width: u32, height: u32) -> Self {
         self.size = wgpu::Extent3d {
             width,
             height,
@@ -83,7 +83,7 @@ impl FrameBufferBuilder {
         };
         self
     }
-    pub fn screen_size(&mut self, ctx: &Context) -> &mut Self {
+    pub fn screen_size(self, ctx: &Context) -> Self {
         let surface_conf = render::surface_config(ctx);
         self.size(surface_conf.width, surface_conf.height)
     }
@@ -116,14 +116,39 @@ impl FrameBuffer {
             blend: None,
         }
     }
+    pub fn attachment(&self) -> wgpu::RenderPassColorAttachment<'_> {
+        wgpu::RenderPassColorAttachment {
+            view: self.view_ref(),
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        }
+    }
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
-        *self = self.builder.size(width, height).build(ctx);
+        *self = self.builder.clone().size(width, height).build(ctx);
     }
     pub fn resize_screen(&mut self, ctx: &Context) {
-        *self = self.builder.screen_size(ctx).build(ctx);
+        *self = self.builder.clone().screen_size(ctx).build(ctx);
     }
     pub fn format(&self) -> wgpu::TextureFormat {
         self.format
+    }
+
+    pub fn clear(&self, ctx: &Context, color: wgpu::Color) {
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
+                view: &self.view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(color),
+                    store: wgpu::StoreOp::Store,
+                },
+            })])
+            .build(&mut encoder);
+        render::queue(ctx).submit(Some(encoder.finish()));
     }
 }
 
@@ -139,16 +164,16 @@ pub struct DepthBufferBuilder {
 
 impl DepthBufferBuilder {
     pub fn new() -> Self {
-        let mut framebuffer_builder = FrameBufferBuilder::new();
-        framebuffer_builder.format(wgpu::TextureFormat::Depth32Float);
+        let framebuffer_builder =
+            FrameBufferBuilder::new().format(wgpu::TextureFormat::Depth32Float);
         Self {
             framebuffer_builder,
             depth_compare: wgpu::CompareFunction::Less,
             depth_write_enabled: true,
         }
     }
-    pub fn build(&mut self, ctx: &Context) -> DepthBuffer {
-        let framebuffer = self.framebuffer_builder.build(ctx);
+    pub fn build(self, ctx: &Context) -> DepthBuffer {
+        let framebuffer = self.framebuffer_builder.clone().build(ctx);
         DepthBuffer {
             framebuffer,
             depth_compare: self.depth_compare,
@@ -156,15 +181,15 @@ impl DepthBufferBuilder {
         }
     }
 
-    pub fn label(&mut self, label: &str) -> &mut Self {
+    pub fn label(mut self, label: &str) -> Self {
         self.framebuffer_builder.label = Some(label.to_string());
         self
     }
-    pub fn usage(&mut self, usage: wgpu::TextureUsages) -> &mut Self {
+    pub fn usage(mut self, usage: wgpu::TextureUsages) -> Self {
         self.framebuffer_builder.usage = usage;
         self
     }
-    pub fn size(&mut self, width: u32, height: u32) -> &mut Self {
+    pub fn size(mut self, width: u32, height: u32) -> Self {
         self.framebuffer_builder.size = wgpu::Extent3d {
             width,
             height,
@@ -172,7 +197,7 @@ impl DepthBufferBuilder {
         };
         self
     }
-    pub fn screen_size(&mut self, ctx: &Context) -> &mut Self {
+    pub fn screen_size(self, ctx: &Context) -> Self {
         let surface_conf = render::surface_config(ctx);
         self.size(surface_conf.width, surface_conf.height)
     }
@@ -222,5 +247,12 @@ impl DepthBuffer {
     }
     pub fn resize_screen(&mut self, ctx: &Context) {
         self.framebuffer.resize_screen(ctx);
+    }
+    pub fn clear(&mut self, ctx: &Context) {
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+        render::RenderPassBuilder::new()
+            .depth_stencil_attachment(self.depth_render_attachment_clear())
+            .build(&mut encoder);
+        render::queue(ctx).submit(Some(encoder.finish()));
     }
 }

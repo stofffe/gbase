@@ -1,5 +1,8 @@
-use encase::ShaderType;
-use gbase::{filesystem, input, render, Callbacks, Context, ContextBuilder, LogLevel};
+use gbase::{
+    filesystem, input,
+    render::{self, CameraUniform},
+    Callbacks, Context, ContextBuilder, LogLevel,
+};
 use glam::{vec3, Vec3};
 use std::path::Path;
 use winit::keyboard::KeyCode;
@@ -20,7 +23,7 @@ struct App {
     pipeline: render::ArcRenderPipeline,
     camera: render::PerspectiveCamera,
     camera_bindgroup: render::ArcBindGroup,
-    camera_buffer: render::UniformBuffer,
+    camera_buffer: render::UniformBuffer<CameraUniform>,
 }
 
 impl App {
@@ -32,14 +35,15 @@ impl App {
         let shader = render::ShaderBuilder::new(shader_str).build_uncached(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES)
-            .usage(wgpu::BufferUsages::VERTEX)
-            .build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            TRIANGLE_VERTICES.to_vec(),
+        ))
+        .build(ctx);
 
         // Camera
         let camera = render::PerspectiveCamera::new();
-        let buffer = render::UniformBufferBuilder::new()
-            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Camera

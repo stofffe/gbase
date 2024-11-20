@@ -50,8 +50,4 @@ impl ShaderBuilder {
         self.label = Some(value);
         self
     }
-    pub fn source(mut self, value: String) -> Self {
-        self.source = value;
-        self
-    }
 }

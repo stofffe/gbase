@@ -1,7 +1,6 @@
-use encase::ShaderType;
 use gbase::{
     filesystem,
-    render::{self, ArcBindGroup, ArcRenderPipeline, Vertex},
+    render::{self, ArcBindGroup, ArcRenderPipeline, TransformUniform, Vertex},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{Quat, Vec3};
@@ -22,7 +21,7 @@ struct App {
     pipeline: ArcRenderPipeline,
 
     transform: render::Transform,
-    transform_buffer: render::UniformBuffer,
+    transform_buffer: render::UniformBuffer<TransformUniform>,
     transform_bindgroup: ArcBindGroup,
 }
 
@@ -35,15 +34,18 @@ impl App {
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         // Vertex buffer
-        let vertex_buffer = render::VertexBufferBuilder::new(TRIANGLE_VERTICES.to_vec())
-            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
-            .build(ctx);
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            TRIANGLE_VERTICES.to_vec(),
+        ))
+        .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST)
+        .build(ctx);
 
         // Transform
         let transform = render::Transform::default();
-        let transform_buffer = render::UniformBufferBuilder::new()
-            .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
-            .build(ctx, render::TransformUniform::min_size());
+        let transform_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+                .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
+                .build(ctx);
         let transform_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Transform

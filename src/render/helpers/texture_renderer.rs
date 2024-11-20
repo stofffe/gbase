@@ -21,8 +21,14 @@ impl TextureRenderer {
 
         let sampler = render::SamplerBuilder::new().build(ctx);
 
-        let vertices = render::VertexBufferBuilder::new(CENTERED_QUAD_VERTICES).build(ctx);
-        let indices = render::IndexBufferBuilder::new(CENTERED_QUAD_INDICES).build(ctx);
+        let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            CENTERED_QUAD_VERTICES.to_vec(),
+        ))
+        .build(ctx);
+        let indices = render::IndexBufferBuilder::new(render::IndexBufferSource::Data(
+            CENTERED_QUAD_INDICES.to_vec(),
+        ))
+        .build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // texture

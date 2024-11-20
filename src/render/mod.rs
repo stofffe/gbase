@@ -164,3 +164,6 @@ pub fn window(ctx: &Context) -> &winit::window::Window {
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
 }
+pub fn surface_size(ctx: &Context) -> winit::dpi::PhysicalSize<u32> {
+    ctx.render.window_size
+}

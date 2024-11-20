@@ -9,7 +9,7 @@ use crate::{
 pub struct MedianFilter {
     pipeline: render::ArcComputePipeline,
     bindgroup_layout: render::ArcBindGroupLayout,
-    params_buffer: render::UniformBuffer,
+    params_buffer: render::UniformBuffer<MedianFilterParams>,
 
     copy_texture: render::FrameBuffer,
 }
@@ -57,7 +57,7 @@ impl MedianFilter {
             .build(ctx);
 
         let params_buffer =
-            render::UniformBufferBuilder::new().build(ctx, MedianFilterParams::min_size());
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         Self {
             pipeline,
@@ -80,7 +80,7 @@ impl MedianFilter {
         let height = texture.texture().height();
 
         // Update buffers
-        self.params_buffer.write(ctx, &params);
+        self.params_buffer.write(ctx, params);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         if texture.texture().size() != self.copy_texture.texture().size() {

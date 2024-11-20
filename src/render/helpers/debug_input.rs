@@ -8,16 +8,16 @@ use winit::keyboard::KeyCode;
 
 /// Debug information for use in shaders
 pub struct DebugInput {
-    buffer: render::UniformBuffer,
+    buffer: render::UniformBuffer<DebugInputUniform>,
     bindgroup_layout: ArcBindGroupLayout,
     bindgroup: ArcBindGroup,
 }
 
 impl DebugInput {
     pub fn new(ctx: &mut Context) -> Self {
-        let buffer = render::UniformBufferBuilder::new()
+        let buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, DebugInputUniform::min_size());
+            .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![render::BindGroupLayoutEntry::new()

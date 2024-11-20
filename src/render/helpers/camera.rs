@@ -1,4 +1,4 @@
-use crate::Context;
+use crate::{input, time, Context};
 use encase::ShaderType;
 use glam::{vec3, Mat4, Vec3};
 use std::f32::consts::PI;
@@ -9,6 +9,7 @@ use std::f32::consts::PI;
 /// => forw  (0, 0, -1)
 /// => right (1, 0, 0)
 /// => up    (0, 1, 0)
+#[derive(Debug)]
 pub struct PerspectiveCamera {
     pub pos: Vec3,
     pub yaw: f32,
@@ -61,7 +62,7 @@ impl PerspectiveCamera {
     }
 
     // Make this non mut?
-    pub fn uniform(&mut self, ctx: &Context) -> PerspectiveCameraUniform {
+    pub fn uniform(&mut self, ctx: &Context) -> CameraUniform {
         const MIN_PITCH: f32 = -PI / 2.0 + 0.1;
         const MAX_PITCH: f32 = PI / 2.0 - 0.1;
         const MIN_FOV: f32 = 0.1;
@@ -79,7 +80,7 @@ impl PerspectiveCamera {
         let pos = self.pos;
         let facing = self.forward();
 
-        PerspectiveCameraUniform {
+        CameraUniform {
             view_proj,
             pos,
             facing,
@@ -87,10 +88,50 @@ impl PerspectiveCamera {
             proj,
         }
     }
+
+    /// Simple controls for free flying camera
+    pub fn flying_controls(&mut self, ctx: &Context) {
+        let dt = time::delta_time(ctx);
+
+        // Camera rotation
+        let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+        self.yaw -= 1.0 * dt * mouse_dx;
+        self.pitch -= 1.0 * dt * mouse_dy;
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyW) {
+            camera_movement_dir += self.forward();
+        }
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyS) {
+            camera_movement_dir -= self.forward();
+        }
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyA) {
+            camera_movement_dir -= self.right();
+        }
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyD) {
+            camera_movement_dir += self.right();
+        }
+        camera_movement_dir.y = 0.0;
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::Space) {
+            camera_movement_dir += self.world_up();
+        }
+        if input::key_pressed(ctx, winit::keyboard::KeyCode::ShiftLeft) {
+            camera_movement_dir -= self.world_up();
+        }
+        const CAMERA_MOVE_SPEED: f32 = 15.0;
+        if camera_movement_dir != Vec3::ZERO {
+            if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyM) {
+                self.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED / 10.0;
+            } else {
+                self.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED;
+            }
+        }
+    }
 }
 
 #[derive(ShaderType)]
-pub struct PerspectiveCameraUniform {
+pub struct CameraUniform {
     view_proj: Mat4,
     pos: Vec3,
     facing: Vec3,

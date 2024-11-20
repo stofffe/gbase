@@ -1,7 +1,6 @@
-use encase::ShaderType;
 use gbase::{
     filesystem, input,
-    render::{self},
+    render::{self, CameraUniform},
     Callbacks, Context,
 };
 use glam::{vec3, Quat, Vec3};
@@ -22,9 +21,9 @@ struct App {
     deferred_buffers: render::DeferredBuffers,
     deferred_renderer: render::DeferredRenderer,
     camera: render::PerspectiveCamera,
-    camera_buffer: render::UniformBuffer,
+    camera_buffer: render::UniformBuffer<CameraUniform>,
     light: Vec3,
-    light_buffer: render::UniformBuffer,
+    light_buffer: render::UniformBuffer<Vec3>,
     debug_input: render::DebugInput,
     model1: render::GpuGltfModel,
     model2: render::GpuGltfModel,
@@ -39,10 +38,11 @@ impl App {
     async fn new(ctx: &mut Context) -> Self {
         let deferred_buffers = render::DeferredBuffers::new(ctx);
         let camera = render::PerspectiveCamera::new();
-        let camera_buffer = render::UniformBufferBuilder::new()
-            .build(ctx, render::PerspectiveCameraUniform::min_size());
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let light = Vec3::ZERO;
-        let light_buffer = render::UniformBufferBuilder::new().build_init(ctx, &light);
+        let light_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(light)).build(ctx);
         let deferred_renderer = render::DeferredRenderer::new(
             ctx,
             wgpu::TextureFormat::Rgba8Unorm,

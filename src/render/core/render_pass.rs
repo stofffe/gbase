@@ -44,6 +44,21 @@ impl<'a> RenderPassBuilder<'a> {
             occlusion_query_set: self.occlusion_query_set,
         })
     }
+    /// Build render pass and immediately run ```run_func```
+    pub fn build_run(
+        self,
+        encoder: &'a mut wgpu::CommandEncoder,
+        run_func: impl FnOnce(wgpu::RenderPass<'a>),
+    ) {
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: self.label,
+            color_attachments: self.color_attachments,
+            depth_stencil_attachment: self.depth_stencil_attachment,
+            timestamp_writes: self.timestamp_writes,
+            occlusion_query_set: self.occlusion_query_set,
+        });
+        (run_func)(render_pass);
+    }
 }
 
 impl<'a> RenderPassBuilder<'a> {
