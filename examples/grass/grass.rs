@@ -79,12 +79,12 @@ impl GrassRenderer {
 
             // instance
             compute_pass.set_pipeline(&self.instance_pipeline);
-            compute_pass.set_bind_group(0, &self.instance_bindgroup[i_cur], &[]);
+            compute_pass.set_bind_group(0, Some(self.instance_bindgroup[i_cur].as_ref()), &[]);
             compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
 
             // draw
             compute_pass.set_pipeline(&self.draw_pipeline);
-            compute_pass.set_bind_group(0, &self.draw_bindgroup[i_cur], &[]);
+            compute_pass.set_bind_group(0, Some(self.draw_bindgroup[i_cur].as_ref()), &[]);
             compute_pass.dispatch_workgroups(1, 1, 1);
 
             drop(compute_pass);
@@ -100,7 +100,7 @@ impl GrassRenderer {
 
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.instances[i_cur].slice(..));
-            render_pass.set_bind_group(0, &self.render_bindgroup, &[]);
+            render_pass.set_bind_group(0, Some(self.render_bindgroup.as_ref()), &[]);
             render_pass.draw_indirect(self.indirect_buffer[i_cur].buffer_ref(), 0);
 
             drop(render_pass);

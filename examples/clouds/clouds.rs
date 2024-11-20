@@ -73,7 +73,7 @@ impl CloudRenderer {
             .build_run(&mut encoder, |mut rp| {
                 rp.set_pipeline(&self.pipeline);
                 rp.set_vertex_buffer(0, self.vertices.slice(..));
-                rp.set_bind_group(0, &self.bindgroup, &[]);
+                rp.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
                 rp.draw(0..self.vertices.len(), 0..1);
             });
 

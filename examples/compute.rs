@@ -99,7 +99,7 @@ impl Callbacks for App {
             timestamp_writes: None,
         });
         compute_pass.set_pipeline(&self.compute_pipeline);
-        compute_pass.set_bind_group(0, &self.bindgroup, &[]);
+        compute_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
         compute_pass.dispatch_workgroups(OUTPUT_SIZE, 1, 1);
         drop(compute_pass);
 

@@ -222,7 +222,7 @@ impl GUIRenderer {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
-                render_pass.set_bind_group(0, &self.font_atlas_bindgroup, &[]);
+                render_pass.set_bind_group(0, Some(self.font_atlas_bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
 

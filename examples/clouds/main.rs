@@ -12,8 +12,8 @@ use glam::{vec2, vec3};
 #[pollster::main]
 async fn main() {
     let (mut ctx, ev) = gbase::ContextBuilder::new()
+        .window_builder(winit::window::WindowBuilder::new().with_maximized(true))
         .log_level(LogLevel::Info)
-        .vsync(false)
         .build()
         .await;
     let state = State::new(&mut ctx).await;

@@ -641,7 +641,7 @@ impl MeshRenderer {
             let mesh = &draw.mesh;
             mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
             mesh_pass.set_index_buffer(mesh.index_buffer.slice(..), mesh.index_buffer.format());
-            mesh_pass.set_bind_group(0, &draw.bindgroup, &[]);
+            mesh_pass.set_bind_group(0, Some(draw.bindgroup.as_ref()), &[]);
             mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
         }
 

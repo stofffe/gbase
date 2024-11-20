@@ -102,7 +102,7 @@ impl Callbacks for App {
         });
         render_pass.set_pipeline(&self.pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.buf_ref().slice(..));
-        render_pass.set_bind_group(0, &self.camera_bindgroup, &[]);
+        render_pass.set_bind_group(0, Some(self.camera_bindgroup.as_ref()), &[]);
         render_pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
         drop(render_pass);
 

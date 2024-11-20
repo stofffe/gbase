@@ -123,7 +123,7 @@ impl SobelFilter {
         });
 
         pass.set_pipeline(&self.pipeline);
-        pass.set_bind_group(0, &bindgroup, &[]);
+        pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
         pass.dispatch_workgroups(width, height, 1);
 
         drop(pass);

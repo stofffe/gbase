@@ -110,7 +110,7 @@ impl GizmoRenderer {
         pass.set_pipeline(&self.pipeline);
         pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
-        pass.set_bind_group(0, &self.bindgroup, &[]);
+        pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
         pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
         drop(pass);
 

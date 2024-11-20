@@ -85,6 +85,8 @@ pub struct RenderPipelineBuilder {
     polygon_mode: wgpu::PolygonMode,
     cull_mode: Option<wgpu::Face>,
     depth_stencil: Option<wgpu::DepthStencilState>,
+    vertex_entry_point: Option<String>,
+    fragment_entry_point: Option<String>,
 }
 
 impl RenderPipelineBuilder {
@@ -99,6 +101,8 @@ impl RenderPipelineBuilder {
             cull_mode: None,
             depth_stencil: None,
             label: None,
+            vertex_entry_point: None,
+            fragment_entry_point: None,
         }
     }
 
@@ -109,13 +113,13 @@ impl RenderPipelineBuilder {
             layout: Some(&self.layout),
             vertex: wgpu::VertexState {
                 module: &self.shader,
-                entry_point: "vs_main",
+                entry_point: self.vertex_entry_point.as_deref(),
                 buffers: &self.buffers,
                 compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             },
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
-                entry_point: "fs_main",
+                entry_point: self.fragment_entry_point.as_deref(),
                 targets: &self.targets,
                 compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             }),
@@ -185,6 +189,14 @@ impl RenderPipelineBuilder {
         self.cull_mode = Some(value);
         self
     }
+    pub fn vertex_entry_point(mut self, value: String) -> Self {
+        self.vertex_entry_point = Some(value);
+        self
+    }
+    pub fn fragment_entry_point(mut self, value: String) -> Self {
+        self.fragment_entry_point = Some(value);
+        self
+    }
 
     // TODO if targets empty use this instead
     pub fn default_target(ctx: &Context) -> Option<wgpu::ColorTargetState> {
@@ -206,6 +218,7 @@ pub struct ComputePipelineBuilder {
     layout: ArcPipelineLayout,
     shader: ArcShaderModule,
     label: Option<String>,
+    entry_point: Option<String>,
 }
 
 impl ComputePipelineBuilder {
@@ -214,6 +227,7 @@ impl ComputePipelineBuilder {
             layout,
             shader,
             label: None,
+            entry_point: None,
         }
     }
 
@@ -224,7 +238,7 @@ impl ComputePipelineBuilder {
             label: self.label.as_deref(),
             layout: Some(&self.layout),
             module: &self.shader,
-            entry_point: "cs_main",
+            entry_point: self.entry_point.as_deref(),
             compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             cache: None,
         });
@@ -251,6 +265,10 @@ impl ComputePipelineBuilder {
 impl ComputePipelineBuilder {
     pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
+        self
+    }
+    pub fn entry_point(mut self, value: String) -> Self {
+        self.entry_point = Some(value);
         self
     }
 }
