@@ -191,8 +191,9 @@ impl GizmoRenderer {
         }
     }
 
-    pub fn draw_cube(&mut self, dimensions: Vec3, transform: &Transform, color: Vec3) {
-        let d = dimensions;
+    /// Draw unit cube
+    pub fn draw_cube(&mut self, transform: &Transform, color: Vec3) {
+        let d = transform.scale;
         let t = transform.matrix();
         let vertex_start = self.dynamic_vertex_buffer.len() as u32;
 

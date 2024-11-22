@@ -160,6 +160,14 @@ impl BindGroupLayoutEntry {
             multisampled: false,
         })
     }
+    /// Set Binding type to storage texture
+    pub const fn storage_texture_2d_write(self, format: wgpu::TextureFormat) -> Self {
+        self.ty(wgpu::BindingType::StorageTexture {
+            access: wgpu::StorageTextureAccess::WriteOnly,
+            format,
+            view_dimension: wgpu::TextureViewDimension::D2,
+        })
+    }
     /// Set Binding type to filtering sampler
     pub const fn sampler_filtering(self) -> Self {
         self.ty(wgpu::BindingType::Sampler(
@@ -170,6 +178,12 @@ impl BindGroupLayoutEntry {
     pub const fn sampler_nonfiltering(self) -> Self {
         self.ty(wgpu::BindingType::Sampler(
             wgpu::SamplerBindingType::NonFiltering,
+        ))
+    }
+    /// Set Binding type to filtering sampler
+    pub const fn sampler_comparison(self) -> Self {
+        self.ty(wgpu::BindingType::Sampler(
+            wgpu::SamplerBindingType::Comparison,
         ))
     }
 }
@@ -432,6 +446,12 @@ impl BindGroupCombinedEntry {
         self.bindgroup_layout = self.bindgroup_layout.texture_depth();
         self
     }
+    /// Set Binding type to storage texture
+    pub const fn storage_texture_2d_write(mut self, format: wgpu::TextureFormat) -> Self {
+        self.bindgroup_layout = self.bindgroup_layout.storage_texture_2d_write(format);
+        self
+    }
+
     /// Set Binding type to filtering sampler
     pub const fn sampler_filtering(mut self) -> Self {
         self.bindgroup_layout = self.bindgroup_layout.sampler_filtering();

@@ -1,13 +1,17 @@
 use gbase::{
-    filesystem,
+    collision, filesystem,
     render::{self, CameraUniform},
     Context,
 };
+
+use crate::noise::generate_noise;
 
 pub struct CloudRenderer {
     vertices: render::VertexBuffer<render::VertexUV>,
     pipeline: render::ArcRenderPipeline,
     bindgroup: render::ArcBindGroup,
+
+    noise_texture: render::Texture,
 }
 
 impl CloudRenderer {
@@ -16,6 +20,7 @@ impl CloudRenderer {
         framebuffer: &render::FrameBuffer,
         depth_buffer: &render::DepthBuffer,
         camera: &render::UniformBuffer<CameraUniform>,
+        bounding_box: &render::UniformBuffer<collision::Box3D>,
     ) -> Self {
         let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
@@ -29,12 +34,16 @@ impl CloudRenderer {
             .entries(vec![
                 // Camera
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
+                // Cloud BB
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
             ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
             .entries(vec![
                 // Camera
                 render::BindGroupEntry::Buffer(camera.buffer()),
+                // Cloud BB
+                render::BindGroupEntry::Buffer(bounding_box.buffer()),
             ])
             .build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -46,10 +55,13 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
+        let noise_texture = generate_noise(ctx).await;
+
         Self {
             vertices,
             pipeline,
             bindgroup,
+            noise_texture,
         }
     }
 
