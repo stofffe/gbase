@@ -52,7 +52,7 @@ impl Callbacks for App {
             BLUE,
         );
         self.gizmo_renderer
-            .draw_cube(vec3(0.5, 1.0, 0.5), &Transform::default(), GREEN);
+            .draw_cube(&Transform::from_scale(vec3(0.5, 1.0, 0.5)), GREEN);
 
         self.gizmo_renderer.draw_quad(
             vec2(2.0, 1.0),

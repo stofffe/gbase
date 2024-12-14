@@ -4,7 +4,6 @@ use gbase::{
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 use glam::{vec3, Vec3};
-use std::path::Path;
 use winit::keyboard::KeyCode;
 
 #[pollster::main]
@@ -29,9 +28,7 @@ struct App {
 impl App {
     async fn new(ctx: &mut Context) -> Self {
         // Shader
-        let shader_str = filesystem::load_string(ctx, Path::new("shaders/camera.wgsl"))
-            .await
-            .unwrap();
+        let shader_str = filesystem::load_s!("shaders/camera.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build_uncached(ctx);
 
         // Vertex buffer

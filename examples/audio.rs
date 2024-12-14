@@ -1,5 +1,6 @@
 use gbase::{
     audio::{self, SoundSource},
+    filesystem,
     input::{self, KeyCode},
     Callbacks, Context, ContextBuilder, LogLevel,
 };
@@ -24,7 +25,8 @@ pub async fn main() {
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let sound = audio::load_audio_source(&mut ctx, "sounds/boom.mp3").await;
+    let sound_bytes = filesystem::load_b!("sounds/boom.mp3").unwrap();
+    let sound = audio::load_audio_source(&mut ctx, sound_bytes);
     let app = App { sound };
     gbase::run(app, ctx, ev);
 }

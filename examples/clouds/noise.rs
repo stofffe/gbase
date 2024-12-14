@@ -2,7 +2,7 @@ use gbase::{filesystem, render, Context};
 
 const NOISE_TEXTURE_DIM: u32 = 128;
 
-pub async fn generate_noise(ctx: &mut Context) -> render::Texture {
+pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     // generate 3d texture
     let texture = render::TextureBuilder::new(render::TextureSource::Empty(
         NOISE_TEXTURE_DIM,
@@ -12,9 +12,10 @@ pub async fn generate_noise(ctx: &mut Context) -> render::Texture {
     .usage(wgpu::TextureUsages::STORAGE_BINDING)
     .build(ctx);
 
-    let shader_str = filesystem::load_string(ctx, "shaders/cloud_noise.wgsl")
-        .await
-        .unwrap();
+    // let shader_str = filesystem::load_string(ctx, "shaders/cloud_noise.wgsl")
+    //     .await
+    //     .unwrap();
+    let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
     let shader = render::ShaderBuilder::new(shader_str).build(ctx);
     let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
         .entries(vec![
@@ -30,7 +31,7 @@ pub async fn generate_noise(ctx: &mut Context) -> render::Texture {
     let compute_pipeline =
         render::ComputePipelineBuilder::new(shader, compute_pipeline_layoyt).build(ctx);
 
-    render::ComputePassBuilder::new().build_run_no_encoder(ctx, |mut pass| {
+    render::ComputePassBuilder::new().build_run_new_encoder(ctx, |mut pass| {
         pass.set_pipeline(&compute_pipeline);
         pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
         pass.dispatch_workgroups(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM);

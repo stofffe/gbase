@@ -12,10 +12,8 @@ pub struct GammaCorrection {
 }
 
 impl GammaCorrection {
-    pub async fn new(ctx: &mut Context) -> Self {
-        let shader_str = filesystem::load_string(ctx, "shaders/gamma_correction.wgsl")
-            .await
-            .unwrap();
+    pub fn new(ctx: &mut Context) -> Self {
+        let shader_str = filesystem::load_s!("shaders/gamma_correction.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()

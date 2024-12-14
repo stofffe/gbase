@@ -39,7 +39,7 @@ impl TextureAtlas {
             bytes,
             wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(dimensions.x), // TODO * 4?
+                bytes_per_row: Some(dimensions.x), // TODO * 4? * block size
                 rows_per_image: Some(dimensions.y),
             },
             wgpu::Extent3d {

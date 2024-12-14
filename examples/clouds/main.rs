@@ -72,8 +72,7 @@ impl State {
             &depth_buffer,
             &camera_buffer,
             &cloud_bb_buffer,
-        )
-        .await;
+        );
 
         Self {
             framebuffer,
@@ -99,14 +98,15 @@ impl gbase::Callbacks for State {
     }
 
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+        #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            self.cloud_renderer = pollster::block_on(CloudRenderer::new(
+            self.cloud_renderer = CloudRenderer::new(
                 ctx,
                 &self.framebuffer,
                 &self.depth_buffer,
                 &self.camera_buffer,
                 &self.cloud_bb_buffer,
-            ));
+            );
         }
 
         if input::key_just_pressed(ctx, input::KeyCode::KeyF) {

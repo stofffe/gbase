@@ -49,23 +49,18 @@ impl App {
             &deferred_buffers,
             &camera_buffer,
             &light_buffer,
-        )
-        .await;
+        );
         let debug_input = render::DebugInput::new(ctx);
         let gizmo_renderer =
             render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer).await;
 
-        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
+        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers);
 
-        let model1_bytes = filesystem::load_bytes(ctx, "models/ak47.glb")
-            .await
-            .unwrap();
+        let model1_bytes = filesystem::load_b!("models/ak47.glb").unwrap();
         let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
         let model1 = render::GpuGltfModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
 
-        let model2_bytes = filesystem::load_bytes(ctx, "models/coord2.glb")
-            .await
-            .unwrap();
+        let model2_bytes = filesystem::load_b!("models/coord2.glb").unwrap();
         let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
         let model2 = render::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
 
@@ -80,7 +75,7 @@ impl App {
             .build(ctx);
         let framebuffer_renderer =
             render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
-        let sobel_filter = render::SobelFilter::new(ctx).await;
+        let sobel_filter = render::SobelFilter::new(ctx);
 
         Self {
             mesh_renderer,
@@ -112,17 +107,16 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             // self.camera.yaw = 0.0;
             // self.camera.pitch = 0.0;
-            self.mesh_renderer =
-                pollster::block_on(render::MeshRenderer::new(ctx, &self.deferred_buffers));
-            self.deferred_renderer = pollster::block_on(render::DeferredRenderer::new(
+            self.mesh_renderer = render::MeshRenderer::new(ctx, &self.deferred_buffers);
+            self.deferred_renderer = render::DeferredRenderer::new(
                 ctx,
                 wgpu::TextureFormat::Rgba8Unorm,
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,
-            ));
+            );
 
-            let model1_bytes = filesystem::load_bytes_sync(ctx, "models/ak47.glb").unwrap();
+            let model1_bytes = filesystem::load_b!("models/ak47.glb").unwrap();
             let model1 = render::GltfModel::from_glb_bytes(&model1_bytes);
             self.model1 = render::GpuGltfModel::from_model(
                 ctx,
@@ -131,7 +125,7 @@ impl Callbacks for App {
                 &self.mesh_renderer,
             );
 
-            let model2_bytes = filesystem::load_bytes_sync(ctx, "models/coord2.glb").unwrap();
+            let model2_bytes = filesystem::load_b!("models/coord2.glb").unwrap();
             let model2 = render::GltfModel::from_glb_bytes(&model2_bytes);
             self.model2 = render::GpuGltfModel::from_model(
                 ctx,

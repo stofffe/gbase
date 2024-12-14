@@ -1,4 +1,10 @@
-use gbase::{filesystem, Callbacks, Context, ContextBuilder, LogLevel};
+use std::fs;
+
+use gbase::{
+    filesystem,
+    input::{self, KeyCode},
+    Callbacks, Context, ContextBuilder, LogLevel,
+};
 use log::info;
 
 #[pollster::main]
@@ -14,15 +20,20 @@ pub async fn main() {
 struct App {}
 
 impl App {
-    async fn new(ctx: &mut Context) -> Self {
-        let txt = filesystem::load_bytes(ctx, "other/test.txt").await.unwrap();
-        info!("txt content {:?}", String::from_utf8(txt));
+    async fn new(_ctx: &mut Context) -> Self {
+        let s = filesystem::load_s!("other/test.txt");
+        log::warn!("s {:?}", s);
+
         Self {}
     }
 }
 
 impl Callbacks for App {
-    fn update(&mut self, _ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            let s = filesystem::load_s!("other/test.txt");
+            log::warn!("s {:?}", s);
+        }
         false
     }
 }

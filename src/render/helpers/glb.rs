@@ -555,7 +555,7 @@ pub struct MeshRenderer {
 }
 
 impl MeshRenderer {
-    pub async fn new(ctx: &mut Context, deferred_buffers: &render::DeferredBuffers) -> Self {
+    pub fn new(ctx: &mut Context, deferred_buffers: &render::DeferredBuffers) -> Self {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Sampler
@@ -584,9 +584,7 @@ impl MeshRenderer {
             ])
             .build(ctx);
 
-        let shader_str = filesystem::load_string(ctx, "shaders/mesh.wgsl")
-            .await
-            .unwrap();
+        let shader_str = filesystem::load_s!("shaders/mesh.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])

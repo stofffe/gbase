@@ -31,9 +31,7 @@ impl App {
 
         // let a = UniformBufferSource::Empty(64);
 
-        let shader_str = filesystem::load_string(ctx, "shaders/triangle.wgsl")
-            .await
-            .unwrap();
+        let shader_str = filesystem::load_s!("shaders/triangle.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())

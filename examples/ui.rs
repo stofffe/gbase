@@ -1,10 +1,10 @@
 use gbase::{
     collision::Quad,
     filesystem,
-    render::{self, BLACK, GRAY, GREEN, RED},
+    render::{self, Button, BLACK, GRAY, GREEN, RED},
     time, Callbacks, Context, ContextBuilder,
 };
-use glam::{vec2, vec4};
+use glam::vec2;
 
 #[pollster::main]
 pub async fn main() {
@@ -31,7 +31,7 @@ impl App {
             wgpu::TextureFormat::Bgra8UnormSrgb,
             4 * quads,
             6 * quads,
-            &filesystem::load_bytes(ctx, "fonts/font.ttf").await.unwrap(),
+            &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
@@ -80,17 +80,55 @@ impl Callbacks for App {
         // Idea: hash ui element and use as id?
 
         // self.gui_renderer.button(ctx, Quad::new( vec2(0.5, 0.5), vec2(0.1,0.1)), vec4(1.0,0.0,0.0,1.0));
-        let toggle_clicked = self.gui_renderer.button_text(
+
+        // button()
+        // k
+
+        // if btn("label1")
+        //     .hover_color(RED)
+        //     .size(vec2(0.1, 0.1))
+        //     .orig(vec2(0.5, 0.5))
+        //     .child(|bounds| {
+        //         txt("label2")
+        //             .text("hello")
+        //             .fontsize(12)
+        //             .build()
+        //             .build()
+        //             .build()
+        //             .build()
+        //             .build()
+        //             .build()
+        //             .build()
+        //             .build()
+        //     })
+        //     .build()
+        // {}
+        Button::new()
+            .dimension(vec2(0.1, 0.5))
+            .origin(vec2(0.1, 0.1))
+            .render(ctx, &mut self.gui_renderer);
+
+        if self.gui_renderer.button(
             ctx,
-            "Hello asd sad asd asd sad sad adsa sda",
-            false,
-            0.02,
-            Quad::new(vec2(0.5, 0.5), vec2(0.1, 0.1)),
+            "test_btn",
+            Quad::new(vec2(0.5, 0.3), vec2(0.1, 0.1)),
             GRAY,
-        );
-        if toggle_clicked {
+        ) {
+            log::warn!("testbtn pressed");
             self.toggle = !self.toggle;
-        };
+        }
+        if self.gui_renderer.button_text(
+            ctx,
+            "test_btn_txt",
+            Quad::new(vec2(0.5, 0.1), vec2(0.1, 0.1)),
+            GRAY,
+            "test",
+            0.05,
+            false,
+        ) {
+            log::warn!("testbtntxt pressed");
+            self.toggle = !self.toggle;
+        }
 
         self.gui_renderer.quad(
             Quad::new(vec2(0.8, 0.5), vec2(0.1, 0.1)),

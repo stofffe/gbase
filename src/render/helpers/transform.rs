@@ -19,11 +19,11 @@ impl Transform {
     pub const fn from_pos(pos: Vec3) -> Self {
         Self::new(pos, Quat::IDENTITY, Vec3::ONE)
     }
-    pub const fn from_rot(pos: Vec3) -> Self {
-        Self::new(pos, Quat::IDENTITY, Vec3::ONE)
+    pub const fn from_rot(rot: Quat) -> Self {
+        Self::new(Vec3::ZERO, rot, Vec3::ONE)
     }
-    pub const fn from_scale(pos: Vec3) -> Self {
-        Self::new(pos, Quat::IDENTITY, Vec3::ONE)
+    pub const fn from_scale(scale: Vec3) -> Self {
+        Self::new(Vec3::ZERO, Quat::IDENTITY, scale)
     }
     pub const fn from_pos_rot(pos: Vec3, rot: Quat) -> Self {
         Self::new(pos, rot, Vec3::ONE)

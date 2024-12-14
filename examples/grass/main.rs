@@ -82,24 +82,21 @@ impl App {
 
         // Renderers
         let deferred_buffers = render::DeferredBuffers::new(ctx);
-        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers).await;
+        let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers);
         let deferred_renderer = render::DeferredRenderer::new(
             ctx,
             framebuffer.format(),
             &deferred_buffers,
             &camera_buffer,
             &light_buffer,
-        )
-        .await;
-        let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer).await;
+        );
+        let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer);
         let gui_renderer = render::GUIRenderer::new(
             ctx,
             framebuffer.format(),
             1000 * 4,
             1000 * 6,
-            &filesystem::load_bytes(ctx, "fonts/meslo.ttf")
-                .await
-                .unwrap(),
+            &filesystem::load_b!("fonts/meslo.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         )
         .await;
@@ -143,8 +140,8 @@ impl App {
             &mesh_renderer,
         );
 
-        let sobel_filter = render::SobelFilter::new(ctx).await;
-        let gamma_correction = render::GammaCorrection::new(ctx).await;
+        let sobel_filter = render::SobelFilter::new(ctx);
+        let gamma_correction = render::GammaCorrection::new(ctx);
 
         Self {
             camera,
@@ -244,23 +241,21 @@ impl Callbacks for App {
 
     fn update(&mut self, ctx: &mut Context) -> bool {
         // hot reload
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.grass_renderer = pollster::block_on(GrassRenderer::new(
-                ctx,
-                &self.deferred_buffers,
-                &self.camera_buffer,
-            ));
-            self.deferred_renderer = pollster::block_on(DeferredRenderer::new(
+            self.grass_renderer =
+                GrassRenderer::new(ctx, &self.deferred_buffers, &self.camera_buffer);
+            self.deferred_renderer = DeferredRenderer::new(
                 ctx,
                 self.framebuffer.format(),
                 &self.deferred_buffers,
                 &self.camera_buffer,
                 &self.light_buffer,
-            ));
-            self.mesh_renderer = pollster::block_on(MeshRenderer::new(ctx, &self.deferred_buffers));
+            );
+            self.mesh_renderer = MeshRenderer::new(ctx, &self.deferred_buffers);
             println!("reload");
         }
+
         // log::warn!("UPDATE");
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {

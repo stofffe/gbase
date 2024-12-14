@@ -1,10 +1,9 @@
+use crate::noise::generate_noise;
 use gbase::{
     collision, filesystem,
     render::{self, CameraUniform},
     Context,
 };
-
-use crate::noise::generate_noise;
 
 pub struct CloudRenderer {
     vertices: render::VertexBuffer<render::VertexUV>,
@@ -15,7 +14,7 @@ pub struct CloudRenderer {
 }
 
 impl CloudRenderer {
-    pub async fn new(
+    pub fn new(
         ctx: &mut Context,
         framebuffer: &render::FrameBuffer,
         depth_buffer: &render::DepthBuffer,
@@ -26,9 +25,7 @@ impl CloudRenderer {
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
-        let shader_str = filesystem::load_string(ctx, "shaders/clouds.wgsl")
-            .await
-            .unwrap();
+        let shader_str = filesystem::load_s!("shaders/clouds.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -55,7 +52,7 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let noise_texture = generate_noise(ctx).await;
+        let noise_texture = generate_noise(ctx);
 
         Self {
             vertices,

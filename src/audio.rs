@@ -1,6 +1,6 @@
 use crate::Context;
 use rodio::{source::Buffered, Decoder, Source};
-use std::{io::Cursor, path::PathBuf};
+use std::io::Cursor;
 
 pub type AudioHandle = usize;
 pub type SoundSource = Buffered<Decoder<Cursor<Vec<u8>>>>;
@@ -48,14 +48,17 @@ impl AudioContext {
 //
 
 // Load audio source
-pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> SoundSource {
-    let bytes = ctx
-        .filesystem
-        .load_bytes(&path.into())
-        .await
-        .expect("could not load bytes");
+pub fn load_audio_source(ctx: &mut Context, bytes: Vec<u8>) -> SoundSource {
     ctx.audio.load_audio_source(bytes)
 }
+// pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> SoundSource {
+//     let bytes = ctx
+//         .filesystem
+//         .load_bytes(&path.into())
+//         .await
+//         .expect("could not load bytes");
+//     ctx.audio.load_audio_source(bytes)
+// }
 
 /// Play audio source as raw sound
 pub fn play_audio_source(ctx: &Context, source: &SoundSource) {

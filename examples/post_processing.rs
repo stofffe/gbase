@@ -81,10 +81,10 @@ impl App {
         let last_texture = texture1.view();
 
         // filters
-        let box_filter = render::BoxFilter::new(ctx).await;
-        let median_filter = render::MedianFilter::new(ctx).await;
-        let sobel_filter = render::SobelFilter::new(ctx).await;
-        let gaussian_filter = render::GaussianFilter::new(ctx).await;
+        let box_filter = render::BoxFilter::new(ctx);
+        let median_filter = render::MedianFilter::new(ctx);
+        let sobel_filter = render::SobelFilter::new(ctx);
+        let gaussian_filter = render::GaussianFilter::new(ctx);
 
         Self {
             texture_renderer_final,

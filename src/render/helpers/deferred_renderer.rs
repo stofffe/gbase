@@ -21,20 +21,18 @@ pub struct DeferredRenderer {
 }
 
 impl DeferredRenderer {
-    pub async fn new(
+    pub fn new(
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
         buffers: &render::DeferredBuffers,
         camera: &render::UniformBuffer<CameraUniform>,
         light: &render::UniformBuffer<Vec3>,
     ) -> Self {
-        let shader_str = filesystem::load_string(ctx, "shaders/deferred.wgsl")
-            .await
-            .unwrap();
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
+        let shader_str = filesystem::load_s!("shaders/deferred.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let debug_input = render::DebugInput::new(ctx);
         let (bindgroup_layout, bindgroup) =

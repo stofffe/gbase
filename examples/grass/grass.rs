@@ -109,7 +109,7 @@ impl GrassRenderer {
         }
     }
 
-    pub async fn new(
+    pub fn new(
         ctx: &mut Context,
         deferred_buffers: &render::DeferredBuffers,
         camera_buffer: &render::UniformBuffer<CameraUniform>,
@@ -137,9 +137,7 @@ impl GrassRenderer {
                 .build(ctx, size_of::<wgpu::util::DrawIndirectArgs>() as u64),
         ];
 
-        let perlin_noise_bytes = filesystem::load_bytes(ctx, "textures/perlin_noise.png")
-            .await
-            .unwrap();
+        let perlin_noise_bytes = filesystem::load_b!("textures/perlin_noise.png").unwrap();
         let perlin_noise_texture =
             render::TextureBuilder::new(render::TextureSource::Bytes(perlin_noise_bytes))
                 .build(ctx);
@@ -220,9 +218,7 @@ impl GrassRenderer {
         ];
 
         let instance_shader_str =
-            filesystem::load_string(ctx, "shaders/grass_compute_instance.wgsl")
-                .await
-                .unwrap();
+            filesystem::load_s!("shaders/grass_compute_instance.wgsl").unwrap();
         let instance_shader = render::ShaderBuilder::new(instance_shader_str).build(ctx);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -263,9 +259,7 @@ impl GrassRenderer {
                 .build(ctx),
         ];
 
-        let draw_shader_str = filesystem::load_string(ctx, "shaders/grass_compute_draw.wgsl")
-            .await
-            .unwrap();
+        let draw_shader_str = filesystem::load_s!("shaders/grass_compute_draw.wgsl").unwrap();
         let draw_compute_shader = render::ShaderBuilder::new(draw_shader_str).build(ctx);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -307,9 +301,7 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_shader_str = filesystem::load_string(ctx, "shaders/grass.wgsl")
-            .await
-            .unwrap();
+        let render_shader_str = filesystem::load_s!("shaders/grass.wgsl").unwrap();
         let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout])

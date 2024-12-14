@@ -14,9 +14,7 @@ pub struct TextureRenderer {
 
 impl TextureRenderer {
     pub async fn new(ctx: &mut Context, output_texture_format: wgpu::TextureFormat) -> Self {
-        let shader_str = filesystem::load_string(ctx, "shaders/texture.wgsl")
-            .await
-            .unwrap();
+        let shader_str = filesystem::load_s!("shaders/texture.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);

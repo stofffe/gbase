@@ -212,7 +212,7 @@ impl ContextBuilder {
         let (window, event_loop) = window::new_window(self.window_builder);
         let input = input::InputContext::default();
         let time = time::TimeContext::default();
-        let filesystem = filesystem::FileSystemContext::new(&self.assets_path);
+        let filesystem = filesystem::FileSystemContext::new();
         let audio = audio::AudioContext::new();
         let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
         let context = Context {
