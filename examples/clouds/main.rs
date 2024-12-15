@@ -6,7 +6,7 @@ use gbase::{
     collision::{self, Box3D, Quad},
     input,
     render::{self},
-    time, Context, LogLevel,
+    time, Callbacks, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec4Swizzles};
 
@@ -17,7 +17,7 @@ async fn main() {
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let state = State::new(&mut ctx).await;
+    let state = State::new(&mut ctx);
     gbase::run(state, ctx, ev);
 }
 
@@ -38,8 +38,8 @@ struct State {
     show_fps: bool,
 }
 
-impl State {
-    pub async fn new(ctx: &mut Context) -> Self {
+impl gbase::Callbacks for State {
+    fn new(ctx: &mut gbase::Context) -> Self {
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
@@ -47,9 +47,10 @@ impl State {
             .screen_size(ctx)
             .build(ctx);
         let framebuffer_renderer =
-            render::TextureRenderer::new(ctx, render::surface_config(ctx).format).await;
+            render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
-        let camera = render::PerspectiveCamera::new();
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos = vec3(0.0, 0.0, 5.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let ui_renderer = render::GUIRenderer::new(
@@ -59,13 +60,11 @@ impl State {
             1024,
             include_bytes!("../../assets/fonts/font.ttf"),
             render::DEFAULT_SUPPORTED_CHARS,
-        )
-        .await;
+        );
         let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
         let cloud_bb_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer).await;
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
         let cloud_renderer = CloudRenderer::new(
             ctx,
             &framebuffer,
@@ -89,12 +88,6 @@ impl State {
             cloud_bb,
             cloud_bb_buffer,
         }
-    }
-}
-
-impl gbase::Callbacks for State {
-    fn init(&mut self, _ctx: &mut gbase::Context) {
-        self.camera.pos = vec3(0.0, 0.0, 5.0);
     }
 
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {

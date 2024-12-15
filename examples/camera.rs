@@ -13,7 +13,7 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -25,8 +25,8 @@ struct App {
     camera_buffer: render::UniformBuffer<CameraUniform>,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/camera.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build_uncached(ctx);
@@ -73,9 +73,6 @@ impl App {
             camera_buffer: buffer,
         }
     }
-}
-
-impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let queue = render::queue(ctx);

@@ -11,23 +11,6 @@ struct App {
     gizmo_renderer: render::GizmoRenderer,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
-        let camera = render::PerspectiveCamera::new();
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer)
-                .await;
-
-        Self {
-            camera,
-            camera_buffer,
-            gizmo_renderer,
-        }
-    }
-}
-
 const RED: Vec3 = vec3(1.0, 0.0, 0.0);
 const GREEN: Vec3 = vec3(0.0, 1.0, 0.0);
 const BLUE: Vec3 = vec3(0.0, 0.0, 1.0);
@@ -37,9 +20,22 @@ const YELLOW: Vec3 = vec3(1.0, 1.0, 0.0);
 const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
-    fn init(&mut self, _ctx: &mut Context) {
-        self.camera.pos = vec3(0.0, 0.0, 1.0);
+    fn new(ctx: &mut Context) -> Self {
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos = vec3(0.0, 0.0, 1.0);
+
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let gizmo_renderer =
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb, &camera_buffer);
+
+        Self {
+            camera,
+            camera_buffer,
+            gizmo_renderer,
+        }
     }
+
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let t = time::time_since_start(ctx);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
@@ -119,6 +115,6 @@ pub async fn main() {
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }

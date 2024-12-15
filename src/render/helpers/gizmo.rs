@@ -27,7 +27,7 @@ const GIZMO_MAX_VERTICES: usize = 10000;
 const GIZMO_MAX_INDICES: usize = 10000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
-    pub async fn new(
+    pub fn new(
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
         camera_buffer: &render::UniformBuffer<CameraUniform>,

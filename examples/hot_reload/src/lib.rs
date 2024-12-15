@@ -1,19 +1,14 @@
 pub struct App {}
 
-impl App {
-    #[no_mangle]
-    pub fn new() -> Self {
-        Self {}
-    }
-}
-
 impl gbase::Callbacks for App {
     #[no_mangle]
-    fn init(&mut self, _ctx: &mut gbase::Context) {}
+    fn new(_ctx: &mut gbase::Context) -> Self {
+        Self {}
+    }
 
     #[no_mangle]
     fn update(&mut self, _ctx: &mut gbase::Context) -> bool {
-        println!("yo");
+        println!("a");
         false
     }
 

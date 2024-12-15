@@ -52,7 +52,7 @@ pub struct GUIRenderer {
 }
 
 impl GUIRenderer {
-    pub async fn new(
+    pub fn new(
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
         vertices_batch_size: u32,

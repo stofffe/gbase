@@ -3,6 +3,9 @@ use gbase::{Callbacks, Context, ContextBuilder};
 struct App {}
 
 impl Callbacks for App {
+    fn new(_ctx: &mut Context) -> Self {
+        Self {}
+    }
     fn update(&mut self, _ctx: &mut Context) -> bool {
         log::info!("info");
         log::warn!("warn");
@@ -13,10 +16,10 @@ impl Callbacks for App {
 
 #[pollster::main]
 pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
+    let (mut ctx, ev) = ContextBuilder::new()
         .log_level(gbase::LogLevel::Info)
         .build()
         .await;
-    let app = App {};
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }

@@ -10,7 +10,7 @@ pub async fn main() {
         .log_level(gbase::LogLevel::Info)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -19,10 +19,8 @@ struct App {
     pipeline: ArcRenderPipeline,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
-        println!("NORMAL PRINT");
-        eprintln!("DEBUG PRINT");
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             TRIANGLE_VERTICES.to_vec(),
         ))
@@ -44,9 +42,6 @@ impl App {
             pipeline,
         }
     }
-}
-
-impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {

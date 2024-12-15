@@ -11,7 +11,7 @@ async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -34,8 +34,8 @@ struct App {
     gaussian_filter: render::GaussianFilter,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         // renderers
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
@@ -48,9 +48,9 @@ impl App {
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
         let texture_renderer_base =
-            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm).await;
+            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm);
         let texture_renderer_final =
-            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
+            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb);
 
         // textures
         let texture1 = render::TextureBuilder::new(render::TextureSource::Bytes(
@@ -86,6 +86,8 @@ impl App {
         let sobel_filter = render::SobelFilter::new(ctx);
         let gaussian_filter = render::GaussianFilter::new(ctx);
 
+        texture_renderer_base.render(ctx, texture1.view(), framebuffer.view_ref());
+
         Self {
             texture_renderer_final,
             texture_renderer_base,
@@ -104,9 +106,7 @@ impl App {
             gaussian_filter,
         }
     }
-}
 
-impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Backspace)
             || input::key_just_pressed(ctx, KeyCode::KeyR)
@@ -226,10 +226,6 @@ impl Callbacks for App {
             );
         }
         false
-    }
-    fn init(&mut self, ctx: &mut Context) {
-        self.texture_renderer_base
-            .render(ctx, self.texture1.view(), self.framebuffer.view_ref());
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // final

@@ -3,7 +3,6 @@ use gbase::{
     render::{self, ArcBindGroup, ArcRenderPipeline, VertexBufferBuilder, VertexBufferSource},
     Callbacks, Context, ContextBuilder,
 };
-use std::path::Path;
 
 #[pollster::main]
 pub async fn main() {
@@ -11,7 +10,7 @@ pub async fn main() {
         .log_level(gbase::LogLevel::Info)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -21,8 +20,8 @@ struct App {
     pipeline: ArcRenderPipeline,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         let vertex_buffer =
             VertexBufferBuilder::new(VertexBufferSource::Data(QUAD_VERTICES.to_vec())).build(ctx);
 
@@ -69,9 +68,6 @@ impl App {
             texture_bindgroup,
         }
     }
-}
-
-impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let queue = render::queue(ctx);

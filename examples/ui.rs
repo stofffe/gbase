@@ -13,7 +13,7 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -23,8 +23,8 @@ struct App {
     toggle: bool,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         let quads = 1000;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
@@ -33,8 +33,7 @@ impl App {
             6 * quads,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
-        )
-        .await;
+        );
 
         let toggle = false;
 
@@ -43,9 +42,6 @@ impl App {
             toggle,
         }
     }
-}
-
-impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         self.gui_renderer
             .quad(Quad::new(vec2(0.0, 0.0), vec2(1.0, 1.0)), render::WHITE);

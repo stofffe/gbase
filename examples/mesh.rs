@@ -12,7 +12,7 @@ async fn main() {
         .vsync(true)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -34,10 +34,11 @@ struct App {
     sobel_filter: render::SobelFilter,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         let deferred_buffers = render::DeferredBuffers::new(ctx);
-        let camera = render::PerspectiveCamera::new();
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos = vec3(0.5, 0.0, 1.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let light = Vec3::ZERO;
@@ -52,7 +53,7 @@ impl App {
         );
         let debug_input = render::DebugInput::new(ctx);
         let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer).await;
+            render::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer);
 
         let mesh_renderer = render::MeshRenderer::new(ctx, &deferred_buffers);
 
@@ -74,7 +75,7 @@ impl App {
             .screen_size(ctx)
             .build(ctx);
         let framebuffer_renderer =
-            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb).await;
+            render::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb);
         let sobel_filter = render::SobelFilter::new(ctx);
 
         Self {
@@ -95,12 +96,9 @@ impl App {
             sobel_filter,
         }
     }
-}
-
-impl Callbacks for App {
-    fn init(&mut self, _ctx: &mut Context) {
-        self.camera.pos = vec3(0.5, 0.0, 1.0);
-    }
+    // fn new(&mut self, _ctx: &mut Context) {
+    //     self.camera.pos = vec3(0.5, 0.0, 1.0);
+    // }
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 

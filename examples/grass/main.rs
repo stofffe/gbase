@@ -20,7 +20,7 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -54,8 +54,8 @@ struct App {
     gamma_correction: render::GammaCorrection,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         // Framebuffer
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
@@ -68,10 +68,13 @@ impl App {
             )
             .build(ctx);
         let framebuffer_renderer =
-            render::TextureRenderer::new(ctx, render::surface_config(ctx).format).await;
+            render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         // Camera
-        let camera = render::PerspectiveCamera::new();
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos = vec3(-1.0, 8.0, -1.0);
+        camera.yaw = PI / 4.0;
+
         let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .label("camera buf".to_string())
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
@@ -98,10 +101,8 @@ impl App {
             1000 * 6,
             &filesystem::load_b!("fonts/meslo.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
-        )
-        .await;
-        let gizmo_renderer =
-            render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer).await;
+        );
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
 
         // Plane mesh
         let plane_transform = render::Transform::new(
@@ -167,9 +168,7 @@ impl App {
             gamma_correction,
         }
     }
-}
 
-impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // log::warn!("RENDER");
         self.deferred_buffers.clear(ctx);
@@ -232,11 +231,6 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.light_buffer,
         );
-    }
-
-    fn init(&mut self, _ctx: &mut Context) {
-        self.camera.pos = vec3(-1.0, 8.0, -1.0);
-        self.camera.yaw = PI / 4.0;
     }
 
     fn update(&mut self, ctx: &mut Context) -> bool {

@@ -12,7 +12,7 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -24,9 +24,8 @@ struct App {
     transform_buffer: render::UniformBuffer<TransformUniform>,
     transform_bindgroup: ArcBindGroup,
 }
-
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/transform.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
@@ -76,9 +75,6 @@ impl App {
             pipeline,
         }
     }
-}
-
-impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         // Transform movement
         let t = gbase::time::time_since_start(ctx);

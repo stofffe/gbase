@@ -6,7 +6,7 @@ use winit::event_loop::EventLoop;
 /// User callbaks
 pub trait Callbacks {
     /// Called after context initilization and before game/update loop
-    fn init(&mut self, _ctx: &mut Context) {}
+    fn new(_ctx: &mut Context) -> Self;
 
     /// Called once per frame before rendering
     ///
@@ -110,12 +110,13 @@ where
 
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
+#[allow(unused_variables)]
 pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
     #[cfg(debug_assertions)]
-    let callbacks = DllCallbacks::new(callbacks);
+    let callbacks = DllCallbacks::<C>::new(&mut ctx); // Hot reloading
 
-    let mut app = App { callbacks };
-    app.callbacks.init(&mut ctx);
+    let app = App { callbacks };
+
     window::run_window(event_loop, app, ctx);
 }
 

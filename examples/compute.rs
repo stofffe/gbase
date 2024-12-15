@@ -8,7 +8,7 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    let app = App::new(&mut ctx).await;
+    let app = App::new(&mut ctx);
     gbase::run(app, ctx, ev);
 }
 
@@ -25,8 +25,8 @@ struct App {
     compute_pipeline: render::ArcComputePipeline,
 }
 
-impl App {
-    async fn new(ctx: &mut Context) -> Self {
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         // Buffers
         let input_buffer = render::RawBufferBuilder::new()
             .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
@@ -73,9 +73,6 @@ impl App {
             cpu_buffer,
         }
     }
-}
-
-impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         let device = render::device(ctx);
         let queue = render::queue(ctx);

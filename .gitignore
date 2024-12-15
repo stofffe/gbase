@@ -5,6 +5,8 @@
 web/pkg
 web/assets/*
 
+**/*.dylib
+
 assets/models/kenney*
 assets/models/blue_flower
 assets/models/nissan
