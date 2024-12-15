@@ -1,12 +1,5 @@
-extern crate dlopen;
-
-use std::{path::Path, sync::mpsc};
-
 use dlopen::wrapper::{Container, WrapperApi};
 use dlopen_derive::WrapperApi;
-use notify::Watcher;
-
-const DLL_NAME: &str = "libhot_reload.dylib";
 
 /// Dll Api for Callbacks
 #[derive(WrapperApi)]
@@ -17,32 +10,21 @@ pub struct DllApi<T> {
     resize: fn(game: &mut T, ctx: &mut crate::Context),
 }
 
-/// Wrapper for Game + dll reloading
+/// Wrapper for Game + dll
 pub struct DllCallbacks<T> {
     pub callbacks: T,
     pub dll: Container<DllApi<T>>,
-    pub dll_watcher: notify::FsEventWatcher,
-    pub dll_change_channel: mpsc::Receiver<Result<notify::Event, notify::Error>>,
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
     fn new(ctx: &mut crate::Context) -> Self {
-        let dll: Container<DllApi<T>> =
-            unsafe { Container::load(DLL_NAME) }.expect("Could not open library or load symbols");
+        let dll: Container<DllApi<T>> = unsafe { Container::load(super::DLL_NAME) }
+            .expect("Could not open library or load symbols");
         let game = dll.new(ctx);
-
-        let (tx, rx) = mpsc::channel();
-
-        let mut watcher = notify::recommended_watcher(tx).unwrap();
-        watcher
-            .watch(Path::new(DLL_NAME), notify::RecursiveMode::NonRecursive)
-            .unwrap();
 
         Self {
             callbacks: game,
             dll,
-            dll_watcher: watcher,
-            dll_change_channel: rx,
         }
     }
 
@@ -60,22 +42,12 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 }
 
 impl<T> DllCallbacks<T> {
-    /// checks if dll file has changed
-    pub fn dll_changed(&self) -> bool {
-        if let Ok(Ok(event)) = self.dll_change_channel.try_recv() {
-            if let notify::EventKind::Modify(_) | notify::EventKind::Create(_) = event.kind {
-                return true;
-            }
-        }
-        false
-    }
-
     /// reload dll file
     ///
     /// keep game state
     pub fn hot_reload(&mut self) {
-        self.dll =
-            unsafe { Container::load(DLL_NAME) }.expect("Could not open library or load symbols");
+        self.dll = unsafe { Container::load(super::DLL_NAME) }
+            .expect("Could not open library or load symbols");
     }
 
     // /// reload dll file

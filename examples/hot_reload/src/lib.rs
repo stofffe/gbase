@@ -1,4 +1,5 @@
 use gbase::{
+    hot_reload, input,
     render::{self},
     wgpu,
 };
@@ -31,7 +32,10 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, _ctx: &mut gbase::Context) -> bool {
+    fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+            hot_reload::hot_reload(ctx);
+        }
         false
     }
 

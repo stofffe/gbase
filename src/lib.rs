@@ -5,12 +5,11 @@ mod app;
 pub mod audio;
 pub mod collision;
 pub mod filesystem;
+pub mod hot_reload;
 pub mod input;
 pub mod render;
 pub mod time;
 pub mod window;
-
-mod hot_reload;
 
 // exports
 pub use app::*;
@@ -33,4 +32,7 @@ pub struct Context {
     pub(crate) filesystem: filesystem::FileSystemContext,
     pub(crate) audio: audio::AudioContext,
     pub(crate) render: render::RenderContext,
+
+    #[cfg(debug_assertions)]
+    pub(crate) hot_reload: hot_reload::HotReloadContext,
 }

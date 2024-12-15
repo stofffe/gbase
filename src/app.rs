@@ -1,4 +1,8 @@
-use crate::{audio, filesystem, hot_reload::DllCallbacks, input, render, time, window, Context};
+use crate::{
+    audio, filesystem,
+    hot_reload::{self, DllCallbacks},
+    input, render, time, window, Context,
+};
 use std::path::PathBuf;
 use wgpu::SurfaceError;
 use winit::event_loop::EventLoop;
@@ -65,6 +69,8 @@ where
     pub(crate) fn update_and_render(&mut self, ctx: &mut Context) -> bool {
         // time
         ctx.time.update_time();
+        #[cfg(debug_assertions)]
+        ctx.hot_reload.reset();
 
         // update
         if self.callbacks.update(ctx) {
@@ -225,12 +231,14 @@ impl ContextBuilder {
         let filesystem = filesystem::FileSystemContext::new();
         let audio = audio::AudioContext::new();
         let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
+        let hot_reload = hot_reload::HotReloadContext::new();
         let context = Context {
             input,
             time,
             filesystem,
             audio,
             render,
+            hot_reload,
         };
 
         (context, event_loop)
