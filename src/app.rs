@@ -1,4 +1,4 @@
-use crate::{audio, filesystem, input, render, time, window, Context};
+use crate::{audio, filesystem, hot_reload::DllCallbacks, input, render, time, window, Context};
 use std::path::PathBuf;
 use wgpu::SurfaceError;
 use winit::event_loop::EventLoop;
@@ -50,7 +50,11 @@ pub trait Callbacks {
 /// Main App
 /// Contains all data to run application
 pub(crate) struct App<C: Callbacks> {
+    #[cfg(not(debug_assertions))]
     pub(crate) callbacks: C,
+
+    #[cfg(debug_assertions)]
+    pub(crate) callbacks: DllCallbacks<C>,
 }
 
 /// Functions implemented on App
@@ -107,6 +111,9 @@ where
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
 pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
+    #[cfg(debug_assertions)]
+    let callbacks = DllCallbacks::new(callbacks);
+
     let mut app = App { callbacks };
     app.callbacks.init(&mut ctx);
     window::run_window(event_loop, app, ctx);

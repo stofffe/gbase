@@ -10,6 +10,8 @@ pub mod render;
 pub mod time;
 pub mod window;
 
+mod hot_reload;
+
 // exports
 pub use app::*;
 

@@ -65,6 +65,13 @@ pub(crate) fn run_window<C: Callbacks + 'static>(
             Event::WindowEvent { ref event, .. } => {
                 match event {
                     WindowEvent::RedrawRequested => {
+                        // hot reload
+                        #[cfg(debug_assertions)]
+                        if app.callbacks.dll_changed() {
+                            app.callbacks.hot_reload();
+                        }
+
+                        // update and render
                         if app.update_and_render(&mut ctx) {
                             target.exit();
                         }
