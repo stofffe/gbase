@@ -112,8 +112,10 @@ where
 /// Calls back to user defined functions thorugh Callback trait
 #[allow(unused_variables)]
 pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
+    println!("before dynamic alloc");
     #[cfg(debug_assertions)]
     let callbacks = DllCallbacks::<C>::new(&mut ctx); // Hot reloading
+                                                      //
 
     let app = App { callbacks };
 

@@ -11,7 +11,7 @@ const DLL_NAME: &str = "libhot_reload.dylib";
 /// Dll Api for Callbacks
 #[derive(WrapperApi)]
 pub struct DllApi<T> {
-    new: fn() -> T,
+    new: fn(ctx: &mut crate::Context) -> T,
     update: fn(game: &mut T, ctx: &mut crate::Context) -> bool,
     render: fn(game: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool,
     resize: fn(game: &mut T, ctx: &mut crate::Context),
@@ -26,10 +26,10 @@ pub struct DllCallbacks<T> {
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
-    fn new(_ctx: &mut crate::Context) -> Self {
+    fn new(ctx: &mut crate::Context) -> Self {
         let dll: Container<DllApi<T>> =
             unsafe { Container::load(DLL_NAME) }.expect("Could not open library or load symbols");
-        let game = dll.new();
+        let game = dll.new(ctx);
 
         let (tx, rx) = mpsc::channel();
 
@@ -60,26 +60,6 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 }
 
 impl<T> DllCallbacks<T> {
-    // pub fn new(_callbacks: T) -> Self {
-    //     let dll: Container<DllApi<T>> =
-    //         unsafe { Container::load(DLL_NAME) }.expect("Could not open library or load symbols");
-    //     let game = dll.new();
-    //
-    //     let (tx, rx) = mpsc::channel();
-    //
-    //     let mut watcher = notify::recommended_watcher(tx).unwrap();
-    //     watcher
-    //         .watch(Path::new(DLL_NAME), notify::RecursiveMode::NonRecursive)
-    //         .unwrap();
-    //
-    //     Self {
-    //         callbacks: game,
-    //         dll,
-    //         dll_watcher: watcher,
-    //         dll_change_channel: rx,
-    //     }
-    // }
-
     /// checks if dll file has changed
     pub fn dll_changed(&self) -> bool {
         if let Ok(Ok(event)) = self.dll_change_channel.try_recv() {

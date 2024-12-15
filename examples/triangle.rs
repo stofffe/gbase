@@ -27,8 +27,6 @@ impl Callbacks for App {
         .usage(wgpu::BufferUsages::VERTEX)
         .build(ctx);
 
-        // let a = UniformBufferSource::Empty(64);
-
         let shader_str = filesystem::load_s!("shaders/triangle.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
