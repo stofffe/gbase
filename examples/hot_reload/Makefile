@@ -1,7 +1,7 @@
 # debug
 compile_debug:
-	cargo build --features "gbase/hot_reload"
-	cp ../../target/debug/libhot_reload.dylib temp.dylib
+	cargo build --target-dir target --features "gbase/hot_reload"
+	cp target/debug/libhot_reload.dylib temp.dylib
 	install_name_tool -id '' temp.dylib
 	mv temp.dylib libhot_reload.dylib
 

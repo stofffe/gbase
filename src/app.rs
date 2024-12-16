@@ -140,6 +140,7 @@ pub fn run_app_with_builder<C: Callbacks + 'static>(builder: ContextBuilder) {
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
 fn run<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
+    #[cfg(not(feature = "hot_reload"))]
     let callbacks = C::new(&mut ctx);
 
     #[cfg(feature = "hot_reload")]
