@@ -33,8 +33,11 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+        if input::key_just_pressed(ctx, input::KeyCode::KeyH) {
             hot_reload::hot_reload(ctx);
+        }
+        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+            hot_reload::hot_restart(ctx);
         }
         false
     }

@@ -50,12 +50,11 @@ impl<T> DllCallbacks<T> {
             .expect("Could not open library or load symbols");
     }
 
-    // /// reload dll file
-    // ///
-    // /// reset game state
-    // pub fn hot_restart(&mut self) {
-    //     self.dll =
-    //         unsafe { Container::load(DLL_NAME) }.expect("Could not open library or load symbols");
-    //     self.callbacks = self.dll.new();
-    // }
+    /// reload dll file
+    ///
+    /// reset game state
+    pub fn hot_restart(&mut self, ctx: &mut crate::Context) {
+        self.hot_reload();
+        self.callbacks = self.dll.new(ctx);
+    }
 }
