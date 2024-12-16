@@ -6,22 +6,21 @@ use gbase::{
     collision::{self, Box3D, Quad},
     input,
     render::{self},
-    time, Callbacks, LogLevel,
+    time, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec4Swizzles};
 
 #[pollster::main]
 async fn main() {
-    let (mut ctx, ev) = gbase::ContextBuilder::new()
+    let (ctx, ev) = gbase::ContextBuilder::new()
         .window_builder(winit::window::WindowBuilder::new().with_maximized(true))
         .log_level(LogLevel::Info)
         .build()
         .await;
-    let state = State::new(&mut ctx);
-    gbase::run(state, ctx, ev);
+    gbase::run::<App>(ctx, ev);
 }
 
-struct State {
+struct App {
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: render::TextureRenderer,
     depth_buffer: render::DepthBuffer,
@@ -38,7 +37,7 @@ struct State {
     show_fps: bool,
 }
 
-impl gbase::Callbacks for State {
+impl gbase::Callbacks for App {
     fn new(ctx: &mut gbase::Context) -> Self {
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)

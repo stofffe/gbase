@@ -118,7 +118,9 @@ where
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
 #[allow(unused_variables)]
-pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
+pub fn run<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
+    let callbacks = C::new(&mut ctx);
+
     #[cfg(feature = "hot_reload")]
     let callbacks = DllCallbacks::<C>::new(&mut ctx);
 
@@ -169,9 +171,7 @@ fn init_logging(log_level: LogLevel) {
             LogLevel::Trace => log::LevelFilter::Trace,
             LogLevel::None => panic!("unreachable"),
         };
-        let mut env_logger_builder = env_logger::Builder::new();
-        env_logger_builder.filter_level(log_level);
-        env_logger_builder.init();
+        env_logger::Builder::new().filter_level(log_level).init();
     }
 }
 

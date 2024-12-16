@@ -11,6 +11,7 @@ pub struct App {
 impl gbase::Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
+        println!("INIT");
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             TRIANGLE_VERTICES.to_vec(),
         ))
@@ -23,6 +24,7 @@ impl gbase::Callbacks for App {
             .buffers(vec![vertex_buffer.desc()])
             .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
             .build(ctx);
+
         Self {
             vertex_buffer,
             pipeline,

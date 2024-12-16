@@ -6,12 +6,11 @@ use gbase::{
 
 #[pollster::main]
 pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new()
+    let (ctx, ev) = ContextBuilder::new()
         .log_level(gbase::LogLevel::Info)
         .build()
         .await;
-    let app = App::new(&mut ctx);
-    gbase::run(app, ctx, ev);
+    gbase::run::<App>(ctx, ev);
 }
 
 struct App {

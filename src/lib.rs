@@ -20,6 +20,7 @@ pub use app::*;
 // TODO bytemuck and encase macros not exported
 pub use bytemuck;
 pub use encase;
+pub use env_logger;
 pub use glam;
 pub use log;
 pub use wgpu;

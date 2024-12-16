@@ -5,6 +5,15 @@ use gbase::{
 };
 use glam::{vec2, vec3, Quat, Vec3};
 
+#[pollster::main]
+pub async fn main() {
+    let (ctx, ev) = ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .build()
+        .await;
+    gbase::run::<App>(ctx, ev);
+}
+
 struct App {
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer<CameraUniform>,
@@ -107,14 +116,4 @@ impl Callbacks for App {
     fn resize(&mut self, ctx: &mut Context) {
         self.gizmo_renderer.resize_screen(ctx);
     }
-}
-
-#[pollster::main]
-pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
-    let app = App::new(&mut ctx);
-    gbase::run(app, ctx, ev);
 }

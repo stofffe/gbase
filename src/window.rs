@@ -69,11 +69,11 @@ pub(crate) fn run_window<C: Callbacks + 'static>(
                         #[cfg(feature = "hot_reload")]
                         {
                             if ctx.hot_reload.should_reload() {
-                                println!("RELOAD");
+                                log::info!("Hot reload");
                                 app.callbacks.hot_reload();
                             }
                             if ctx.hot_reload.should_restart() {
-                                println!("RESTART");
+                                log::info!("Hot restart");
                                 app.callbacks.hot_restart(&mut ctx);
                             }
                         }

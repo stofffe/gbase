@@ -9,8 +9,8 @@ run_debug:
 	cargo run --features "gbase/hot_reload"
 
 compile_run_debug:
-	make compile
-	make run
+	make compile_debug
+	make run_debug
 
 # release
 

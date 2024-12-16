@@ -7,13 +7,12 @@ use glam::{vec3, Quat, Vec3};
 
 #[pollster::main]
 async fn main() {
-    let (mut ctx, ev) = gbase::ContextBuilder::new()
+    let (ctx, ev) = gbase::ContextBuilder::new()
         .log_level(gbase::LogLevel::Warn)
         .vsync(true)
         .build()
         .await;
-    let app = App::new(&mut ctx);
-    gbase::run(app, ctx, ev);
+    gbase::run::<App>(ctx, ev);
 }
 
 struct App {

@@ -67,3 +67,8 @@ pub fn hot_reload(ctx: &mut crate::Context) {
 pub fn hot_restart(ctx: &mut crate::Context) {
     ctx.hot_reload.force_restart = true;
 }
+
+pub fn hot_log() {
+    log::warn!("AAAAAAAA");
+    println!("aaaaaaaa");
+}

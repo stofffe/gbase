@@ -5,6 +5,15 @@ use gbase::{
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 
+#[pollster::main]
+pub async fn main() {
+    let (ctx, ev) = ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .build()
+        .await;
+    gbase::run::<App>(ctx, ev);
+}
+
 struct App {
     sound: SoundSource,
 }
@@ -23,14 +32,4 @@ impl Callbacks for App {
         }
         false
     }
-}
-
-#[pollster::main]
-pub async fn main() {
-    let (mut ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
-    let app = App::new(&mut ctx);
-    gbase::run(app, ctx, ev);
 }
