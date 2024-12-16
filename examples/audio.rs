@@ -5,13 +5,8 @@ use gbase::{
     Callbacks, Context, ContextBuilder, LogLevel,
 };
 
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+fn main() {
+    gbase::run_app_with_builder::<App>(ContextBuilder::new().log_level(LogLevel::Info));
 }
 
 struct App {

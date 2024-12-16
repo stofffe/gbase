@@ -6,14 +6,12 @@ use gbase::{
 };
 use glam::vec2;
 
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(gbase::LogLevel::Warn)
-        .vsync(false)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+pub fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new()
+            .log_level(gbase::LogLevel::Warn)
+            .vsync(false),
+    );
 }
 
 struct App {

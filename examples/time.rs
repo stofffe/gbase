@@ -1,5 +1,11 @@
 use gbase::{time, Callbacks, Context, ContextBuilder, LogLevel};
 
+pub fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new().log_level(LogLevel::Info).vsync(false),
+    );
+}
+
 struct App {}
 
 impl Callbacks for App {
@@ -13,14 +19,4 @@ impl Callbacks for App {
         log::info!("fps {}", time::fps(ctx));
         false
     }
-}
-
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .vsync(false)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
 }

@@ -115,6 +115,9 @@ where
     }
 }
 
+/// Runs the app with the specificed Callbacks
+///
+/// For more control use `run_app_with_builder`
 pub fn run_app<C: Callbacks + 'static>() {
     let (ctx, ev) = pollster::block_on(
         crate::ContextBuilder::new()
@@ -122,13 +125,21 @@ pub fn run_app<C: Callbacks + 'static>() {
             .build(),
     );
 
-    run_manually::<C>(ctx, ev);
+    run::<C>(ctx, ev);
+}
+
+/// Runs the app with the specificed Callbacks
+///
+/// For simpler setup use `run_app`
+pub fn run_app_with_builder<C: Callbacks + 'static>(builder: ContextBuilder) {
+    let (ctx, ev) = pollster::block_on(builder.build());
+
+    run::<C>(ctx, ev);
 }
 
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
-#[allow(unused_variables)]
-pub fn run_manually<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
+fn run<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
     let callbacks = C::new(&mut ctx);
 
     #[cfg(feature = "hot_reload")]

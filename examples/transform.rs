@@ -5,14 +5,10 @@ use gbase::{
 };
 use glam::{Quat, Vec3};
 
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .vsync(false)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+pub fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new().log_level(LogLevel::Info).vsync(false),
+    );
 }
 
 struct App {

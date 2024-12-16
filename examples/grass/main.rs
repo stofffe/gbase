@@ -12,15 +12,13 @@ use winit::{
     window::{CursorGrabMode, WindowBuilder},
 };
 
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .window_builder(WindowBuilder::new().with_maximized(true))
-        .log_level(LogLevel::Warn)
-        .vsync(false)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+pub fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new()
+            .window_builder(WindowBuilder::new().with_maximized(true))
+            .log_level(LogLevel::Warn)
+            .vsync(false),
+    );
 }
 
 const CAMERA_MOVE_SPEED: f32 = 15.0;

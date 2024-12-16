@@ -1,14 +1,10 @@
 use gbase::{filesystem, render, Callbacks, Context, ContextBuilder, LogLevel};
 use std::sync::mpsc;
 
-#[pollster::main]
-pub async fn main() {
-    let (ctx, ev) = ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .vsync(false)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+pub fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new().log_level(LogLevel::Info).vsync(false),
+    );
 }
 
 const INPUT_SIZE: u32 = 8;

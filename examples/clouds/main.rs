@@ -10,14 +10,12 @@ use gbase::{
 };
 use glam::{vec2, vec3, Quat, Vec4Swizzles};
 
-#[pollster::main]
-async fn main() {
-    let (ctx, ev) = gbase::ContextBuilder::new()
-        .window_builder(winit::window::WindowBuilder::new().with_maximized(true))
-        .log_level(LogLevel::Info)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+fn main() {
+    gbase::run_app_with_builder::<App>(
+        gbase::ContextBuilder::new()
+            .window_builder(winit::window::WindowBuilder::new().with_maximized(true))
+            .log_level(LogLevel::Info),
+    );
 }
 
 struct App {

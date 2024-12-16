@@ -1,18 +1,16 @@
 use gbase::{
     filesystem, input,
     render::{self, CameraUniform},
-    Callbacks, Context,
+    Callbacks, Context, ContextBuilder,
 };
 use glam::{vec3, Quat, Vec3};
 
-#[pollster::main]
-async fn main() {
-    let (ctx, ev) = gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Warn)
-        .vsync(true)
-        .build()
-        .await;
-    gbase::run_manually::<App>(ctx, ev);
+fn main() {
+    gbase::run_app_with_builder::<App>(
+        ContextBuilder::new()
+            .log_level(gbase::LogLevel::Warn)
+            .vsync(true),
+    );
 }
 
 struct App {
