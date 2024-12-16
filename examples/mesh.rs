@@ -12,7 +12,7 @@ async fn main() {
         .vsync(true)
         .build()
         .await;
-    gbase::run::<App>(ctx, ev);
+    gbase::run_manually::<App>(ctx, ev);
 }
 
 struct App {

@@ -22,5 +22,5 @@ pub async fn main() {
         .vsync(false)
         .build()
         .await;
-    gbase::run::<App>(ctx, ev);
+    gbase::run_manually::<App>(ctx, ev);
 }

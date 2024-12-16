@@ -10,7 +10,7 @@ pub async fn main() {
         .log_level(LogLevel::Info)
         .build()
         .await;
-    gbase::run::<App>(ctx, ev);
+    gbase::run_manually::<App>(ctx, ev);
 }
 
 struct App {}

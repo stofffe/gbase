@@ -115,10 +115,20 @@ where
     }
 }
 
+pub fn run_app<C: Callbacks + 'static>() {
+    let (ctx, ev) = pollster::block_on(
+        crate::ContextBuilder::new()
+            .log_level(crate::LogLevel::Info)
+            .build(),
+    );
+
+    run_manually::<C>(ctx, ev);
+}
+
 /// Runs the event loop
 /// Calls back to user defined functions thorugh Callback trait
 #[allow(unused_variables)]
-pub fn run<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
+pub fn run_manually<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
     let callbacks = C::new(&mut ctx);
 
     #[cfg(feature = "hot_reload")]
