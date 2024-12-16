@@ -250,7 +250,6 @@ impl Callbacks for App {
             println!("reload");
         }
 
-        // log::warn!("UPDATE");
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;

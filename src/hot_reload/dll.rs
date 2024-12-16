@@ -5,12 +5,13 @@ use dlopen_derive::WrapperApi;
 #[derive(WrapperApi)]
 pub struct DllApi<T> {
     new: fn(ctx: &mut crate::Context) -> T,
-    update: fn(game: &mut T, ctx: &mut crate::Context) -> bool,
-    render: fn(game: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool,
-    resize: fn(game: &mut T, ctx: &mut crate::Context),
+    update: fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool,
+    render:
+        fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool,
+    resize: fn(callbacks: &mut T, ctx: &mut crate::Context),
 }
 
-/// Wrapper for Game + dll
+/// Wrapper for callbacks + dll
 pub struct DllCallbacks<T> {
     pub callbacks: T,
     pub dll: Container<DllApi<T>>,
@@ -20,12 +21,9 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     fn new(ctx: &mut crate::Context) -> Self {
         let dll: Container<DllApi<T>> = unsafe { Container::load(super::DLL_NAME) }
             .expect("Could not open library or load symbols");
-        let game = dll.new(ctx);
+        let callbacks = dll.new(ctx);
 
-        Self {
-            callbacks: game,
-            dll,
-        }
+        Self { callbacks, dll }
     }
 
     fn update(&mut self, ctx: &mut crate::Context) -> bool {

@@ -1,10 +1,8 @@
 use gbase::{
-    hot_reload, input,
     render::{self},
     wgpu,
 };
 
-#[repr(C)]
 pub struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: render::ArcRenderPipeline,
@@ -32,12 +30,16 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
+    #[allow(unused_variables)]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-        if input::key_just_pressed(ctx, input::KeyCode::KeyH) {
-            hot_reload::hot_reload(ctx);
-        }
-        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            hot_reload::hot_restart(ctx);
+        #[cfg(feature = "gbase/hot_reload")]
+        {
+            if input::key_just_pressed(ctx, input::KeyCode::KeyH) {
+                gbase::hot_reload::hot_reload(ctx);
+            }
+            if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+                gbase::hot_reload::hot_restart(ctx);
+            }
         }
         false
     }
@@ -49,6 +51,7 @@ impl gbase::Callbacks for App {
                 view: screen_view,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
+                    // load: wgpu::LoadOp::Clear(wgpu::Color::RED),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,

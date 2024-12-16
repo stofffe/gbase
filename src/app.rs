@@ -1,6 +1,6 @@
 use crate::{audio, filesystem, input, render, time, window, Context};
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
 use std::path::PathBuf;
@@ -54,10 +54,10 @@ pub trait Callbacks {
 /// Main App
 /// Contains all data to run application
 pub(crate) struct App<C: Callbacks> {
-    #[cfg(not(debug_assertions))]
+    #[cfg(not(feature = "hot_reload"))]
     pub(crate) callbacks: C,
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "hot_reload")]
     pub(crate) callbacks: DllCallbacks<C>,
 }
 
@@ -69,7 +69,8 @@ where
     pub(crate) fn update_and_render(&mut self, ctx: &mut Context) -> bool {
         // time
         ctx.time.update_time();
-        #[cfg(debug_assertions)]
+
+        #[cfg(feature = "hot_reload")]
         ctx.hot_reload.reset();
 
         // update
@@ -118,10 +119,8 @@ where
 /// Calls back to user defined functions thorugh Callback trait
 #[allow(unused_variables)]
 pub fn run<C: Callbacks + 'static>(callbacks: C, mut ctx: Context, event_loop: EventLoop<()>) {
-    println!("before dynamic alloc");
-    #[cfg(debug_assertions)]
-    let callbacks = DllCallbacks::<C>::new(&mut ctx); // Hot reloading
-                                                      //
+    #[cfg(feature = "hot_reload")]
+    let callbacks = DllCallbacks::<C>::new(&mut ctx);
 
     let app = App { callbacks };
 
@@ -232,9 +231,6 @@ impl ContextBuilder {
         let audio = audio::AudioContext::new();
         let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
 
-        #[cfg(debug_assertions)]
-        let hot_reload = hot_reload::HotReloadContext::new();
-
         let context = Context {
             input,
             time,
@@ -242,8 +238,8 @@ impl ContextBuilder {
             audio,
             render,
 
-            #[cfg(debug_assertions)]
-            hot_reload,
+            #[cfg(feature = "hot_reload")]
+            hot_reload: hot_reload::HotReloadContext::new(),
         };
 
         (context, event_loop)

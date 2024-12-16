@@ -10,7 +10,7 @@ pub mod render;
 pub mod time;
 pub mod window;
 
-#[cfg(debug_assertions)]
+#[cfg(feature = "hot_reload")]
 pub mod hot_reload;
 
 // exports
@@ -31,10 +31,11 @@ pub use winit;
 pub struct Context {
     pub(crate) input: input::InputContext,
     pub(crate) time: time::TimeContext,
+    #[allow(dead_code)]
     pub(crate) filesystem: filesystem::FileSystemContext,
     pub(crate) audio: audio::AudioContext,
     pub(crate) render: render::RenderContext,
 
-    #[cfg(debug_assertions)]
+    #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,
 }

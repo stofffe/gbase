@@ -17,6 +17,8 @@ pub(crate) struct HotReloadContext {
 
 impl HotReloadContext {
     pub(crate) fn new() -> Self {
+        log::info!("Hot Reload is enabled");
+
         let (tx, rx) = mpsc::channel();
 
         let mut watcher = notify::recommended_watcher(tx).unwrap();
@@ -53,8 +55,6 @@ impl HotReloadContext {
         self.force_restart = false;
     }
 }
-
-//
 
 //
 // Commands

@@ -71,8 +71,6 @@ impl RenderContext {
             .find(|f| f.is_srgb())
             .unwrap_or(surface_capabilities.formats[0]);
         let window_size = window.inner_size();
-        // let window_size = PhysicalSize::new(400, 400);
-        // log::warn!("window_size {:?}", window_size);
 
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
