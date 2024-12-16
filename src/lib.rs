@@ -5,11 +5,13 @@ mod app;
 pub mod audio;
 pub mod collision;
 pub mod filesystem;
-pub mod hot_reload;
 pub mod input;
 pub mod render;
 pub mod time;
 pub mod window;
+
+#[cfg(debug_assertions)]
+pub mod hot_reload;
 
 // exports
 pub use app::*;
