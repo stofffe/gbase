@@ -4,7 +4,22 @@ extern crate dlopen;
 use notify::Watcher;
 use std::{path::Path, sync::mpsc};
 
-const DLL_NAME: &str = "libhot_reload.dylib";
+pub(crate) fn dllname() -> String {
+    let dll_name = std::env::current_exe()
+        .unwrap()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    if cfg!(target_os = "windows") {
+        format!("{dll_name}.dll")
+    } else if cfg!(target_os = "macos") {
+        format!("lib{dll_name}.dylib")
+    } else {
+        format!("lib{dll_name}.so")
+    }
+}
 
 pub(crate) struct HotReloadContext {
     force_reload: bool,
@@ -23,7 +38,7 @@ impl HotReloadContext {
 
         let mut watcher = notify::recommended_watcher(tx).unwrap();
         watcher
-            .watch(Path::new(DLL_NAME), notify::RecursiveMode::NonRecursive)
+            .watch(Path::new(&dllname()), notify::RecursiveMode::NonRecursive)
             .unwrap();
 
         Self {

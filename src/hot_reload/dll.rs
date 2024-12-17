@@ -19,7 +19,7 @@ pub struct DllCallbacks<T> {
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
     fn new(ctx: &mut crate::Context) -> Self {
-        let dll: Container<DllApi<T>> = unsafe { Container::load(super::DLL_NAME) }
+        let dll: Container<DllApi<T>> = unsafe { Container::load(super::dllname()) }
             .expect("Could not open library or load symbols");
         let callbacks = dll.new(ctx);
 
@@ -44,7 +44,7 @@ impl<T> DllCallbacks<T> {
     ///
     /// keep game state
     pub fn hot_reload(&mut self) {
-        self.dll = unsafe { Container::load(super::DLL_NAME) }
+        self.dll = unsafe { Container::load(super::dllname()) }
             .expect("Could not open library or load symbols");
     }
 
