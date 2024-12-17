@@ -1,4 +1,5 @@
 use gbase::{
+    input,
     render::{self},
     wgpu,
 };
@@ -34,7 +35,7 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     #[allow(unused_variables)]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-        #[cfg(feature = "gbase/hot_reload")]
+        #[cfg(feature = "hot_reload")]
         {
             if input::key_just_pressed(ctx, input::KeyCode::KeyH) {
                 gbase::hot_reload::hot_reload(ctx);
@@ -48,12 +49,16 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        let mut color;
+        color = wgpu::Color::RED;
+        color = wgpu::Color::BLUE;
+
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-                    // load: wgpu::LoadOp::Clear(wgpu::Color::RED),
+                    // load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
+                    load: wgpu::LoadOp::Clear(color),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
