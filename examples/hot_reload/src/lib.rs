@@ -49,8 +49,8 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &gbase::wgpu::TextureView) -> bool {
         let mut color;
-        color = wgpu::Color::BLUE;
         color = wgpu::Color::RED;
+        color = wgpu::Color::BLUE;
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {

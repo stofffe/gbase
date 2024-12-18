@@ -1,10 +1,6 @@
 **/target
 **/Cargo.lock
 **/.DS_Store
-
-web/pkg
-web/assets/*
-
 **/*.dylib
 
 assets/models/kenney*
