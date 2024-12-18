@@ -1,10 +1,10 @@
-use gbase::{filesystem, render, Callbacks, Context, ContextBuilder, LogLevel};
+use gbase::{filesystem, render, Callbacks, Context, LogLevel};
 use std::sync::mpsc;
 
-pub fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new().log_level(LogLevel::Info).vsync(false),
-    );
+fn main() {
+    gbase::ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .run_sync::<App>();
 }
 
 const INPUT_SIZE: u32 = 8;

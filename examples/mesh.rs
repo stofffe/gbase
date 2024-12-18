@@ -1,16 +1,14 @@
 use gbase::{
     filesystem, input,
     render::{self, CameraUniform},
-    Callbacks, Context, ContextBuilder,
+    Callbacks, Context,
 };
 use glam::{vec3, Quat, Vec3};
 
 fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
-            .vsync(true),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

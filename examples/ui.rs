@@ -2,16 +2,14 @@ use gbase::{
     collision::Quad,
     filesystem,
     render::{self, Button, BLACK, GRAY, GREEN, RED},
-    time, Callbacks, Context, ContextBuilder,
+    time, Callbacks, Context,
 };
 use glam::vec2;
 
 pub fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
-            .vsync(false),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

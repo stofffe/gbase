@@ -2,7 +2,7 @@ mod grass;
 use gbase::{
     collision, filesystem, input,
     render::{self, CameraUniform, DeferredRenderer, MeshRenderer, Transform, TransformUniform},
-    time, Callbacks, Context, ContextBuilder, LogLevel,
+    time, Callbacks, Context,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass::GrassRenderer;
@@ -13,12 +13,11 @@ use winit::{
 };
 
 pub fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new()
-            .window_builder(WindowBuilder::new().with_maximized(true))
-            .log_level(LogLevel::Warn)
-            .vsync(false),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Warn)
+        .window_builder(WindowBuilder::new().with_maximized(true))
+        .vsync(false)
+        .run_sync::<App>();
 }
 
 const CAMERA_MOVE_SPEED: f32 = 15.0;

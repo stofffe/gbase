@@ -2,11 +2,13 @@ use gbase::{
     audio::{self, SoundSource},
     filesystem,
     input::{self, KeyCode},
-    Callbacks, Context, ContextBuilder, LogLevel,
+    Callbacks, Context, LogLevel,
 };
 
-fn main() {
-    gbase::run_app_with_builder::<App>(ContextBuilder::new().log_level(LogLevel::Info));
+pub fn main() {
+    gbase::ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

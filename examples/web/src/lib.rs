@@ -1,23 +1,27 @@
-use gbase::{
-    render::{self},
-    wgpu,
-};
+use gbase::{filesystem, render, wgpu, Callbacks, Context, LogLevel};
 
-pub struct App {
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub async fn main() {
+    gbase::ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .run::<App>()
+        .await;
+}
+
+struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: render::ArcRenderPipeline,
 }
 
-impl gbase::Callbacks for App {
-    #[no_mangle]
-    fn new(ctx: &mut gbase::Context) -> Self {
-        println!("INIT");
+impl Callbacks for App {
+    fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             TRIANGLE_VERTICES.to_vec(),
         ))
         .usage(wgpu::BufferUsages::VERTEX)
         .build(ctx);
-        let shader_str = include_str!("../assets/shaders/triangle.wgsl").to_string();
+
+        let shader_str = filesystem::load_s!("shaders/triangle.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
@@ -30,34 +34,12 @@ impl gbase::Callbacks for App {
             pipeline,
         }
     }
-
-    #[no_mangle]
-    #[allow(unused_variables)]
-    fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-        #[cfg(feature = "hot_reload")]
-        {
-            if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyH) {
-                gbase::hot_reload::hot_reload(ctx);
-            }
-            if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
-                gbase::hot_reload::hot_restart(ctx);
-            }
-        }
-        false
-    }
-
-    #[no_mangle]
-    fn render(&mut self, ctx: &mut gbase::Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        let mut color;
-        color = wgpu::Color::BLUE;
-        color = wgpu::Color::RED;
-
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
                 view: screen_view,
                 ops: wgpu::Operations {
-                    // load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-                    load: wgpu::LoadOp::Clear(color),
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
                     store: wgpu::StoreOp::Store,
                 },
                 resolve_target: None,
@@ -67,11 +49,9 @@ impl gbase::Callbacks for App {
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 render_pass.draw(0..self.vertex_buffer.len(), 0..1);
             });
+
         false
     }
-
-    #[no_mangle]
-    fn resize(&mut self, _ctx: &mut gbase::Context) {}
 }
 
 #[rustfmt::skip]

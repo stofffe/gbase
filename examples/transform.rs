@@ -1,14 +1,14 @@
 use gbase::{
     filesystem,
     render::{self, ArcBindGroup, ArcRenderPipeline, TransformUniform, Vertex},
-    Callbacks, Context, ContextBuilder, LogLevel,
+    Callbacks, Context,
 };
 use glam::{Quat, Vec3};
 
 pub fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new().log_level(LogLevel::Info).vsync(false),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

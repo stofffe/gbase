@@ -1,15 +1,15 @@
 use gbase::{
     filesystem, input,
     render::{self, CameraUniform},
-    Callbacks, Context, ContextBuilder, LogLevel,
+    Callbacks, Context, LogLevel,
 };
 use glam::{vec3, Vec3};
 use winit::keyboard::KeyCode;
 
 pub fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new().log_level(LogLevel::Warn).vsync(false),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

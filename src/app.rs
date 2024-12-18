@@ -5,7 +5,6 @@ use crate::hot_reload::{self, DllCallbacks};
 
 use std::path::PathBuf;
 use wgpu::SurfaceError;
-use winit::event_loop::EventLoop;
 
 /// User callbaks
 pub trait Callbacks {
@@ -62,10 +61,7 @@ pub(crate) struct App<C: Callbacks> {
 }
 
 /// Functions implemented on App
-impl<C> App<C>
-where
-    C: Callbacks + 'static,
-{
+impl<C: Callbacks + 'static> App<C> {
     pub(crate) fn update_and_render(&mut self, ctx: &mut Context) -> bool {
         // time
         ctx.time.update_time();
@@ -113,42 +109,6 @@ where
 
         false
     }
-}
-
-/// Runs the app with the specificed Callbacks
-///
-/// For more control use `run_app_with_builder`
-pub fn run_app<C: Callbacks + 'static>() {
-    let (ctx, ev) = pollster::block_on(
-        crate::ContextBuilder::new()
-            .log_level(crate::LogLevel::Info)
-            .build(),
-    );
-
-    run::<C>(ctx, ev);
-}
-
-/// Runs the app with the specificed Callbacks
-///
-/// For simpler setup use `run_app`
-pub fn run_app_with_builder<C: Callbacks + 'static>(builder: ContextBuilder) {
-    let (ctx, ev) = pollster::block_on(builder.build());
-
-    run::<C>(ctx, ev);
-}
-
-/// Runs the event loop
-/// Calls back to user defined functions thorugh Callback trait
-fn run<C: Callbacks + 'static>(mut ctx: Context, event_loop: EventLoop<()>) {
-    #[cfg(not(feature = "hot_reload"))]
-    let callbacks = C::new(&mut ctx);
-
-    #[cfg(feature = "hot_reload")]
-    let callbacks = DllCallbacks::<C>::new(&mut ctx);
-
-    let app = App { callbacks };
-
-    window::run_window(event_loop, app, ctx);
 }
 
 /// What level of info that should be logged
@@ -206,6 +166,18 @@ pub struct ContextBuilder {
     device_features: wgpu::Features,
 }
 
+impl Default for ContextBuilder {
+    fn default() -> Self {
+        Self {
+            window_builder: None,
+            assets_path: PathBuf::from("assets"),
+            log_level: LogLevel::Info,
+            vsync: true,
+            device_features: wgpu::Features::empty(),
+        }
+    }
+}
+
 #[allow(clippy::new_without_default)]
 impl ContextBuilder {
     pub fn new() -> Self {
@@ -243,7 +215,11 @@ impl ContextBuilder {
         self
     }
 
-    pub async fn build(self) -> (Context, EventLoop<()>) {
+    pub fn run_sync<C: Callbacks + 'static>(self) {
+        pollster::block_on(self.run::<C>())
+    }
+
+    pub async fn run<C: Callbacks + 'static>(self) {
         init_logging(self.log_level);
 
         let (window, event_loop) = window::new_window(self.window_builder);
@@ -253,7 +229,7 @@ impl ContextBuilder {
         let audio = audio::AudioContext::new();
         let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
 
-        let context = Context {
+        let mut ctx = Context {
             input,
             time,
             filesystem,
@@ -264,14 +240,14 @@ impl ContextBuilder {
             hot_reload: hot_reload::HotReloadContext::new(),
         };
 
-        (context, event_loop)
-    }
-}
+        #[cfg(not(feature = "hot_reload"))]
+        let callbacks = C::new(&mut ctx);
 
-/// Shortcut for ```ContextBuilder```
-pub async fn build_context() -> (Context, EventLoop<()>) {
-    ContextBuilder::new()
-        .log_level(LogLevel::Warn)
-        .build()
-        .await
+        #[cfg(feature = "hot_reload")]
+        let callbacks = DllCallbacks::<C>::new(&mut ctx);
+
+        let app = App { callbacks };
+
+        window::run_window(event_loop, app, ctx);
+    }
 }

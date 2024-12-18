@@ -1,15 +1,13 @@
 use gbase::{
     input::{self, KeyCode},
     render::{self, ArcTextureView},
-    Callbacks, Context, ContextBuilder,
+    Callbacks, Context,
 };
 
 fn main() {
-    gbase::run_app_with_builder::<App>(
-        ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
-            .vsync(false),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

@@ -1,3 +1,3 @@
 fn main() {
-    gbase::run_app::<hot_reload::App>();
+    gbase::ContextBuilder::new().run_sync::<hot_reload::App>();
 }

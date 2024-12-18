@@ -1,11 +1,13 @@
 use gbase::{
     filesystem,
     render::{self, ArcRenderPipeline, Vertex},
-    Callbacks, Context, ContextBuilder,
+    Callbacks, Context,
 };
 
-pub fn main() {
-    gbase::run_app_with_builder::<App>(ContextBuilder::new().log_level(gbase::LogLevel::Info));
+fn main() {
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

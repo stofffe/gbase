@@ -1,12 +1,16 @@
+#![allow(dead_code)]
+
 use gbase::{
     input::{self, KeyCode},
     render::{self, CameraUniform, Transform},
-    time, Callbacks, Context, ContextBuilder, LogLevel,
+    time, Callbacks, Context, LogLevel,
 };
 use glam::{vec2, vec3, Quat, Vec3};
 
 pub fn main() {
-    gbase::run_app_with_builder::<App>(ContextBuilder::new().log_level(LogLevel::Info));
+    gbase::ContextBuilder::new()
+        .log_level(LogLevel::Info)
+        .run_sync::<App>();
 }
 
 struct App {

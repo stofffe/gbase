@@ -20,12 +20,16 @@ pub use app::*;
 // TODO bytemuck and encase macros not exported
 pub use bytemuck;
 pub use encase;
-pub use env_logger;
+
 pub use glam;
 pub use log;
-pub use pollster;
 pub use wgpu;
 pub use winit;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use env_logger;
+#[cfg(not(target_arch = "wasm32"))]
+pub use pollster;
 
 /// Holds neccesary state for running the engine
 ///

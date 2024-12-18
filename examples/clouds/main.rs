@@ -6,16 +6,17 @@ use gbase::{
     collision::{self, Box3D, Quad},
     input,
     render::{self},
-    time, LogLevel,
+    time,
 };
 use glam::{vec2, vec3, Quat, Vec4Swizzles};
+use winit::window::WindowBuilder;
 
 fn main() {
-    gbase::run_app_with_builder::<App>(
-        gbase::ContextBuilder::new()
-            .window_builder(winit::window::WindowBuilder::new().with_maximized(true))
-            .log_level(LogLevel::Info),
-    );
+    gbase::ContextBuilder::new()
+        .log_level(gbase::LogLevel::Warn)
+        .window_builder(WindowBuilder::new().with_maximized(true))
+        .vsync(false)
+        .run_sync::<App>();
 }
 
 struct App {
