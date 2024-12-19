@@ -169,6 +169,7 @@ impl RenderPipelineBuilder {
         self.buffers = value;
         self
     }
+    // TODO: make this custom type? (with empty)
     pub fn targets(mut self, value: Vec<Option<wgpu::ColorTargetState>>) -> Self {
         self.targets = value;
         self

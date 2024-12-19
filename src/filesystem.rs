@@ -25,7 +25,8 @@ impl FileSystemContext {
 ///
 /// # Examples
 /// ```
-/// let shader_bytes = load_b!("shaders/shader.wgsl").unwrap();
+/// use gbase::filesystem;
+/// let shader_bytes = filesystem::load_b!("shaders/shader.wgsl").unwrap();
 /// ```
 ///
 #[macro_export]
@@ -54,7 +55,8 @@ macro_rules! load_b {
 ///
 /// # Examples
 /// ```
-/// let shader_str = load_s!("shaders/shader.wgsl").unwrap();
+/// use gbase::filesystem;
+/// let shader_str = filesystem::load_s!("shaders/shader.wgsl").unwrap();
 /// ```
 ///
 #[macro_export]
