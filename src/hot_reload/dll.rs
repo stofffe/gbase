@@ -20,7 +20,7 @@ pub struct DllCallbacks<T> {
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
     fn init_ctx() -> crate::ContextBuilder {
-        Self::init_ctx()
+        panic!("init_ctx on DllCallbacks should never be called");
     }
 
     fn new(ctx: &mut crate::Context) -> Self {

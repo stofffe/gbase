@@ -1,4 +1,3 @@
-#![allow(inactive)]
 use gbase::glam::{vec2, Vec2, Vec4};
 use gbase::{
     collision::{self, Quad},
@@ -77,7 +76,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(feature = "hot_reload")]
-        if key_just_pressed(ctx, KeyCode::F1) {
+        if input::key_just_pressed(ctx, KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
             println!("hot restart");
         }
