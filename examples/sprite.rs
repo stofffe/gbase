@@ -1,11 +1,11 @@
+use gbase::glam::{vec2, Vec2, Vec4};
 use gbase::{
     collision::{self, Quad},
     filesystem,
     input::{self, KeyCode},
     render::{self, CameraUniform, VertexTrait},
-    time, Callbacks, Context,
+    time, wgpu, Callbacks, Context,
 };
-use glam::{vec2, Vec2, Vec4};
 
 fn main() {
     gbase::ContextBuilder::new().run_sync::<App>();
@@ -13,11 +13,11 @@ fn main() {
 
 const MAX_SPRITES: u64 = 1000;
 
-struct App {
+pub struct App {
     player: Player,
     obstacles: Vec<Obstacle>,
 
-    camera: render::PerspectiveCamera,
+    camera: render::Camera,
     camera_buffer: render::UniformBuffer<CameraUniform>,
 
     sprite_renderer: SpriteRenderer,
@@ -35,6 +35,7 @@ struct Obstacle {
 }
 
 impl Callbacks for App {
+    #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
         let player = Player {
             pos: vec2(0.0, 0.0),
@@ -55,7 +56,7 @@ impl Callbacks for App {
         let sprite_renderer =
             SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_config(ctx).format);
 
-        let mut camera = render::PerspectiveCamera::new();
+        let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
         camera.pos.z = 2.0;
 
         let camera_buffer =
@@ -72,20 +73,29 @@ impl Callbacks for App {
         }
     }
 
+    #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+        #[cfg(feature = "hot_reload")]
+        if key_just_pressed(ctx, KeyCode::F1) {
+            gbase::hot_reload::hot_restart(ctx);
+            println!("hot restart");
+        }
+        self.camera.flying_controls(ctx);
+
+        // hot restart
         let dt = time::delta_time(ctx);
 
         let mut dir = Vec2::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
+        if input::key_pressed(ctx, KeyCode::ArrowUp) {
             dir.y -= 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
+        if input::key_pressed(ctx, KeyCode::ArrowDown) {
             dir.y += 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
+        if input::key_pressed(ctx, KeyCode::ArrowLeft) {
             dir.x -= 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
+        if input::key_pressed(ctx, KeyCode::ArrowRight) {
             dir.x += 1.0;
         }
 
@@ -96,6 +106,7 @@ impl Callbacks for App {
         false
     }
 
+    #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
@@ -119,6 +130,9 @@ impl Callbacks for App {
 
         false
     }
+
+    #[no_mangle]
+    fn resize(&mut self, _ctx: &mut Context) {}
 }
 
 struct SpriteRenderer {

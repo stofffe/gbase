@@ -1,5 +1,7 @@
+use std::f32::consts::PI;
+
 use gbase::glam::{vec2, Vec2, Vec4};
-use gbase::input::key_just_pressed;
+use gbase::render::CameraProjection;
 use gbase::{
     collision::{self, Quad},
     filesystem,
@@ -18,7 +20,7 @@ pub struct App {
     player: Player,
     obstacles: Vec<Obstacle>,
 
-    camera: render::PerspectiveCamera,
+    camera: render::Camera,
     camera_buffer: render::UniformBuffer<CameraUniform>,
 
     sprite_renderer: SpriteRenderer,
@@ -57,7 +59,8 @@ impl Callbacks for App {
         let sprite_renderer =
             SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_config(ctx).format);
 
-        let mut camera = render::PerspectiveCamera::new();
+        // let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
+        let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
         camera.pos.z = 2.0;
 
         let camera_buffer =
@@ -77,24 +80,26 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(feature = "hot_reload")]
-        if key_just_pressed(ctx, KeyCode::F1) {
+        if gbase::input::key_just_pressed(ctx, KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
             println!("hot restart");
         }
+        self.camera.flying_controls(ctx);
+
         // hot restart
         let dt = time::delta_time(ctx);
 
         let mut dir = Vec2::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
+        if input::key_pressed(ctx, KeyCode::ArrowUp) {
             dir.y -= 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
+        if input::key_pressed(ctx, KeyCode::ArrowDown) {
             dir.y += 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
+        if input::key_pressed(ctx, KeyCode::ArrowLeft) {
             dir.x -= 1.0;
         }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
+        if input::key_pressed(ctx, KeyCode::ArrowRight) {
             dir.x += 1.0;
         }
 
@@ -283,87 +288,3 @@ impl VertexTrait for VertexSprite {
         Self::desc()
     }
 }
-
-//
-// use gbase::{
-//     render::{self},
-//     wgpu,
-// };
-//
-// pub struct App {
-//     vertex_buffer: render::VertexBuffer<render::Vertex>,
-//     pipeline: render::ArcRenderPipeline,
-// }
-//
-// impl gbase::Callbacks for App {
-//     #[no_mangle]
-//     fn new(ctx: &mut gbase::Context) -> Self {
-//         println!("INIT");
-//         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
-//             TRIANGLE_VERTICES.to_vec(),
-//         ))
-//         .usage(wgpu::BufferUsages::VERTEX)
-//         .build(ctx);
-//         let shader_str = include_str!("../assets/shaders/triangle.wgsl").to_string();
-//         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
-//         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
-//         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
-//             .buffers(vec![vertex_buffer.desc()])
-//             .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
-//             .build(ctx);
-//
-//         Self {
-//             vertex_buffer,
-//             pipeline,
-//         }
-//     }
-//
-//     #[no_mangle]
-//     #[allow(unused_variables)]
-//     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-//         #[cfg(feature = "hot_reload")]
-//         {
-//             if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyH) {
-//                 gbase::hot_reload::hot_reload(ctx);
-//             }
-//             if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
-//                 gbase::hot_reload::hot_restart(ctx);
-//             }
-//         }
-//         false
-//     }
-//
-//     #[no_mangle]
-//     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-//         let mut color;
-//         color = wgpu::Color::RED;
-//         color = wgpu::Color::BLUE;
-//
-//         render::RenderPassBuilder::new()
-//             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-//                 view: screen_view,
-//                 ops: wgpu::Operations {
-//                     // load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-//                     load: wgpu::LoadOp::Clear(color),
-//                     store: wgpu::StoreOp::Store,
-//                 },
-//                 resolve_target: None,
-//             })])
-//             .build_run_new_encoder(ctx, |mut render_pass| {
-//                 render_pass.set_pipeline(&self.pipeline);
-//                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-//                 render_pass.draw(0..self.vertex_buffer.len(), 0..1);
-//             });
-//         false
-//     }
-//
-//     #[no_mangle]
-//     fn resize(&mut self, _ctx: &mut gbase::Context) {}
-// }
-//
-// #[rustfmt::skip]
-// const TRIANGLE_VERTICES: &[render::Vertex] = &[
-//     render::Vertex { position: [-0.5, -0.5, 0.0]  },
-//     render::Vertex { position: [0.5, -0.5, 0.0]   },
-//     render::Vertex { position: [0.0, 0.5, 0.0] },
-// ];
