@@ -55,7 +55,9 @@ impl Callbacks for App {
         let sprite_renderer =
             SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_config(ctx).format);
 
-        let camera = render::PerspectiveCamera::new();
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos.z = 2.0;
+
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
@@ -95,6 +97,8 @@ impl Callbacks for App {
     }
 
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+
         // player
         let player_quad = Quad::new(self.player.pos, self.player.size);
 
@@ -149,7 +153,7 @@ impl SpriteRenderer {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // camera
-                render::BindGroupLayoutEntry::new().uniform(),
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
             ])
             .build(ctx);
 

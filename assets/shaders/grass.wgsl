@@ -15,11 +15,16 @@ struct Instance {
 @group(0) @binding(2) var<uniform> app_info: AppInfo;
 
 struct CameraUniform {
-    view_proj: mat4x4<f32>,
     pos: vec3<f32>,
     facing: vec3<f32>,
+    
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>,
+
+    inv_view: mat4x4<f32>,
+    inv_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
 };
 
 struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };

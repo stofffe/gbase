@@ -33,7 +33,9 @@ impl Callbacks for App {
         .build(ctx);
 
         // Camera
-        let camera = render::PerspectiveCamera::new();
+        let mut camera = render::PerspectiveCamera::new();
+        camera.pos = vec3(0.0, 0.0, 2.0);
+
         let buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -72,7 +74,6 @@ impl Callbacks for App {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let queue = render::queue(ctx);
 
-        self.camera.pos = vec3(0.0, 0.0, 2.0);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {

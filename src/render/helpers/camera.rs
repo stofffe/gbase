@@ -44,6 +44,7 @@ impl PerspectiveCamera {
         )
         .normalize()
     }
+
     #[rustfmt::skip]
     pub fn right(&self) -> Vec3 {
         vec3(
@@ -67,25 +68,32 @@ impl PerspectiveCamera {
         const MAX_PITCH: f32 = PI / 2.0 - 0.1;
         const MIN_FOV: f32 = 0.1;
         const MAX_FOV: f32 = PI - 0.1;
-
-        // left handed coords
         self.pitch = self.pitch.clamp(MIN_PITCH, MAX_PITCH);
         self.fov = self.fov.clamp(MIN_FOV, MAX_FOV);
-        let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
-        let aspect = ctx.render.aspect_ratio();
-        let proj = Mat4::perspective_rh(self.fov, aspect, self.znear, self.zfar);
-
-        let view_proj = proj * view;
 
         let pos = self.pos;
         let facing = self.forward();
 
+        // right handed coords
+        let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
+        let proj = Mat4::perspective_rh(self.fov, ctx.render.aspect_ratio(), self.znear, self.zfar);
+        let view_proj = proj * view;
+
+        let inv_view = view.inverse();
+        let inv_proj = proj.inverse();
+        let inv_view_proj = view_proj.inverse();
+
         CameraUniform {
-            view_proj,
             pos,
             facing,
+
             view,
             proj,
+            view_proj,
+
+            inv_view,
+            inv_proj,
+            inv_view_proj,
         }
     }
 
@@ -132,9 +140,14 @@ impl PerspectiveCamera {
 
 #[derive(ShaderType)]
 pub struct CameraUniform {
-    view_proj: Mat4,
     pos: Vec3,
     facing: Vec3,
+
     view: Mat4,
     proj: Mat4,
+    view_proj: Mat4,
+
+    inv_view: Mat4,
+    inv_proj: Mat4,
+    inv_view_proj: Mat4,
 }
