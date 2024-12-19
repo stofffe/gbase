@@ -7,9 +7,7 @@ use glam::{vec3, Vec3};
 use winit::keyboard::KeyCode;
 
 pub fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 struct App {

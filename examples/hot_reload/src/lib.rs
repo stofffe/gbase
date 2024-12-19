@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 
 use gbase::glam::{vec2, Vec2, Vec4};
-use gbase::render::CameraProjection;
+use gbase::winit::window::WindowBuilder;
 use gbase::{
     collision::{self, Quad},
     filesystem,
@@ -11,7 +11,7 @@ use gbase::{
 };
 
 fn main() {
-    gbase::ContextBuilder::new().run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 const MAX_SPRITES: u64 = 1000;
@@ -39,6 +39,11 @@ struct Obstacle {
 
 impl Callbacks for App {
     #[no_mangle]
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new().window_builder(WindowBuilder::new().with_maximized(true))
+    }
+
+    #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
         let player = Player {
             pos: vec2(0.0, 0.0),
@@ -59,7 +64,6 @@ impl Callbacks for App {
         let sprite_renderer =
             SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_config(ctx).format);
 
-        // let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
         let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
         camera.pos.z = 2.0;
 
@@ -79,6 +83,7 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+        self.camera.projection = render::CameraProjection::perspective(PI / 2.0);
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -163,7 +168,7 @@ impl SpriteRenderer {
                 .build(ctx);
 
         let shader = render::ShaderBuilder::new(
-            filesystem::load_s!("../../../assets/shaders/sprite_renderer.wgsl")
+            filesystem::load_s!("shaders/sprite_renderer.wgsl")
                 .expect("could not load sprite renderer shader"),
         )
         .build(ctx);

@@ -6,9 +6,7 @@ use gbase::{
 };
 
 pub fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 struct App {

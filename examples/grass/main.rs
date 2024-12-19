@@ -13,11 +13,7 @@ use winit::{
 };
 
 pub fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Warn)
-        .window_builder(WindowBuilder::new().with_maximized(true))
-        .vsync(false)
-        .run_sync::<App>();
+    gbase::run_sync::<App>()
 }
 
 const CAMERA_MOVE_SPEED: f32 = 15.0;
@@ -51,6 +47,12 @@ struct App {
 }
 
 impl Callbacks for App {
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new()
+            .log_level(gbase::LogLevel::Warn)
+            .window_builder(WindowBuilder::new().with_maximized(true))
+            .vsync(false)
+    }
     fn new(ctx: &mut Context) -> Self {
         // Framebuffer
         let framebuffer = render::FrameBufferBuilder::new()

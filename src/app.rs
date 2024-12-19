@@ -8,6 +8,11 @@ use wgpu::SurfaceError;
 
 /// User callbaks
 pub trait Callbacks {
+    /// Use a custom `ContextBuilder`
+    fn init_ctx() -> ContextBuilder {
+        ContextBuilder::new()
+    }
+
     /// Called after context initilization and before game/update loop
     fn new(_ctx: &mut Context) -> Self;
 
@@ -214,40 +219,43 @@ impl ContextBuilder {
         self.window_builder = Some(window_builder);
         self
     }
+}
 
-    pub fn run_sync<C: Callbacks + 'static>(self) {
-        pollster::block_on(self.run::<C>())
-    }
+pub async fn run<C: Callbacks + 'static>() {
+    let builder = C::init_ctx();
 
-    pub async fn run<C: Callbacks + 'static>(self) {
-        init_logging(self.log_level);
+    init_logging(builder.log_level);
 
-        let (window, event_loop) = window::new_window(self.window_builder);
-        let input = input::InputContext::default();
-        let time = time::TimeContext::default();
-        let filesystem = filesystem::FileSystemContext::new();
-        let audio = audio::AudioContext::new();
-        let render = render::RenderContext::new(window, self.vsync, self.device_features).await;
+    let (window, event_loop) = window::new_window(builder.window_builder);
+    let input = input::InputContext::default();
+    let time = time::TimeContext::default();
+    let filesystem = filesystem::FileSystemContext::new();
+    let audio = audio::AudioContext::new();
+    let render = render::RenderContext::new(window, builder.vsync, builder.device_features).await;
 
-        let mut ctx = Context {
-            input,
-            time,
-            filesystem,
-            audio,
-            render,
-
-            #[cfg(feature = "hot_reload")]
-            hot_reload: hot_reload::HotReloadContext::new(),
-        };
-
-        #[cfg(not(feature = "hot_reload"))]
-        let callbacks = C::new(&mut ctx);
+    let mut ctx = Context {
+        input,
+        time,
+        filesystem,
+        audio,
+        render,
 
         #[cfg(feature = "hot_reload")]
-        let callbacks = DllCallbacks::<C>::new(&mut ctx);
+        hot_reload: hot_reload::HotReloadContext::new(),
+    };
 
-        let app = App { callbacks };
+    #[cfg(not(feature = "hot_reload"))]
+    let callbacks = C::new(&mut ctx);
 
-        window::run_window(event_loop, app, ctx);
-    }
+    #[cfg(feature = "hot_reload")]
+    let callbacks = DllCallbacks::<C>::new(&mut ctx);
+
+    let app = App { callbacks };
+
+    window::run_window(event_loop, app, ctx);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn run_sync<C: Callbacks + 'static>() {
+    pollster::block_on(run::<C>())
 }

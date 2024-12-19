@@ -8,7 +8,7 @@ use gbase::{
 };
 
 fn main() {
-    gbase::ContextBuilder::new().run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 const MAX_SPRITES: u64 = 1000;

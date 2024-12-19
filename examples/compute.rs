@@ -2,9 +2,7 @@ use gbase::{filesystem, render, Callbacks, Context, LogLevel};
 use std::sync::mpsc;
 
 fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 const INPUT_SIZE: u32 = 8;

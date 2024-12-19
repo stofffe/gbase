@@ -6,9 +6,7 @@ use gbase::{
 use glam::{vec3, Quat, Vec3};
 
 fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Info)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 struct App {

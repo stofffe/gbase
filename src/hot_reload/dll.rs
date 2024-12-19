@@ -4,6 +4,7 @@ use dlopen_derive::WrapperApi;
 /// Dll Api for Callbacks
 #[derive(WrapperApi)]
 pub struct DllApi<T> {
+    init_ctx: fn() -> crate::ContextBuilder,
     new: fn(ctx: &mut crate::Context) -> T,
     update: fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool,
     render:
@@ -18,6 +19,10 @@ pub struct DllCallbacks<T> {
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
+    fn init_ctx() -> crate::ContextBuilder {
+        Self::init_ctx()
+    }
+
     fn new(ctx: &mut crate::Context) -> Self {
         let dll: Container<DllApi<T>> = unsafe { Container::load(super::dllname()) }
             .expect("Could not open library or load symbols");

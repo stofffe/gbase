@@ -2,10 +2,11 @@ use gbase::{filesystem, render, wgpu, Callbacks, Context, LogLevel};
 
 #[wasm_bindgen::prelude::wasm_bindgen]
 pub async fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(LogLevel::Info)
-        .run::<App>()
-        .await;
+    gbase::run::<App>().await
+    // gbase::ContextBuilder::new()
+    //     .log_level(LogLevel::Info)
+    //     .run::<App>()
+    //     .await;
 }
 
 struct App {

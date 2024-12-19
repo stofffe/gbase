@@ -12,11 +12,7 @@ use glam::{vec2, vec3, Quat, Vec4Swizzles};
 use winit::window::WindowBuilder;
 
 fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Warn)
-        .window_builder(WindowBuilder::new().with_maximized(true))
-        .vsync(false)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 struct App {
@@ -37,6 +33,12 @@ struct App {
 }
 
 impl gbase::Callbacks for App {
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new()
+            .log_level(gbase::LogLevel::Warn)
+            .window_builder(WindowBuilder::new().with_maximized(true))
+            .vsync(false)
+    }
     fn new(ctx: &mut gbase::Context) -> Self {
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)

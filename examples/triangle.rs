@@ -5,9 +5,7 @@ use gbase::{
 };
 
 fn main() {
-    gbase::ContextBuilder::new()
-        .log_level(gbase::LogLevel::Info)
-        .run_sync::<App>();
+    gbase::run_sync::<App>();
 }
 
 struct App {
@@ -16,6 +14,10 @@ struct App {
 }
 
 impl Callbacks for App {
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new().vsync(false)
+    }
+
     fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             TRIANGLE_VERTICES.to_vec(),
