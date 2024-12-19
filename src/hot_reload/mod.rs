@@ -12,13 +12,10 @@ pub(crate) fn dllname() -> String {
         .to_str()
         .unwrap()
         .to_string();
-    if cfg!(target_os = "windows") {
-        format!("{dll_name}.dll")
-    } else if cfg!(target_os = "macos") {
-        format!("lib{dll_name}.dylib")
-    } else {
-        format!("lib{dll_name}.so")
-    }
+    dlopen::utils::platform_file_name(dll_name)
+        .to_str()
+        .unwrap()
+        .to_string()
 }
 
 pub(crate) struct HotReloadContext {
