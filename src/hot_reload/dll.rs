@@ -2,10 +2,10 @@
 // init_ctx should only be called at program startup and never through dll
 // so we never store it here and we panic if called on DllContext
 
-type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
-type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
 #[rustfmt::skip]
 type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool;
+type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
+type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
 type ResizeFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
 
 pub struct DllApi<T> {
@@ -75,20 +75,36 @@ impl<T> DllCallbacks<T> {
 fn load_dll<T>() -> DllApi<T> {
     let lib = dlopen::symbor::Library::open(super::dllname()).unwrap();
 
-    let new: fn(ctx: &mut crate::Context) -> T =
-        *unsafe { lib.symbol::<NewFunc<T>>("new") }.expect("could not find new method");
+    let new = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
+        Ok(f) => *f,
+        Err(err) => {
+            log::error!("could not find function new");
+            log::error!("TIP: make sure callbacks are defined in library and not main.rs");
+            log::error!("TIP: make sure functions are marked with #[no_mangle]");
+            panic!("{}", err);
+        }
+    };
 
     let update = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
         Ok(f) => Some(*f),
-        Err(_) => None,
+        Err(err) => {
+            log::warn!("could not find function update: {}", err);
+            None
+        }
     };
     let render = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
         Ok(f) => Some(*f),
-        Err(_) => None,
+        Err(err) => {
+            log::warn!("could not find function render: {}", err);
+            None
+        }
     };
     let resize = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
         Ok(f) => Some(*f),
-        Err(_) => None,
+        Err(err) => {
+            log::warn!("could not find function resize: {}", err);
+            None
+        }
     };
 
     DllApi {
