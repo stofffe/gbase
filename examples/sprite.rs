@@ -1,3 +1,4 @@
+#![allow(inactive)]
 use gbase::glam::{vec2, Vec2, Vec4};
 use gbase::{
     collision::{self, Quad},

@@ -53,6 +53,7 @@ impl Callbacks for App {
             .window_builder(WindowBuilder::new().with_maximized(true))
             .vsync(false)
     }
+
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         // Framebuffer
