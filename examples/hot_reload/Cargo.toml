@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 gbase = { path = "../.." }
 pollster = { version = "0.3.0", features = ["macro"] }
+bytemuck = { version = "1.14.0", features = ["derive"] }
 
 [lib]
 crate-type = ["rlib", "dylib"]
