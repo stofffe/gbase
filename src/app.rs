@@ -117,6 +117,7 @@ impl<C: Callbacks + 'static> App<C> {
 }
 
 /// What level of info that should be logged
+#[derive(Debug)]
 pub enum LogLevel {
     None,
     Info,
@@ -163,6 +164,7 @@ fn init_logging(log_level: LogLevel) {
 }
 
 /// Build the context for running an application
+#[derive(Debug)]
 pub struct ContextBuilder {
     window_builder: Option<winit::window::WindowBuilder>,
     assets_path: PathBuf,

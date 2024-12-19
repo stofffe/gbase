@@ -1,21 +1,24 @@
-use dlopen::wrapper::{Container, WrapperApi};
-use dlopen_derive::WrapperApi;
+// NOTE:
+// init_ctx should only be called at program startup and never through dll
+// so we never store it here and we panic if called on DllContext
 
-/// Dll Api for Callbacks
-#[derive(WrapperApi)]
+type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
+type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
+#[rustfmt::skip]
+type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool;
+type ResizeFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
+
 pub struct DllApi<T> {
-    init_ctx: fn() -> crate::ContextBuilder,
-    new: fn(ctx: &mut crate::Context) -> T,
-    update: fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool,
-    render:
-        fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool,
-    resize: fn(callbacks: &mut T, ctx: &mut crate::Context),
+    new: NewFunc<T>,
+    update: Option<UpdateFunc<T>>,
+    render: Option<RenderFunc<T>>,
+    resize: Option<ResizeFunc<T>>,
 }
 
 /// Wrapper for callbacks + dll
 pub struct DllCallbacks<T> {
     pub callbacks: T,
-    pub dll: Container<DllApi<T>>,
+    pub dll: DllApi<T>,
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
@@ -24,23 +27,31 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     }
 
     fn new(ctx: &mut crate::Context) -> Self {
-        let dll: Container<DllApi<T>> = unsafe { Container::load(super::dllname()) }
-            .expect("Could not open library or load symbols");
-        let callbacks = dll.new(ctx);
-
+        let dll = load_dll();
+        let callbacks = (dll.new)(ctx);
         Self { callbacks, dll }
     }
 
     fn update(&mut self, ctx: &mut crate::Context) -> bool {
-        self.dll.update(&mut self.callbacks, ctx)
+        match self.dll.update {
+            Some(update) => update(&mut self.callbacks, ctx),
+            None => false,
+        }
     }
 
     fn render(&mut self, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool {
-        self.dll.render(&mut self.callbacks, ctx, screen_view)
+        match self.dll.render {
+            Some(render) => render(&mut self.callbacks, ctx, screen_view),
+            None => false,
+        }
     }
 
     fn resize(&mut self, ctx: &mut crate::Context) {
-        self.dll.resize(&mut self.callbacks, ctx)
+        #[allow(clippy::single_match)]
+        match self.dll.resize {
+            Some(resize) => resize(&mut self.callbacks, ctx),
+            None => {}
+        }
     }
 }
 
@@ -49,8 +60,7 @@ impl<T> DllCallbacks<T> {
     ///
     /// keep game state
     pub fn hot_reload(&mut self) {
-        self.dll = unsafe { Container::load(super::dllname()) }
-            .expect("Could not open library or load symbols");
+        self.dll = load_dll();
     }
 
     /// reload dll file
@@ -58,6 +68,33 @@ impl<T> DllCallbacks<T> {
     /// reset game state
     pub fn hot_restart(&mut self, ctx: &mut crate::Context) {
         self.hot_reload();
-        self.callbacks = self.dll.new(ctx);
+        self.callbacks = (self.dll.new)(ctx);
+    }
+}
+
+fn load_dll<T>() -> DllApi<T> {
+    let lib = dlopen::symbor::Library::open(super::dllname()).unwrap();
+
+    let new: fn(ctx: &mut crate::Context) -> T =
+        *unsafe { lib.symbol::<NewFunc<T>>("new") }.expect("could not find new method");
+
+    let update = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
+        Ok(f) => Some(*f),
+        Err(_) => None,
+    };
+    let render = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
+        Ok(f) => Some(*f),
+        Err(_) => None,
+    };
+    let resize = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
+        Ok(f) => Some(*f),
+        Err(_) => None,
+    };
+
+    DllApi {
+        new,
+        update,
+        render,
+        resize,
     }
 }

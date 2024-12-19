@@ -17,11 +17,6 @@ pub struct App {
 
 impl Callbacks for App {
     #[no_mangle]
-    fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new()
-    }
-
-    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let sound_bytes = filesystem::load_b!("sounds/boom.mp3").unwrap();
         let sound = audio::load_audio_source(ctx, sound_bytes);
@@ -34,14 +29,6 @@ impl Callbacks for App {
             log::info!("play boom");
             audio::play_audio_source(ctx, &self.sound);
         }
-        false
-    }
-
-    #[no_mangle]
-    fn resize(&mut self, _ctx: &mut Context) {}
-
-    #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         false
     }
 }
