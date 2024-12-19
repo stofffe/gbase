@@ -2,7 +2,7 @@ use gbase::{
     audio::{self, SoundSource},
     filesystem,
     input::{self, KeyCode},
-    Callbacks, Context, LogLevel,
+    Callbacks, Context,
 };
 
 pub fn main() {

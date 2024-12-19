@@ -1,7 +1,7 @@
 use gbase::{
     filesystem, input,
     render::{self, CameraUniform},
-    Callbacks, Context, LogLevel,
+    Callbacks, Context,
 };
 use glam::{vec3, Vec3};
 use winit::keyboard::KeyCode;

@@ -1,4 +1,6 @@
 use encase::ShaderType;
+use gbase::glam;
+use gbase::wgpu;
 use gbase::{
     filesystem,
     render::{self, ArcBindGroup, ArcComputePipeline, ArcRenderPipeline, CameraUniform},

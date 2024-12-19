@@ -1,4 +1,4 @@
-use gbase::{filesystem, render, Callbacks, Context, LogLevel};
+use gbase::{filesystem, render, Callbacks, Context};
 use std::sync::mpsc;
 
 fn main() {

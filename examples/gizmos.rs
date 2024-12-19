@@ -3,7 +3,7 @@
 use gbase::{
     input::{self, KeyCode},
     render::{self, CameraUniform, Transform},
-    time, Callbacks, Context, LogLevel,
+    time, Callbacks, Context,
 };
 use glam::{vec2, vec3, Quat, Vec3};
 

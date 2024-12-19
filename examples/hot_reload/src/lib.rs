@@ -10,10 +10,6 @@ use gbase::{
     time, wgpu, Callbacks, Context,
 };
 
-fn main() {
-    gbase::run_sync::<App>();
-}
-
 const MAX_SPRITES: u64 = 1000;
 
 pub struct App {
@@ -29,7 +25,7 @@ pub struct App {
 struct Player {
     pos: Vec2,
     size: Vec2,
-    velocity: Vec2,
+    _velocity: Vec2,
 }
 
 struct Obstacle {
@@ -48,7 +44,7 @@ impl Callbacks for App {
         let player = Player {
             pos: vec2(0.0, 0.0),
             size: vec2(0.1, 0.1),
-            velocity: vec2(0.1, 0.0),
+            _velocity: vec2(0.1, 0.0),
         };
         let obstacles = vec![
             Obstacle {
