@@ -1,3 +1,4 @@
+use gbase::wgpu;
 use gbase::{filesystem, render, Context};
 
 const NOISE_TEXTURE_DIM: u32 = 128;
@@ -12,9 +13,6 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     .usage(wgpu::TextureUsages::STORAGE_BINDING)
     .build(ctx);
 
-    // let shader_str = filesystem::load_string(ctx, "shaders/cloud_noise.wgsl")
-    //     .await
-    //     .unwrap();
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
     let shader = render::ShaderBuilder::new(shader_str).build(ctx);
     let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()

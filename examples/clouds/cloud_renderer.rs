@@ -1,4 +1,5 @@
 use crate::noise::generate_noise;
+use gbase::wgpu;
 use gbase::{
     collision, filesystem,
     render::{self, CameraUniform},

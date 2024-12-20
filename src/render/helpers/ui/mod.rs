@@ -5,9 +5,12 @@ mod fonts;
 pub use button::*;
 // pub use elements::*;
 pub use fonts::*;
+use glam::vec2;
+use winit::event::MouseButton;
 
+use crate::collision::Quad;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
-use crate::{filesystem, render, Context};
+use crate::{filesystem, input, render, Context};
 use render::VertexTrait;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
@@ -38,8 +41,9 @@ impl UiID {
 
 pub struct GUIRenderer {
     // logic
-    hot: UiID,    // hover
-    active: UiID, // holding click
+    hot_this_frame: UiID,
+    hot_last_frame: UiID,
+    active: UiID,
 
     // render
     dynamic_vertices: Vec<VertexUI>,
@@ -118,21 +122,54 @@ impl GUIRenderer {
             pipeline,
             font_atlas,
             font_atlas_bindgroup: bindgroup,
-            hot: UiID::cleared(),
+            hot_this_frame: UiID::cleared(),
+            hot_last_frame: UiID::cleared(),
             active: UiID::cleared(),
         }
     }
 
     // TODO use existing render pass instead?
     pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
-        // TODO: have logic here?
         //
-        // if input::mouse_button_released(ctx, MouseButton::Left) {
-        //     self.clear_active();
-        // }
+        // Debug
+        //
+        self.text(
+            &format!("hot: {}", self.hot_this_frame.id),
+            Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
+        self.text(
+            &format!("hot last: {}", self.hot_last_frame.id),
+            Quad::new(vec2(0.0, 0.1), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
+        self.text(
+            &format!("active: {}", self.active.id),
+            Quad::new(vec2(0.0, 0.15), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
+
+        //
+        // Logic
+        //
+
+        if input::mouse_button_released(ctx, MouseButton::Left) {
+            self.clear_active();
+        }
+        self.hot_last_frame = self.hot_this_frame;
+        self.hot_this_frame = UiID::cleared();
+
+        //
+        // Rendering
+        //
 
         // Update buffers with current frames data
-
         self.vertices.write(ctx, &self.dynamic_vertices);
         self.indices.write(ctx, &self.dynamic_indices);
 
@@ -164,6 +201,7 @@ impl GUIRenderer {
         self.dynamic_indices.clear();
     }
 
+    // active
     fn set_active(&mut self, id: UiID) {
         self.active = id;
     }
@@ -173,14 +211,13 @@ impl GUIRenderer {
     fn check_active(&self, id: UiID) -> bool {
         self.active == id
     }
-    fn set_hot(&mut self, id: UiID) {
-        self.hot = id;
-    }
-    fn clear_hot(&mut self) {
-        self.hot = UiID::cleared();
+
+    // hot
+    fn set_hot_this_frame(&mut self, id: UiID) {
+        self.hot_this_frame = id;
     }
     fn check_hot(&self, id: UiID) -> bool {
-        self.hot == id
+        self.hot_last_frame == id && self.hot_this_frame == id
     }
 }
 

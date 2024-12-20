@@ -104,6 +104,7 @@ impl GUIRenderer {
         self.text(text, quad, line_height, vec4(1.0, 1.0, 1.0, 1.0), wrap);
         result
     }
+
     pub fn button(&mut self, ctx: &Context, label: &str, quad: Quad, color: Vec4) -> bool {
         let id = UiID::new(label);
 
@@ -113,20 +114,17 @@ impl GUIRenderer {
 
         let mut result = false;
 
-        // active
-        if self.check_active(id) && mouse_up {
-            if self.check_hot(id) {
-                result = true;
-            }
-            self.clear_active();
-        } else if self.check_hot(id) && mouse_down {
-            self.set_active(id);
-        }
-
         if inside {
-            self.set_hot(id);
-        } else if self.check_hot(id) {
-            self.clear_hot();
+            self.set_hot_this_frame(id);
+
+            // active
+            if self.check_hot(id) {
+                if self.check_active(id) && mouse_up {
+                    result = true;
+                } else if mouse_down {
+                    self.set_active(id);
+                }
+            }
         }
 
         self.quad(quad, color);
