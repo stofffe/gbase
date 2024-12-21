@@ -208,7 +208,7 @@ impl GUIRenderer {
     fn clear_active(&mut self) {
         self.active = UiID::cleared();
     }
-    fn check_active(&self, id: UiID) -> bool {
+    pub fn check_active(&self, id: UiID) -> bool {
         self.active == id
     }
 
@@ -216,8 +216,15 @@ impl GUIRenderer {
     fn set_hot_this_frame(&mut self, id: UiID) {
         self.hot_this_frame = id;
     }
-    fn check_hot(&self, id: UiID) -> bool {
+    pub fn check_hot(&self, id: UiID) -> bool {
         self.hot_last_frame == id && self.hot_this_frame == id
+    }
+    pub fn check_last_hot(&self, id: UiID) -> bool {
+        self.hot_last_frame == id
+    }
+
+    pub fn get_id(&self, label: &str) -> UiID {
+        UiID::new(label)
     }
 }
 

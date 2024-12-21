@@ -1,4 +1,5 @@
 use gbase::glam;
+use gbase::render::BLUE;
 use gbase::wgpu;
 use gbase::{
     collision::Quad,
@@ -73,36 +74,83 @@ impl Callbacks for App {
             true,
         );
 
-        // Idea: hash ui element and use as id?
+        let blue_btn = Button::new()
+            .label("blue")
+            .dimension(vec2(0.2, 0.2))
+            .origin(vec2(0.7, 0.1))
+            .color(BLUE)
+            .render(ctx, gr);
 
-        // self.gui_renderer.button(ctx, Quad::new( vec2(0.5, 0.5), vec2(0.1,0.1)), vec4(1.0,0.0,0.0,1.0));
+        if blue_btn.clicked {
+            println!("blue clicked");
+        }
 
-        // button()
-        // k
+        if gr.check_last_hot(gr.get_id("blue")) || gr.check_last_hot(gr.get_id("red")) {
+            let red_btn = Button::new_with_parent(blue_btn)
+                .label("red")
+                .dimension(vec2(0.1, 0.1))
+                .origin(vec2(0.0, 0.2))
+                .color(RED)
+                .render(ctx, gr);
+            if red_btn.clicked {
+                println!("red clicked");
+            }
+        }
 
-        // if btn("label1")
-        //     .hover_color(RED)
-        //     .size(vec2(0.1, 0.1))
-        //     .orig(vec2(0.5, 0.5))
-        //     .child(|bounds| {
-        //         txt("label2")
-        //             .text("hello")
-        //             .fontsize(12)
-        //             .build()
-        //             .build()
-        //             .build()
-        //             .build()
-        //             .build()
-        //             .build()
-        //             .build()
-        //             .build()
-        //     })
-        //     .build()
-        // {}
+        let green_btn = Button::new_with_parent(blue_btn)
+            .label("green")
+            .dimension(vec2(0.05, 0.05))
+            .color(GREEN)
+            .render(ctx, gr);
+        if green_btn.clicked {
+            println!("green clicked");
+        }
+
+        // 1.
         // Button::new()
-        //     .dimension(vec2(0.1, 0.5))
-        //     .origin(vec2(0.1, 0.1))
-        //     .render(ctx, gr);
+        //     .label("blue")
+        //     .dimension(vec2(0.1, 0.1))
+        //     .origin(vec2(0.8, 0.1))
+        //     .color(BLUE)
+        //     .render_with_children(ctx, gr, |gr, b, c| {
+        //         if c {
+        //             println!("blue clicked");
+        //         }
+        //         Button::new_with_parent(b)
+        //             .label("red")
+        //             .dimension(vec2(0.05, 0.05))
+        //             .color(RED)
+        //             .render_with_children(ctx, gr, |gr, b, c| {
+        //                 if c {
+        //                     println!("red clicked");
+        //                 }
+        //                 Button::new_with_parent(b)
+        //                     .label("green")
+        //                     .dimension(vec2(0.025, 0.025))
+        //                     .color(GREEN)
+        //                     .render_with_children(ctx, gr, |_, _, c| {
+        //                         if c {
+        //                             println!("green clicked");
+        //                         }
+        //                     });
+        //             });
+        //     });
+
+        // 2.
+        // let blue_btn = Button::new()
+        //     .dimension(vec2(0.2, 0.2))
+        //     .origin(vec2(0.7, 0.1))
+        //     .color(BLUE);
+        // let red_btn = Button::new().dimension(vec2(0.1, 0.1)).color(RED);
+        // let green_btn = Button::new().dimension(vec2(0.05, 0.05)).color(GREEN);
+        //
+        // blue_btn.render_with_children(ctx, gr, |gr, b, c| {
+        //     red_btn
+        //         .origin(b.origin)
+        //         .render_with_children(ctx, gr, |gr, b, c| {
+        //             green_btn.origin(b.origin).render(ctx, gr);
+        //         });
+        // });
 
         if gr.button(
             ctx,
