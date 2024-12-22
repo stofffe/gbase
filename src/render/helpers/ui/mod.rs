@@ -246,18 +246,43 @@ impl GUIRenderer {
         }
     }
 
-    // POST
+    // PRE
     fn auto_3(&mut self, index: usize) {
+        let parent_i = self.w_now[index].parent;
+
+        // assume y axis
+
+        if let SizeKind::Grow = self.w_now[index].size_x {
+            self.w_now[index].size.x = self.w_now[parent_i].size.x;
+        }
+
+        if let SizeKind::Grow = self.w_now[index].size_y {
+            let mut space_used = 0.0;
+
+            let neighbours = self.w_now[parent_i].children.len();
+            // println!(
+            //     "name {}: neighbours {}",
+            //     self.w_now[index].label, neighbours
+            // );
+            for i in 0..neighbours {
+                let neighbout_i = self.w_now[parent_i].children[i];
+
+                // println!("neighbour {i}: name {}", self.w_now[neighbout_i].label);
+
+                space_used += self.w_now[neighbout_i].size.y;
+            }
+
+            let space_left = self.w_now[parent_i].size.y - space_used;
+            // println!(
+            //     "name {}: space {} space used {} space left {}",
+            //     self.w_now[index].label, self.w_now[index].size.y, space_used, space_left
+            // );
+            self.w_now[index].size.y = space_left;
+        }
+
         // children
         for i in 0..self.w_now[index].children.len() {
             self.auto_3(self.w_now[index].children[i]);
-        }
-
-        if let SizeKind::ChildrenSum = self.w_now[index].size_x {
-            panic!("auto3 x not implemented");
-        }
-        if let SizeKind::ChildrenSum = self.w_now[index].size_y {
-            panic!("auto3 y not implemented");
         }
     }
 
@@ -275,19 +300,10 @@ impl GUIRenderer {
 
     // PRE
     fn auto_5(&mut self, index: usize) {
-        // assume y axis
-        // let parent_index = self.w_now[index].parent;
-        //
-        // if index != widget::root_index() {
-        //     // self.w_now[index].pos.y =
-        // }
-
         let mut pos_y = self.w_now[index].pos.y;
-
-        // println!("5: CHECK {} POS {}", self.w_now[index].label, pos_y);
         for i in 0..self.w_now[index].children.len() {
             let child = self.w_now[index].children[i];
-            // println!("5: SET {} TO {}", self.w_now[child].label, pos_y);
+
             self.w_now[child].pos.y = pos_y;
             pos_y += self.w_now[child].size.y;
         }
@@ -307,7 +323,7 @@ impl GUIRenderer {
         // 2. Parent dependent sizes (PRE)
         self.auto_2(index);
         // 3. Parent dependent sizes (POST)
-        // self.auto_3(index);
+        self.auto_3(index);
         // 4. Parent dependent sizes (PRE)
         // self.auto_4(index);
         // 5. Parent dependent sizes (PRE)

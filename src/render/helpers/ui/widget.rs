@@ -41,7 +41,7 @@ pub enum SizeKind {
     Null,
     Pixels(f32),
     PercentOfParent(f32),
-    ChildrenSum,
+    Grow,
 }
 
 #[derive(Debug, Clone)]

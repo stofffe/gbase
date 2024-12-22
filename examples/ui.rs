@@ -1,5 +1,5 @@
 use gbase::glam;
-use gbase::render::{Widget, BLUE, GREEN, RED, WHITE};
+use gbase::render::{Widget, BLUE, GRAY, GREEN, RED, WHITE};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -40,9 +40,10 @@ impl Callbacks for App {
         let outer = Widget::new()
             .label("outer")
             .size_y(render::SizeKind::Pixels(0.9))
+            .size_x(render::SizeKind::Pixels(0.7))
             // .size(vec2(1.0, 1.0))
             // .padding(vec2(0.02, 0.02))
-            .color(BLUE)
+            .color(GRAY)
             .render(ctx, gr);
 
         // println!("outer {outer:?}");
@@ -51,6 +52,7 @@ impl Callbacks for App {
             .label("header")
             .parent(outer)
             .size_y(render::SizeKind::PercentOfParent(0.3))
+            .size_x(render::SizeKind::Grow)
             .color(RED)
             .clickable()
             .render(ctx, gr);
@@ -58,13 +60,25 @@ impl Callbacks for App {
         let body = Widget::new()
             .label("body")
             .parent(outer)
-            .size_y(render::SizeKind::PercentOfParent(0.5))
+            .size_y(render::SizeKind::Grow)
             .color(GREEN)
+            .clickable()
+            .render(ctx, gr);
+
+        let footer = Widget::new()
+            .label("footer")
+            .parent(outer)
+            .size_y(render::SizeKind::Pixels(0.1))
+            .color(BLUE)
+            .clickable()
             .render(ctx, gr);
 
         // println!("header {header:?}");
         if header.clicked {
             println!("CLICK HEADER");
+        }
+        if body.clicked {
+            println!("CLICK BODY");
         }
 
         // println!("{w}");
