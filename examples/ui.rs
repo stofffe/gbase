@@ -1,5 +1,5 @@
 use gbase::glam;
-use gbase::render::{Widget, BLUE, RED, WHITE};
+use gbase::render::{Widget, BLUE, GREEN, RED, WHITE};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -39,8 +39,9 @@ impl Callbacks for App {
 
         let outer = Widget::new()
             .label("outer")
-            .pos(vec2(0.4, 0.4))
-            .size(vec2(0.5, 0.5))
+            .size_y(render::SizeKind::Pixels(0.9))
+            // .size(vec2(1.0, 1.0))
+            // .padding(vec2(0.02, 0.02))
             .color(BLUE)
             .render(ctx, gr);
 
@@ -49,12 +50,16 @@ impl Callbacks for App {
         let header = Widget::new()
             .label("header")
             .parent(outer)
-            .size(vec2(0.1, 0.1))
+            .size_y(render::SizeKind::PercentOfParent(0.3))
             .color(RED)
             .clickable()
-            .text("click")
-            .text_color(WHITE)
-            .text_height(0.04)
+            .render(ctx, gr);
+
+        let body = Widget::new()
+            .label("body")
+            .parent(outer)
+            .size_y(render::SizeKind::PercentOfParent(0.5))
+            .color(GREEN)
             .render(ctx, gr);
 
         // println!("header {header:?}");

@@ -40,12 +40,12 @@ impl UiID {
 
 pub struct GUIRenderer {
     // logic
-    widgets_now: Vec<Widget>,
+    w_now: Vec<Widget>,
     widgets_last: Vec<Widget>,
 
-    hot_this_frame: UiID,
-    hot_last_frame: UiID,
-    active: UiID,
+    hot_this_frame: String,
+    hot_last_frame: String,
+    active: String,
 
     // render
     dynamic_vertices: Vec<VertexUI>,
@@ -125,11 +125,11 @@ impl GUIRenderer {
             font_atlas,
             font_atlas_bindgroup: bindgroup,
 
-            widgets_now: vec![widget::root_widget()],
+            w_now: vec![widget::root_widget()],
             widgets_last: vec![],
-            hot_this_frame: UiID::cleared(),
-            hot_last_frame: UiID::cleared(),
-            active: UiID::cleared(),
+            hot_this_frame: String::new(),
+            hot_last_frame: String::new(),
+            active: String::new(),
         }
     }
 
@@ -138,22 +138,23 @@ impl GUIRenderer {
         // NOTE: widgets_now should be constructed from user calls
 
         // layout
-        self.auto_layout(ctx);
+        self.auto_layout(widget::root_index());
+        // self.auto_layout(ctx);
 
         // render
-        for widget in self.widgets_now.clone().iter().skip(1) {
+        for widget in self.w_now.clone().iter().skip(1) {
             widget.inner_render(self);
         }
 
-        self.debug(ctx);
+        self.debug();
 
         // clear state
         if input::mouse_button_released(ctx, input::MouseButton::Left) {
             self.clear_active();
         }
-        self.hot_last_frame = self.hot_this_frame;
-        self.hot_this_frame = UiID::cleared();
-        self.widgets_last = self.widgets_now.clone();
+        self.hot_last_frame = self.hot_this_frame.clone();
+        self.hot_this_frame = String::new();
+        self.widgets_last = self.w_now.clone();
 
         //
         // Rendering
@@ -189,32 +190,131 @@ impl GUIRenderer {
         // Clear for next frame
         self.dynamic_vertices.clear();
         self.dynamic_indices.clear();
-        self.widgets_now = vec![widget::root_widget()];
+        self.w_now = vec![widget::root_widget()];
     }
 
     // widgets
     fn create_widget(&mut self, widget: Widget) -> usize {
-        self.widgets_now.push(widget);
-        self.widgets_now.len() - 1
+        let index = self.w_now.len();
+
+        // add to parent's children
+        self.get_widget(widget.parent).children.push(index);
+
+        // add to render tree
+        self.w_now.push(widget);
+
+        index
     }
 
-    pub(crate) fn get_widget(&self, index: usize) -> &Widget {
-        &self.widgets_now[index]
+    pub(crate) fn get_widget(&mut self, index: usize) -> &mut Widget {
+        &mut self.w_now[index]
     }
 }
 
 // logic
 
 impl GUIRenderer {
-    fn auto_layout(&mut self, ctx: &Context) {
-        // 1.
-        // 2.
-        // 3.
-        // 4.
-        // 5.
-        for widget in self.widgets_now.iter_mut() {
-            widget.pos += vec2(0.2, 0.0);
+    // PRE
+    fn auto_1(&mut self, index: usize) {
+        if let SizeKind::Pixels(px) = self.w_now[index].size_x {
+            self.w_now[index].size.x = px;
         }
+        if let SizeKind::Pixels(px) = self.w_now[index].size_y {
+            self.w_now[index].size.y = px;
+        }
+
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_1(self.w_now[index].children[i]);
+        }
+    }
+
+    // PRE
+    fn auto_2(&mut self, index: usize) {
+        let parent_index = self.w_now[index].parent;
+
+        if let SizeKind::PercentOfParent(p) = self.w_now[index].size_x {
+            self.w_now[index].size.x = self.w_now[parent_index].size.x * p;
+        }
+        if let SizeKind::PercentOfParent(p) = self.w_now[index].size_y {
+            self.w_now[index].size.y = self.w_now[parent_index].size.y * p;
+        }
+
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_2(self.w_now[index].children[i]);
+        }
+    }
+
+    // POST
+    fn auto_3(&mut self, index: usize) {
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_3(self.w_now[index].children[i]);
+        }
+
+        if let SizeKind::ChildrenSum = self.w_now[index].size_x {
+            panic!("auto3 x not implemented");
+        }
+        if let SizeKind::ChildrenSum = self.w_now[index].size_y {
+            panic!("auto3 y not implemented");
+        }
+    }
+
+    // PRE
+    fn auto_4(&mut self, index: usize) {
+        let parent_index = self.w_now[index].parent;
+
+        // SOLVE VIOLATIONS
+
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_4(self.w_now[index].children[i]);
+        }
+    }
+
+    // PRE
+    fn auto_5(&mut self, index: usize) {
+        // assume y axis
+        // let parent_index = self.w_now[index].parent;
+        //
+        // if index != widget::root_index() {
+        //     // self.w_now[index].pos.y =
+        // }
+
+        let mut pos_y = self.w_now[index].pos.y;
+
+        // println!("5: CHECK {} POS {}", self.w_now[index].label, pos_y);
+        for i in 0..self.w_now[index].children.len() {
+            let child = self.w_now[index].children[i];
+            // println!("5: SET {} TO {}", self.w_now[child].label, pos_y);
+            self.w_now[child].pos.y = pos_y;
+            pos_y += self.w_now[child].size.y;
+        }
+
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_5(self.w_now[index].children[i]);
+        }
+    }
+
+    fn auto_layout(&mut self, index: usize) {
+        // PRE: node then children
+        // POST: children then node
+
+        // 1. Fixed sizes:  DONE ALREADY
+        self.auto_1(index);
+        // 2. Parent dependent sizes (PRE)
+        self.auto_2(index);
+        // 3. Parent dependent sizes (POST)
+        // self.auto_3(index);
+        // 4. Parent dependent sizes (PRE)
+        // self.auto_4(index);
+        // 5. Parent dependent sizes (PRE)
+        self.auto_5(index);
+        // for w in self.w_now.iter() {
+        //     println!("{}: pos {} size {}", w.label, w.pos, w.size);
+        // }
     }
 }
 
@@ -222,46 +322,46 @@ impl GUIRenderer {
 
 impl GUIRenderer {
     // active
-    fn set_active(&mut self, id: UiID) {
+    fn set_active(&mut self, id: String) {
         self.active = id;
     }
     fn clear_active(&mut self) {
-        self.active = UiID::cleared();
+        self.active = String::new();
     }
-    pub fn check_active(&self, id: UiID) -> bool {
+    pub fn check_active(&self, id: &str) -> bool {
         self.active == id
     }
 
     // hot
-    fn set_hot_this_frame(&mut self, id: UiID) {
+    fn set_hot_this_frame(&mut self, id: String) {
         self.hot_this_frame = id;
     }
-    pub fn check_hot(&self, id: UiID) -> bool {
+    pub fn check_hot(&self, id: &str) -> bool {
         self.hot_last_frame == id && self.hot_this_frame == id
     }
-    pub fn check_last_hot(&self, id: UiID) -> bool {
+    pub fn check_last_hot(&self, id: &str) -> bool {
         self.hot_last_frame == id
     }
-    fn debug(&mut self, ctx: &Context) {
+    fn debug(&mut self) {
         //
         // debug
         //
         self.text(
-            &format!("hot: {}", self.hot_this_frame.id),
+            &format!("hot: {}", self.hot_this_frame),
             Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
             0.05,
             BLACK,
             false,
         );
         self.text(
-            &format!("hot last: {}", self.hot_last_frame.id),
+            &format!("hot last: {}", self.hot_last_frame),
             Quad::new(vec2(0.0, 0.1), vec2(0.5, 0.05)),
             0.05,
             BLACK,
             false,
         );
         self.text(
-            &format!("active: {}", self.active.id),
+            &format!("active: {}", self.active),
             Quad::new(vec2(0.0, 0.15), vec2(0.5, 0.05)),
             0.05,
             BLACK,

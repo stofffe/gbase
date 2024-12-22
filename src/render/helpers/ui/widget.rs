@@ -14,42 +14,64 @@ pub fn root_index() -> usize {
 }
 pub fn root_widget() -> Widget {
     Widget {
-        label: String::new(),
-        pos: Vec2::ZERO,
-        size: Vec2::ONE,
-        color: Vec4::ZERO,
+        label: String::from("ROOT"),
         parent: root_index(),
-        clickable: false,
+
+        size_x: SizeKind::Null,
+        size_y: SizeKind::Null,
+
+        color: Vec4::ZERO,
+
         text: String::new(),
-        text_color: BLACK,
-        text_height: 0.05,
+        text_color: Vec4::ZERO,
+        text_height: 0.0,
         text_wrap: false,
+
+        pos: vec2(0.0, 0.0),
+        size: vec2(1.0, 1.0),
+
+        clickable: false,
+
+        children: Vec::new(),
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SizeKind {
+    Null,
+    Pixels(f32),
+    PercentOfParent(f32),
+    ChildrenSum,
 }
 
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
     pub(crate) label: String,
-    pub(crate) pos: Vec2,
-    pub(crate) size: Vec2,
-    pub(crate) color: Vec4,
     pub(crate) parent: usize,
 
+    pub(crate) size_x: SizeKind,
+    pub(crate) size_y: SizeKind,
+
+    pub(crate) color: Vec4,
     pub(crate) text: String,
     pub(crate) text_color: Vec4,
     pub(crate) text_height: f32,
     pub(crate) text_wrap: bool,
-    // text alignment
 
-    // padding
-    // margin
-
-    // child alignment
+    // computed
+    pub(crate) pos: Vec2,
+    pub(crate) size: Vec2,
 
     // flags
     pub(crate) clickable: bool,
     // long press
+    // text alignment
+    // margin
+    // child alignment
+
+    // state
+    pub(crate) children: Vec<usize>,
 }
 
 impl Widget {
@@ -57,15 +79,24 @@ impl Widget {
     pub fn new() -> Self {
         Self {
             label: String::new(),
-            pos: vec2(0.0, 0.0),
-            size: vec2(0.1, 0.1),
-            color: Vec4::ZERO,
             parent: root_index(),
-            clickable: false,
+
+            size_x: SizeKind::Pixels(0.2),
+            size_y: SizeKind::Pixels(0.2),
+
+            color: Vec4::ZERO,
+
             text: String::new(),
             text_color: BLACK,
             text_height: 0.05,
             text_wrap: false,
+
+            pos: vec2(0.0, 0.0),
+            size: vec2(0.2, 0.0),
+
+            clickable: false,
+
+            children: Vec::new(),
         }
     }
 
@@ -75,7 +106,8 @@ impl Widget {
 
     // public api
     pub fn render(mut self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
-        let id = UiID::new(&self.label);
+        let id = self.label.clone();
+
         let widget_prev = renderer.widgets_last.iter().find(|w| w.label == self.label); // TODO use id instead
 
         //
@@ -93,9 +125,9 @@ impl Widget {
                 );
 
                 if inside {
-                    renderer.set_hot_this_frame(id);
-                    if renderer.check_hot(id) {
-                        if renderer.check_active(id) && mouse_up {
+                    renderer.set_hot_this_frame(id.clone());
+                    if renderer.check_hot(&id) {
+                        if renderer.check_active(&id) && mouse_up {
                             clicked = true;
                         } else if mouse_down {
                             renderer.set_active(id);
@@ -103,23 +135,19 @@ impl Widget {
                     }
                 }
             }
-        } else {
-            println!("NO PREV FOR {}", self.label)
         }
 
         //
         // inital layout
         //
 
-        let parent = renderer.get_widget(self.parent);
-        self.pos += parent.pos;
+        // let parent = renderer.get_widget(self.parent);
+        // self.pos += parent.pos;
 
         let index = renderer.create_widget(self);
 
         WidgetResult { index, clicked }
     }
-
-    pub(crate) fn inner_auto_layout(&self) {}
 
     // private api
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
@@ -155,28 +183,25 @@ impl Widget {
         self.label = value.into();
         self
     }
-
-    pub fn pos(mut self, value: Vec2) -> Self {
-        self.pos = value;
-        self
-    }
-    pub fn size(mut self, value: Vec2) -> Self {
-        self.size = value;
-        self
-    }
-    pub fn color(mut self, value: Vec4) -> Self {
-        self.color = value;
-        self
-    }
     pub fn parent(mut self, value: WidgetResult) -> Self {
         self.parent = value.index;
         self
     }
 
-    pub fn clickable(mut self) -> Self {
-        self.clickable = true;
+    pub fn size_x(mut self, value: SizeKind) -> Self {
+        self.size_x = value;
         self
     }
+    pub fn size_y(mut self, value: SizeKind) -> Self {
+        self.size_y = value;
+        self
+    }
+
+    pub fn color(mut self, value: Vec4) -> Self {
+        self.color = value;
+        self
+    }
+
     pub fn text(mut self, value: impl Into<String>) -> Self {
         self.text = value.into();
         self
@@ -193,13 +218,18 @@ impl Widget {
         self.text_wrap = value;
         self
     }
+
+    pub fn clickable(mut self) -> Self {
+        self.clickable = true;
+        self
+    }
 }
 
 //
 // Result
 //
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct WidgetResult {
     pub index: usize,
     pub clicked: bool,
