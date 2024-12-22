@@ -39,49 +39,80 @@ impl Callbacks for App {
 
         let outer = Widget::new()
             .label("outer")
-            .size_y(render::SizeKind::PercentOfParent(1.0))
-            .size_x(render::SizeKind::PercentOfParent(1.0))
-            // .size(vec2(1.0, 1.0))
-            // .padding(vec2(0.02, 0.02))
-            .direction(render::Direction::Row)
+            .size_main(render::SizeKind::PercentOfParent(1.0))
+            .size_cross(render::SizeKind::PercentOfParent(1.0))
+            .direction(render::Direction::Column)
             .color(GRAY)
             .render(ctx, gr);
+        {
+            let header = Widget::new()
+                .label("header")
+                .parent(outer)
+                .size_main(render::SizeKind::PercentOfParent(0.2))
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .direction(render::Direction::Row)
+                .color(RED)
+                .render(ctx, gr);
 
-        // println!("outer {outer:?}");
+            {
+                let home_btn = Widget::new()
+                    .parent(header)
+                    .label("home")
+                    .text("Home")
+                    .color(GRAY)
+                    .size_main(render::SizeKind::Pixels(0.2))
+                    .size_cross(render::SizeKind::Pixels(0.2))
+                    .clickable()
+                    .render(ctx, gr);
 
-        let header = Widget::new()
-            .label("header")
-            .parent(outer)
-            .size_x(render::SizeKind::PercentOfParent(0.3))
-            .size_y(render::SizeKind::Pixels(0.1))
-            .color(RED)
-            .clickable()
-            .render(ctx, gr);
+                Widget::new()
+                    .parent(header)
+                    .size_main(render::SizeKind::Grow)
+                    .render(ctx, gr);
 
-        let body = Widget::new()
-            .label("body")
-            .parent(outer)
-            .size_x(render::SizeKind::Grow)
-            .size_y(render::SizeKind::PercentOfParent(1.0))
-            .color(GREEN)
-            .clickable()
-            .render(ctx, gr);
+                let about_btn = Widget::new()
+                    .parent(header)
+                    .label("about")
+                    .text("About")
+                    .color(GRAY)
+                    .size_main(render::SizeKind::Pixels(0.2))
+                    .size_cross(render::SizeKind::Pixels(0.2))
+                    .clickable()
+                    .render(ctx, gr);
 
-        let footer = Widget::new()
-            .label("footer")
-            .parent(outer)
-            .size_x(render::SizeKind::Pixels(0.3))
-            .color(BLUE)
-            .clickable()
-            .render(ctx, gr);
+                if home_btn.clicked {
+                    println!("HOME");
+                }
+                if about_btn.clicked {
+                    println!("ABOUT");
+                }
+            }
+
+            let body = Widget::new()
+                .label("body")
+                .parent(outer)
+                .size_main(render::SizeKind::Grow)
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .color(GREEN)
+                .render(ctx, gr);
+
+            let footer = Widget::new()
+                .label("footer")
+                .parent(outer)
+                .size_main(render::SizeKind::Pixels(0.1))
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .color(BLUE)
+                .render(ctx, gr);
+
+            if header.clicked {
+                println!("CLICK HEADER");
+            }
+            if body.clicked {
+                println!("CLICK BODY");
+            }
+        }
 
         // println!("header {header:?}");
-        if header.clicked {
-            println!("CLICK HEADER");
-        }
-        if body.clicked {
-            println!("CLICK BODY");
-        }
 
         // println!("{w}");
 

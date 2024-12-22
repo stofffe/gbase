@@ -17,8 +17,8 @@ pub fn root_widget() -> Widget {
         label: String::from("ROOT"),
         parent: root_index(),
 
-        size_x: SizeKind::Null,
-        size_y: SizeKind::Null,
+        size_main: SizeKind::Null,
+        size_cross: SizeKind::Null,
 
         direction: Direction::Column,
 
@@ -58,8 +58,8 @@ pub struct Widget {
     pub(crate) label: String,
     pub(crate) parent: usize,
 
-    pub(crate) size_x: SizeKind,
-    pub(crate) size_y: SizeKind,
+    pub(crate) size_main: SizeKind,
+    pub(crate) size_cross: SizeKind,
 
     pub(crate) direction: Direction,
 
@@ -91,8 +91,8 @@ impl Widget {
             label: String::new(),
             parent: root_index(),
 
-            size_x: SizeKind::Pixels(0.2),
-            size_y: SizeKind::Pixels(0.2),
+            size_main: SizeKind::Pixels(0.2),
+            size_cross: SizeKind::Pixels(0.2),
 
             direction: Direction::Column,
 
@@ -200,12 +200,12 @@ impl Widget {
         self
     }
 
-    pub fn size_x(mut self, value: SizeKind) -> Self {
-        self.size_x = value;
+    pub fn size_main(mut self, value: SizeKind) -> Self {
+        self.size_main = value;
         self
     }
-    pub fn size_y(mut self, value: SizeKind) -> Self {
-        self.size_y = value;
+    pub fn size_cross(mut self, value: SizeKind) -> Self {
+        self.size_cross = value;
         self
     }
     pub fn direction(mut self, value: Direction) -> Self {
