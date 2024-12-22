@@ -1,42 +1,11 @@
-use super::{GUIRenderer, UiID, BLACK};
+use super::{GUIRenderer, BLACK};
 use crate::{
     collision::{self, Quad},
     input, Context,
 };
 use glam::{vec2, Vec2, Vec4};
-
-//
-// Internal
-//
-
-pub fn root_index() -> usize {
-    0
-}
-pub fn root_widget() -> Widget {
-    Widget {
-        label: String::from("ROOT"),
-        parent: root_index(),
-
-        size_main: SizeKind::Null,
-        size_cross: SizeKind::Null,
-
-        direction: Direction::Column,
-
-        color: Vec4::ZERO,
-
-        text: String::new(),
-        text_color: Vec4::ZERO,
-        text_height: 0.0,
-        text_wrap: false,
-
-        pos: vec2(0.0, 0.0),
-        size: vec2(1.0, 1.0),
-
-        clickable: false,
-
-        children: Vec::new(),
-    }
-}
+use gltf::mesh::BoundingBox;
+use wgpu::QUERY_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SizeKind {
@@ -52,6 +21,25 @@ pub enum Direction {
     Column,
 }
 
+impl Direction {
+    pub fn main_axis(&self) -> usize {
+        match self {
+            Direction::Row => 0,    // x
+            Direction::Column => 1, // y
+        }
+    }
+    pub fn cross_axis(&self) -> usize {
+        match self {
+            Direction::Row => 1,    // x
+            Direction::Column => 0, // y
+        }
+    }
+}
+
+//
+// Internal
+//
+
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
@@ -62,6 +50,8 @@ pub struct Widget {
     pub(crate) size_cross: SizeKind,
 
     pub(crate) direction: Direction,
+    pub(crate) padding: f32,
+    pub(crate) margin: f32,
 
     pub(crate) color: Vec4,
     pub(crate) text: String,
@@ -70,8 +60,8 @@ pub struct Widget {
     pub(crate) text_wrap: bool,
 
     // computed
-    pub(crate) pos: Vec2,
-    pub(crate) size: Vec2,
+    pub(crate) computed_pos: Vec2,
+    pub(crate) computed_size: Vec2,
 
     // flags
     pub(crate) clickable: bool,
@@ -95,6 +85,8 @@ impl Widget {
             size_cross: SizeKind::Pixels(0.2),
 
             direction: Direction::Column,
+            padding: 0.0,
+            margin: 0.0,
 
             color: Vec4::ZERO,
 
@@ -103,8 +95,8 @@ impl Widget {
             text_height: 0.05,
             text_wrap: false,
 
-            pos: vec2(0.0, 0.0),
-            size: vec2(0.0, 0.0),
+            computed_pos: Vec2::ZERO,
+            computed_size: Vec2::ZERO,
 
             clickable: false,
 
@@ -112,74 +104,83 @@ impl Widget {
         }
     }
 
-    // 1. get widget from id
-    // 2. logic using last frame
-    // 3. auto layout this frame
-
     // public api
-    pub fn render(mut self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
+    pub fn render(self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
+        let mut result = renderer
+            .widgets_last
+            .iter()
+            .find(|w| w.label == self.label)
+            .cloned()
+            .map(|w| w.inner_logic(ctx, renderer))
+            .unwrap_or_default();
+
+        result.index = renderer.create_widget(self);
+
+        result
+    }
+
+    pub(crate) fn inner_logic(&self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
         let id = self.label.clone();
 
-        let widget_prev = renderer.widgets_last.iter().find(|w| w.label == self.label); // TODO use id instead
-
-        //
-        // logic
-        //
+        // includes: content, padding, border
+        // excludes: margin
+        let mut bounds = Quad::new(self.computed_pos, self.computed_size);
+        bounds.pos.x += self.margin;
+        bounds.pos.y += self.margin;
+        bounds.size.x -= self.margin * 2.0;
+        bounds.size.y -= self.margin * 2.0;
 
         let mut clicked = false;
-        if let Some(widget_prev) = widget_prev {
-            if self.clickable {
-                let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
-                let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-                let inside = collision::point_quad_collision(
-                    input::mouse_pos_unorm(ctx),
-                    Quad::new(widget_prev.pos, widget_prev.size),
-                );
+        if self.clickable {
+            let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
+            let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
+            let inside = collision::point_quad_collision(input::mouse_pos_unorm(ctx), bounds);
 
-                if inside {
-                    renderer.set_hot_this_frame(id.clone());
-                    if renderer.check_hot(&id) {
-                        if renderer.check_active(&id) && mouse_up {
-                            clicked = true;
-                        } else if mouse_down {
-                            renderer.set_active(id);
-                        }
+            if inside {
+                renderer.set_hot_this_frame(id.clone());
+                if renderer.check_hot(&id) {
+                    if renderer.check_active(&id) && mouse_up {
+                        clicked = true;
+                    } else if mouse_down {
+                        renderer.set_active(id);
                     }
                 }
             }
         }
 
-        //
-        // inital layout
-        //
-
-        // let parent = renderer.get_widget(self.parent);
-        // self.pos += parent.pos;
-
-        let index = renderer.create_widget(self);
-
-        WidgetResult { index, clicked }
+        WidgetResult { index: 0, clicked }
     }
 
     // private api
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
-        let pos = self.pos;
-        let size = self.size;
-        let color = self.color;
+        let mut bounds = Quad::new(self.computed_pos, self.computed_size);
+
+        // only cut away margin and not padding
+        bounds.pos.x += self.margin;
+        bounds.pos.y += self.margin;
+        bounds.size.x -= self.margin * 2.0;
+        bounds.size.y -= self.margin * 2.0;
 
         if self.color != Vec4::ZERO {
-            renderer.quad(pos, size, color);
+            renderer.quad(bounds.pos, bounds.size, self.color);
         }
 
         if !self.text.is_empty() {
             renderer.text(
                 &self.text,
-                Quad::new(pos, size),
+                bounds,
                 self.text_height,
                 self.text_color,
                 self.text_wrap,
             );
         }
+    }
+
+    pub(crate) fn computed_inner_pos(&self) -> Vec2 {
+        self.computed_pos + self.margin + self.padding
+    }
+    pub(crate) fn computed_inner_size(&self) -> Vec2 {
+        self.computed_size - self.margin * 2.0 - self.padding * 2.0
     }
 }
 
@@ -210,6 +211,14 @@ impl Widget {
     }
     pub fn direction(mut self, value: Direction) -> Self {
         self.direction = value;
+        self
+    }
+    pub fn padding(mut self, value: f32) -> Self {
+        self.padding = value;
+        self
+    }
+    pub fn margin(mut self, value: f32) -> Self {
+        self.margin = value;
         self
     }
 
@@ -249,4 +258,45 @@ impl Widget {
 pub struct WidgetResult {
     pub index: usize,
     pub clicked: bool,
+}
+
+#[allow(clippy::derivable_impls)]
+impl Default for WidgetResult {
+    fn default() -> Self {
+        Self {
+            index: 0,
+            clicked: false,
+        }
+    }
+}
+
+pub fn root_index() -> usize {
+    0
+}
+pub fn root_widget() -> Widget {
+    Widget {
+        label: String::from("ROOT"),
+        parent: root_index(),
+
+        size_main: SizeKind::Null,
+        size_cross: SizeKind::Null,
+
+        direction: Direction::Column,
+        padding: 0.0,
+        margin: 0.0,
+
+        color: Vec4::ZERO,
+
+        text: String::new(),
+        text_color: Vec4::ZERO,
+        text_height: 0.0,
+        text_wrap: false,
+
+        computed_pos: vec2(0.0, 0.0),
+        computed_size: vec2(1.0, 1.0),
+
+        clickable: false,
+
+        children: Vec::new(),
+    }
 }

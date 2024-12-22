@@ -5,9 +5,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::collision::Quad;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
-use crate::{filesystem, input, render, Context};
+use crate::{filesystem, input, render, time, Context};
 pub use fonts::*;
-use glam::{vec2, Vec2, Vec4};
+use glam::{vec2, Vec2};
 use render::VertexTrait;
 pub use widget::*;
 
@@ -146,7 +146,7 @@ impl GUIRenderer {
             widget.inner_render(self);
         }
 
-        self.debug();
+        self.debug(ctx);
 
         // clear state
         if input::mouse_button_released(ctx, input::MouseButton::Left) {
@@ -216,208 +216,138 @@ impl GUIRenderer {
 impl GUIRenderer {
     // PRE
     // Pixels
-    fn auto_1(&mut self, index: usize) {
+    fn auto_layout_1(&mut self, index: usize) {
         let parent_index = self.w_now[index].parent;
         let parent_dir = self.w_now[parent_index].direction;
+        let main_axis = parent_dir.main_axis();
+        let cross_axis = parent_dir.cross_axis();
 
         if index != widget::root_index() {
-            match parent_dir {
-                Direction::Row => {
-                    if let SizeKind::Pixels(px) = self.w_now[index].size_main {
-                        self.w_now[index].size.x = px;
-                    }
-                    if let SizeKind::Pixels(px) = self.w_now[index].size_cross {
-                        self.w_now[index].size.y = px;
-                    }
-                }
-                Direction::Column => {
-                    if let SizeKind::Pixels(px) = self.w_now[index].size_main {
-                        self.w_now[index].size.y = px;
-                    }
-                    if let SizeKind::Pixels(px) = self.w_now[index].size_cross {
-                        self.w_now[index].size.x = px;
-                    }
-                }
+            if let SizeKind::Pixels(px) = self.w_now[index].size_main {
+                self.w_now[index].computed_size[main_axis] = px;
+            }
+            if let SizeKind::Pixels(px) = self.w_now[index].size_cross {
+                self.w_now[index].computed_size[cross_axis] = px;
             }
         }
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_1(self.w_now[index].children[i]);
+            self.auto_layout_1(self.w_now[index].children[i]);
         }
     }
 
     // PRE
     // Percent
-    fn auto_2(&mut self, index: usize) {
+    fn auto_layout_2(&mut self, index: usize) {
         let parent_index = self.w_now[index].parent;
         let parent_dir = self.w_now[parent_index].direction;
+        let parent_inner_size = self.w_now[parent_index].computed_inner_size();
+
+        let main_axis = parent_dir.main_axis();
+        let cross_axis = parent_dir.cross_axis();
 
         if index != widget::root_index() {
-            match parent_dir {
-                Direction::Row => {
-                    if let SizeKind::PercentOfParent(p) = self.w_now[index].size_main {
-                        self.w_now[index].size.x = self.w_now[parent_index].size.x * p;
-                    }
-                    if let SizeKind::PercentOfParent(p) = self.w_now[index].size_cross {
-                        self.w_now[index].size.y = self.w_now[parent_index].size.y * p;
-                    }
-                }
-                Direction::Column => {
-                    if let SizeKind::PercentOfParent(p) = self.w_now[index].size_main {
-                        self.w_now[index].size.y = self.w_now[parent_index].size.y * p;
-                    }
-                    if let SizeKind::PercentOfParent(p) = self.w_now[index].size_cross {
-                        self.w_now[index].size.x = self.w_now[parent_index].size.x * p;
-                    }
-                }
+            if let SizeKind::PercentOfParent(p) = self.w_now[index].size_main {
+                self.w_now[index].computed_size[main_axis] = parent_inner_size[main_axis] * p;
+            }
+            if let SizeKind::PercentOfParent(p) = self.w_now[index].size_cross {
+                self.w_now[index].computed_size[cross_axis] = parent_inner_size[cross_axis] * p;
             }
         }
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_2(self.w_now[index].children[i]);
+            self.auto_layout_2(self.w_now[index].children[i]);
         }
     }
 
     // PRE
     // Grow
-    fn auto_3(&mut self, index: usize) {
-        let parent_i = self.w_now[index].parent;
-        let parent_dir = self.w_now[parent_i].direction;
+    fn auto_layout_3(&mut self, index: usize) {
+        let parent_index = self.w_now[index].parent;
+        let parent_dir = self.w_now[parent_index].direction;
+        let parent_inner_size = self.w_now[parent_index].computed_inner_size();
+        let main_axis = parent_dir.main_axis();
+        let cross_axis = parent_dir.cross_axis();
+
+        // TODO marging padding
 
         if index != widget::root_index() {
-            match parent_dir {
-                Direction::Row => {
-                    if let SizeKind::Grow = self.w_now[index].size_main {
-                        let mut space_used = 0.0;
-
-                        let neighbours = self.w_now[parent_i].children.len();
-                        // println!("\tneighbours {}", neighbours);
-                        for i in 0..neighbours {
-                            let neighbout_i = self.w_now[parent_i].children[i];
-
-                            let neighbour_size = self.w_now[neighbout_i].size.x;
-                            // println!("\t\t{i}: size {}", neighbour_size);
-
-                            space_used += neighbour_size;
-                        }
-
-                        let space_left = self.w_now[parent_i].size.x - space_used;
-
-                        // println!(
-                        //     "\tspace {} space used {} space left {}",
-                        //     self.w_now[index].size.y, space_used, space_left
-                        // );
-                        self.w_now[index].size.x = space_left;
-                    }
-
-                    if let SizeKind::Grow = self.w_now[index].size_cross {
-                        self.w_now[index].size.y = self.w_now[parent_i].size.y;
-                    }
+            if let SizeKind::Grow = self.w_now[index].size_main {
+                let mut space_used = 0.0;
+                for i in 0..self.w_now[parent_index].children.len() {
+                    let neighbout_i = self.w_now[parent_index].children[i];
+                    let neighbour_size = self.w_now[neighbout_i].computed_size[main_axis];
+                    space_used += neighbour_size;
                 }
-                Direction::Column => {
-                    if let SizeKind::Grow = self.w_now[index].size_main {
-                        let mut space_used = 0.0;
 
-                        let neighbours = self.w_now[parent_i].children.len();
-                        // println!("\tneighbours {}", neighbours);
-                        for i in 0..neighbours {
-                            let neighbout_i = self.w_now[parent_i].children[i];
+                let space_left = parent_inner_size[main_axis] - space_used;
+                self.w_now[index].computed_size[main_axis] = space_left;
+            }
 
-                            let neighbour_size = self.w_now[neighbout_i].size.y;
-                            // println!("\t\t{i}: size {}", neighbour_size);
-
-                            space_used += neighbour_size;
-                        }
-
-                        let space_left = self.w_now[parent_i].size.y - space_used;
-
-                        // println!(
-                        //     "\tspace {} space used {} space left {}",
-                        //     self.w_now[index].size.y, space_used, space_left
-                        // );
-                        self.w_now[index].size.y = space_left;
-                    }
-
-                    if let SizeKind::Grow = self.w_now[index].size_cross {
-                        self.w_now[index].size.x = self.w_now[parent_i].size.x;
-                    }
-                }
+            if let SizeKind::Grow = self.w_now[index].size_cross {
+                self.w_now[index].computed_size[cross_axis] = parent_inner_size[cross_axis];
             }
         }
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_3(self.w_now[index].children[i]);
+            self.auto_layout_3(self.w_now[index].children[i]);
         }
     }
 
     // PRE
-    fn auto_4(&mut self, index: usize) {
-        let parent_index = self.w_now[index].parent;
+    fn auto_layout_4(&mut self, index: usize) {
+        // let parent_index = self.w_now[index].parent;
 
         // SOLVE VIOLATIONS
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_4(self.w_now[index].children[i]);
+            self.auto_layout_4(self.w_now[index].children[i]);
         }
     }
 
     // PRE
     // Relative pos
-    fn auto_5(&mut self, index: usize) {
+    fn auto_layout_5(&mut self, index: usize) {
         let dir = self.w_now[index].direction;
+        let main_axis = dir.main_axis();
+
+        let inner_pos = self.w_now[index].computed_inner_pos();
 
         if index != widget::root_index() {
-            match dir {
-                Direction::Row => {
-                    let mut pos_x = self.w_now[index].pos.x;
+            let mut offset = 0.0;
 
-                    for i in 0..self.w_now[index].children.len() {
-                        let child = self.w_now[index].children[i];
+            // main axis
+            for i in 0..self.w_now[index].children.len() {
+                let child = self.w_now[index].children[i];
 
-                        self.w_now[child].pos.x = pos_x;
-                        pos_x += self.w_now[child].size.x;
-                    }
-                }
-                Direction::Column => {
-                    let mut pos_y = self.w_now[index].pos.y;
+                self.w_now[child].computed_pos = inner_pos;
+                self.w_now[child].computed_pos[main_axis] += offset;
 
-                    for i in 0..self.w_now[index].children.len() {
-                        let child = self.w_now[index].children[i];
-
-                        self.w_now[child].pos.y = pos_y;
-                        pos_y += self.w_now[child].size.y;
-                    }
-                }
+                offset += self.w_now[child].computed_size[main_axis];
             }
         }
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_5(self.w_now[index].children[i]);
+            self.auto_layout_5(self.w_now[index].children[i]);
         }
     }
 
     fn auto_layout(&mut self, index: usize) {
-        // PRE: node then children
-        // POST: children then node
-
-        // 1. Fixed sizes:  DONE ALREADY
-        self.auto_1(index);
+        // 1. Fixed sizes (PRE/POST)
+        self.auto_layout_1(index);
         // 2. Parent dependent sizes (PRE)
-        self.auto_2(index);
-        // 3. Parent dependent sizes (POST)
-        self.auto_3(index);
-        // 4. Parent dependent sizes (PRE)
+        self.auto_layout_2(index);
+        // 3. Grow dependent sizes (POST)
+        self.auto_layout_3(index);
+        // 4. Solve violations (PRE)
         // self.auto_4(index);
         // 5. Parent dependent sizes (PRE)
-        self.auto_5(index);
-        // for w in self.w_now.iter() {
-        //     println!("{}: pos {} size {}", w.label, w.pos, w.size);
-        // }
+        self.auto_layout_5(index);
         // dbg!(&self.w_now);
     }
 }
@@ -446,10 +376,17 @@ impl GUIRenderer {
     pub fn check_last_hot(&self, id: &str) -> bool {
         self.hot_last_frame == id
     }
-    fn debug(&mut self) {
+    fn debug(&mut self, ctx: &Context) {
         //
         // debug
         //
+        self.text(
+            &format!("fps: {}", time::fps(ctx)),
+            Quad::new(vec2(0.0, 0.0), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
         self.text(
             &format!("hot: {}", self.hot_this_frame),
             Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
