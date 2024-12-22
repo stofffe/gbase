@@ -4,25 +4,28 @@ pub type Point = Vec2;
 
 #[derive(Clone, Copy)]
 pub struct Quad {
-    pub origin: Vec2,
-    pub dimension: Vec2,
+    pub pos: Vec2,
+    pub size: Vec2,
 }
 
 impl Quad {
     pub fn new(origin: Vec2, dimension: Vec2) -> Self {
-        Self { origin, dimension }
+        Self {
+            pos: origin,
+            size: dimension,
+        }
     }
     pub fn left(&self) -> f32 {
-        self.origin.x
+        self.pos.x
     }
     pub fn right(&self) -> f32 {
-        self.origin.x + self.dimension.x
+        self.pos.x + self.size.x
     }
     pub fn top(&self) -> f32 {
-        self.origin.y
+        self.pos.y
     }
     pub fn bottom(&self) -> f32 {
-        self.origin.y + self.dimension.y
+        self.pos.y + self.size.y
     }
 }
 

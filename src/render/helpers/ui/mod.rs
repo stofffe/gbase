@@ -1,18 +1,17 @@
-mod button;
-mod elements;
 mod fonts;
-
-pub use button::*;
-// pub use elements::*;
-pub use fonts::*;
-use glam::vec2;
-use winit::event::MouseButton;
+mod shapes;
+mod widget;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 use crate::collision::Quad;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
 use crate::{filesystem, input, render, Context};
+pub use fonts::*;
+use glam::{vec2, Vec2, Vec4};
 use render::VertexTrait;
-use std::hash::{DefaultHasher, Hash, Hasher};
+pub use widget::*;
+
+//
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct UiID {
@@ -41,6 +40,9 @@ impl UiID {
 
 pub struct GUIRenderer {
     // logic
+    widgets_now: Vec<Widget>,
+    widgets_last: Vec<Widget>,
+
     hot_this_frame: UiID,
     hot_last_frame: UiID,
     active: UiID,
@@ -122,6 +124,9 @@ impl GUIRenderer {
             pipeline,
             font_atlas,
             font_atlas_bindgroup: bindgroup,
+
+            widgets_now: vec![widget::root_widget()],
+            widgets_last: vec![],
             hot_this_frame: UiID::cleared(),
             hot_last_frame: UiID::cleared(),
             active: UiID::cleared(),
@@ -130,40 +135,25 @@ impl GUIRenderer {
 
     // TODO use existing render pass instead?
     pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
-        //
-        // Debug
-        //
-        self.text(
-            &format!("hot: {}", self.hot_this_frame.id),
-            Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
-            false,
-        );
-        self.text(
-            &format!("hot last: {}", self.hot_last_frame.id),
-            Quad::new(vec2(0.0, 0.1), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
-            false,
-        );
-        self.text(
-            &format!("active: {}", self.active.id),
-            Quad::new(vec2(0.0, 0.15), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
-            false,
-        );
+        // NOTE: widgets_now should be constructed from user calls
 
-        //
-        // Logic
-        //
+        // layout
+        self.auto_layout(ctx);
 
-        if input::mouse_button_released(ctx, MouseButton::Left) {
+        // render
+        for widget in self.widgets_now.clone().iter().skip(1) {
+            widget.inner_render(self);
+        }
+
+        self.debug(ctx);
+
+        // clear state
+        if input::mouse_button_released(ctx, input::MouseButton::Left) {
             self.clear_active();
         }
         self.hot_last_frame = self.hot_this_frame;
         self.hot_this_frame = UiID::cleared();
+        self.widgets_last = self.widgets_now.clone();
 
         //
         // Rendering
@@ -199,8 +189,38 @@ impl GUIRenderer {
         // Clear for next frame
         self.dynamic_vertices.clear();
         self.dynamic_indices.clear();
+        self.widgets_now = vec![widget::root_widget()];
     }
 
+    // widgets
+    fn create_widget(&mut self, widget: Widget) -> usize {
+        self.widgets_now.push(widget);
+        self.widgets_now.len() - 1
+    }
+
+    pub(crate) fn get_widget(&self, index: usize) -> &Widget {
+        &self.widgets_now[index]
+    }
+}
+
+// logic
+
+impl GUIRenderer {
+    fn auto_layout(&mut self, ctx: &Context) {
+        // 1.
+        // 2.
+        // 3.
+        // 4.
+        // 5.
+        for widget in self.widgets_now.iter_mut() {
+            widget.pos += vec2(0.2, 0.0);
+        }
+    }
+}
+
+// active/hot
+
+impl GUIRenderer {
     // active
     fn set_active(&mut self, id: UiID) {
         self.active = id;
@@ -222,9 +242,31 @@ impl GUIRenderer {
     pub fn check_last_hot(&self, id: UiID) -> bool {
         self.hot_last_frame == id
     }
-
-    pub fn get_id(&self, label: &str) -> UiID {
-        UiID::new(label)
+    fn debug(&mut self, ctx: &Context) {
+        //
+        // debug
+        //
+        self.text(
+            &format!("hot: {}", self.hot_this_frame.id),
+            Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
+        self.text(
+            &format!("hot last: {}", self.hot_last_frame.id),
+            Quad::new(vec2(0.0, 0.1), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
+        self.text(
+            &format!("active: {}", self.active.id),
+            Quad::new(vec2(0.0, 0.15), vec2(0.5, 0.05)),
+            0.05,
+            BLACK,
+            false,
+        );
     }
 }
 

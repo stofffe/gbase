@@ -238,8 +238,8 @@ impl SpriteRenderer {
 
     #[rustfmt::skip]
     pub fn draw_quad(&mut self, quad: Quad, color: Vec4) {
-        let (x, y) = (quad.origin.x ,quad.origin.y);
-        let (sx, sy) = (quad.dimension.x, quad.dimension.y);
+        let (x, y) = (quad.pos.x ,quad.pos.y);
+        let (sx, sy) = (quad.size.x, quad.size.y);
         let color = color.to_array();
 
         let offset = self.vertices.len() as u32; // save before pushing verts

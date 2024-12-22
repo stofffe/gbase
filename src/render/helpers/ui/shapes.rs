@@ -1,19 +1,17 @@
-use super::{GUIRenderer, UiID, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
-use crate::collision::Quad;
-use crate::{collision, input, render, Context};
-use glam::Vec2;
-use glam::{vec2, vec4, Vec4};
-use winit::event::MouseButton;
+use glam::{vec2, Vec2, Vec4};
 
-const _NORMAL_COLOR: Vec4 = render::GRAY;
-const _HOT_COLOR: Vec4 = render::RED;
-const _ACTIVE_COLOR: Vec4 = render::GREEN;
+use crate::collision::Quad;
+
+use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
 
 impl GUIRenderer {
+    /// Draw a quad
+    ///
+    /// Internal
     #[rustfmt::skip]
-    pub fn quad(&mut self, quad: Quad, color: Vec4) {
-        let (x, y) = (quad.origin.x ,quad.origin.y);
-        let (sx, sy) = (quad.dimension.x, quad.dimension.y);
+    pub fn quad(&mut self, pos: Vec2, size: Vec2, color: Vec4) {
+        let (x, y) = (pos.x ,pos.y);
+        let (sx, sy) = (size.x, size.y);
         let color = color.to_array();
         let uv = [0.0,0.0];
         let ty = VERTEX_TYPE_SHAPE;
@@ -44,12 +42,12 @@ impl GUIRenderer {
             let adv = info.advance * line_height;
 
             // word wrapping
-            if wrap && (global_offset.x + size.x) > quad.dimension.x {
+            if wrap && (global_offset.x + size.x) > quad.size.x {
                 global_offset.x = 0.0;
                 global_offset.y += line_height;
             }
 
-            let offset = quad.origin
+            let offset = quad.pos
                 + global_offset
                 + vec2(loc_offset.x, -loc_offset.y)
                 + vec2(0.0, line_height - size.y);
@@ -87,48 +85,5 @@ impl GUIRenderer {
         self.dynamic_indices.push(vertex_offset + 2); // tr
         self.dynamic_indices.push(vertex_offset + 1); // bl
         self.dynamic_indices.push(vertex_offset + 3); // br
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub fn button_text(
-        &mut self,
-        ctx: &mut Context,
-        label: &str,
-        quad: Quad,
-        color: Vec4,
-        text: &str,
-        line_height: f32,
-        wrap: bool,
-    ) -> bool {
-        let result = self.button(ctx, label, quad, color);
-        self.text(text, quad, line_height, vec4(1.0, 1.0, 1.0, 1.0), wrap);
-        result
-    }
-
-    pub fn button(&mut self, ctx: &Context, label: &str, quad: Quad, color: Vec4) -> bool {
-        let id = UiID::new(label);
-
-        let mouse_up = input::mouse_button_released(ctx, MouseButton::Left);
-        let mouse_down = input::mouse_button_just_pressed(ctx, MouseButton::Left);
-        let inside = collision::point_quad_collision(input::mouse_pos_unorm(ctx), quad);
-
-        let mut result = false;
-
-        if inside {
-            self.set_hot_this_frame(id);
-
-            // active
-            if self.check_hot(id) {
-                if self.check_active(id) && mouse_up {
-                    result = true;
-                } else if mouse_down {
-                    self.set_active(id);
-                }
-            }
-        }
-
-        self.quad(quad, color);
-
-        result
     }
 }
