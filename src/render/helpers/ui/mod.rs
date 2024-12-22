@@ -215,6 +215,7 @@ impl GUIRenderer {
 
 impl GUIRenderer {
     // PRE
+    // Pixels
     fn auto_1(&mut self, index: usize) {
         if let SizeKind::Pixels(px) = self.w_now[index].size_x {
             self.w_now[index].size.x = px;
@@ -230,6 +231,7 @@ impl GUIRenderer {
     }
 
     // PRE
+    // Percent
     fn auto_2(&mut self, index: usize) {
         let parent_index = self.w_now[index].parent;
 
@@ -247,37 +249,69 @@ impl GUIRenderer {
     }
 
     // PRE
+    // Grow
     fn auto_3(&mut self, index: usize) {
+        // skip root
+
         let parent_i = self.w_now[index].parent;
+        let parent_dir = self.w_now[parent_i].direction;
 
         // assume y axis
 
-        if let SizeKind::Grow = self.w_now[index].size_x {
-            self.w_now[index].size.x = self.w_now[parent_i].size.x;
-        }
-
-        if let SizeKind::Grow = self.w_now[index].size_y {
-            let mut space_used = 0.0;
-
-            let neighbours = self.w_now[parent_i].children.len();
+        if index != widget::root_index() {
             // println!(
-            //     "name {}: neighbours {}",
-            //     self.w_now[index].label, neighbours
+            //     "NAME {} PARENT {}: dir {:?}",
+            //     self.w_now[index].label, self.w_now[parent_i].label, parent_dir,
             // );
-            for i in 0..neighbours {
-                let neighbout_i = self.w_now[parent_i].children[i];
+            match parent_dir {
+                Direction::Row => {
+                    if let SizeKind::Grow = self.w_now[index].size_x {
+                        let mut space_used = 0.0;
 
-                // println!("neighbour {i}: name {}", self.w_now[neighbout_i].label);
+                        let neighbours = self.w_now[parent_i].children.len();
+                        // println!("\tneighbours {}", neighbours);
+                        for i in 0..neighbours {
+                            let neighbout_i = self.w_now[parent_i].children[i];
 
-                space_used += self.w_now[neighbout_i].size.y;
+                            let neighbour_size = self.w_now[neighbout_i].size.x;
+                            // println!("\t\t{i}: size {}", neighbour_size);
+
+                            space_used += neighbour_size;
+                        }
+
+                        let space_left = self.w_now[parent_i].size.x - space_used;
+
+                        // println!(
+                        //     "\tspace {} space used {} space left {}",
+                        //     self.w_now[index].size.y, space_used, space_left
+                        // );
+                        self.w_now[index].size.x = space_left;
+                    }
+
+                    if let SizeKind::Grow = self.w_now[index].size_y {
+                        self.w_now[index].size.y = self.w_now[parent_i].size.y;
+                    }
+                }
+                Direction::Column => {
+                    if let SizeKind::Grow = self.w_now[index].size_x {
+                        self.w_now[index].size.x = self.w_now[parent_i].size.x;
+                    }
+
+                    if let SizeKind::Grow = self.w_now[index].size_y {
+                        let mut space_used = 0.0;
+
+                        let neighbours = self.w_now[parent_i].children.len();
+                        for i in 0..neighbours {
+                            let neighbout_i = self.w_now[parent_i].children[i];
+
+                            space_used += self.w_now[neighbout_i].size.y;
+                        }
+
+                        let space_left = self.w_now[parent_i].size.y - space_used;
+                        self.w_now[index].size.y = space_left;
+                    }
+                }
             }
-
-            let space_left = self.w_now[parent_i].size.y - space_used;
-            // println!(
-            //     "name {}: space {} space used {} space left {}",
-            //     self.w_now[index].label, self.w_now[index].size.y, space_used, space_left
-            // );
-            self.w_now[index].size.y = space_left;
         }
 
         // children
@@ -299,13 +333,29 @@ impl GUIRenderer {
     }
 
     // PRE
+    // Relative pos
     fn auto_5(&mut self, index: usize) {
-        let mut pos_y = self.w_now[index].pos.y;
-        for i in 0..self.w_now[index].children.len() {
-            let child = self.w_now[index].children[i];
+        match self.w_now[index].direction {
+            Direction::Row => {
+                let mut pos_x = self.w_now[index].pos.x;
 
-            self.w_now[child].pos.y = pos_y;
-            pos_y += self.w_now[child].size.y;
+                for i in 0..self.w_now[index].children.len() {
+                    let child = self.w_now[index].children[i];
+
+                    self.w_now[child].pos.x = pos_x;
+                    pos_x += self.w_now[child].size.x;
+                }
+            }
+            Direction::Column => {
+                let mut pos_y = self.w_now[index].pos.y;
+
+                for i in 0..self.w_now[index].children.len() {
+                    let child = self.w_now[index].children[i];
+
+                    self.w_now[child].pos.y = pos_y;
+                    pos_y += self.w_now[child].size.y;
+                }
+            }
         }
 
         // children

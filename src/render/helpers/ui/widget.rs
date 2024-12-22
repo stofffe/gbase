@@ -20,6 +20,8 @@ pub fn root_widget() -> Widget {
         size_x: SizeKind::Null,
         size_y: SizeKind::Null,
 
+        direction: Direction::Column,
+
         color: Vec4::ZERO,
 
         text: String::new(),
@@ -44,6 +46,12 @@ pub enum SizeKind {
     Grow,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Direction {
+    Row,
+    Column,
+}
+
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
@@ -52,6 +60,8 @@ pub struct Widget {
 
     pub(crate) size_x: SizeKind,
     pub(crate) size_y: SizeKind,
+
+    pub(crate) direction: Direction,
 
     pub(crate) color: Vec4,
     pub(crate) text: String,
@@ -84,6 +94,8 @@ impl Widget {
             size_x: SizeKind::Pixels(0.2),
             size_y: SizeKind::Pixels(0.2),
 
+            direction: Direction::Column,
+
             color: Vec4::ZERO,
 
             text: String::new(),
@@ -92,7 +104,7 @@ impl Widget {
             text_wrap: false,
 
             pos: vec2(0.0, 0.0),
-            size: vec2(0.2, 0.0),
+            size: vec2(0.0, 0.0),
 
             clickable: false,
 
@@ -194,6 +206,10 @@ impl Widget {
     }
     pub fn size_y(mut self, value: SizeKind) -> Self {
         self.size_y = value;
+        self
+    }
+    pub fn direction(mut self, value: Direction) -> Self {
+        self.direction = value;
         self
     }
 

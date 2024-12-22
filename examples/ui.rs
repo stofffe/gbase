@@ -39,10 +39,11 @@ impl Callbacks for App {
 
         let outer = Widget::new()
             .label("outer")
-            .size_y(render::SizeKind::Pixels(0.9))
-            .size_x(render::SizeKind::Pixels(0.7))
+            .size_y(render::SizeKind::PercentOfParent(1.0))
+            .size_x(render::SizeKind::PercentOfParent(1.0))
             // .size(vec2(1.0, 1.0))
             // .padding(vec2(0.02, 0.02))
+            .direction(render::Direction::Row)
             .color(GRAY)
             .render(ctx, gr);
 
@@ -51,8 +52,8 @@ impl Callbacks for App {
         let header = Widget::new()
             .label("header")
             .parent(outer)
-            .size_y(render::SizeKind::PercentOfParent(0.3))
-            .size_x(render::SizeKind::Grow)
+            .size_x(render::SizeKind::PercentOfParent(0.3))
+            .size_y(render::SizeKind::Pixels(0.1))
             .color(RED)
             .clickable()
             .render(ctx, gr);
@@ -60,7 +61,8 @@ impl Callbacks for App {
         let body = Widget::new()
             .label("body")
             .parent(outer)
-            .size_y(render::SizeKind::Grow)
+            .size_x(render::SizeKind::Grow)
+            .size_y(render::SizeKind::PercentOfParent(1.0))
             .color(GREEN)
             .clickable()
             .render(ctx, gr);
@@ -68,7 +70,7 @@ impl Callbacks for App {
         let footer = Widget::new()
             .label("footer")
             .parent(outer)
-            .size_y(render::SizeKind::Pixels(0.1))
+            .size_x(render::SizeKind::Pixels(0.3))
             .color(BLUE)
             .clickable()
             .render(ctx, gr);
