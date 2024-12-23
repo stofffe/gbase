@@ -174,6 +174,47 @@ impl Camera {
     }
 }
 
+impl Camera {
+    pub fn pos(mut self, value: Vec3) -> Self {
+        self.pos = value;
+        self
+    }
+    pub fn yaw(mut self, value: f32) -> Self {
+        self.yaw = value;
+        self
+    }
+    pub fn pitch(mut self, value: f32) -> Self {
+        self.pitch = value;
+        self
+    }
+    pub fn znear(mut self, value: f32) -> Self {
+        self.znear = value;
+        self
+    }
+    pub fn zfar(mut self, value: f32) -> Self {
+        self.zfar = value;
+        self
+    }
+}
+
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+
 #[derive(Debug)]
 pub struct OrthographicCamera {
     pub pos: Vec3,

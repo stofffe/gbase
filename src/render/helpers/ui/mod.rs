@@ -7,9 +7,11 @@ use crate::collision::Quad;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
 use crate::{filesystem, input, render, time, Context};
 pub use fonts::*;
-use glam::{vec2, Vec2};
+use glam::{vec2, vec3, Vec2};
 use render::VertexTrait;
 pub use widget::*;
+
+use super::CameraProjection;
 
 //
 
@@ -54,7 +56,22 @@ pub struct GUIRenderer {
     indices: render::IndexBuffer,
     pipeline: ArcRenderPipeline,
     font_atlas: FontAtlas,
-    font_atlas_bindgroup: ArcBindGroup,
+    bindgroup: ArcBindGroup,
+
+    camera: render::Camera,
+    camera_buffer: render::UniformBuffer<render::CameraUniform>,
+}
+
+fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> render::Camera {
+    render::Camera::new(CameraProjection::orthographic(
+        screen_size.width as f32,
+        screen_size.height as f32,
+    ))
+    .pos(vec3(
+        screen_size.width as f32 / 2.0,
+        -(screen_size.height as f32 / 2.0),
+        1.0,
+    ))
 }
 
 impl GUIRenderer {
@@ -82,6 +99,12 @@ impl GUIRenderer {
         let sampler = render::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
 
+        let camera = create_camera(render::surface_size(ctx));
+        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
+            camera.uniform(ctx),
+        ))
+        .build(ctx);
+
         let shader_str = filesystem::load_s!("shaders/ui.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
@@ -95,6 +118,8 @@ impl GUIRenderer {
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
                     .fragment(),
+                // camera
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
             ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
@@ -103,6 +128,8 @@ impl GUIRenderer {
                 render::BindGroupEntry::Texture(font_atlas.texture_atlas.texture().view()),
                 // sampler
                 render::BindGroupEntry::Sampler(sampler),
+                // camera
+                render::BindGroupEntry::Buffer(camera_buffer.buffer()),
             ])
             .build(ctx);
 
@@ -125,9 +152,11 @@ impl GUIRenderer {
             indices,
             pipeline,
             font_atlas,
-            font_atlas_bindgroup: bindgroup,
+            bindgroup,
+            camera,
+            camera_buffer,
 
-            w_now: vec![widget::root_widget()],
+            w_now: vec![widget::root_widget(ctx)],
             widgets_last: vec![],
             hot_this_frame: String::new(),
             hot_last_frame: String::new(),
@@ -183,7 +212,7 @@ impl GUIRenderer {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
-                render_pass.set_bind_group(0, Some(self.font_atlas_bindgroup.as_ref()), &[]);
+                render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
 
@@ -192,7 +221,12 @@ impl GUIRenderer {
         // Clear for next frame
         self.dynamic_vertices.clear();
         self.dynamic_indices.clear();
-        self.w_now = vec![widget::root_widget()];
+        self.w_now = vec![widget::root_widget(ctx)];
+    }
+
+    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.camera = create_camera(new_size);
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
     }
 
     // widgets
@@ -399,7 +433,6 @@ impl GUIRenderer {
         self.hot_last_frame == id
     }
     fn debug(&mut self, ctx: &Context) {
-        return;
         //
         // debug
         //

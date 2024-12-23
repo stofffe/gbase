@@ -10,13 +10,27 @@ const TYPE_TEXT = 1u;
 
 @group(0) @binding(0) var letter_tex: texture_2d<f32>;
 @group(0) @binding(1) var letter_sampler: sampler;
+@group(0) @binding(2) var<uniform> camera: CameraUniform;
+
+struct CameraUniform {
+    pos: vec3<f32>,
+    facing: vec3<f32>,
+    
+    view: mat4x4<f32>,
+    proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>,
+
+    inv_view: mat4x4<f32>,
+    inv_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+};
 
 @vertex
 fn vs_main(
     in: VertexInput,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = vec4<f32>(in.position, 1.0);
+    out.clip_position = camera.view_proj * vec4<f32>(in.position, 1.0);
     out.color = in.color;
     out.uv = in.uv;
     out.ty = in.ty;

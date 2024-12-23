@@ -1,7 +1,7 @@
 use super::{GUIRenderer, BLACK};
 use crate::{
     collision::{self, Quad},
-    input, Context,
+    input, render, Context,
 };
 use glam::{vec2, Vec2, Vec4};
 
@@ -92,7 +92,7 @@ impl Widget {
 
             text: String::new(),
             text_color: BLACK,
-            text_height: 0.05,
+            text_height: 100.0,
             text_wrap: false,
 
             computed_pos: Vec2::ZERO,
@@ -287,7 +287,8 @@ impl Default for WidgetResult {
 pub fn root_index() -> usize {
     0
 }
-pub fn root_widget() -> Widget {
+pub fn root_widget(ctx: &Context) -> Widget {
+    let screen_size = render::surface_size(ctx);
     Widget {
         label: String::from("ROOT"),
         parent: root_index(),
@@ -308,7 +309,7 @@ pub fn root_widget() -> Widget {
         text_wrap: false,
 
         computed_pos: vec2(0.0, 0.0),
-        computed_size: vec2(1.0, 1.0),
+        computed_size: vec2(screen_size.width as f32, screen_size.height as f32),
 
         clickable: false,
 

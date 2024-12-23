@@ -1,8 +1,6 @@
-use glam::{vec2, Vec2, Vec4};
-
-use crate::collision::Quad;
-
 use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
+use crate::{collision::Quad, Context};
+use glam::{vec2, Vec2, Vec4};
 
 impl GUIRenderer {
     /// Draw a quad
@@ -17,10 +15,10 @@ impl GUIRenderer {
         let ty = VERTEX_TYPE_SHAPE;
 
         let offset = self.dynamic_vertices.len() as u32;
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], color, ty, uv }); // tl
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], color, ty, uv }); // tr
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], color, ty, uv }); // bl
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], color, ty, uv }); // br
+        self.dynamic_vertices.push(VertexUI { position: [x,      -y,        0.0], color, ty, uv }); // tl
+        self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], color, ty, uv }); // tr
+        self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], color, ty, uv }); // bl
+        self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], color, ty, uv }); // br
         self.dynamic_indices.push(offset); // tl
         self.dynamic_indices.push(offset + 1); // bl
         self.dynamic_indices.push(offset + 2); // tr
@@ -75,10 +73,10 @@ impl GUIRenderer {
         let ty = VERTEX_TYPE_TEXT;
 
         let vertex_offset = self.dynamic_vertices.len() as u32;
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], ty, color, uv: [tox,       toy] }); // tl
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], ty, color, uv: [tox + tdx, toy] }); // tr
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
-        self.dynamic_vertices.push(VertexUI { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
+        self.dynamic_vertices.push(VertexUI { position: [x,      -y,        0.0], ty, color, uv: [tox,       toy      ] }); // tl
+        self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], ty, color, uv: [tox + tdx, toy      ] }); // tr
+        self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
+        self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
         self.dynamic_indices.push(vertex_offset); // tl
         self.dynamic_indices.push(vertex_offset + 1); // bl
         self.dynamic_indices.push(vertex_offset + 2); // tr
