@@ -88,10 +88,15 @@ pub struct VertexBuffer<T: VertexTrait> {
 }
 
 impl<T: VertexTrait> VertexBuffer<T> {
-    pub fn write(&mut self, ctx: &Context, data: &[T]) {
+    pub fn write(&mut self, ctx: &Context, buffer: &[T]) {
+        debug_assert!(
+            buffer.len() <= self.capacity,
+            "written buffer must be smaller than capacity"
+        );
+
         let queue = render::queue(ctx);
-        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
-        self.len = data.len() as u32;
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(buffer));
+        self.len = buffer.len() as u32;
     }
     pub fn write_offset(&mut self, ctx: &Context, offset: u64, data: &[T]) {
         let queue = render::queue(ctx);
@@ -199,7 +204,7 @@ impl IndexBuffer {
     pub fn write(&mut self, ctx: &Context, buffer: &[u32]) {
         debug_assert!(
             buffer.len() <= self.capacity,
-            "buffer must be smaller than capacity"
+            "written buffer must be smaller than capacity"
         );
         let queue = render::queue(ctx);
         queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(buffer));

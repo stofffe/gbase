@@ -61,21 +61,23 @@ impl GUIRenderer {
     pub fn new(
         ctx: &mut Context,
         output_format: wgpu::TextureFormat,
-        vertices_batch_size: u32,
-        indices_batch_size: u32,
+        max_quads: usize,
         font_bytes: &[u8],
         supported_chars: &str,
     ) -> Self {
-        let dynamic_vertices = Vec::with_capacity(vertices_batch_size as usize);
-        let dynamic_indices = Vec::with_capacity(indices_batch_size as usize);
+        let max_vertices = max_quads * 4;
+        let max_indices = max_quads * 6;
+
+        let dynamic_vertices = Vec::with_capacity(max_vertices);
+        let dynamic_indices = Vec::with_capacity(max_indices);
+
         let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Empty(
-            vertices_batch_size as u64,
+            max_vertices as u64,
         ))
         .build(ctx);
-        let indices = render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(
-            indices_batch_size as u64,
-        ))
-        .build(ctx);
+        let indices =
+            render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_indices as u64))
+                .build(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
@@ -353,6 +355,10 @@ impl GUIRenderer {
         }
     }
 
+    // Algorithm
+    // https://www.rfleury.com/p/ui-part-1-the-interaction-medium?s=w
+    // https://www.rfleury.com/p/ui-part-2-build-it-every-frame-immediate
+    // https://www.rfleury.com/p/ui-part-3-the-widget-building-language
     fn auto_layout(&mut self, index: usize) {
         // 1. Fixed sizes (PRE/POST)
         self.auto_layout_1(index);
@@ -361,7 +367,7 @@ impl GUIRenderer {
         // 3. Grow dependent sizes (POST)
         self.auto_layout_3(index);
         // 4. Solve violations (PRE)
-        // self.auto_4(index);
+        self.auto_layout_4(index);
         // 5. Parent dependent sizes (PRE)
         self.auto_layout_5(index);
         // dbg!(&self.w_now);
@@ -393,6 +399,7 @@ impl GUIRenderer {
         self.hot_last_frame == id
     }
     fn debug(&mut self, ctx: &Context) {
+        return;
         //
         // debug
         //

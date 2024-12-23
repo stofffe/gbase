@@ -1,12 +1,10 @@
-use gbase::glam;
-use gbase::render::{Widget, WidgetResult, BLUE, GRAY, GREEN, RED, WHITE};
+use gbase::render::{Widget, BLUE, GRAY, GREEN, RED};
 use gbase::wgpu;
 use gbase::{
     filesystem,
     render::{self},
     Callbacks, Context,
 };
-use glam::{vec2, vec4};
 
 pub fn main() {
     gbase::run_sync::<App>();
@@ -23,12 +21,11 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let quads = 1000;
+        let max_quads = 10;
         let gui_renderer = render::GUIRenderer::new(
             ctx,
             wgpu::TextureFormat::Bgra8UnormSrgb,
-            4 * quads,
-            6 * quads,
+            max_quads,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );
