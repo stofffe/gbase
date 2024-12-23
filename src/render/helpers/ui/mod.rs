@@ -206,8 +206,13 @@ impl GUIRenderer {
         index
     }
 
+    #[inline]
     pub(crate) fn get_widget(&mut self, index: usize) -> &mut Widget {
         &mut self.w_now[index]
+    }
+    #[inline]
+    fn get_widget_parent(&self, index: usize) -> &Widget {
+        &self.w_now[self.w_now[index].parent]
     }
 }
 
@@ -217,17 +222,18 @@ impl GUIRenderer {
     // PRE
     // Pixels
     fn auto_layout_1(&mut self, index: usize) {
-        let parent_index = self.w_now[index].parent;
-        let parent_dir = self.w_now[parent_index].direction;
-        let main_axis = parent_dir.main_axis();
-        let cross_axis = parent_dir.cross_axis();
+        let parent = self.get_widget_parent(index);
+        let main_axis = parent.direction.main_axis();
+        let cross_axis = parent.direction.cross_axis();
+
+        let this = self.get_widget(index);
 
         if index != widget::root_index() {
-            if let SizeKind::Pixels(px) = self.w_now[index].size_main {
-                self.w_now[index].computed_size[main_axis] = px;
+            if let SizeKind::Pixels(px) = this.size_main {
+                this.computed_size[main_axis] = px;
             }
-            if let SizeKind::Pixels(px) = self.w_now[index].size_cross {
-                self.w_now[index].computed_size[cross_axis] = px;
+            if let SizeKind::Pixels(px) = this.size_cross {
+                this.computed_size[cross_axis] = px;
             }
         }
 
@@ -240,24 +246,25 @@ impl GUIRenderer {
     // PRE
     // Percent
     fn auto_layout_2(&mut self, index: usize) {
-        let parent_index = self.w_now[index].parent;
-        let parent_dir = self.w_now[parent_index].direction;
-        let parent_inner_size = self.w_now[parent_index].computed_inner_size();
-
+        let parent = self.get_widget_parent(index);
+        let parent_dir = parent.direction;
+        let parent_inner_size = parent.computed_inner_size();
         let main_axis = parent_dir.main_axis();
         let cross_axis = parent_dir.cross_axis();
 
+        let this = self.get_widget(index);
+
         if index != widget::root_index() {
-            if let SizeKind::PercentOfParent(p) = self.w_now[index].size_main {
-                self.w_now[index].computed_size[main_axis] = parent_inner_size[main_axis] * p;
+            if let SizeKind::PercentOfParent(p) = this.size_main {
+                this.computed_size[main_axis] = parent_inner_size[main_axis] * p;
             }
-            if let SizeKind::PercentOfParent(p) = self.w_now[index].size_cross {
-                self.w_now[index].computed_size[cross_axis] = parent_inner_size[cross_axis] * p;
+            if let SizeKind::PercentOfParent(p) = this.size_cross {
+                this.computed_size[cross_axis] = parent_inner_size[cross_axis] * p;
             }
         }
 
         // children
-        for i in 0..self.w_now[index].children.len() {
+        for i in 0..this.children.len() {
             self.auto_layout_2(self.w_now[index].children[i]);
         }
     }
@@ -265,34 +272,37 @@ impl GUIRenderer {
     // PRE
     // Grow
     fn auto_layout_3(&mut self, index: usize) {
-        let parent_index = self.w_now[index].parent;
-        let parent_dir = self.w_now[parent_index].direction;
-        let parent_inner_size = self.w_now[parent_index].computed_inner_size();
-        let main_axis = parent_dir.main_axis();
-        let cross_axis = parent_dir.cross_axis();
+        let parent = self.get_widget_parent(index);
+        let parent_inner_size = parent.computed_inner_size();
+        let gap = parent.gap;
+        let neighbour_count = parent.children.len();
+        let main_axis = parent.direction.main_axis();
+        let cross_axis = parent.direction.cross_axis();
 
+        let this = self.get_widget(index);
+        let size_main = this.size_main;
+        let size_cross = this.size_cross;
         // TODO marging padding
 
         if index != widget::root_index() {
-            if let SizeKind::Grow = self.w_now[index].size_main {
-                let neighbour_count = self.w_now[parent_index].children.len();
+            if let SizeKind::Grow = size_main {
                 let mut neighbours_space = 0.0;
                 for i in 0..neighbour_count {
-                    let neighbout_i = self.w_now[parent_index].children[i];
-                    let neighbour_size = self.w_now[neighbout_i].computed_size[main_axis];
+                    let neighbout_i = self.get_widget_parent(index).children[i];
+                    let neighbour_size = self.get_widget(neighbout_i).computed_size[main_axis];
                     neighbours_space += neighbour_size;
                 }
 
-                let gap_space = (neighbour_count - 1) as f32 * self.w_now[parent_index].gap;
+                let gap_space = (neighbour_count - 1) as f32 * gap;
 
                 let total_space_taken = neighbours_space + gap_space;
 
                 let space_left = parent_inner_size[main_axis] - total_space_taken;
-                self.w_now[index].computed_size[main_axis] = space_left;
+                self.get_widget(index).computed_size[main_axis] = space_left;
             }
 
-            if let SizeKind::Grow = self.w_now[index].size_cross {
-                self.w_now[index].computed_size[cross_axis] = parent_inner_size[cross_axis];
+            if let SizeKind::Grow = size_cross {
+                self.get_widget(index).computed_size[cross_axis] = parent_inner_size[cross_axis];
             }
         }
 
@@ -317,23 +327,23 @@ impl GUIRenderer {
     // PRE
     // Relative pos
     fn auto_layout_5(&mut self, index: usize) {
-        let dir = self.w_now[index].direction;
-        let main_axis = dir.main_axis();
-
-        let inner_pos = self.w_now[index].computed_inner_pos();
+        let this = self.get_widget(index);
+        let children_count = this.children.len();
+        let inner_pos = this.computed_inner_pos();
+        let main_axis = this.direction.main_axis();
 
         if index != widget::root_index() {
             let mut offset = 0.0;
 
             // main axis
-            for i in 0..self.w_now[index].children.len() {
-                let child = self.w_now[index].children[i];
+            for i in 0..children_count {
+                let child_index = self.get_widget(index).children[i];
 
-                self.w_now[child].computed_pos = inner_pos;
-                self.w_now[child].computed_pos[main_axis] += offset;
+                self.get_widget(child_index).computed_pos = inner_pos;
+                self.get_widget(child_index).computed_pos[main_axis] += offset;
 
-                offset += self.w_now[child].computed_size[main_axis];
-                offset += self.w_now[index].gap;
+                offset += self.get_widget(child_index).computed_size[main_axis];
+                offset += self.get_widget(index).gap;
             }
         }
 

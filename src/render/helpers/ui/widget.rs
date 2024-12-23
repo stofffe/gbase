@@ -51,7 +51,6 @@ pub struct Widget {
     pub(crate) padding: Vec2,
     pub(crate) margin: Vec2,
 
-    /// gap in main axis
     pub(crate) gap: f32,
 
     pub(crate) color: Vec4,
@@ -68,8 +67,7 @@ pub struct Widget {
     pub(crate) clickable: bool,
     // long press
     // text alignment
-    // margin
-    // child alignment
+    // main/cross axis alignment
 
     // state
     pub(crate) children: Vec<usize>,
@@ -184,31 +182,37 @@ impl Widget {
 
 // builder methods
 impl Widget {
+    /// add label to identify widget for interactions
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.label = value.into();
         self
     }
+    /// set parent widget
     pub fn parent(mut self, value: WidgetResult) -> Self {
         self.parent = value.index;
         self
     }
-
+    /// set sizing rules for main axis
     pub fn size_main(mut self, value: SizeKind) -> Self {
         self.size_main = value;
         self
     }
+    /// set sizing rules for cross axis
     pub fn size_cross(mut self, value: SizeKind) -> Self {
         self.size_cross = value;
         self
     }
+    /// set layout direction of child elements
     pub fn direction(mut self, value: Direction) -> Self {
         self.direction = value;
         self
     }
+    /// set uniform padding
     pub fn padding(mut self, value: f32) -> Self {
         self.padding = vec2(value, value);
         self
     }
+    /// set uniform margin
     pub fn margin(mut self, value: f32) -> Self {
         self.margin = vec2(value, value);
         self
@@ -223,33 +227,37 @@ impl Widget {
         self.margin = value;
         self
     }
+    /// set gap between child elements on main axis
     pub fn gap(mut self, value: f32) -> Self {
         self.gap = value;
         self
     }
-
+    /// set color of background
     pub fn color(mut self, value: Vec4) -> Self {
         self.color = value;
         self
     }
-
+    /// set text content
     pub fn text(mut self, value: impl Into<String>) -> Self {
         self.text = value.into();
         self
     }
+    /// set text color
     pub fn text_color(mut self, value: Vec4) -> Self {
         self.text_color = value;
         self
     }
-    pub fn text_height(mut self, value: f32) -> Self {
+    /// set font size
+    pub fn text_font_size(mut self, value: f32) -> Self {
         self.text_height = value;
         self
     }
+    /// enable/disable text wrapping
     pub fn text_wrap(mut self, value: bool) -> Self {
         self.text_wrap = value;
         self
     }
-
+    /// make widget clickable
     pub fn clickable(mut self) -> Self {
         self.clickable = true;
         self
