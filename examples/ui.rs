@@ -72,6 +72,17 @@ impl Callbacks for App {
                     .clickable()
                     .render(ctx, gr);
 
+                let c = Widget::new()
+                    .label("c")
+                    .parent(header)
+                    .text("c")
+                    .size_main(render::SizeKind::PercentOfParent(0.2))
+                    .size_cross(render::SizeKind::PercentOfParent(1.0))
+                    .color(BLUE)
+                    .clickable()
+                    .margin_hv(vec2(0.01, 0.0))
+                    .render(ctx, gr);
+
                 Widget::new()
                     .parent(header)
                     .size_main(render::SizeKind::Grow)

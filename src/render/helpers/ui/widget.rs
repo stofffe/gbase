@@ -4,8 +4,6 @@ use crate::{
     input, Context,
 };
 use glam::{vec2, Vec2, Vec4};
-use gltf::mesh::BoundingBox;
-use wgpu::QUERY_SIZE;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SizeKind {
@@ -50,8 +48,8 @@ pub struct Widget {
     pub(crate) size_cross: SizeKind,
 
     pub(crate) direction: Direction,
-    pub(crate) padding: f32,
-    pub(crate) margin: f32,
+    pub(crate) padding: Vec2,
+    pub(crate) margin: Vec2,
 
     pub(crate) color: Vec4,
     pub(crate) text: String,
@@ -85,8 +83,8 @@ impl Widget {
             size_cross: SizeKind::Pixels(0.2),
 
             direction: Direction::Column,
-            padding: 0.0,
-            margin: 0.0,
+            padding: Vec2::ZERO,
+            margin: Vec2::ZERO,
 
             color: Vec4::ZERO,
 
@@ -125,10 +123,8 @@ impl Widget {
         // includes: content, padding, border
         // excludes: margin
         let mut bounds = Quad::new(self.computed_pos, self.computed_size);
-        bounds.pos.x += self.margin;
-        bounds.pos.y += self.margin;
-        bounds.size.x -= self.margin * 2.0;
-        bounds.size.y -= self.margin * 2.0;
+        bounds.pos += self.margin;
+        bounds.size -= self.margin * 2.0;
 
         let mut clicked = false;
         if self.clickable {
@@ -156,10 +152,8 @@ impl Widget {
         let mut bounds = Quad::new(self.computed_pos, self.computed_size);
 
         // only cut away margin and not padding
-        bounds.pos.x += self.margin;
-        bounds.pos.y += self.margin;
-        bounds.size.x -= self.margin * 2.0;
-        bounds.size.y -= self.margin * 2.0;
+        bounds.pos += self.margin;
+        bounds.size -= self.margin * 2.0;
 
         if self.color != Vec4::ZERO {
             renderer.quad(bounds.pos, bounds.size, self.color);
@@ -214,10 +208,20 @@ impl Widget {
         self
     }
     pub fn padding(mut self, value: f32) -> Self {
-        self.padding = value;
+        self.padding = vec2(value, value);
         self
     }
     pub fn margin(mut self, value: f32) -> Self {
+        self.margin = vec2(value, value);
+        self
+    }
+    /// set horizontal / vertical padding
+    pub fn padding_hv(mut self, value: Vec2) -> Self {
+        self.padding = value;
+        self
+    }
+    /// set horizontal / vertical margin
+    pub fn margin_hv(mut self, value: Vec2) -> Self {
         self.margin = value;
         self
     }
@@ -282,8 +286,8 @@ pub fn root_widget() -> Widget {
         size_cross: SizeKind::Null,
 
         direction: Direction::Column,
-        padding: 0.0,
-        margin: 0.0,
+        padding: Vec2::ZERO,
+        margin: Vec2::ZERO,
 
         color: Vec4::ZERO,
 
