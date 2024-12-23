@@ -96,8 +96,7 @@ impl Callbacks for App {
         let gui_renderer = render::GUIRenderer::new(
             ctx,
             framebuffer.format(),
-            1000 * 4,
-            1000 * 6,
+            1024,
             &filesystem::load_b!("fonts/meslo.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );

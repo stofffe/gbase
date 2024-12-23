@@ -56,7 +56,6 @@ impl gbase::Callbacks for App {
             ctx,
             framebuffer.format(),
             1024,
-            1024,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             // include_bytes!("../../assets/fonts/font.ttf"),
             render::DEFAULT_SUPPORTED_CHARS,
