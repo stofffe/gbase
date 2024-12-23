@@ -275,14 +275,19 @@ impl GUIRenderer {
 
         if index != widget::root_index() {
             if let SizeKind::Grow = self.w_now[index].size_main {
-                let mut space_used = 0.0;
-                for i in 0..self.w_now[parent_index].children.len() {
+                let neighbour_count = self.w_now[parent_index].children.len();
+                let mut neighbours_space = 0.0;
+                for i in 0..neighbour_count {
                     let neighbout_i = self.w_now[parent_index].children[i];
                     let neighbour_size = self.w_now[neighbout_i].computed_size[main_axis];
-                    space_used += neighbour_size;
+                    neighbours_space += neighbour_size;
                 }
 
-                let space_left = parent_inner_size[main_axis] - space_used;
+                let gap_space = (neighbour_count - 1) as f32 * self.w_now[parent_index].gap;
+
+                let total_space_taken = neighbours_space + gap_space;
+
+                let space_left = parent_inner_size[main_axis] - total_space_taken;
                 self.w_now[index].computed_size[main_axis] = space_left;
             }
 
@@ -328,6 +333,7 @@ impl GUIRenderer {
                 self.w_now[child].computed_pos[main_axis] += offset;
 
                 offset += self.w_now[child].computed_size[main_axis];
+                offset += self.w_now[index].gap;
             }
         }
 

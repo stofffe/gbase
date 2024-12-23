@@ -51,6 +51,9 @@ pub struct Widget {
     pub(crate) padding: Vec2,
     pub(crate) margin: Vec2,
 
+    /// gap in main axis
+    pub(crate) gap: f32,
+
     pub(crate) color: Vec4,
     pub(crate) text: String,
     pub(crate) text_color: Vec4,
@@ -85,6 +88,7 @@ impl Widget {
             direction: Direction::Column,
             padding: Vec2::ZERO,
             margin: Vec2::ZERO,
+            gap: 0.0,
 
             color: Vec4::ZERO,
 
@@ -178,12 +182,6 @@ impl Widget {
     }
 }
 
-impl Default for Widget {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 // builder methods
 impl Widget {
     pub fn label(mut self, value: impl Into<String>) -> Self {
@@ -223,6 +221,10 @@ impl Widget {
     /// set horizontal / vertical margin
     pub fn margin_hv(mut self, value: Vec2) -> Self {
         self.margin = value;
+        self
+    }
+    pub fn gap(mut self, value: f32) -> Self {
+        self.gap = value;
         self
     }
 
@@ -288,6 +290,7 @@ pub fn root_widget() -> Widget {
         direction: Direction::Column,
         padding: Vec2::ZERO,
         margin: Vec2::ZERO,
+        gap: 0.0,
 
         color: Vec4::ZERO,
 

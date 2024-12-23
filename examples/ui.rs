@@ -53,20 +53,22 @@ impl Callbacks for App {
             let header = Widget::new()
                 .label("header")
                 .parent(outer)
-                .size_main(render::SizeKind::PercentOfParent(0.3))
+                .size_main(render::SizeKind::PercentOfParent(0.2))
                 .size_cross(render::SizeKind::PercentOfParent(1.0))
                 .direction(render::Direction::Row)
+                .gap(0.01)
                 .padding(0.01)
                 .color(RED)
                 .margin(0.01)
                 .render(ctx, gr);
 
             {
+                let header_btn_size = 0.1;
                 let a = Widget::new()
                     .label("a")
                     .parent(header)
                     .text("a")
-                    .size_main(render::SizeKind::PercentOfParent(0.2))
+                    .size_main(render::SizeKind::PercentOfParent(header_btn_size))
                     .size_cross(render::SizeKind::PercentOfParent(1.0))
                     .color(BLUE)
                     .clickable()
@@ -76,11 +78,20 @@ impl Callbacks for App {
                     .label("c")
                     .parent(header)
                     .text("c")
-                    .size_main(render::SizeKind::PercentOfParent(0.2))
+                    .size_main(render::SizeKind::PercentOfParent(header_btn_size))
                     .size_cross(render::SizeKind::PercentOfParent(1.0))
                     .color(BLUE)
                     .clickable()
-                    .margin_hv(vec2(0.01, 0.0))
+                    .render(ctx, gr);
+
+                let d = Widget::new()
+                    .label("d")
+                    .parent(header)
+                    .text("d")
+                    .size_main(render::SizeKind::PercentOfParent(header_btn_size))
+                    .size_cross(render::SizeKind::PercentOfParent(1.0))
+                    .color(BLUE)
+                    .clickable()
                     .render(ctx, gr);
 
                 Widget::new()
@@ -92,7 +103,7 @@ impl Callbacks for App {
                     .label("b")
                     .parent(header)
                     .text("b")
-                    .size_main(render::SizeKind::PercentOfParent(0.2))
+                    .size_main(render::SizeKind::PercentOfParent(header_btn_size))
                     .size_cross(render::SizeKind::PercentOfParent(1.0))
                     .color(BLUE)
                     .clickable()
