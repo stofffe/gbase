@@ -21,18 +21,26 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn main_axis(&self) -> usize {
+    pub fn axis(&self) -> usize {
         match self {
-            Direction::Row => 0,    // x
-            Direction::Column => 1, // y
+            Direction::Row => 0,
+            Direction::Column => 1,
         }
     }
-    pub fn cross_axis(&self) -> usize {
-        match self {
-            Direction::Row => 1,    // x
-            Direction::Column => 0, // y
-        }
-    }
+    // pub fn main_axis(&self) -> usize {
+    //     return 0;
+    //     match self {
+    //         Direction::Row => 0,    // x
+    //         Direction::Column => 1, // y
+    //     }
+    // }
+    // pub fn cross_axis(&self) -> usize {
+    //     return 1;
+    //     match self {
+    //         Direction::Row => 1,    // x
+    //         Direction::Column => 0, // y
+    //     }
+    // }
 }
 
 //
@@ -45,8 +53,8 @@ pub struct Widget {
     pub(crate) label: String,
     pub(crate) parent: usize,
 
-    pub(crate) size_main: SizeKind,
-    pub(crate) size_cross: SizeKind,
+    pub(crate) width: SizeKind,
+    pub(crate) height: SizeKind,
 
     pub(crate) direction: Direction,
     pub(crate) padding: Vec2,
@@ -81,8 +89,8 @@ impl Widget {
             label: String::new(),
             parent: root_index(),
 
-            size_main: SizeKind::Pixels(0.2),
-            size_cross: SizeKind::Pixels(0.2),
+            width: SizeKind::Pixels(0.2),
+            height: SizeKind::Pixels(0.2),
 
             direction: Direction::Column,
             padding: Vec2::ZERO,
@@ -106,7 +114,7 @@ impl Widget {
     }
 
     // public api
-    pub fn render(self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
+    pub fn render(&self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
         let mut result = renderer
             .widgets_last
             .iter()
@@ -115,7 +123,7 @@ impl Widget {
             .map(|w| w.inner_logic(ctx, renderer))
             .unwrap_or_default();
 
-        result.index = renderer.create_widget(self);
+        result.index = renderer.create_widget(self.clone());
 
         result
     }
@@ -194,13 +202,13 @@ impl Widget {
         self
     }
     /// set sizing rules for main axis
-    pub fn size_main(mut self, value: SizeKind) -> Self {
-        self.size_main = value;
+    pub fn width(mut self, value: SizeKind) -> Self {
+        self.width = value;
         self
     }
     /// set sizing rules for cross axis
-    pub fn size_cross(mut self, value: SizeKind) -> Self {
-        self.size_cross = value;
+    pub fn height(mut self, value: SizeKind) -> Self {
+        self.height = value;
         self
     }
     /// set layout direction of child elements
@@ -294,8 +302,8 @@ pub fn root_widget(ctx: &Context) -> Widget {
         label: String::from("ROOT"),
         parent: root_index(),
 
-        size_main: SizeKind::Null,
-        size_cross: SizeKind::Null,
+        width: SizeKind::Null,
+        height: SizeKind::Null,
 
         direction: Direction::Column,
         padding: Vec2::ZERO,

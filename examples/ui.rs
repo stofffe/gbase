@@ -1,6 +1,7 @@
 use gbase::glam::vec2;
-use gbase::render::{Widget, BLUE, GRAY, GREEN, RED};
+use gbase::render::{Widget, BLACK, BLUE, GRAY, GREEN, RED};
 use gbase::wgpu;
+use gbase::winit::dpi::Pixel;
 use gbase::{
     filesystem,
     render::{self},
@@ -39,71 +40,99 @@ impl Callbacks for App {
 
         let outer = Widget::new()
             .label("outer")
-            .size_main(render::SizeKind::PercentOfParent(1.0))
-            .size_cross(render::SizeKind::PercentOfParent(1.0))
+            .width(render::SizeKind::PercentOfParent(1.0))
+            .height(render::SizeKind::PercentOfParent(1.0))
             .direction(render::Direction::Column)
             .gap(20.0)
             .padding(20.0)
-            .color(GRAY)
+            .color(BLACK)
             .render(ctx, renderer);
         {
             let header = Widget::new()
                 .label("header")
                 .parent(outer)
-                .size_main(render::SizeKind::ChildrenSum)
-                .size_cross(render::SizeKind::ChildrenSum)
+                .width(render::SizeKind::PercentOfParent(1.0))
+                .height(render::SizeKind::ChildrenSum)
                 .direction(render::Direction::Row)
                 .gap(20.0)
-                .padding_hv(vec2(100.0, 20.0))
-                .margin_hv(vec2(0.0, 40.0))
+                .padding(20.0)
                 .color(RED)
                 .render(ctx, renderer);
             {
-                let header_btn_size = 150.0;
-                let a = Widget::new()
+                let header1 = Widget::new()
                     .label("header1")
                     .parent(header)
-                    .text("abc")
-                    .size_main(render::SizeKind::Pixels(header_btn_size))
-                    .size_cross(render::SizeKind::Pixels(header_btn_size))
-                    .text_font_size(100.0)
+                    .width(render::SizeKind::Pixels(200.0))
+                    .height(render::SizeKind::ChildrenSum)
+                    .text_font_size(80.0)
+                    .padding(10.0)
+                    .gap(10.0)
                     .color(BLUE)
-                    .clickable()
                     .render(ctx, renderer);
-
-                let b = Widget::new()
+                {
+                    for i in 0..5 {
+                        Widget::new()
+                            .parent(header1)
+                            .width(render::SizeKind::Grow)
+                            .height(render::SizeKind::Pixels(40.0))
+                            .color(GRAY)
+                            .render(ctx, renderer);
+                    }
+                }
+                Widget::new()
+                    .parent(header)
+                    .width(render::SizeKind::Grow)
+                    .render(ctx, renderer);
+                let header2 = Widget::new()
                     .label("header2")
                     .parent(header)
-                    .text("b")
-                    .size_main(render::SizeKind::Pixels(100.0))
-                    .size_cross(render::SizeKind::Pixels(180.0))
+                    .width(render::SizeKind::Pixels(200.0))
+                    .height(render::SizeKind::Pixels(200.0))
+                    .text_font_size(100.0)
                     .color(BLUE)
-                    .clickable()
                     .render(ctx, renderer);
-
-                let c = Widget::new()
+                let header3 = Widget::new()
                     .label("header3")
                     .parent(header)
-                    .text("c")
-                    .size_main(render::SizeKind::Pixels(200.0))
-                    .size_cross(render::SizeKind::Pixels(80.0))
+                    .width(render::SizeKind::Pixels(200.0))
+                    .height(render::SizeKind::Pixels(200.0))
+                    .text_font_size(100.0)
                     .color(BLUE)
-                    .clickable()
                     .render(ctx, renderer);
             }
+
             let body = Widget::new()
                 .label("body")
                 .parent(outer)
-                .size_main(render::SizeKind::Grow)
-                .size_cross(render::SizeKind::PercentOfParent(1.0))
-                .color(GREEN)
+                .width(render::SizeKind::Grow)
+                .height(render::SizeKind::Grow)
+                .direction(render::Direction::Row)
+                .gap(20.0)
                 .render(ctx, renderer);
+
+            {
+                let sidebar = Widget::new()
+                    .label("sidebar")
+                    .parent(body)
+                    .width(render::SizeKind::Pixels(200.0))
+                    .height(render::SizeKind::Grow)
+                    .color(GRAY)
+                    .render(ctx, renderer);
+
+                let content = Widget::new()
+                    .label("content")
+                    .parent(body)
+                    .width(render::SizeKind::Grow)
+                    .height(render::SizeKind::Grow)
+                    .color(GRAY)
+                    .render(ctx, renderer);
+            }
 
             let footer = Widget::new()
                 .label("footer")
                 .parent(outer)
-                .size_main(render::SizeKind::PercentOfParent(0.1))
-                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .width(render::SizeKind::Grow)
+                .height(render::SizeKind::Pixels(200.0))
                 .color(BLUE)
                 .render(ctx, renderer);
         }
