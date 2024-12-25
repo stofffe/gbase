@@ -318,6 +318,8 @@ impl GUIRenderer {
         let this_size_cross = this.size_cross;
         let children_count = this.children.len();
         let gap = this.gap;
+        let padding = this.padding;
+        let margin = this.margin;
 
         if let SizeKind::ChildrenSum = this_size_main {
             let parent_this_same_axis = parent_main_axis == this_main_axis;
@@ -330,7 +332,9 @@ impl GUIRenderer {
                     children_sum += child_size;
                 }
                 let gap_space = (children_count - 1) as f32 * gap;
-                children_sum + gap_space
+                let padding_space = padding[this_main_axis] * 2.0;
+                let margin_space = margin[this_main_axis] * 2.0;
+                children_sum + gap_space + padding_space + margin_space
             } else {
                 // max
                 let mut children_max = 0_f32;
@@ -339,7 +343,9 @@ impl GUIRenderer {
                     let child_size = self.get_widget(child_i).computed_size[this_cross_axis];
                     children_max = children_max.max(child_size);
                 }
-                children_max
+                let padding_space = padding[this_cross_axis] * 2.0;
+                let margin_space = margin[this_cross_axis] * 2.0;
+                children_max + padding_space + margin_space
             };
             self.get_widget(index).computed_size[parent_main_axis] = size;
         }
@@ -355,7 +361,9 @@ impl GUIRenderer {
                     children_sum += child_size;
                 }
                 let gap_space = (children_count - 1) as f32 * gap;
-                children_sum + gap_space
+                let padding_space = padding[this_main_axis] * 2.0;
+                let margin_space = margin[this_main_axis] * 2.0;
+                children_sum + gap_space + padding_space + margin_space
             } else {
                 // max
                 let mut children_max = 0_f32;
@@ -364,7 +372,9 @@ impl GUIRenderer {
                     let child_size = self.get_widget(child_i).computed_size[this_cross_axis];
                     children_max = children_max.max(child_size);
                 }
-                children_max
+                let padding_space = padding[this_cross_axis] * 2.0;
+                let margin_space = margin[this_cross_axis] * 2.0;
+                children_max + padding_space + margin_space
             };
             self.get_widget(index).computed_size[parent_cross_axis] = size;
         }

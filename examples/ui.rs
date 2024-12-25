@@ -1,3 +1,4 @@
+use gbase::glam::vec2;
 use gbase::render::{Widget, BLUE, GRAY, GREEN, RED};
 use gbase::wgpu;
 use gbase::{
@@ -53,6 +54,8 @@ impl Callbacks for App {
                 .size_cross(render::SizeKind::ChildrenSum)
                 .direction(render::Direction::Row)
                 .gap(20.0)
+                .padding_hv(vec2(100.0, 20.0))
+                .margin_hv(vec2(0.0, 40.0))
                 .color(RED)
                 .render(ctx, renderer);
             {
