@@ -37,147 +37,147 @@ impl Callbacks for App {
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let renderer = &mut self.gui_renderer;
-        // gr.quad(vec2(0.0, 0.0), vec2(1.0, 1.0), vec4(0.05, 0.05, 0.07, 1.0));
+        // renderer.quad(vec2(0.0, 0.0), vec2(1.0, 1.0), vec4(0.05, 0.05, 0.07, 1.0));
+
+        // let outer = Widget::new()
+        //     .label("outer")
+        //     .size_main(render::SizeKind::Grow)
+        //     .size_cross(render::SizeKind::Grow)
+        //     .direction(render::Direction::Column) // TODO: chaning to Row does not work
+        //     .gap(20.0)
+        //     .color(RED)
+        //     .render(ctx, renderer);
+        // {
+        //     let header = Widget::new()
+        //         .label("header")
+        //         .parent(outer)
+        //         .size_main(render::SizeKind::Pixels(200.0))
+        //         .size_cross(render::SizeKind::Grow)
+        //         .color(BLUE)
+        //         .render(ctx, renderer);
+        //     {}
+        //     let body = Widget::new()
+        //         .label("body")
+        //         .parent(outer)
+        //         .size_main(render::SizeKind::ChildrenSum)
+        //         .size_cross(render::SizeKind::ChildrenSum)
+        //         .gap(20.0)
+        //         .color(GREEN)
+        //         .render(ctx, renderer);
+        //     {
+        //         let a = Widget::new()
+        //             .label("a")
+        //             .parent(body)
+        //             .size_main(render::SizeKind::Pixels(100.0))
+        //             .size_cross(render::SizeKind::Pixels(100.0))
+        //             .color(BLUE)
+        //             .render(ctx, renderer);
+        //         let b = Widget::new()
+        //             .label("b")
+        //             .parent(body)
+        //             .size_main(render::SizeKind::Pixels(100.0))
+        //             .size_cross(render::SizeKind::Pixels(100.0))
+        //             .color(BLUE)
+        //             .render(ctx, renderer);
+        //         let c = Widget::new()
+        //             .label("c")
+        //             .parent(body)
+        //             .size_main(render::SizeKind::Pixels(100.0))
+        //             .size_cross(render::SizeKind::Pixels(100.0))
+        //             .color(BLUE)
+        //             .render(ctx, renderer);
+        //     }
+
+        // let b = Widget::new()
+        //     .label("b")
+        //     .parent(outer)
+        //     .size_main(render::SizeKind::Pixels(100.0))
+        //     .size_cross(render::SizeKind::Pixels(100.0))
+        //     .color(BLUE)
+        //     .render(ctx, renderer);
+        // let c = Widget::new()
+        //     .label("c")
+        //     .parent(outer)
+        //     .size_main(render::SizeKind::PercentOfParent(0.5))
+        //     .size_cross(render::SizeKind::Pixels(100.0))
+        //     .color(BLUE)
+        //     .render(ctx, renderer);
+        // }
 
         let outer = Widget::new()
             .label("outer")
-            .size_main(render::SizeKind::Grow)
-            .size_cross(render::SizeKind::Grow)
-            .direction(render::Direction::Column) // TODO: chaning to Row does not work
+            .size_main(render::SizeKind::PercentOfParent(1.0))
+            .size_cross(render::SizeKind::PercentOfParent(1.0))
+            .direction(render::Direction::Column)
             .gap(20.0)
-            .color(RED)
+            .padding(20.0)
+            .color(GRAY)
             .render(ctx, renderer);
         {
             let header = Widget::new()
                 .label("header")
                 .parent(outer)
-                .size_main(render::SizeKind::Pixels(200.0))
-                .size_cross(render::SizeKind::Grow)
-                .color(BLUE)
+                .size_main(render::SizeKind::PercentOfParent(0.3))
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .direction(render::Direction::Row)
+                .gap(20.0)
+                .padding(20.0)
+                .color(RED)
                 .render(ctx, renderer);
-            {}
+            {
+                let header_btn_size = 150.0;
+                let a = Widget::new()
+                    .label("header1")
+                    .parent(header)
+                    .text("abc")
+                    .size_main(render::SizeKind::Pixels(header_btn_size))
+                    .size_cross(render::SizeKind::Pixels(header_btn_size))
+                    .text_font_size(100.0)
+                    .color(BLUE)
+                    .clickable()
+                    .render(ctx, renderer);
+
+                let b = Widget::new()
+                    .label("header2")
+                    .parent(header)
+                    .text("b")
+                    .size_main(render::SizeKind::Pixels(header_btn_size))
+                    .size_cross(render::SizeKind::Pixels(header_btn_size))
+                    .color(BLUE)
+                    .clickable()
+                    .render(ctx, renderer);
+
+                Widget::new()
+                    .parent(header)
+                    .size_main(render::SizeKind::Grow)
+                    .render(ctx, renderer);
+
+                let c = Widget::new()
+                    .label("header3")
+                    .parent(header)
+                    .text("c")
+                    .size_main(render::SizeKind::Pixels(header_btn_size))
+                    .size_cross(render::SizeKind::Pixels(header_btn_size))
+                    .color(BLUE)
+                    .clickable()
+                    .render(ctx, renderer);
+            }
             let body = Widget::new()
                 .label("body")
                 .parent(outer)
-                .size_main(render::SizeKind::ChildrenSum)
-                .size_cross(render::SizeKind::ChildrenSum)
-                .gap(20.0)
+                .size_main(render::SizeKind::Grow)
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
                 .color(GREEN)
                 .render(ctx, renderer);
-            {
-                let a = Widget::new()
-                    .label("a")
-                    .parent(body)
-                    .size_main(render::SizeKind::Pixels(100.0))
-                    .size_cross(render::SizeKind::Pixels(100.0))
-                    .color(BLUE)
-                    .render(ctx, renderer);
-                let b = Widget::new()
-                    .label("b")
-                    .parent(body)
-                    .size_main(render::SizeKind::Pixels(100.0))
-                    .size_cross(render::SizeKind::Pixels(100.0))
-                    .color(BLUE)
-                    .render(ctx, renderer);
-                let c = Widget::new()
-                    .label("c")
-                    .parent(body)
-                    .size_main(render::SizeKind::Pixels(100.0))
-                    .size_cross(render::SizeKind::Pixels(100.0))
-                    .color(BLUE)
-                    .render(ctx, renderer);
-            }
 
-            // let b = Widget::new()
-            //     .label("b")
-            //     .parent(outer)
-            //     .size_main(render::SizeKind::Pixels(100.0))
-            //     .size_cross(render::SizeKind::Pixels(100.0))
-            //     .color(BLUE)
-            //     .render(ctx, gr);
-            // let c = Widget::new()
-            //     .label("c")
-            //     .parent(outer)
-            //     .size_main(render::SizeKind::PercentOfParent(0.5))
-            //     .size_cross(render::SizeKind::Pixels(100.0))
-            //     .color(BLUE)
-            //     .render(ctx, gr);
+            let footer = Widget::new()
+                .label("footer")
+                .parent(outer)
+                .size_main(render::SizeKind::PercentOfParent(0.1))
+                .size_cross(render::SizeKind::PercentOfParent(1.0))
+                .color(BLUE)
+                .render(ctx, renderer);
         }
-
-        // let outer = Widget::new()
-        //     .label("outer")
-        //     .size_main(render::SizeKind::PercentOfParent(1.0))
-        //     .size_cross(render::SizeKind::PercentOfParent(1.0))
-        //     .direction(render::Direction::Column)
-        //     .gap(20.0)
-        //     .padding(20.0)
-        //     .color(GRAY)
-        //     .render(ctx, gr);
-        // {
-        //     let header = Widget::new()
-        //         .label("header")
-        //         .parent(outer)
-        //         .size_main(render::SizeKind::PercentOfParent(0.3))
-        //         .size_cross(render::SizeKind::PercentOfParent(1.0))
-        //         .direction(render::Direction::Row)
-        //         .gap(20.0)
-        //         .padding(20.0)
-        //         .color(RED)
-        //         .render(ctx, gr);
-        //     {
-        //         let header_btn_size = 150.0;
-        //         let a = Widget::new()
-        //             .label("header1")
-        //             .parent(header)
-        //             .text("abc")
-        //             .size_main(render::SizeKind::Pixels(header_btn_size))
-        //             .size_cross(render::SizeKind::Pixels(header_btn_size))
-        //             .text_font_size(100.0)
-        //             .color(BLUE)
-        //             .clickable()
-        //             .render(ctx, gr);
-        //
-        //         let b = Widget::new()
-        //             .label("header2")
-        //             .parent(header)
-        //             .text("b")
-        //             .size_main(render::SizeKind::Pixels(header_btn_size))
-        //             .size_cross(render::SizeKind::Pixels(header_btn_size))
-        //             .color(BLUE)
-        //             .clickable()
-        //             .render(ctx, gr);
-        //
-        //         Widget::new()
-        //             .parent(header)
-        //             .size_main(render::SizeKind::Grow)
-        //             .render(ctx, gr);
-        //
-        //         let c = Widget::new()
-        //             .label("header3")
-        //             .parent(header)
-        //             .text("c")
-        //             .size_main(render::SizeKind::Pixels(header_btn_size))
-        //             .size_cross(render::SizeKind::Pixels(header_btn_size))
-        //             .color(BLUE)
-        //             .clickable()
-        //             .render(ctx, gr);
-        //     }
-        //     let body = Widget::new()
-        //         .label("body")
-        //         .parent(outer)
-        //         .size_main(render::SizeKind::Grow)
-        //         .size_cross(render::SizeKind::PercentOfParent(1.0))
-        //         .color(GREEN)
-        //         .render(ctx, gr);
-        //
-        //     let footer = Widget::new()
-        //         .label("footer")
-        //         .parent(outer)
-        //         .size_main(render::SizeKind::PercentOfParent(0.1))
-        //         .size_cross(render::SizeKind::PercentOfParent(1.0))
-        //         .color(BLUE)
-        //         .render(ctx, gr);
-        // }
 
         self.gui_renderer.render(ctx, screen_view);
         false

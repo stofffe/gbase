@@ -11,8 +11,7 @@ pub enum SizeKind {
     Pixels(f32),
     PercentOfParent(f32),
     Grow,
-    /// Only works when all children use Pixels
-    ChildrenSum,
+    ChildrenSum, // Only works when all children use Pixels
 }
 
 #[derive(Debug, Clone, Copy)]
