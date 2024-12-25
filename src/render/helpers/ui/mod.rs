@@ -257,7 +257,7 @@ impl GUIRenderer {
 impl GUIRenderer {
     // PRE
     // Pixels
-    fn auto_layout_1(&mut self, index: usize) {
+    fn auto_layout_fixed(&mut self, index: usize) {
         let parent = self.get_widget_parent(index);
         let main_axis = parent.direction.main_axis();
         let cross_axis = parent.direction.cross_axis();
@@ -275,13 +275,13 @@ impl GUIRenderer {
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_layout_1(self.w_now[index].children[i]);
+            self.auto_layout_fixed(self.w_now[index].children[i]);
         }
     }
 
     // PRE
-    // Percent
-    fn auto_layout_2(&mut self, index: usize) {
+    // PercentOfParent
+    fn auto_layout_percent(&mut self, index: usize) {
         let parent = self.get_widget_parent(index);
         let parent_dir = parent.direction;
         let parent_inner_size = parent.computed_inner_size();
@@ -301,13 +301,60 @@ impl GUIRenderer {
 
         // children
         for i in 0..this.children.len() {
-            self.auto_layout_2(self.w_now[index].children[i]);
+            self.auto_layout_percent(self.w_now[index].children[i]);
+        }
+    }
+
+    // POST
+    // ChildrenSum
+    fn auto_layout_children(&mut self, index: usize) {
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_layout_children(self.w_now[index].children[i]);
+        }
+
+        let this = self.get_widget(index);
+        let size_main = this.size_main;
+        let size_cross = this.size_cross;
+        let children_count = this.children.len();
+        let gap = this.gap;
+
+        let main_axis = this.direction.main_axis();
+        let cross_axis = this.direction.cross_axis();
+
+        if index != widget::root_index() && children_count > 0 {
+            if let SizeKind::ChildrenSum = size_main {
+                // sum
+                let mut children_space = 0.0;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[main_axis];
+                    children_space += child_size;
+                }
+
+                let gap_space = (children_count - 1) as f32 * gap;
+
+                let total_space = children_space + gap_space;
+
+                self.get_widget(index).computed_size[main_axis] = total_space;
+            }
+            if let SizeKind::ChildrenSum = size_cross {
+                // find max
+                let mut max_size = 0_f32;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[cross_axis];
+                    max_size = max_size.max(child_size);
+                }
+
+                self.get_widget(index).computed_size[cross_axis] = max_size;
+            }
         }
     }
 
     // PRE
     // Grow
-    fn auto_layout_3(&mut self, index: usize) {
+    fn auto_layout_grow(&mut self, index: usize) {
         let parent = self.get_widget_parent(index);
         let parent_inner_size = parent.computed_inner_size();
         let gap = parent.gap;
@@ -344,25 +391,25 @@ impl GUIRenderer {
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_layout_3(self.w_now[index].children[i]);
+            self.auto_layout_grow(self.w_now[index].children[i]);
         }
     }
 
     // PRE
-    fn auto_layout_4(&mut self, index: usize) {
+    fn auto_layout_violations(&mut self, index: usize) {
         // let parent_index = self.w_now[index].parent;
 
         // SOLVE VIOLATIONS
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_layout_4(self.w_now[index].children[i]);
+            self.auto_layout_violations(self.w_now[index].children[i]);
         }
     }
 
     // PRE
     // Relative pos
-    fn auto_layout_5(&mut self, index: usize) {
+    fn auto_layout_final(&mut self, index: usize) {
         let this = self.get_widget(index);
         let children_count = this.children.len();
         let inner_pos = this.computed_inner_pos();
@@ -385,7 +432,7 @@ impl GUIRenderer {
 
         // children
         for i in 0..self.w_now[index].children.len() {
-            self.auto_layout_5(self.w_now[index].children[i]);
+            self.auto_layout_final(self.w_now[index].children[i]);
         }
     }
 
@@ -394,16 +441,12 @@ impl GUIRenderer {
     // https://www.rfleury.com/p/ui-part-2-build-it-every-frame-immediate
     // https://www.rfleury.com/p/ui-part-3-the-widget-building-language
     fn auto_layout(&mut self, index: usize) {
-        // 1. Fixed sizes (PRE/POST)
-        self.auto_layout_1(index);
-        // 2. Parent dependent sizes (PRE)
-        self.auto_layout_2(index);
-        // 3. Grow dependent sizes (POST)
-        self.auto_layout_3(index);
-        // 4. Solve violations (PRE)
-        self.auto_layout_4(index);
-        // 5. Parent dependent sizes (PRE)
-        self.auto_layout_5(index);
+        self.auto_layout_fixed(index);
+        self.auto_layout_percent(index);
+        self.auto_layout_children(index);
+        self.auto_layout_grow(index);
+        self.auto_layout_violations(index);
+        self.auto_layout_final(index);
         // dbg!(&self.w_now);
     }
 }
