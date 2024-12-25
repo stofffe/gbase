@@ -307,40 +307,66 @@ impl GUIRenderer {
             self.auto_layout_children(self.w_now[index].children[i]);
         }
 
+        let parent = self.get_widget_parent(index);
+        let parent_main_axis = parent.direction.main_axis();
+        let parent_cross_axis = parent.direction.cross_axis();
+
         let this = self.get_widget(index);
-        let size_main = this.size_main;
-        let size_cross = this.size_cross;
+        let this_main_axis = this.direction.main_axis();
+        let this_cross_axis = this.direction.cross_axis();
+        let this_size_main = this.size_main;
+        let this_size_cross = this.size_cross;
         let children_count = this.children.len();
         let gap = this.gap;
 
-        let main_axis = this.direction.main_axis();
-        let cross_axis = this.direction.cross_axis();
-
-        if let SizeKind::ChildrenSum = size_main {
-            // sum
-            let mut children_space = 0.0;
-            for i in 0..children_count {
-                let child_i = self.get_widget(index).children[i];
-                let child_size = self.get_widget(child_i).computed_size[main_axis];
-                children_space += child_size;
-            }
-
-            let gap_space = (children_count - 1) as f32 * gap;
-
-            let total_space = children_space + gap_space;
-
-            self.get_widget(index).computed_size[main_axis] = total_space;
+        if let SizeKind::ChildrenSum = this_size_main {
+            let parent_this_same_axis = parent_main_axis == this_main_axis;
+            let size = if parent_this_same_axis {
+                // sum
+                let mut children_sum = 0.0;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[this_main_axis];
+                    children_sum += child_size;
+                }
+                let gap_space = (children_count - 1) as f32 * gap;
+                children_sum + gap_space
+            } else {
+                // max
+                let mut children_max = 0_f32;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[this_cross_axis];
+                    children_max = children_max.max(child_size);
+                }
+                children_max
+            };
+            self.get_widget(index).computed_size[parent_main_axis] = size;
         }
-        if let SizeKind::ChildrenSum = size_cross {
-            // find max
-            let mut max_size = 0_f32;
-            for i in 0..children_count {
-                let child_i = self.get_widget(index).children[i];
-                let child_size = self.get_widget(child_i).computed_size[cross_axis];
-                max_size = max_size.max(child_size);
-            }
 
-            self.get_widget(index).computed_size[cross_axis] = max_size;
+        if let SizeKind::ChildrenSum = this_size_cross {
+            let parent_this_same_axis = parent_cross_axis == this_main_axis;
+            let size = if parent_this_same_axis {
+                // sum
+                let mut children_sum = 0.0;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[this_main_axis];
+                    children_sum += child_size;
+                }
+                let gap_space = (children_count - 1) as f32 * gap;
+                children_sum + gap_space
+            } else {
+                // max
+                let mut children_max = 0_f32;
+                for i in 0..children_count {
+                    let child_i = self.get_widget(index).children[i];
+                    let child_size = self.get_widget(child_i).computed_size[this_cross_axis];
+                    children_max = children_max.max(child_size);
+                }
+                children_max
+            };
+            self.get_widget(index).computed_size[parent_cross_axis] = size;
         }
     }
 
