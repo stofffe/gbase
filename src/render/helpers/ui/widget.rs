@@ -176,14 +176,14 @@ impl Widget {
         if self.slider {
             if inside {
                 renderer.set_hot_this_frame(id.clone());
-                if renderer.check_hot(&id) {
-                    if renderer.check_active(&id) {
-                        let p = ((mouse_pos.x - bounds.left()) / bounds.size.x).clamp(0.0, 1.0);
-                        slider_value = p;
-                    } else if mouse_down {
-                        renderer.set_active(id.clone());
-                    }
+                if renderer.check_hot(&id) && mouse_down {
+                    renderer.set_active(id.clone());
                 }
+            }
+
+            if renderer.check_active(&id) {
+                let p = ((mouse_pos.x - bounds.left()) / bounds.size.x).clamp(0.0, 1.0);
+                slider_value = p;
             }
         }
 

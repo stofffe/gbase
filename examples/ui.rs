@@ -62,6 +62,8 @@ impl Callbacks for App {
             .slider(self.health)
             .direction(render::Direction::Row)
             .render(ctx, renderer);
+        self.health = slider.slider_value;
+
         {
             let slider_left = Widget::new()
                 .parent(slider)
@@ -69,11 +71,10 @@ impl Callbacks for App {
                 .render(ctx, renderer);
             let slider_btn = Widget::new()
                 .parent(slider)
-                .color(BLUE)
-                .width(render::SizeKind::Pixels(80.0))
-                .height(render::SizeKind::Pixels(80.0))
+                .color(GREEN)
+                .width(render::SizeKind::Pixels(100.0))
+                .height(render::SizeKind::Pixels(100.0))
                 .render(ctx, renderer);
-            self.health = slider.slider_value;
         }
         let btn = Widget::new()
             .label("btn")
