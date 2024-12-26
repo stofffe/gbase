@@ -37,6 +37,50 @@ impl Callbacks for App {
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let renderer = &mut self.gui_renderer;
+        // let outer = Widget::new()
+        //     .label("outer")
+        //     .width(render::SizeKind::PercentOfParent(1.0))
+        //     .height(render::SizeKind::PercentOfParent(1.0))
+        //     .direction(render::Direction::Column)
+        //     .main_axis_alignment(render::Alignment::Center)
+        //     .cross_axis_alignment(render::Alignment::Center)
+        //     .gap(20.0)
+        //     .padding(20.0)
+        //     .color(BLACK)
+        //     .render(ctx, renderer);
+        //
+        // {
+        //     let header = Widget::new()
+        //         .label("header")
+        //         .parent(outer)
+        //         .width(render::SizeKind::Pixels(300.0))
+        //         .height(render::SizeKind::Pixels(200.0))
+        //         .direction(render::Direction::Row)
+        //         .gap(20.0)
+        //         .padding(20.0)
+        //         .color(RED)
+        //         .render(ctx, renderer);
+        //     let header = Widget::new()
+        //         .label("header")
+        //         .parent(outer)
+        //         .width(render::SizeKind::PercentOfParent(1.0))
+        //         .height(render::SizeKind::Pixels(200.0))
+        //         .direction(render::Direction::Row)
+        //         .gap(20.0)
+        //         .padding(20.0)
+        //         .color(RED)
+        //         .render(ctx, renderer);
+        //     let header = Widget::new()
+        //         .label("header")
+        //         .parent(outer)
+        //         .width(render::SizeKind::Pixels(900.0))
+        //         .height(render::SizeKind::Pixels(200.0))
+        //         .direction(render::Direction::Row)
+        //         .gap(20.0)
+        //         .padding(20.0)
+        //         .color(RED)
+        //         .render(ctx, renderer);
+        // }
 
         let outer = Widget::new()
             .label("outer")
@@ -54,6 +98,8 @@ impl Callbacks for App {
                 .width(render::SizeKind::PercentOfParent(1.0))
                 .height(render::SizeKind::ChildrenSum)
                 .direction(render::Direction::Row)
+                .main_axis_alignment(render::Alignment::Center)
+                .cross_axis_alignment(render::Alignment::Center)
                 .gap(20.0)
                 .padding(20.0)
                 .color(RED)

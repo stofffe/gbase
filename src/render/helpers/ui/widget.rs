@@ -21,32 +21,30 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub fn axis(&self) -> usize {
+    pub fn main_axis(&self) -> usize {
         match self {
             Direction::Row => 0,
             Direction::Column => 1,
         }
     }
-    // pub fn main_axis(&self) -> usize {
-    //     return 0;
-    //     match self {
-    //         Direction::Row => 0,    // x
-    //         Direction::Column => 1, // y
-    //     }
-    // }
-    // pub fn cross_axis(&self) -> usize {
-    //     return 1;
-    //     match self {
-    //         Direction::Row => 1,    // x
-    //         Direction::Column => 0, // y
-    //     }
-    // }
+    pub fn cross_axis(&self) -> usize {
+        match self {
+            Direction::Row => 1,
+            Direction::Column => 0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Alignment {
+    Start,
+    Center,
+    End,
 }
 
 //
 // Internal
 //
-
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
@@ -61,6 +59,9 @@ pub struct Widget {
     pub(crate) margin: Vec2,
 
     pub(crate) gap: f32,
+
+    pub(crate) main_axis_alignment: Alignment,
+    pub(crate) cross_axis_alignment: Alignment,
 
     pub(crate) color: Vec4,
     pub(crate) text: String,
@@ -96,6 +97,9 @@ impl Widget {
             padding: Vec2::ZERO,
             margin: Vec2::ZERO,
             gap: 0.0,
+
+            main_axis_alignment: Alignment::Start,
+            cross_axis_alignment: Alignment::Start,
 
             color: Vec4::ZERO,
 
@@ -241,6 +245,16 @@ impl Widget {
         self.gap = value;
         self
     }
+    /// set child alignment on main axis
+    pub fn main_axis_alignment(mut self, value: Alignment) -> Self {
+        self.main_axis_alignment = value;
+        self
+    }
+    /// set child alignment on cross axis
+    pub fn cross_axis_alignment(mut self, value: Alignment) -> Self {
+        self.cross_axis_alignment = value;
+        self
+    }
     /// set color of background
     pub fn color(mut self, value: Vec4) -> Self {
         self.color = value;
@@ -309,6 +323,9 @@ pub fn root_widget(ctx: &Context) -> Widget {
         padding: Vec2::ZERO,
         margin: Vec2::ZERO,
         gap: 0.0,
+
+        main_axis_alignment: Alignment::Start,
+        cross_axis_alignment: Alignment::Start,
 
         color: Vec4::ZERO,
 
