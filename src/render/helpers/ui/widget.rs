@@ -145,7 +145,7 @@ impl Widget {
         if self.clickable {
             let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_quad_collision(input::mouse_pos_unorm(ctx), bounds);
+            let inside = collision::point_quad_collision(input::mouse_pos(ctx).into(), bounds);
 
             if inside {
                 renderer.set_hot_this_frame(id.clone());

@@ -7,7 +7,7 @@ use crate::collision::Quad;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
 use crate::{filesystem, input, render, time, Context};
 pub use fonts::*;
-use glam::{vec2, vec3, Vec2};
+use glam::{vec2, vec3};
 use render::VertexTrait;
 pub use widget::*;
 
@@ -514,32 +514,35 @@ impl GUIRenderer {
         //
         // debug
         //
+        let font_size = 100.0;
+        let font_color = WHITE;
+
         self.text(
             &format!("fps: {}", time::fps(ctx)),
-            Quad::new(vec2(0.0, 0.0), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
+            Quad::new(vec2(0.0, 0.0), vec2(0.5, font_size)),
+            font_size,
+            font_color,
             false,
         );
         self.text(
             &format!("hot: {}", self.hot_this_frame),
-            Quad::new(vec2(0.0, 0.05), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
+            Quad::new(vec2(0.0, font_size), vec2(0.5, font_size)),
+            font_size,
+            font_color,
             false,
         );
         self.text(
             &format!("hot last: {}", self.hot_last_frame),
-            Quad::new(vec2(0.0, 0.1), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
+            Quad::new(vec2(0.0, font_size * 2.0), vec2(0.5, font_size)),
+            font_size,
+            font_color,
             false,
         );
         self.text(
             &format!("active: {}", self.active),
-            Quad::new(vec2(0.0, 0.15), vec2(0.5, 0.05)),
-            0.05,
-            BLACK,
+            Quad::new(vec2(0.0, font_size * 3.0), vec2(0.5, font_size)),
+            font_size,
+            font_color,
             false,
         );
     }

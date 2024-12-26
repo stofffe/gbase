@@ -116,7 +116,7 @@ impl Callbacks for App {
                     .color(BLUE)
                     .render(ctx, renderer);
                 {
-                    for i in 0..5 {
+                    for _ in 0..5 {
                         Widget::new()
                             .parent(header1)
                             .width(render::SizeKind::Grow)
@@ -136,6 +136,7 @@ impl Callbacks for App {
                     .height(render::SizeKind::Pixels(200.0))
                     .text_font_size(100.0)
                     .color(BLUE)
+                    .clickable()
                     .render(ctx, renderer);
                 let header3 = Widget::new()
                     .label("header3")
@@ -144,6 +145,7 @@ impl Callbacks for App {
                     .height(render::SizeKind::Pixels(200.0))
                     .text_font_size(100.0)
                     .color(BLUE)
+                    .clickable()
                     .render(ctx, renderer);
             }
 
