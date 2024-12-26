@@ -91,9 +91,9 @@ pub fn mouse_on_screen(ctx: &Context) -> bool {
 }
 
 /// Returns the current physical coordinates for the mouse
-pub fn mouse_pos(ctx: &Context) -> (f32, f32) {
+pub fn mouse_pos(ctx: &Context) -> Vec2 {
     let (x, y) = ctx.input.mouse.pos;
-    (x as f32, y as f32)
+    vec2(x as f32, y as f32)
 }
 
 pub fn mouse_pos_unorm(ctx: &Context) -> Vec2 {

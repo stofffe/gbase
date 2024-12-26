@@ -1,3 +1,5 @@
+#![allow(clippy::collapsible_if)]
+
 use super::{GUIRenderer, BLACK};
 use crate::{
     collision::{self, Quad},
@@ -75,6 +77,8 @@ pub struct Widget {
 
     // flags
     pub(crate) clickable: bool,
+    pub(crate) slider: bool, // always horizontal for now
+    pub(crate) slider_value: f32,
     // long press
     // text alignment
     // main/cross axis alignment
@@ -90,8 +94,8 @@ impl Widget {
             label: String::new(),
             parent: root_index(),
 
-            width: SizeKind::Pixels(0.2),
-            height: SizeKind::Pixels(0.2),
+            width: SizeKind::Pixels(100.0),
+            height: SizeKind::Pixels(100.0),
 
             direction: Direction::Column,
             padding: Vec2::ZERO,
@@ -112,20 +116,30 @@ impl Widget {
             computed_size: Vec2::ZERO,
 
             clickable: false,
+            slider: false,
+            slider_value: 0.0,
 
             children: Vec::new(),
         }
     }
 
     // public api
-    pub fn render(&self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
-        let mut result = renderer
+    pub fn render(&mut self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
+        let widget_last_frame = renderer
             .widgets_last
             .iter()
             .find(|w| w.label == self.label)
-            .cloned()
-            .map(|w| w.inner_logic(ctx, renderer))
-            .unwrap_or_default();
+            .cloned();
+
+        let mut result = match widget_last_frame {
+            Some(w) => w.inner_logic(ctx, renderer),
+            None => WidgetResult {
+                index: 0,
+                clicked: false,
+                slider_value: self.slider_value,
+            },
+        };
+        self.slider_value = result.slider_value;
 
         result.index = renderer.create_widget(self.clone());
 
@@ -135,31 +149,49 @@ impl Widget {
     pub(crate) fn inner_logic(&self, ctx: &Context, renderer: &mut GUIRenderer) -> WidgetResult {
         let id = self.label.clone();
 
-        // includes: content, padding, border
-        // excludes: margin
         let mut bounds = Quad::new(self.computed_pos, self.computed_size);
         bounds.pos += self.margin;
         bounds.size -= self.margin * 2.0;
 
+        let mouse_pos = input::mouse_pos(ctx);
+        let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
+        let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
+        let inside = collision::point_quad_collision(mouse_pos, bounds);
+
         let mut clicked = false;
         if self.clickable {
-            let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
-            let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_quad_collision(input::mouse_pos(ctx).into(), bounds);
-
             if inside {
                 renderer.set_hot_this_frame(id.clone());
                 if renderer.check_hot(&id) {
                     if renderer.check_active(&id) && mouse_up {
                         clicked = true;
                     } else if mouse_down {
-                        renderer.set_active(id);
+                        renderer.set_active(id.clone());
                     }
                 }
             }
         }
 
-        WidgetResult { index: 0, clicked }
+        let mut slider_value = self.slider_value;
+        if self.slider {
+            if inside {
+                renderer.set_hot_this_frame(id.clone());
+                if renderer.check_hot(&id) {
+                    if renderer.check_active(&id) {
+                        let p = ((mouse_pos.x - bounds.left()) / bounds.size.x).clamp(0.0, 1.0);
+                        slider_value = p;
+                    } else if mouse_down {
+                        renderer.set_active(id.clone());
+                    }
+                }
+            }
+        }
+
+        WidgetResult {
+            index: 0,
+            clicked,
+            slider_value,
+        }
     }
 
     // private api
@@ -285,6 +317,12 @@ impl Widget {
         self.clickable = true;
         self
     }
+    /// make widget into a slider
+    pub fn slider(mut self, value: f32) -> Self {
+        self.slider = true;
+        self.slider_value = value;
+        self
+    }
 }
 
 //
@@ -295,6 +333,7 @@ impl Widget {
 pub struct WidgetResult {
     pub index: usize,
     pub clicked: bool,
+    pub slider_value: f32,
 }
 
 #[allow(clippy::derivable_impls)]
@@ -303,6 +342,7 @@ impl Default for WidgetResult {
         Self {
             index: 0,
             clicked: false,
+            slider_value: 0.0,
         }
     }
 }
@@ -338,6 +378,8 @@ pub fn root_widget(ctx: &Context) -> Widget {
         computed_size: vec2(screen_size.width as f32, screen_size.height as f32),
 
         clickable: false,
+        slider: false,
+        slider_value: 0.0,
 
         children: Vec::new(),
     }
