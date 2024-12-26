@@ -234,7 +234,7 @@ impl GUIRenderer {
         let index = self.w_now.len();
 
         // add to parent's children
-        self.get_widget(widget.parent).children.push(index);
+        self.get_widget_mut(widget.parent).children.push(index);
 
         // add to render tree
         self.w_now.push(widget);
@@ -243,7 +243,11 @@ impl GUIRenderer {
     }
 
     #[inline]
-    pub(crate) fn get_widget(&mut self, index: usize) -> &mut Widget {
+    pub(crate) fn get_widget(&self, index: usize) -> &Widget {
+        &self.w_now[index]
+    }
+    #[inline]
+    pub(crate) fn get_widget_mut(&mut self, index: usize) -> &mut Widget {
         &mut self.w_now[index]
     }
     #[inline]
@@ -253,7 +257,6 @@ impl GUIRenderer {
 
     fn children_size(&self, index: usize, axis: usize) -> f32 {
         let children = &self.w_now[index].children;
-
         if children.is_empty() {
             return 0.0;
         }
@@ -268,6 +271,18 @@ impl GUIRenderer {
 
         children_sum + gap_sum
     }
+
+    fn children_max(&self, index: usize, axis: usize) -> f32 {
+        let children = &self.w_now[index].children;
+
+        let mut children_max = 0.0f32;
+        for &child_i in children {
+            let child = &self.w_now[child_i];
+            children_max = children_max.max(child.computed_size[axis]);
+        }
+
+        children_max
+    }
 }
 
 // logic
@@ -276,7 +291,7 @@ impl GUIRenderer {
     // PRE
     // Pixels
     fn auto_layout_fixed(&mut self, index: usize) {
-        let this = self.get_widget(index);
+        let this = self.get_widget_mut(index);
 
         if let SizeKind::Pixels(px) = this.width {
             this.computed_size[0] = px;
@@ -296,7 +311,7 @@ impl GUIRenderer {
     fn auto_layout_percent(&mut self, index: usize) {
         let parent = self.get_widget_parent(index);
         let parent_inner_size = parent.computed_inner_size();
-        let this = self.get_widget(index);
+        let this = self.get_widget_mut(index);
 
         if let SizeKind::PercentOfParent(p) = this.width {
             this.computed_size[0] = parent_inner_size[0] * p;
@@ -320,74 +335,45 @@ impl GUIRenderer {
         }
 
         let this = self.get_widget(index);
-        let width = this.width;
-        let height = this.height;
-        let dir = this.direction;
-        let children_count = this.children.len();
-        let gap = this.gap;
-        let padding = this.padding;
-        let margin = this.margin;
-
-        if let SizeKind::ChildrenSum = width {
-            let size = match dir {
+        if let SizeKind::ChildrenSum = this.width {
+            let size = match this.direction {
                 // sum
                 Direction::Row => {
-                    let mut children_sum = 0.0;
-                    for i in 0..children_count {
-                        let child_i = self.get_widget(index).children[i];
-                        let child_size = self.get_widget(child_i).computed_size[0];
-                        children_sum += child_size;
-                    }
-                    let gap_space = (children_count - 1) as f32 * gap;
-                    let padding_space = padding[0] * 2.0;
-                    let margin_space = margin[0] * 2.0;
-                    children_sum + gap_space + padding_space + margin_space
+                    let children_space = self.children_size(index, 0);
+                    let padding_space = this.padding[0] * 2.0;
+                    let margin_space = this.margin[0] * 2.0;
+                    children_space + padding_space + margin_space
                 }
                 // max
                 Direction::Column => {
-                    let mut children_max = 0_f32;
-                    for i in 0..children_count {
-                        let child_i = self.get_widget(index).children[i];
-                        let child_size = self.get_widget(child_i).computed_size[0];
-                        children_max = children_max.max(child_size);
-                    }
-                    let padding_space = padding[0] * 2.0;
-                    let margin_space = margin[0] * 2.0;
+                    let children_max = self.children_max(index, 0);
+                    let padding_space = this.padding[0] * 2.0;
+                    let margin_space = this.margin[0] * 2.0;
                     children_max + padding_space + margin_space
                 }
             };
-            self.get_widget(index).computed_size[0] = size;
+            self.get_widget_mut(index).computed_size[0] = size;
         }
 
-        if let SizeKind::ChildrenSum = height {
-            let size = match dir {
+        let this = self.get_widget(index);
+        if let SizeKind::ChildrenSum = this.height {
+            let size = match this.direction {
                 // sum
                 Direction::Column => {
-                    let mut children_sum = 0.0;
-                    for i in 0..children_count {
-                        let child_i = self.get_widget(index).children[i];
-                        let child_size = self.get_widget(child_i).computed_size[1];
-                        children_sum += child_size;
-                    }
-                    let gap_space = (children_count - 1) as f32 * gap;
-                    let padding_space = padding[1] * 2.0;
-                    let margin_space = margin[1] * 2.0;
-                    children_sum + gap_space + padding_space + margin_space
+                    let children_space = self.children_size(index, 1);
+                    let padding_space = this.padding[1] * 2.0;
+                    let margin_space = this.margin[1] * 2.0;
+                    children_space + padding_space + margin_space
                 }
                 // max
                 Direction::Row => {
-                    let mut children_max = 0_f32;
-                    for i in 0..children_count {
-                        let child_i = self.get_widget(index).children[i];
-                        let child_size = self.get_widget(child_i).computed_size[1];
-                        children_max = children_max.max(child_size);
-                    }
-                    let padding_space = padding[1] * 2.0;
-                    let margin_space = margin[1] * 2.0;
+                    let children_max = self.children_max(index, 1);
+                    let padding_space = this.padding[1] * 2.0;
+                    let margin_space = this.margin[1] * 2.0;
                     children_max + padding_space + margin_space
                 }
             };
-            self.get_widget(index).computed_size[1] = size;
+            self.get_widget_mut(index).computed_size[1] = size;
         }
     }
 
@@ -395,36 +381,31 @@ impl GUIRenderer {
     // Grow
     fn auto_layout_grow(&mut self, index: usize) {
         let parent = self.get_widget_parent(index);
-        let parent_inner_size = parent.computed_inner_size();
-        let parent_dir = parent.direction;
+        let available_space = parent.computed_inner_size();
+        let parent_direction = parent.direction;
 
         let this = self.get_widget(index);
-        let parent_i = this.parent;
-        let width = this.width;
-        let height = this.height;
-
-        if let SizeKind::Grow = width {
-            let size = match parent_dir {
-                Direction::Column => parent_inner_size[0],
+        if let SizeKind::Grow = this.width {
+            let size = match parent_direction {
+                Direction::Column => available_space[0],
                 Direction::Row => {
-                    let neighbours_size = self.children_size(parent_i, 0);
-                    let available_space = parent_inner_size[0];
-                    available_space - neighbours_size
+                    let neighbours_size = self.children_size(this.parent, 0);
+                    available_space[0] - neighbours_size
                 }
             };
-            self.get_widget(index).computed_size[0] = size;
+            self.get_widget_mut(index).computed_size[0] = size;
         }
 
-        if let SizeKind::Grow = height {
-            let size = match parent_dir {
-                Direction::Row => parent_inner_size[1],
+        let this = self.get_widget(index);
+        if let SizeKind::Grow = this.height {
+            let size = match parent_direction {
+                Direction::Row => available_space[1],
                 Direction::Column => {
-                    let neighbours_size = self.children_size(parent_i, 1);
-                    let available_space = parent_inner_size[1];
-                    available_space - neighbours_size
+                    let neighbours_size = self.children_size(this.parent, 1);
+                    available_space[1] - neighbours_size
                 }
             };
-            self.get_widget(index).computed_size[1] = size;
+            self.get_widget_mut(index).computed_size[1] = size;
         }
 
         // children
@@ -449,41 +430,39 @@ impl GUIRenderer {
     // Relative pos
     fn auto_layout_final(&mut self, index: usize) {
         let this = self.get_widget(index);
-        let main_axis_alignment = this.main_axis_alignment;
         let cross_axis_alignment = this.cross_axis_alignment;
-        let children_count = this.children.len();
         let inner_pos = this.computed_inner_pos();
         let inner_size = this.computed_inner_size();
         let main_axis = this.direction.main_axis();
         let cross_axis = this.direction.cross_axis();
         let children_size = self.children_size(index, main_axis);
 
-        let mut pos = inner_pos;
-        pos[main_axis] += match main_axis_alignment {
+        let mut main_offset = match this.main_axis_alignment {
             Alignment::Start => 0.0,
-            Alignment::Center => (inner_size[main_axis] / 2.0) - children_size / 2.0,
+            Alignment::Center => inner_size[main_axis] / 2.0 - children_size / 2.0,
             Alignment::End => inner_size[main_axis] - children_size,
         };
 
         // main axis
-        for i in 0..children_count {
+        for i in 0..this.children.len() {
             let child_index = self.get_widget(index).children[i];
-            let child = self.get_widget(child_index);
-
-            let mut p = pos;
+            let child = self.get_widget_mut(child_index);
+            let child_size = child.computed_size;
 
             // cross axis alignment
-            let child_size = child.computed_size;
-            p[cross_axis] += match cross_axis_alignment {
+            let cross_offset = match cross_axis_alignment {
                 Alignment::Start => 0.0,
-                Alignment::Center => (inner_size[cross_axis] / 2.0) - child_size[cross_axis] / 2.0,
+                Alignment::Center => inner_size[cross_axis] / 2.0 - child_size[cross_axis] / 2.0,
                 Alignment::End => inner_size[cross_axis] - child_size[cross_axis],
             };
 
-            child.computed_pos = p;
+            let mut pos = inner_pos;
+            pos[main_axis] += main_offset;
+            pos[cross_axis] += cross_offset;
+            child.computed_pos = pos;
 
-            pos[main_axis] += child.computed_size[main_axis];
-            pos[main_axis] += self.get_widget(index).gap;
+            main_offset += child_size[main_axis];
+            main_offset += self.get_widget(index).gap;
         }
 
         // children
