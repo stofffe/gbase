@@ -1,7 +1,3 @@
-#![allow(clippy::collapsible_if)]
-
-use std::usize;
-
 use super::{GUIRenderer, BLACK};
 use crate::{
     collision::{self, Quad},
@@ -69,7 +65,7 @@ pub struct Widget {
     pub(crate) main_axis_alignment: Alignment,
     pub(crate) cross_axis_alignment: Alignment,
 
-    pub(crate) color: Vec4,
+    pub(crate) color: Option<Vec4>,
     pub(crate) text: String,
     pub(crate) text_color: Vec4,
     pub(crate) text_height: f32,
@@ -101,7 +97,7 @@ impl Widget {
             main_axis_alignment: Alignment::Start,
             cross_axis_alignment: Alignment::Start,
 
-            color: Vec4::ZERO,
+            color: None,
 
             text: String::new(),
             text_color: BLACK,
@@ -154,9 +150,8 @@ impl Widget {
 
         let mut clicked = false;
         if let Some(last_widget) = widget_last_frame {
-            let mut bounds = Quad::new(last_widget.computed_pos, last_widget.computed_size);
-            bounds.pos += last_widget.margin;
-            bounds.size -= last_widget.margin * 2.0;
+            let bounds = last_widget.computed_bounds_margin();
+
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
@@ -177,6 +172,7 @@ impl Widget {
 
         ButtonResult { index, clicked }
     }
+
     pub fn button_layout(
         &mut self,
         ctx: &Context,
@@ -207,9 +203,7 @@ impl Widget {
         let widget_last_frame = renderer.get_widget_last_frame(&id);
 
         if let Some(last_widget) = widget_last_frame {
-            let mut bounds = Quad::new(last_widget.computed_pos, last_widget.computed_size);
-            bounds.pos += last_widget.margin;
-            bounds.size -= last_widget.margin * 2.0;
+            let bounds = last_widget.computed_bounds_margin();
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
             let inside = collision::point_quad_collision(mouse_pos, bounds);
@@ -260,14 +254,10 @@ impl Widget {
     // private api
     //
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
-        let mut bounds = Quad::new(self.computed_pos, self.computed_size);
+        let bounds = self.computed_bounds_margin();
 
-        // only cut away margin and not padding
-        bounds.pos += self.margin;
-        bounds.size -= self.margin * 2.0;
-
-        if self.color != Vec4::ZERO {
-            renderer.quad(bounds.pos, bounds.size, self.color);
+        if let Some(color) = self.color {
+            renderer.quad(bounds.pos, bounds.size, color);
         }
 
         if !self.text.is_empty() {
@@ -286,6 +276,11 @@ impl Widget {
     }
     pub(crate) fn computed_inner_size(&self) -> Vec2 {
         self.computed_size - self.margin * 2.0 - self.padding * 2.0
+    }
+    pub(crate) fn computed_bounds_margin(&self) -> Quad {
+        let pos = self.computed_pos + self.margin;
+        let size = self.computed_size - self.margin * 2.0;
+        Quad::new(pos, size)
     }
 }
 
@@ -348,7 +343,7 @@ impl Widget {
     }
     /// set color of background
     pub fn color(mut self, value: Vec4) -> Self {
-        self.color = value;
+        self.color = Some(value);
         self
     }
     /// set text content
@@ -422,7 +417,7 @@ pub fn root_widget(ctx: &Context) -> Widget {
         main_axis_alignment: Alignment::Start,
         cross_axis_alignment: Alignment::Start,
 
-        color: Vec4::ZERO,
+        color: None,
 
         text: String::new(),
         text_color: Vec4::ZERO,

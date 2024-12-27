@@ -1,4 +1,4 @@
-use gbase::render::{Widget, BLACK, BLUE, GRAY, WHITE};
+use gbase::render::{Widget, BLACK, BLUE, GRAY, RED, WHITE};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -49,8 +49,7 @@ impl Callbacks for App {
             .main_axis_alignment(render::Alignment::Center)
             .cross_axis_alignment(render::Alignment::Center)
             .gap(20.0)
-            .padding(20.0)
-            .color(BLACK);
+            .padding(20.0);
         outer.layout(renderer, |renderer| {
             let mut slider_row = Widget::new()
                 .label("slider row")
