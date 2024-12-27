@@ -1,4 +1,4 @@
-use gbase::render::{Widget, BLACK, BLUE, GRAY, GREEN, RED};
+use gbase::render::{Widget, BLACK, BLUE, GRAY, WHITE};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -45,46 +45,111 @@ impl Callbacks for App {
             .label("outer")
             .width(render::SizeKind::PercentOfParent(1.0))
             .height(render::SizeKind::PercentOfParent(1.0))
-            .direction(render::Direction::Row)
+            .direction(render::Direction::Column)
             .main_axis_alignment(render::Alignment::Center)
             .cross_axis_alignment(render::Alignment::Center)
             .gap(20.0)
             .padding(20.0)
             .color(BLACK)
-            .render(ctx, renderer);
-
-        let slider = Widget::new()
-            .label("slider")
-            .parent(outer)
-            .color(GRAY)
-            .height(render::SizeKind::Pixels(100.0))
-            .width(render::SizeKind::Pixels(500.0))
-            .slider(self.health)
-            .direction(render::Direction::Row)
-            .render(ctx, renderer);
-        self.health = slider.slider_value;
+            .layout(renderer);
 
         {
-            let slider_left = Widget::new()
-                .parent(slider)
-                .width(render::SizeKind::PercentOfParent(slider.slider_value))
-                .render(ctx, renderer);
-            let slider_btn = Widget::new()
-                .parent(slider)
-                .color(GREEN)
-                .width(render::SizeKind::Pixels(100.0))
+            let slider_row = Widget::new()
+                .parent(outer)
                 .height(render::SizeKind::Pixels(100.0))
-                .render(ctx, renderer);
+                .width(render::SizeKind::ChildrenSum)
+                .cross_axis_alignment(render::Alignment::Center)
+                .direction(render::Direction::Row)
+                .layout(renderer);
+            {
+                Widget::new()
+                    .text("health")
+                    .parent(slider_row)
+                    .text_color(WHITE)
+                    .width(render::SizeKind::Pixels(200.0))
+                    .text_font_size(60.0)
+                    .layout(renderer);
+                let slider = Widget::new()
+                    .label("slider")
+                    .parent(slider_row)
+                    .color(GRAY)
+                    .height(render::SizeKind::Pixels(100.0))
+                    .width(render::SizeKind::Pixels(500.0))
+                    .direction(render::Direction::Row)
+                    .slider(ctx, renderer, 0.0, 200.0, &mut self.health);
+                {
+                    Widget::new()
+                        .parent(slider)
+                        .width(render::SizeKind::PercentOfParent(slider.slider_pos))
+                        .layout(renderer);
+                    Widget::new()
+                        .parent(slider)
+                        .width(render::SizeKind::Pixels(50.0))
+                        .height(render::SizeKind::Grow)
+                        .color(BLUE)
+                        .layout(renderer);
+                }
+                Widget::new()
+                    .parent(slider_row)
+                    .text(format!("{:.3}", self.health))
+                    .text_color(WHITE)
+                    .width(render::SizeKind::Pixels(200.0))
+                    .text_font_size(60.0)
+                    .layout(renderer);
+            }
+            let button_row = Widget::new()
+                .parent(outer)
+                .height(render::SizeKind::Pixels(100.0))
+                .width(render::SizeKind::ChildrenSum)
+                .cross_axis_alignment(render::Alignment::Center)
+                .direction(render::Direction::Row)
+                .layout(renderer);
+            {
+                Widget::new()
+                    .text("reset health")
+                    .parent(button_row)
+                    .text_color(WHITE)
+                    .width(render::SizeKind::Pixels(400.0))
+                    .text_font_size(60.0)
+                    .layout(renderer);
+                if Widget::new()
+                    .parent(button_row)
+                    .label("btn")
+                    .color(BLUE)
+                    .button(ctx, renderer)
+                    .clicked
+                {
+                    self.health = 0.0;
+                }
+            }
         }
-        let btn = Widget::new()
-            .label("btn")
-            .clickable()
-            .parent(outer)
-            .clickable()
-            .color(BLUE)
-            .render(ctx, renderer);
 
-        println!("health {}", self.health);
+        // let slider = Widget::new()
+        //     .label("slider")
+        //     .parent(outer)
+        //     .color(GRAY)
+        //     .height(render::SizeKind::Pixels(100.0))
+        //     .width(render::SizeKind::Pixels(500.0))
+        //     .slider(self.health, 0.0, 200.0)
+        //     .direction(render::Direction::Row)
+        //     .render(ctx, renderer);
+        // if let Some(s) = slider.slider_value {
+        //     self.health = s;
+        // }
+        // {
+        // let handle_size = 50.0;
+        // let slider_left = Widget::new()
+        //     .parent(slider)
+        //     .width(render::SizeKind::PercentOfParent(slider.slider_value))
+        //     .render(ctx, renderer);
+        // let slider_handle = Widget::new()
+        //     .label("slider handle")
+        //     .parent(slider)
+        //     .color(BLUE)
+        //     .width(render::SizeKind::Pixels(handle_size))
+        //     .height(render::SizeKind::Grow)
+        //     .render(ctx, renderer);
+        // }
 
         // let outer = Widget::new()
         //     .label("outer")
