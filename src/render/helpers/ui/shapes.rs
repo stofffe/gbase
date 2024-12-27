@@ -1,5 +1,5 @@
 use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
-use crate::{collision::Quad, Context};
+use crate::collision::Quad;
 use glam::{vec2, Vec2, Vec4};
 
 impl GUIRenderer {

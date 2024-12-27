@@ -11,6 +11,7 @@ use glam::{vec2, Vec2, Vec4};
 pub enum SizeKind {
     Null,
     Pixels(f32),
+    TextSize,
     PercentOfParent(f32),
     Grow,
     ChildrenSum, // Only works when all children use Pixels

@@ -61,7 +61,7 @@ impl Callbacks for App {
                 Widget::new()
                     .text("health")
                     .text_color(WHITE)
-                    .width(render::SizeKind::Pixels(200.0))
+                    .width(render::SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
                 let mut slider = Widget::new()

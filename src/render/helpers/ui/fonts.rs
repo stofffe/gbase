@@ -5,10 +5,9 @@ use std::collections::HashMap;
 
 pub struct FontAtlas {
     pub(crate) texture_atlas: render::TextureAtlas,
-    pub(crate) info: HashMap<char, LetterInfo>,
+    pub(crate) letter_info: HashMap<char, LetterInfo>,
 
-    #[allow(dead_code)]
-    line_height: f32,
+    pub(crate) font_info: FontInfo,
 }
 
 const FONT_RASTER_SIZE: f32 = 256.0;
@@ -56,7 +55,7 @@ impl FontAtlas {
         let mut offset = UVec2::ZERO;
         let padding = FONT_ATLAS_PADDING;
 
-        let mut info = HashMap::<char, LetterInfo>::new();
+        let mut letter_info = HashMap::<char, LetterInfo>::new();
 
         for (metrics, bitmap, letter) in chars {
             let dimensions = uvec2(metrics.width as u32, metrics.height as u32);
@@ -68,7 +67,7 @@ impl FontAtlas {
             }
 
             #[rustfmt::skip]
-            info.insert(
+            letter_info.insert(
                 letter,
                 LetterInfo {
                     // uv
@@ -85,17 +84,21 @@ impl FontAtlas {
             offset.x += dimensions.x + padding.x;
         }
 
+        let font_info = FontInfo {
+            height: line_height,
+        };
+
         Self {
             texture_atlas,
-            info,
-            line_height,
+            letter_info,
+            font_info,
         }
     }
 }
 
 impl FontAtlas {
     pub fn get_info(&self, letter: char) -> &LetterInfo {
-        match self.info.get(&letter) {
+        match self.letter_info.get(&letter) {
             Some(info) => info,
             None => panic!("trying to get unsupported letter \"{}\"", letter), // TODO default
         }
@@ -109,4 +112,9 @@ pub struct LetterInfo {
     pub(crate) size: Vec2,
     pub(crate) local_offset: Vec2,
     pub(crate) advance: Vec2,
+}
+
+#[derive(Debug, Clone)]
+pub struct FontInfo {
+    pub(crate) height: f32,
 }
