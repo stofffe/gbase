@@ -1,5 +1,7 @@
 #![allow(clippy::collapsible_if)]
 
+use std::usize;
+
 use super::{GUIRenderer, BLACK};
 use crate::{
     collision::{self, Quad},
@@ -112,65 +114,49 @@ impl Widget {
             children: Vec::new(),
         }
     }
+}
 
-    pub fn slider(
+//
+// Interaction types
+//
+
+impl Widget {
+    // public api
+    pub fn render(&mut self, renderer: &mut GUIRenderer) -> LayoutResult {
+        self.parent = renderer.get_layout();
+
+        let index = renderer.create_widget(self.clone());
+        LayoutResult { index }
+    }
+
+    pub fn layout(
         &mut self,
-        ctx: &Context,
         renderer: &mut GUIRenderer,
-        min: f32,
-        max: f32,
-        value: &mut f32,
-    ) -> SliderResult {
-        let id = self.label.clone();
+        children: impl FnOnce(&mut GUIRenderer),
+    ) -> LayoutResult {
+        self.parent = renderer.get_layout();
 
-        let widget_last_frame = renderer
-            .widgets_last
-            .iter()
-            .find(|w| w.label == id)
-            .cloned();
-
-        if let Some(lw) = widget_last_frame {
-            let mut bounds = Quad::new(lw.computed_pos, lw.computed_size);
-            bounds.pos += lw.margin;
-            bounds.size -= lw.margin * 2.0;
-            let mouse_pos = input::mouse_pos(ctx);
-            let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_quad_collision(mouse_pos, bounds);
-
-            if inside {
-                renderer.set_hot_this_frame(id.clone());
-                if renderer.check_hot(&id) && mouse_down {
-                    renderer.set_active(id.clone());
-                }
-            }
-
-            if renderer.check_active(&id) {
-                let p = ((mouse_pos.x - bounds.left()) / bounds.size.x).clamp(0.0, 1.0);
-
-                *value = (1.0 - p) * min + p * max;
-            }
-        };
-
-        let slider_pos = ((*value - min) / (max - min)).clamp(0.0, 1.0);
         let index = renderer.create_widget(self.clone());
 
-        SliderResult { index, slider_pos }
+        renderer.push_layout(index);
+        children(renderer);
+        renderer.pop_layout();
+
+        LayoutResult { index }
     }
 
     pub fn button(&mut self, ctx: &Context, renderer: &mut GUIRenderer) -> ButtonResult {
+        self.parent = renderer.get_layout();
+
         let id = self.label.clone();
 
-        let widget_last_frame = renderer
-            .widgets_last
-            .iter()
-            .find(|w| w.label == id)
-            .cloned();
+        let widget_last_frame = renderer.get_widget_last_frame(&id);
 
         let mut clicked = false;
-        if let Some(lw) = widget_last_frame {
-            let mut bounds = Quad::new(lw.computed_pos, lw.computed_size);
-            bounds.pos += lw.margin;
-            bounds.size -= lw.margin * 2.0;
+        if let Some(last_widget) = widget_last_frame {
+            let mut bounds = Quad::new(last_widget.computed_pos, last_widget.computed_size);
+            bounds.pos += last_widget.margin;
+            bounds.size -= last_widget.margin * 2.0;
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
@@ -191,14 +177,88 @@ impl Widget {
 
         ButtonResult { index, clicked }
     }
+    pub fn button_layout(
+        &mut self,
+        ctx: &Context,
+        renderer: &mut GUIRenderer,
+        children: impl FnOnce(&mut GUIRenderer, ButtonResult),
+    ) -> ButtonResult {
+        let result = self.button(ctx, renderer);
 
-    // public api
-    pub fn layout(&self, renderer: &mut GUIRenderer) -> LayoutResult {
-        let index = renderer.create_widget(self.clone());
-        LayoutResult { index }
+        renderer.push_layout(result.index);
+        children(renderer, result);
+        renderer.pop_layout();
+
+        result
     }
 
+    pub fn slider(
+        &mut self,
+        ctx: &Context,
+        renderer: &mut GUIRenderer,
+        min: f32,
+        max: f32,
+        value: &mut f32,
+    ) -> SliderResult {
+        self.parent = renderer.get_layout();
+
+        let id = self.label.clone();
+
+        let widget_last_frame = renderer.get_widget_last_frame(&id);
+
+        if let Some(last_widget) = widget_last_frame {
+            let mut bounds = Quad::new(last_widget.computed_pos, last_widget.computed_size);
+            bounds.pos += last_widget.margin;
+            bounds.size -= last_widget.margin * 2.0;
+            let mouse_pos = input::mouse_pos(ctx);
+            let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
+            let inside = collision::point_quad_collision(mouse_pos, bounds);
+
+            if inside {
+                renderer.set_hot_this_frame(id.clone());
+                if renderer.check_hot(&id) && mouse_down {
+                    renderer.set_active(id.clone());
+                }
+            }
+
+            if renderer.check_active(&id) {
+                let p = ((mouse_pos.x - bounds.left()) / bounds.size.x).clamp(0.0, 1.0);
+
+                *value = (1.0 - p) * min + p * max;
+            }
+        };
+
+        let slider_pos = ((*value - min) / (max - min)).clamp(0.0, 1.0);
+
+        let index = renderer.create_widget(self.clone());
+
+        SliderResult {
+            index,
+            pos: slider_pos,
+        }
+    }
+
+    pub fn slider_layout(
+        &mut self,
+        ctx: &Context,
+        renderer: &mut GUIRenderer,
+        min: f32,
+        max: f32,
+        value: &mut f32,
+        children: impl FnOnce(&mut GUIRenderer, SliderResult),
+    ) -> SliderResult {
+        let result = self.slider(ctx, renderer, min, max, value);
+
+        renderer.push_layout(result.index);
+        children(renderer, result);
+        renderer.pop_layout();
+
+        result
+    }
+
+    //
     // private api
+    //
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
         let mut bounds = Quad::new(self.computed_pos, self.computed_size);
 
@@ -234,11 +294,6 @@ impl Widget {
     /// add label to identify widget for interactions
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.label = value.into();
-        self
-    }
-    /// set parent widget
-    pub fn parent(mut self, value: impl Parent) -> Self {
-        self.parent = value.index();
         self
     }
     /// set sizing rules for main axis
@@ -322,43 +377,25 @@ impl Widget {
 // Result
 //
 
-pub trait Parent {
-    fn index(&self) -> usize;
-}
-
 #[derive(Debug, Clone, Copy)]
 pub struct ButtonResult {
-    pub index: usize,
+    index: usize,
     pub clicked: bool,
-}
-
-impl Parent for ButtonResult {
-    fn index(&self) -> usize {
-        self.index
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct LayoutResult {
-    pub index: usize,
-}
-
-impl Parent for LayoutResult {
-    fn index(&self) -> usize {
-        self.index
-    }
+    index: usize,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct SliderResult {
-    pub index: usize,
-    pub slider_pos: f32,
-}
-
-impl Parent for SliderResult {
-    fn index(&self) -> usize {
-        self.index
-    }
+    /// index of this widget
+    index: usize,
+    /// \[0,1\] range for child positioning
+    ///
+    /// The actual value is passed by mutable reference
+    pub pos: f32,
 }
 
 //

@@ -45,6 +45,8 @@ pub struct GUIRenderer {
     w_now: Vec<Widget>,
     widgets_last: Vec<Widget>,
 
+    layout_stack: Vec<usize>,
+
     hot_this_frame: String,
     hot_last_frame: String,
     active: String,
@@ -158,6 +160,8 @@ impl GUIRenderer {
 
             w_now: vec![widget::root_widget(ctx)],
             widgets_last: vec![],
+            layout_stack: vec![widget::root_index()],
+
             hot_this_frame: String::new(),
             hot_last_frame: String::new(),
             active: String::new(),
@@ -222,6 +226,7 @@ impl GUIRenderer {
         self.dynamic_vertices.clear();
         self.dynamic_indices.clear();
         self.w_now = vec![widget::root_widget(ctx)];
+        self.layout_stack = vec![widget::root_index()];
     }
 
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -240,6 +245,25 @@ impl GUIRenderer {
         self.w_now.push(widget);
 
         index
+    }
+
+    pub(crate) fn push_layout(&mut self, index: usize) {
+        self.layout_stack.push(index);
+    }
+    pub(crate) fn pop_layout(&mut self) {
+        self.layout_stack
+            .pop()
+            .expect("trying to pop layout when empty");
+    }
+    pub(crate) fn get_layout(&mut self) -> usize {
+        *self
+            .layout_stack
+            .last()
+            .expect("trying to get layout when empty")
+    }
+
+    pub(crate) fn get_widget_last_frame(&self, id: &str) -> Option<Widget> {
+        self.widgets_last.iter().find(|w| w.label == id).cloned()
     }
 
     #[inline]
