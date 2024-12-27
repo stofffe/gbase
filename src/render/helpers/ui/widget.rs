@@ -69,7 +69,7 @@ pub struct Widget {
     pub(crate) color: Option<Vec4>,
     pub(crate) text: String,
     pub(crate) text_color: Vec4,
-    pub(crate) text_height: f32,
+    pub(crate) font_size: f32,
     pub(crate) text_wrap: bool,
 
     // computed
@@ -102,7 +102,7 @@ impl Widget {
 
             text: String::new(),
             text_color: BLACK,
-            text_height: 100.0,
+            font_size: 100.0,
             text_wrap: false,
 
             computed_pos: Vec2::ZERO,
@@ -255,7 +255,12 @@ impl Widget {
     // private api
     //
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
-        let bounds = self.computed_bounds_margin();
+        let mut bounds = self.computed_bounds_margin();
+
+        // TODO: chaos
+        // let font_info = renderer.font_atlas.font_info.clone();
+        // bounds.size.y *= 2.0;
+        // bounds.size.y += font_info.padding_unorm * self.font_size;
 
         if let Some(color) = self.color {
             renderer.quad(bounds.pos, bounds.size, color);
@@ -265,7 +270,7 @@ impl Widget {
             renderer.text(
                 &self.text,
                 bounds,
-                self.text_height,
+                self.font_size,
                 self.text_color,
                 self.text_wrap,
             );
@@ -359,7 +364,7 @@ impl Widget {
     }
     /// set font size
     pub fn text_font_size(mut self, value: f32) -> Self {
-        self.text_height = value;
+        self.font_size = value;
         self
     }
     /// enable/disable text wrapping
@@ -422,7 +427,7 @@ pub fn root_widget(ctx: &Context) -> Widget {
 
         text: String::new(),
         text_color: Vec4::ZERO,
-        text_height: 0.0,
+        font_size: 0.0,
         text_wrap: false,
 
         computed_pos: vec2(0.0, 0.0),

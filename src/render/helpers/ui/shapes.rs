@@ -35,7 +35,8 @@ impl GUIRenderer {
         let mut global_offset = vec2(0.0, 0.0); // [0,1]
         for letter in text.chars() {
             let info = self.font_atlas.get_info(letter);
-            let size = info.size * line_height;
+
+            let size = info.size_unorm * line_height;
             let loc_offset = info.local_offset * line_height;
             let adv = info.advance * line_height;
 
@@ -63,7 +64,7 @@ impl GUIRenderer {
         let atlas_offset = info.atlas_offset;
         let atlas_dim = info.atlas_dimensions;
 
-        let scaled_dim = info.size * line_height;
+        let scaled_dim = info.size_unorm * line_height;
 
         let (x, y) = (pos.x, pos.y);
         let (sx, sy)= (scaled_dim.x, scaled_dim.y);

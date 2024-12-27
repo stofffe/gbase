@@ -27,7 +27,8 @@ impl Callbacks for App {
             ctx,
             wgpu::TextureFormat::Bgra8UnormSrgb,
             1000,
-            &filesystem::load_b!("fonts/font.ttf").unwrap(),
+            &filesystem::load_b!("fonts/times.ttf").unwrap(),
+            // &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
@@ -55,12 +56,14 @@ impl Callbacks for App {
                 .label("slider row")
                 .height(render::SizeKind::Pixels(100.0))
                 .width(render::SizeKind::ChildrenSum)
+                .gap(20.0)
                 .cross_axis_alignment(render::Alignment::Center)
                 .direction(render::Direction::Row);
             slider_row.layout(renderer, |renderer| {
                 Widget::new()
                     .text("health")
                     .text_color(WHITE)
+                    .height(render::SizeKind::TextSize)
                     .width(render::SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
@@ -90,7 +93,8 @@ impl Callbacks for App {
                 Widget::new()
                     .text(format!("{:.3}", self.health))
                     .text_color(WHITE)
-                    .width(render::SizeKind::Pixels(200.0))
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
             });
@@ -98,13 +102,16 @@ impl Callbacks for App {
             let mut button_row = Widget::new()
                 .height(render::SizeKind::Pixels(100.0))
                 .width(render::SizeKind::ChildrenSum)
+                .gap(20.0)
                 .cross_axis_alignment(render::Alignment::Center)
                 .direction(render::Direction::Row);
             button_row.layout(renderer, |renderer| {
                 Widget::new()
                     .text("reset health")
+                    // .color(RED)
                     .text_color(WHITE)
-                    .width(render::SizeKind::Pixels(400.0))
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
                 if Widget::new()
@@ -115,6 +122,22 @@ impl Callbacks for App {
                 {
                     self.health = 0.0;
                 }
+            });
+
+            let mut txt_row = Widget::new()
+                .height(render::SizeKind::ChildrenSum)
+                .width(render::SizeKind::Grow)
+                .direction(render::Direction::Row);
+            txt_row.layout(renderer, |renderer| {
+                Widget::new()
+                    .text("abcdefghijklmnABCDEFGHTUVWXYZ0123456789")
+                    .color(RED)
+                    .text_color(WHITE)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(80.0)
+                    .text_wrap(true)
+                    .render(renderer);
             });
         });
 

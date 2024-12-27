@@ -16,13 +16,19 @@ impl GUIRenderer {
 
         // Text size
         let this = self.get_widget_mut(index);
+        let font_size = this.font_size;
         if let SizeKind::TextSize = this.width {
-            let txt = self.font_atlas.font_info.height;
-            println!("TEXT SIZE WIDTH {txt}");
+            // loop over letters and calc width
+            let mut sum = 0.0;
+            for c in this.text.clone().chars() {
+                let advance = self.font_atlas.get_info(c).advance.x;
+                sum += (advance) * font_size;
+            }
+            self.get_widget_mut(index).computed_size[0] = sum;
         }
         let this = self.get_widget_mut(index);
         if let SizeKind::TextSize = this.height {
-            println!("TEXT SIZE HEIGHT");
+            this.computed_size[1] = this.font_size;
         }
 
         // children
