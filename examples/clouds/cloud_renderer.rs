@@ -26,7 +26,9 @@ impl CloudRenderer {
     ) -> Self {
         let noise_texture = generate_noise(ctx);
         let app_info = render::AppInfo::new(ctx);
-        let noise_sampler = SamplerBuilder::new().build(ctx);
+        let noise_sampler = SamplerBuilder::new()
+            .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
+            .build(ctx);
         let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))

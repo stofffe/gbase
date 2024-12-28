@@ -50,7 +50,8 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let color = textureSample(noise_tex, noise_samp, in.uv).xyz;
+    let uv = in.uv * 3.0;
+    let color = textureSample(noise_tex, noise_samp, uv).xyz;
     return vec4<f32>(color, 1.0);
 }
 
