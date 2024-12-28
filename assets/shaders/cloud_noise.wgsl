@@ -31,14 +31,13 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
                 var cell_point_pos = cell_pos + hash_to_vec3_snorm(cell_hash) * f32(cell_size) * POINT_OFFSET_MULT;
 
                 // handle wrapping
-                if i == 1 && cell.x == 0 { cell_point_pos.x += f32(size); }
-                if j == 1 && cell.y == 0 { cell_point_pos.y += f32(size); }
-                if k == 1 && cell.z == 0 { cell_point_pos.z += f32(size); }
-                if i == -1 && cell.x == cells - 1 { cell_point_pos.x -= f32(size); }
-                if j == -1 && cell.y == cells - 1 { cell_point_pos.y -= f32(size); }
-                if k == -1 && cell.z == cells - 1 { cell_point_pos.z -= f32(size); }
+                var wrapped_pixel_pos = vec3<f32>(pixel_pos);
+                let dir = vec3<f32>(step * cell_size);
+                wrapped_pixel_pos += dir;
+                wrapped_pixel_pos = (wrapped_pixel_pos + f32(size)) % f32(size);
+                wrapped_pixel_pos -= dir;
 
-                let dist = length(vec3<f32>(pixel_pos) - cell_point_pos);
+                let dist = length(vec3<f32>(wrapped_pixel_pos) - cell_point_pos);
                 if dist < closest_dist {
                     closest_dist = dist;
                     closest_pos = cell_point_pos;
