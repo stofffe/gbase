@@ -1,4 +1,5 @@
 use crate::noise::generate_noise;
+use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
     collision, filesystem,
@@ -12,6 +13,7 @@ pub struct CloudRenderer {
     bindgroup: render::ArcBindGroup,
 
     noise_texture: render::Texture,
+    app_info: render::AppInfo,
 }
 
 impl CloudRenderer {
@@ -22,6 +24,9 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<CameraUniform>,
         bounding_box: &render::UniformBuffer<collision::Box3D>,
     ) -> Self {
+        let noise_texture = generate_noise(ctx);
+        let app_info = render::AppInfo::new(ctx);
+        let noise_sampler = SamplerBuilder::new().build(ctx);
         let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
@@ -30,18 +35,40 @@ impl CloudRenderer {
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
+                // App info
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
                 // Camera
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
                 // Cloud BB
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
+                // Noise texture
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // Noise sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
             ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
             .entries(vec![
+                // App info
+                render::BindGroupEntry::Buffer(app_info.buffer()),
                 // Camera
                 render::BindGroupEntry::Buffer(camera.buffer()),
                 // Cloud BB
                 render::BindGroupEntry::Buffer(bounding_box.buffer()),
+                // Noise texture
+                render::BindGroupEntry::Texture(noise_texture.view()),
+                // Noise sampler
+                render::BindGroupEntry::Sampler(noise_sampler.clone()),
             ])
             .build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -53,9 +80,8 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let noise_texture = generate_noise(ctx);
-
         Self {
+            app_info,
             vertices,
             pipeline,
             bindgroup,
@@ -64,11 +90,13 @@ impl CloudRenderer {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
         depth_buffer: &render::DepthBuffer,
     ) {
+        self.app_info.update_buffer(ctx);
+
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(wgpu::RenderPassColorAttachment {

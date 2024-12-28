@@ -6,7 +6,8 @@
 type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool;
 type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
 type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
-type ResizeFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
+type ResizeFunc<T> =
+    fn(callbacks: &mut T, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>);
 
 pub struct DllApi<T> {
     new: NewFunc<T>,
@@ -46,10 +47,10 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         }
     }
 
-    fn resize(&mut self, ctx: &mut crate::Context) {
+    fn resize(&mut self, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>) {
         #[allow(clippy::single_match)]
         match self.dll.resize {
-            Some(resize) => resize(&mut self.callbacks, ctx),
+            Some(resize) => resize(&mut self.callbacks, ctx, new_size),
             None => {}
         }
     }

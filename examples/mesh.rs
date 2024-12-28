@@ -4,6 +4,7 @@ use gbase::{
     Callbacks, Context,
 };
 use glam::{vec3, Quat, Vec3};
+use winit::dpi::PhysicalSize;
 
 fn main() {
     gbase::run_sync::<App>();
@@ -195,7 +196,7 @@ impl Callbacks for App {
         false
     }
 
-    fn resize(&mut self, ctx: &mut Context) {
+    fn resize(&mut self, ctx: &mut Context, _new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize_screen(ctx);
         self.framebuffer.resize_screen(ctx);
         self.deferred_buffers.resize_screen(ctx);

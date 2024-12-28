@@ -3,6 +3,7 @@ use gbase::glam;
 use gbase::log;
 use gbase::wgpu;
 use gbase::winit;
+use gbase::winit::dpi::PhysicalSize;
 use gbase::{
     collision, filesystem, input,
     render::{self, CameraUniform, DeferredRenderer, MeshRenderer, Transform, TransformUniform},
@@ -217,7 +218,7 @@ impl Callbacks for App {
         false
     }
 
-    fn resize(&mut self, ctx: &mut Context) {
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         log::info!("resize");
         self.gizmo_renderer.resize_screen(ctx);
         self.deferred_buffers.resize_screen(ctx);

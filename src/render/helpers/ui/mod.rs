@@ -181,7 +181,7 @@ impl GUIRenderer {
             widget.inner_render(self);
         }
 
-        self.debug(ctx);
+        // self.debug(ctx);
 
         //
         // Rendering

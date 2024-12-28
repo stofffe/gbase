@@ -5,6 +5,7 @@ use gbase::{
     render::{self},
     Callbacks, Context,
 };
+use winit::dpi::PhysicalSize;
 
 pub fn main() {
     gbase::run_sync::<App>();
@@ -366,7 +367,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context) {
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         let new_size = render::surface_size(ctx);
         self.gui_renderer.resize(ctx, new_size);
     }

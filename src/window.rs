@@ -86,7 +86,7 @@ pub(crate) fn run_window<C: Callbacks + 'static>(
                     WindowEvent::CloseRequested => target.exit(),
                     WindowEvent::Resized(new_size) => {
                         ctx.render.resize_window(*new_size);
-                        app.callbacks.resize(&mut ctx);
+                        app.callbacks.resize(&mut ctx, *new_size);
                     }
                     // Keyboard
                     WindowEvent::KeyboardInput { event, .. } => {

@@ -6,6 +6,7 @@ use gbase::{
     time, Callbacks, Context,
 };
 use glam::{vec2, vec3, Quat, Vec3};
+use winit::dpi::PhysicalSize;
 
 pub fn main() {
     gbase::run_sync::<App>();
@@ -110,7 +111,7 @@ impl Callbacks for App {
         self.camera.fov += scroll_y * dt;
         false
     }
-    fn resize(&mut self, ctx: &mut Context) {
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize_screen(ctx);
     }
 }

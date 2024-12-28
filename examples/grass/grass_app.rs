@@ -10,6 +10,7 @@ use gbase::{
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use std::f32::consts::PI;
+use winit::dpi::PhysicalSize;
 use winit::{
     keyboard::KeyCode,
     window::{CursorGrabMode, WindowBuilder},
@@ -220,7 +221,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context) {
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         log::info!("resize");
         self.gizmo_renderer.resize_screen(ctx);
         self.deferred_buffers.resize_screen(ctx);

@@ -40,6 +40,8 @@ impl AppInfo {
     pub fn update_buffer(&mut self, ctx: &Context) {
         let uniform = AppInfoUniform {
             time_passed: time::time_since_start(ctx),
+            screen_width: render::surface_size(ctx).width,
+            screen_height: render::surface_size(ctx).height,
         };
         self.buffer.write(ctx, &uniform);
     }
@@ -61,4 +63,6 @@ impl AppInfo {
 #[derive(ShaderType)]
 pub struct AppInfoUniform {
     time_passed: f32,
+    screen_width: u32,
+    screen_height: u32,
 }

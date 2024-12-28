@@ -1,7 +1,8 @@
-use gbase::wgpu;
-use gbase::{filesystem, render, Context};
+use encase::ShaderType;
+use gbase::{filesystem, render, wgpu, Context};
 
 const NOISE_TEXTURE_DIM: u32 = 128;
+const NOISE_TEXTURE_CELLS: u32 = 8;
 
 pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     // generate 3d texture
@@ -10,13 +11,27 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
         NOISE_TEXTURE_DIM,
     ))
     .format(wgpu::TextureFormat::Rgba8Unorm)
-    .usage(wgpu::TextureUsages::STORAGE_BINDING)
+    .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+    .build(ctx);
+
+    let noise_generator_info = render::UniformBufferBuilder::new(
+        render::UniformBufferSource::Data(NoiseGeneratorUniforms {
+            size: NOISE_TEXTURE_DIM,
+            cells: NOISE_TEXTURE_CELLS,
+        }),
+    )
     .build(ctx);
 
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
     let shader = render::ShaderBuilder::new(shader_str).build(ctx);
     let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
         .entries(vec![
+            // app info
+            render::BindGroupCombinedEntry::new(render::BindGroupEntry::Buffer(
+                noise_generator_info.buffer(),
+            ))
+            .uniform()
+            .compute(),
             // output texture
             render::BindGroupCombinedEntry::new(render::BindGroupEntry::Texture(texture.view()))
                 .storage_texture_2d_write(wgpu::TextureFormat::Rgba8Unorm)
@@ -36,4 +51,10 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     });
 
     texture
+}
+
+#[derive(ShaderType)]
+struct NoiseGeneratorUniforms {
+    size: u32,
+    cells: u32,
 }

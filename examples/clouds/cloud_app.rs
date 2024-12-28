@@ -1,15 +1,12 @@
 use crate::cloud_renderer;
-use gbase::filesystem;
-use gbase::glam;
-use gbase::wgpu;
-use gbase::winit;
+use gbase::render::Widget;
+use gbase::Context;
 use gbase::{
-    collision::{self, Box3D, Quad},
-    input,
-    render::{self},
-    time,
+    collision::{self, Box3D},
+    filesystem, glam, input, render, time, wgpu, winit,
 };
-use glam::{vec2, vec3, Quat, Vec4Swizzles};
+use glam::{vec3, Quat, Vec4Swizzles};
+use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 
 pub struct App {
@@ -106,6 +103,8 @@ impl gbase::Callbacks for App {
             self.show_fps = !self.show_fps;
         }
 
+        self.ui(ctx);
+
         self.camera.flying_controls(ctx);
 
         false
@@ -125,17 +124,6 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
-        if self.show_fps {
-            let fps_txt = time::fps(ctx).to_string();
-            self.ui_renderer.text(
-                &fps_txt,
-                Quad::new(vec2(0.0, 0.0), vec2(0.5, 0.1)),
-                0.05,
-                render::WHITE,
-                false,
-            );
-        }
-
         self.gizmo_renderer.draw_cube(
             &render::Transform::new(
                 self.cloud_bb.origin,
@@ -144,7 +132,6 @@ impl gbase::Callbacks for App {
             ),
             render::RED.xyz(),
         );
-
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
         self.framebuffer_renderer
@@ -155,8 +142,32 @@ impl gbase::Callbacks for App {
         false
     }
 
-    fn resize(&mut self, ctx: &mut gbase::Context) {
+    #[no_mangle]
+    fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
+        self.gizmo_renderer
+            .resize(ctx, new_size.width, new_size.height);
         self.framebuffer.resize_screen(ctx);
         self.depth_buffer.resize_screen(ctx);
+        self.ui_renderer.resize(ctx, new_size);
+    }
+}
+
+impl App {
+    fn ui(&mut self, ctx: &Context) {
+        let renderer = &mut self.ui_renderer;
+        let mut outer = Widget::new()
+            .width(render::SizeKind::PercentOfParent(1.0))
+            .height(render::SizeKind::PercentOfParent(1.0));
+
+        outer.layout(renderer, |renderer| {
+            if self.show_fps {
+                Widget::new()
+                    .text(format!("fps: {:.2}", time::fps(ctx)))
+                    .text_color(render::WHITE)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .render(renderer);
+            }
+        });
     }
 }

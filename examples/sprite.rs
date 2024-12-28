@@ -130,9 +130,6 @@ impl Callbacks for App {
 
         false
     }
-
-    #[no_mangle]
-    fn resize(&mut self, _ctx: &mut Context) {}
 }
 
 struct SpriteRenderer {
