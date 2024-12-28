@@ -50,7 +50,7 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let uv = in.uv * 3.0;
+    let uv = in.uv * 2.0;
     var z = (app_info.t / 10.0) % 1.0;
     z = 0.0;
     let color = textureSample(noise_tex, noise_samp, vec3<f32>(uv, z)).xyz;

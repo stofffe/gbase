@@ -5,7 +5,7 @@ struct NoiseGeneratorInfo {
 };
 @group(0) @binding(1) var output :  texture_storage_3d<rgba8unorm, write>;
 
-const POINT_OFFSET_MULT = 0.7;
+const POINT_OFFSET_MULT = 0.5;
 
 @compute
 @workgroup_size(1, 1, 1)
@@ -23,24 +23,18 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     for (var i = -1; i <= 1; i++) {
         for (var j = -1; j <= 1; j++) {
             for (var k = -1; k <= 1; k++) {
-                let step = vec3<i32>(i, j, k);
-                let cell = mod_vec3_i32(center_cell + step, cells);
+                let cell_index = center_cell + vec3<i32>(i, j, k);
 
-                let cell_hash = hash_3d(u32(cell.x), u32(cell.y), u32(cell.z));
-                let cell_pos = vec3<f32>(cell * cell_size) + f32(cell_size / 2);
-                var cell_point_pos = cell_pos + hash_to_vec3_snorm(cell_hash) * f32(cell_size) * POINT_OFFSET_MULT;
+                let cell_index_wrapped = mod_vec3_i32(cell_index, cells);
+                let cell_hash = hash_3d(u32(cell_index_wrapped.x), u32(cell_index_wrapped.y), u32(cell_index_wrapped.z));
 
-                // handle wrapping
-                var wrapped_pixel_pos = vec3<f32>(pixel_pos);
-                let dir = vec3<f32>(step * cell_size);
-                wrapped_pixel_pos += dir;
-                wrapped_pixel_pos = mod_vec3_f32(wrapped_pixel_pos, f32(size));
-                wrapped_pixel_pos -= dir;
+                let cell_pos = vec3<f32>(cell_index * cell_size) + f32(cell_size / 2);
+                let cell_pos_jittered = cell_pos + hash_to_vec3_snorm(cell_hash) * f32(cell_size) * POINT_OFFSET_MULT;
 
-                let dist = length(vec3<f32>(wrapped_pixel_pos) - cell_point_pos);
+                let dist = length(vec3<f32>(pixel_pos) - cell_pos_jittered);
                 if dist < closest_dist {
                     closest_dist = dist;
-                    closest_pos = cell_point_pos;
+                    closest_pos = cell_pos_jittered;
                     closest_hash = cell_hash;
                 }
             }
