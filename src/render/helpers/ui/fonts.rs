@@ -14,9 +14,8 @@ const FONT_RASTER_SIZE: f32 = 256.0;
 const FONT_ATLAS_SIZE: UVec2 = uvec2(4096, 4096);
 const FONT_ATLAS_PADDING: UVec2 = uvec2(10, 10);
 pub const DEFAULT_SUPPORTED_CHARS: &str =
-    "abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/ ()[]{}:";
-pub const DEFAULT_SUPPORTED_CHARS_SE: &str =
-    "abcdefghijklmnopqrstuvwxyzwåäöABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ0123456789.,_-+*/ ()[]{}:";
+    " abcdefghijklmnopqrstuvxyzwABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,_-+*/=()[]{}:\"'?";
+pub const SE_CHARS: &str = "åäöÅÄÖ";
 
 pub const RED: Vec4 = vec4(1.0, 0.0, 0.0, 1.0);
 pub const GREEN: Vec4 = vec4(0.0, 1.0, 0.0, 1.0);
@@ -24,6 +23,10 @@ pub const BLUE: Vec4 = vec4(0.0, 0.0, 1.0, 1.0);
 pub const BLACK: Vec4 = vec4(0.0, 0.0, 0.0, 1.0);
 pub const WHITE: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
 pub const GRAY: Vec4 = vec4(0.5, 0.5, 0.5, 1.0);
+
+fn size_of_text(text: &str) -> Vec2 {
+    todo!()
+}
 
 impl FontAtlas {
     pub(crate) fn new(ctx: &mut Context, font_bytes: &[u8], supported_chars: &str) -> Self {
@@ -85,11 +88,11 @@ impl FontAtlas {
         }
 
         let font_info = FontInfo {
-            height: max_height as f32,
-            height_unorm: max_height as f32 / FONT_RASTER_SIZE,
-            // TODO: temp
-            padding: FONT_ATLAS_PADDING.x as f32,
-            padding_unorm: FONT_ATLAS_PADDING.x as f32 / FONT_RASTER_SIZE,
+            // height: max_height as f32,
+            // height_unorm: max_height as f32 / FONT_RASTER_SIZE,
+            // // TODO: temp
+            // padding: FONT_ATLAS_PADDING.x as f32,
+            // padding_unorm: FONT_ATLAS_PADDING.x as f32 / FONT_RASTER_SIZE,
         };
 
         Self {
@@ -121,8 +124,8 @@ pub struct LetterInfo {
 
 #[derive(Debug, Clone)]
 pub struct FontInfo {
-    pub(crate) height_unorm: f32,
-    pub(crate) height: f32,
-    pub(crate) padding_unorm: f32,
-    pub(crate) padding: f32,
+    // pub(crate) height_unorm: f32,
+    // pub(crate) height: f32,
+    // pub(crate) padding_unorm: f32,
+    // pub(crate) padding: f32,
 }

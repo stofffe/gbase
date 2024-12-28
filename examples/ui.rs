@@ -1,4 +1,4 @@
-use gbase::render::{Widget, BLACK, BLUE, GRAY, RED, WHITE};
+use gbase::render::{Widget, BLACK, BLUE, GRAY, GREEN, RED, WHITE};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -27,8 +27,8 @@ impl Callbacks for App {
             ctx,
             wgpu::TextureFormat::Bgra8UnormSrgb,
             1000,
-            &filesystem::load_b!("fonts/times.ttf").unwrap(),
-            // &filesystem::load_b!("fonts/font.ttf").unwrap(),
+            // &filesystem::load_b!("fonts/times.ttf").unwrap(),
+            &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
@@ -93,7 +93,8 @@ impl Callbacks for App {
                 Widget::new()
                     .text(format!("{:.3}", self.health))
                     .text_color(WHITE)
-                    .width(render::SizeKind::TextSize)
+                    .width(render::SizeKind::Pixels(200.0))
+                    .color(RED)
                     .height(render::SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
@@ -126,11 +127,13 @@ impl Callbacks for App {
 
             let mut txt_row = Widget::new()
                 .height(render::SizeKind::ChildrenSum)
-                .width(render::SizeKind::Grow)
+                .width(render::SizeKind::PercentOfParent(1.0))
                 .direction(render::Direction::Row);
             txt_row.layout(renderer, |renderer| {
                 Widget::new()
-                    .text("abcdefghijklmnABCDEFGHTUVWXYZ0123456789")
+                    .text(
+                        "Love is a song that never ends Life may be swift and fleeting Hope may die Yet love's beautiful music Comes each day like the dawn Love is a song that never ends One simple theme repeating Like the voice of a heavenly choir Love's sweet music flows on Like the voice of a heavenly choir Love's sweet music flows on Wake up. - What now? - Wake up, Friend Owl. What's going on around here? - Wake up. - lt's happened."
+                    )
                     .color(RED)
                     .text_color(WHITE)
                     .width(render::SizeKind::TextSize)
@@ -139,6 +142,12 @@ impl Callbacks for App {
                     .text_wrap(true)
                     .render(renderer);
             });
+
+            Widget::new()
+                .color(GREEN)
+                .height(render::SizeKind::Grow)
+                .width(render::SizeKind::PercentOfParent(1.0))
+                .render(renderer);
         });
 
         // let outer = Widget::new()

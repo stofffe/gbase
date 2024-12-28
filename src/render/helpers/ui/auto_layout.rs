@@ -14,23 +14,6 @@ impl GUIRenderer {
             this.computed_size[1] = px;
         }
 
-        // Text size
-        let this = self.get_widget_mut(index);
-        let font_size = this.font_size;
-        if let SizeKind::TextSize = this.width {
-            // loop over letters and calc width
-            let mut sum = 0.0;
-            for c in this.text.clone().chars() {
-                let advance = self.font_atlas.get_info(c).advance.x;
-                sum += (advance) * font_size;
-            }
-            self.get_widget_mut(index).computed_size[0] = sum;
-        }
-        let this = self.get_widget_mut(index);
-        if let SizeKind::TextSize = this.height {
-            this.computed_size[1] = this.font_size;
-        }
-
         // children
         for i in 0..self.w_now[index].children.len() {
             self.auto_layout_fixed(self.w_now[index].children[i]);
@@ -54,6 +37,53 @@ impl GUIRenderer {
         // children
         for i in 0..this.children.len() {
             self.auto_layout_percent(self.w_now[index].children[i]);
+        }
+    }
+
+    fn auto_layout_text(&mut self, index: usize) {
+        // Text size
+        let parent_width = self.get_widget_parent(index).computed_inner_size()[0];
+        let this = self.get_widget_mut(index);
+        let font_size = this.font_size;
+        let width = this.width;
+        let height = this.height;
+        let text_wrap = this.text_wrap;
+        let text = this.text.clone();
+
+        if let SizeKind::TextSize = width {
+            // loop over letters and calc width
+            let mut sum = 0.0;
+            for c in text.chars() {
+                let advance = self.font_atlas.get_info(c).advance.x;
+                sum += (advance) * font_size;
+            }
+
+            if self.get_widget(index).text_wrap {
+                sum = sum.min(parent_width);
+            }
+            self.get_widget_mut(index).computed_size[0] = sum;
+        }
+        if let SizeKind::TextSize = height {
+            if text_wrap {
+                let mut lines = 1;
+                let mut sum = 0.0;
+                for c in text.chars() {
+                    let advance = self.font_atlas.get_info(c).advance.x;
+                    if (sum + advance * font_size) > parent_width {
+                        lines += 1;
+                        sum = 0.0;
+                    }
+                    sum += (advance) * font_size;
+                }
+                self.get_widget_mut(index).computed_size[1] = lines as f32 * font_size;
+            } else {
+                self.get_widget_mut(index).computed_size[1] = font_size;
+            }
+        }
+
+        // children
+        for i in 0..self.w_now[index].children.len() {
+            self.auto_layout_text(self.w_now[index].children[i]);
         }
     }
 
@@ -209,6 +239,7 @@ impl GUIRenderer {
     pub(crate) fn auto_layout(&mut self, index: usize) {
         self.auto_layout_fixed(index);
         self.auto_layout_percent(index);
+        self.auto_layout_text(index);
         self.auto_layout_children(index);
         self.auto_layout_grow(index);
         self.auto_layout_violations(index);
