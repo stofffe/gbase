@@ -3,7 +3,7 @@ struct NoiseGeneratorInfo {
     size: u32,
     cells: u32,
 };
-@group(0) @binding(1) var output :  texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(1) var output :  texture_storage_3d<rgba8unorm, write>;
 
 const POINT_OFFSET_MULT = 0.7;
 
@@ -13,45 +13,60 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let size = i32(noise_info.size);
     let cell_size = i32(noise_info.size / noise_info.cells);
     let cells = i32(noise_info.cells);
-    let center_cell = (vec2<i32>(id.xy) / cell_size);
-    let pixel_pos = vec2<i32>(id.xy);
+    let center_cell = (vec3<i32>(id) / cell_size);
+    let pixel_pos = vec3<i32>(id);
 
     var closest_dist = f32(noise_info.size);
     var closest_hash = 0u;
-    var closest_pos = vec2<f32>(0.0, 0.0);
+    var closest_pos = vec3<f32>(0.0, 0.0, 0.0);
 
     for (var i = -1; i <= 1; i++) {
         for (var j = -1; j <= 1; j++) {
-            let step = vec2<i32>(i, j);
-            let cell = (center_cell + step + cells) % cells; // [0, cells]
+            for (var k = -1; k <= 1; k++) {
+                let step = vec3<i32>(i, j, k);
+                let cell = (center_cell + step + cells) % cells; // [0, cells]
 
-            let cell_hash = hash_2d(u32(cell.x), u32(cell.y));
-            let cell_pos = vec2<f32>(cell * cell_size) + f32(cell_size / 2);
-            var cell_point_pos = cell_pos + hash_to_vec2_snorm(cell_hash) * f32(cell_size) * POINT_OFFSET_MULT;
+                let cell_hash = hash_3d(u32(cell.x), u32(cell.y), u32(cell.z));
+                let cell_pos = vec3<f32>(cell * cell_size) + f32(cell_size / 2);
+                var cell_point_pos = cell_pos + hash_to_vec3_snorm(cell_hash) * f32(cell_size) * POINT_OFFSET_MULT;
 
-            // handle wrapping
-            if i == 1 && cell.x == 0 { cell_point_pos.x += f32(size); }
-            if j == 1 && cell.y == 0 { cell_point_pos.y += f32(size); }
-            if i == -1 && cell.x == cells - 1 { cell_point_pos.x -= f32(size); }
-            if j == -1 && cell.y == cells - 1 { cell_point_pos.y -= f32(size); }
+                // handle wrapping
+                if i == 1 && cell.x == 0 { cell_point_pos.x += f32(size); }
+                if j == 1 && cell.y == 0 { cell_point_pos.y += f32(size); }
+                if k == 1 && cell.z == 0 { cell_point_pos.z += f32(size); }
+                if i == -1 && cell.x == cells - 1 { cell_point_pos.x -= f32(size); }
+                if j == -1 && cell.y == cells - 1 { cell_point_pos.y -= f32(size); }
+                if k == -1 && cell.z == cells - 1 { cell_point_pos.z -= f32(size); }
 
-            let dist = length(vec2<f32>(pixel_pos) - cell_point_pos);
-            if dist < closest_dist {
-                closest_dist = dist;
-                closest_pos = cell_point_pos;
-                closest_hash = cell_hash;
+                let dist = length(vec3<f32>(pixel_pos) - cell_point_pos);
+                if dist < closest_dist {
+                    closest_dist = dist;
+                    closest_pos = cell_point_pos;
+                    closest_hash = cell_hash;
+                }
             }
         }
     }
 
     var color: vec3<f32>;
-    color = hash_to_vec4(closest_hash).xyz;
+    color = hash_to_vec4_unorm(closest_hash).xyz;
     color = 1.0 - vec3<f32>(closest_dist, closest_dist, closest_dist) / f32(cell_size);
-    textureStore(output, id.xy, vec4<f32>(color, 1.0));
+    textureStore(output, id, vec4<f32>(color, 1.0));
 }
 
 const SEED = 0x22314u;
-// generates hash from two u32:s
+const FLOAT_SCALE = 1.0 / f32(0xffffffffu);
+
+fn hash_1d(x: u32) -> u32 {
+    var hash: u32 = x ^ SEED;
+    hash = hash * 0x85ebca6bu;
+    hash = hash ^ (hash >> 13u);
+    hash = hash * 0xc2b2ae35u;
+    hash = hash ^ (hash >> 16u);
+    return hash;
+}
+
+
 fn hash_2d(x: u32, y: u32) -> u32 {
     // Use Wang hash for better distribution
     var hash: u32 = x ^ SEED;
@@ -60,7 +75,18 @@ fn hash_2d(x: u32, y: u32) -> u32 {
     hash = hash ^ (hash >> 13u);
     hash = hash * 0xc2b2ae35u;
     hash = hash ^ (hash >> 16u);
-    return hash ^ SEED;
+    return hash;
+}
+
+fn hash_3d(x: u32, y: u32, z: u32) -> u32 {
+    var hash: u32 = x ^ SEED;
+    hash = hash ^ ((y << 16u) | (y >> 16u));
+    hash = hash ^ ((z << 11u) | (z >> 21u));  // Different shift for z to avoid patterns
+    hash = hash * 0x85ebca6bu;
+    hash = hash ^ (hash >> 13u);
+    hash = hash * 0xc2b2ae35u;
+    hash = hash ^ (hash >> 16u);
+    return hash;
 }
 
 // generate float in range [low, high]
@@ -78,27 +104,56 @@ fn hash_to_snorm(hash: u32) -> f32 {
     return (f32(hash) * 2.3283064e-10) * 2.0 - 1.0; // hash * 1 / 2^32
 }
 
-// generates vec2 with values in range [0, 1]
+// generates vec2 with values in range [-1, 1]
 fn hash_to_vec2_unorm(hash: u32) -> vec2<f32> {
     return vec2<f32>(
-        hash_to_unorm(hash ^ 0x36753621u),
-        hash_to_unorm(hash ^ 0x12345678u),
+        hash_to_unorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_unorm(hash_2d(hash, 0x68E31DA4u)),
     );
 }
 
 // generates vec2 with values in range [-1, 1]
 fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
     return vec2<f32>(
-        hash_to_snorm(hash ^ 0x36753621u),
-        hash_to_snorm(hash ^ 0x12345678u),
+        hash_to_snorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_snorm(hash_2d(hash, 0x68E31DA4u)),
     );
 }
 
-fn hash_to_vec4(hash: u32) -> vec4<f32> {
+// generates vec3 with values in range [-1, 1]
+fn hash_to_vec3_unorm(hash: u32) -> vec3<f32> {
+    return vec3<f32>(
+        hash_to_unorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_unorm(hash_2d(hash, 0x68E31DA4u)),
+        hash_to_unorm(hash_2d(hash, 0x1B56C4E9u)),
+    );
+}
+
+// generates vec3 with values in range [-1, 1]
+fn hash_to_vec3_snorm(hash: u32) -> vec3<f32> {
+    return vec3<f32>(
+        hash_to_snorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_snorm(hash_2d(hash, 0x68E31DA4u)),
+        hash_to_snorm(hash_2d(hash, 0x1B56C4E9u)),
+    );
+}
+
+// generates vec3 with values in range [-1, 1]
+fn hash_to_vec4_unorm(hash: u32) -> vec4<f32> {
     return vec4<f32>(
-        hash_to_unorm(hash ^ 0x36753621u),
-        hash_to_unorm(hash ^ 0x12345678u),
-        hash_to_unorm(hash ^ 0x43284732u),
-        hash_to_unorm(hash ^ 0x91273127u),
+        hash_to_unorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_unorm(hash_2d(hash, 0x68E31DA4u)),
+        hash_to_unorm(hash_2d(hash, 0x1B56C4E9u)),
+        hash_to_unorm(hash_2d(hash, 0xA341316Cu)),
+    );
+}
+
+// generates vec3 with values in range [-1, 1]
+fn hash_to_vec4_snorm(hash: u32) -> vec4<f32> {
+    return vec4<f32>(
+        hash_to_snorm(hash_2d(hash, 0xB5297A4Du)),
+        hash_to_snorm(hash_2d(hash, 0x68E31DA4u)),
+        hash_to_snorm(hash_2d(hash, 0x1B56C4E9u)),
+        hash_to_snorm(hash_2d(hash, 0xA341316Cu)),
     );
 }

@@ -51,7 +51,11 @@ impl CloudRenderer {
                     .fragment(),
                 // Noise texture
                 render::BindGroupLayoutEntry::new()
-                    .texture_float_filterable()
+                    .ty(wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D3,
+                        multisampled: false,
+                    })
                     .fragment(),
                 // Noise sampler
                 render::BindGroupLayoutEntry::new()

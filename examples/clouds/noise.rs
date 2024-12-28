@@ -10,7 +10,9 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
         NOISE_TEXTURE_DIM,
         NOISE_TEXTURE_DIM,
     ))
+    .depth_or_array_layers(NOISE_TEXTURE_DIM)
     .format(wgpu::TextureFormat::Rgba8Unorm)
+    .dimension(wgpu::TextureDimension::D3)
     .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
     .build(ctx);
 
@@ -34,7 +36,11 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
             .compute(),
             // output texture
             render::BindGroupCombinedEntry::new(render::BindGroupEntry::Texture(texture.view()))
-                .storage_texture_2d_write(wgpu::TextureFormat::Rgba8Unorm)
+                .ty(wgpu::BindingType::StorageTexture {
+                    access: wgpu::StorageTextureAccess::WriteOnly,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    view_dimension: wgpu::TextureViewDimension::D3,
+                })
                 .compute(),
         ])
         .build(ctx);

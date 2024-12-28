@@ -33,7 +33,7 @@ struct BoundingBox {
     origin: vec3<f32>,
     dimensions: vec3<f32>,
 };
-@group(0) @binding(3) var noise_tex: texture_2d<f32>;
+@group(0) @binding(3) var noise_tex: texture_3d<f32>;
 @group(0) @binding(4) var noise_samp: sampler;
 
 @vertex
@@ -51,7 +51,8 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let uv = in.uv * 3.0;
-    let color = textureSample(noise_tex, noise_samp, uv).xyz;
+    let z = (app_info.t / 10.0) % 1.0;
+    let color = textureSample(noise_tex, noise_samp, vec3<f32>(uv, z)).xyz;
     return vec4<f32>(color, 1.0);
 }
 
