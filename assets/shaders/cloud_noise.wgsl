@@ -24,7 +24,7 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
         for (var j = -1; j <= 1; j++) {
             for (var k = -1; k <= 1; k++) {
                 let step = vec3<i32>(i, j, k);
-                let cell = (center_cell + step + cells) % cells; // [0, cells]
+                let cell = mod_vec3_i32(center_cell + step, cells);
 
                 let cell_hash = hash_3d(u32(cell.x), u32(cell.y), u32(cell.z));
                 let cell_pos = vec3<f32>(cell * cell_size) + f32(cell_size / 2);
@@ -34,7 +34,7 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
                 var wrapped_pixel_pos = vec3<f32>(pixel_pos);
                 let dir = vec3<f32>(step * cell_size);
                 wrapped_pixel_pos += dir;
-                wrapped_pixel_pos = (wrapped_pixel_pos + f32(size)) % f32(size);
+                wrapped_pixel_pos = mod_vec3_f32(wrapped_pixel_pos, f32(size));
                 wrapped_pixel_pos -= dir;
 
                 let dist = length(vec3<f32>(wrapped_pixel_pos) - cell_point_pos);
@@ -52,6 +52,27 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     color = 1.0 - vec3<f32>(closest_dist, closest_dist, closest_dist) / f32(cell_size);
     textureStore(output, id, vec4<f32>(color, 1.0));
 }
+
+
+//
+// utils
+//
+
+// modulo functions with support for negative values
+fn mod_f32(value: f32, n: f32) -> f32 { return (value + n) % n; }
+fn mod_vec2_f32(value: vec2<f32>, n: f32) -> vec2<f32> { return (value + n) % n; }
+fn mod_vec3_f32(value: vec3<f32>, n: f32) -> vec3<f32> { return (value + n) % n; }
+fn mod_vec4_f32(value: vec4<f32>, n: f32) -> vec4<f32> { return (value + n) % n; }
+
+fn mod_i32(value: i32, n: i32) -> i32 { return (value + n) % n; }
+fn mod_vec2_i32(value: vec2<i32>, n: i32) -> vec2<i32> { return (value + n) % n; }
+fn mod_vec3_i32(value: vec3<i32>, n: i32) -> vec3<i32> { return (value + n) % n; }
+fn mod_vec4_i32(value: vec4<i32>, n: i32) -> vec4<i32> { return (value + n) % n; }
+
+fn mod_u32(value: u32, n: u32) -> u32 { return (value + n) % n; }
+fn mod_vec2_u32(value: vec2<u32>, n: u32) -> vec2<u32> { return (value + n) % n; }
+fn mod_vec3_u32(value: vec3<u32>, n: u32) -> vec3<u32> { return (value + n) % n; }
+fn mod_vec4_u32(value: vec4<u32>, n: u32) -> vec4<u32> { return (value + n) % n; }
 
 const SEED = 0x22314u;
 const FLOAT_SCALE = 1.0 / f32(0xffffffffu);
