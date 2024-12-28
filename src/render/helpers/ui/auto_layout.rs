@@ -48,37 +48,24 @@ impl GUIRenderer {
         let width = this.width;
         let height = this.height;
         let text_wrap = this.text_wrap;
-        let text = this.text.clone();
 
         if let SizeKind::TextSize = width {
-            // loop over letters and calc width
-            let mut sum = 0.0;
-            for c in text.chars() {
-                let advance = self.font_atlas.get_info(c).advance.x;
-                sum += (advance) * font_size;
-            }
+            let (text_size, _) = self.font_atlas.text_size(
+                &self.get_widget(index).text,
+                font_size,
+                if text_wrap { Some(parent_width) } else { None },
+            );
 
-            if self.get_widget(index).text_wrap {
-                sum = sum.min(parent_width);
-            }
-            self.get_widget_mut(index).computed_size[0] = sum;
+            self.get_widget_mut(index).computed_size[0] = text_size[0];
         }
         if let SizeKind::TextSize = height {
-            if text_wrap {
-                let mut lines = 1;
-                let mut sum = 0.0;
-                for c in text.chars() {
-                    let advance = self.font_atlas.get_info(c).advance.x;
-                    if (sum + advance * font_size) > parent_width {
-                        lines += 1;
-                        sum = 0.0;
-                    }
-                    sum += (advance) * font_size;
-                }
-                self.get_widget_mut(index).computed_size[1] = lines as f32 * font_size;
-            } else {
-                self.get_widget_mut(index).computed_size[1] = font_size;
-            }
+            let (text_size, _) = self.font_atlas.text_size(
+                &self.get_widget(index).text,
+                font_size,
+                if text_wrap { Some(parent_width) } else { None },
+            );
+
+            self.get_widget_mut(index).computed_size[1] = text_size[1];
         }
 
         // children

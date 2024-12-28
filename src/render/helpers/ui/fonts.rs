@@ -24,10 +24,6 @@ pub const BLACK: Vec4 = vec4(0.0, 0.0, 0.0, 1.0);
 pub const WHITE: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
 pub const GRAY: Vec4 = vec4(0.5, 0.5, 0.5, 1.0);
 
-fn size_of_text(text: &str) -> Vec2 {
-    todo!()
-}
-
 impl FontAtlas {
     pub(crate) fn new(ctx: &mut Context, font_bytes: &[u8], supported_chars: &str) -> Self {
         // texture
@@ -109,6 +105,38 @@ impl FontAtlas {
             Some(info) => info,
             None => panic!("trying to get unsupported letter \"{}\"", letter), // TODO default
         }
+    }
+    pub fn text_size(&self, text: &str, font_size: f32, wrap_width: Option<f32>) -> (Vec2, u32) {
+        let mut size = Vec2::ZERO;
+        let mut lines = 1;
+        match wrap_width {
+            None => {
+                let mut sum = 0.0;
+                for c in text.chars() {
+                    let advance = self.get_info(c).advance.x * font_size;
+                    sum += advance;
+                }
+                size.x = sum;
+                size.y = font_size;
+            }
+            Some(wrap_width) => {
+                let mut sum = 0.0;
+
+                for c in text.chars() {
+                    let advance = self.get_info(c).advance.x * font_size;
+
+                    if (sum + advance) > wrap_width {
+                        sum = 0.0;
+                        lines += 1;
+                    }
+                    sum += advance;
+                }
+                size.x = wrap_width;
+                size.y = lines as f32 * font_size;
+            }
+        }
+
+        (size, lines)
     }
 }
 
