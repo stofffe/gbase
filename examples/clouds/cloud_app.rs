@@ -34,6 +34,7 @@ impl gbase::Callbacks for App {
             .window_builder(WindowBuilder::new().with_maximized(true))
             .vsync(false)
     }
+
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
         let framebuffer = render::FrameBufferBuilder::new()
@@ -54,7 +55,6 @@ impl gbase::Callbacks for App {
             framebuffer.format(),
             1024,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
-            // include_bytes!("../../assets/fonts/font.ttf"),
             render::DEFAULT_SUPPORTED_CHARS,
         );
         let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
@@ -67,7 +67,8 @@ impl gbase::Callbacks for App {
             &depth_buffer,
             &camera_buffer,
             &cloud_bb_buffer,
-        );
+        )
+        .expect("could not create cloud renderer");
 
         Self {
             framebuffer,
@@ -90,13 +91,15 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            self.cloud_renderer = cloud_renderer::CloudRenderer::new(
+            if let Some(r) = cloud_renderer::CloudRenderer::new(
                 ctx,
                 &self.framebuffer,
                 &self.depth_buffer,
                 &self.camera_buffer,
                 &self.cloud_bb_buffer,
-            );
+            ) {
+                self.cloud_renderer = r;
+            }
         }
 
         if input::key_just_pressed(ctx, input::KeyCode::KeyF) {

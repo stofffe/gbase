@@ -19,8 +19,12 @@ impl ShaderBuilder {
         }
     }
 
+    /// Create shader module
+    ///
+    /// panics if source is invalid
     pub fn build_uncached(&self, ctx: &Context) -> ArcShaderModule {
         let device = render::device(ctx);
+
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label.as_deref(),
             source: wgpu::ShaderSource::Wgsl(self.source.clone().into()),
@@ -29,6 +33,11 @@ impl ShaderBuilder {
         ArcShaderModule::new(module)
     }
 
+    /// Create shader module
+    ///
+    /// Checks cache before creating new
+    ///
+    /// panics if source is invalid
     pub fn build(&self, ctx: &mut Context) -> ArcShaderModule {
         if let Some(shader) = ctx.render.cache.shaders.get(self) {
             log::info!("Fetch cached shader");
@@ -42,6 +51,45 @@ impl ShaderBuilder {
             .shaders
             .insert(self.clone(), shader.clone());
         shader
+    }
+
+    /// Create shader module
+    ///
+    /// Checks cache before creating new
+    ///
+    /// Not supported on WASM
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
+        if let Some(shader) = ctx.render.cache.shaders.get(self) {
+            log::info!("Fetch cached shader");
+            return Ok(shader.clone());
+        }
+
+        log::info!("Create cached shader");
+        let shader = self.build_unchached_err(ctx)?;
+        ctx.render
+            .cache
+            .shaders
+            .insert(self.clone(), shader.clone());
+        Ok(shader)
+    }
+
+    /// Create shader module
+    ///
+    /// Not supported on WASM
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn build_unchached_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
+        let device = render::device(ctx);
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let shader = self.build_uncached(ctx);
+        pollster::block_on(async {
+            let device = render::device(ctx);
+            if let Some(err) = device.pop_error_scope().await {
+                Err(err)
+            } else {
+                Ok(shader)
+            }
+        })
     }
 }
 

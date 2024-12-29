@@ -1,4 +1,4 @@
-use crate::noise::generate_noise;
+use crate::noise::{self, generate_noise};
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
@@ -23,8 +23,9 @@ impl CloudRenderer {
         depth_buffer: &render::DepthBuffer,
         camera: &render::UniformBuffer<CameraUniform>,
         bounding_box: &render::UniformBuffer<collision::Box3D>,
-    ) -> Self {
-        let noise_texture = generate_noise(ctx);
+    ) -> Option<Self> {
+        let noise_texture = generate_noise(ctx)?;
+
         let app_info = render::AppInfo::new(ctx);
         let noise_sampler = SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
@@ -86,13 +87,13 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        Self {
+        Some(Self {
             app_info,
             vertices,
             pipeline,
             bindgroup,
             noise_texture,
-        }
+        })
     }
 
     pub fn render(

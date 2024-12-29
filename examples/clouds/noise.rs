@@ -10,7 +10,7 @@ const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
     cells_a: 4,
 };
 
-pub fn generate_noise(ctx: &mut Context) -> render::Texture {
+pub fn generate_noise(ctx: &mut Context) -> Option<render::Texture> {
     // generate 3d texture
     let texture = render::TextureBuilder::new(render::TextureSource::Empty(
         NOISE_TEXTURE_DIM,
@@ -27,7 +27,10 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
             .build(ctx);
 
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
-    let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+    let shader = render::ShaderBuilder::new(shader_str)
+        .build_unchached_err(ctx)
+        .ok()?;
+
     let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
         .entries(vec![
             // app info
@@ -58,7 +61,7 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
         pass.dispatch_workgroups(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM);
     });
 
-    texture
+    Some(texture)
 }
 
 #[derive(ShaderType)]
