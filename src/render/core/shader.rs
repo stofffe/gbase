@@ -57,7 +57,7 @@ impl ShaderBuilder {
     ///
     /// Checks cache before creating new
     ///
-    /// Not supported on WASM
+    /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
         if let Some(shader) = ctx.render.cache.shaders.get(self) {
@@ -76,7 +76,7 @@ impl ShaderBuilder {
 
     /// Create shader module
     ///
-    /// Not supported on WASM
+    /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build_unchached_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
         let device = render::device(ctx);

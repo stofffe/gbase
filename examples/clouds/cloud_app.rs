@@ -30,7 +30,7 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
+            .log_level(gbase::LogLevel::Info)
             .window_builder(WindowBuilder::new().with_maximized(true))
             .vsync(false)
     }
@@ -91,13 +91,14 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            if let Some(r) = cloud_renderer::CloudRenderer::new(
+            if let Ok(r) = cloud_renderer::CloudRenderer::new(
                 ctx,
                 &self.framebuffer,
                 &self.depth_buffer,
                 &self.camera_buffer,
                 &self.cloud_bb_buffer,
             ) {
+                println!("Reloaded cloud renderer");
                 self.cloud_renderer = r;
             }
         }

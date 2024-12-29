@@ -10,7 +10,7 @@ const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
     cells_a: 4,
 };
 
-pub fn generate_noise(ctx: &mut Context) -> Option<render::Texture> {
+pub fn generate_noise(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {
     // generate 3d texture
     let texture = render::TextureBuilder::new(render::TextureSource::Empty(
         NOISE_TEXTURE_DIM,
@@ -27,9 +27,10 @@ pub fn generate_noise(ctx: &mut Context) -> Option<render::Texture> {
             .build(ctx);
 
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
-    let shader = render::ShaderBuilder::new(shader_str)
-        .build_unchached_err(ctx)
-        .ok()?;
+    #[cfg(feature = "hot_reload")]
+    let shader = render::ShaderBuilder::new(shader_str).build_err(ctx)?;
+    #[cfg(not(feature = "hot_reload"))]
+    let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
     let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
         .entries(vec![
@@ -61,7 +62,7 @@ pub fn generate_noise(ctx: &mut Context) -> Option<render::Texture> {
         pass.dispatch_workgroups(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM);
     });
 
-    Some(texture)
+    Ok(texture)
 }
 
 #[derive(ShaderType)]

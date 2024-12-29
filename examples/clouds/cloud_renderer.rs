@@ -1,4 +1,4 @@
-use crate::noise::{self, generate_noise};
+use crate::noise::generate_noise;
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
@@ -23,7 +23,7 @@ impl CloudRenderer {
         depth_buffer: &render::DepthBuffer,
         camera: &render::UniformBuffer<CameraUniform>,
         bounding_box: &render::UniformBuffer<collision::Box3D>,
-    ) -> Option<Self> {
+    ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_noise(ctx)?;
 
         let app_info = render::AppInfo::new(ctx);
@@ -34,8 +34,13 @@ impl CloudRenderer {
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
+
         let shader_str = filesystem::load_s!("shaders/clouds.wgsl").unwrap();
+        #[cfg(feature = "hot_reload")]
+        let shader = render::ShaderBuilder::new(shader_str).build_err(ctx)?;
+        #[cfg(not(feature = "hot_reload"))]
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // App info
@@ -87,7 +92,7 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        Some(Self {
+        Ok(Self {
             app_info,
             vertices,
             pipeline,
