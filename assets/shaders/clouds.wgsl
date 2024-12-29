@@ -59,4 +59,3 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = vec4<f32>(value);
     return vec4<f32>(color);
 }
-

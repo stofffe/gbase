@@ -24,6 +24,7 @@ pub struct App {
     cloud_renderer: cloud_renderer::CloudRenderer,
 
     show_fps: bool,
+    debug_msg: String,
 }
 
 impl gbase::Callbacks for App {
@@ -77,13 +78,15 @@ impl gbase::Callbacks for App {
             ui_renderer,
             gizmo_renderer,
             cloud_renderer,
-            show_fps: false,
 
             camera,
             camera_buffer,
 
             cloud_bb,
             cloud_bb_buffer,
+
+            show_fps: false,
+            debug_msg: String::from("test"),
         }
     }
 
@@ -100,6 +103,9 @@ impl gbase::Callbacks for App {
             ) {
                 println!("Reloaded cloud renderer");
                 self.cloud_renderer = r;
+                self.debug_msg = String::from("Ok")
+            } else {
+                self.debug_msg = String::from("Fail");
             }
         }
 
@@ -158,20 +164,29 @@ impl gbase::Callbacks for App {
 
 impl App {
     fn ui(&mut self, ctx: &Context) {
+        if !self.show_fps {
+            return;
+        }
+
         let renderer = &mut self.ui_renderer;
         let mut outer = Widget::new()
+            .direction(render::Direction::Column)
             .width(render::SizeKind::PercentOfParent(1.0))
             .height(render::SizeKind::PercentOfParent(1.0));
 
         outer.layout(renderer, |renderer| {
-            if self.show_fps {
-                Widget::new()
-                    .text(format!("fps: {:.2}", time::fps(ctx)))
-                    .text_color(render::WHITE)
-                    .width(render::SizeKind::TextSize)
-                    .height(render::SizeKind::TextSize)
-                    .render(renderer);
-            }
+            Widget::new()
+                .text(format!("Shader: {}", self.debug_msg))
+                .text_color(render::WHITE)
+                .width(render::SizeKind::TextSize)
+                .height(render::SizeKind::TextSize)
+                .render(renderer);
+            Widget::new()
+                .text(format!("fps: {:.2}", time::fps(ctx)))
+                .text_color(render::WHITE)
+                .width(render::SizeKind::TextSize)
+                .height(render::SizeKind::TextSize)
+                .render(renderer);
         });
     }
 }
