@@ -2,7 +2,13 @@ use encase::ShaderType;
 use gbase::{filesystem, render, wgpu, Context};
 
 const NOISE_TEXTURE_DIM: u32 = 128;
-const NOISE_TEXTURE_CELLS: u32 = 8;
+const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
+    size: NOISE_TEXTURE_DIM,
+    cells_r: 16,
+    cells_g: 8,
+    cells_b: 4,
+    cells_a: 4,
+};
 
 pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     // generate 3d texture
@@ -16,13 +22,9 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
     .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
     .build(ctx);
 
-    let noise_generator_info = render::UniformBufferBuilder::new(
-        render::UniformBufferSource::Data(NoiseGeneratorUniforms {
-            size: NOISE_TEXTURE_DIM,
-            cells: NOISE_TEXTURE_CELLS,
-        }),
-    )
-    .build(ctx);
+    let noise_generator_info =
+        render::UniformBufferBuilder::new(render::UniformBufferSource::Data(NOISE_UNIFORM))
+            .build(ctx);
 
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
     let shader = render::ShaderBuilder::new(shader_str).build(ctx);
@@ -62,5 +64,8 @@ pub fn generate_noise(ctx: &mut Context) -> render::Texture {
 #[derive(ShaderType)]
 struct NoiseGeneratorUniforms {
     size: u32,
-    cells: u32,
+    cells_r: u32,
+    cells_g: u32,
+    cells_b: u32,
+    cells_a: u32,
 }
