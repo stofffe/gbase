@@ -49,7 +49,10 @@ impl CloudRenderer {
                     .vertex()
                     .fragment(),
                 // Camera
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
                 // Cloud BB
                 render::BindGroupLayoutEntry::new()
                     .uniform()

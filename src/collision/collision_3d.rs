@@ -1,39 +1,36 @@
 use encase::ShaderType;
 use glam::Vec3;
 
+use crate::render::Transform;
+
 #[derive(Clone, Copy, ShaderType)]
 pub struct Box3D {
-    pub origin: Vec3,
-    pub dimension: Vec3,
+    pub min: Vec3,
+    pub max: Vec3,
 }
 
 impl Box3D {
-    pub fn new(origin: Vec3, dimension: Vec3) -> Self {
-        Self { origin, dimension }
+    pub fn new(center: Vec3, dim: Vec3) -> Self {
+        let half_size = dim * 0.5;
+        debug_assert!(half_size.x >= 0.0 && half_size.y >= 0.0 && half_size.z >= 0.0);
+        Self {
+            min: center - half_size,
+            max: center + half_size,
+        }
     }
-    pub fn x_min(&self) -> f32 {
-        self.origin.x
-    }
-    pub fn x_max(&self) -> f32 {
-        self.origin.x + self.dimension.x
-    }
-    pub fn y_min(&self) -> f32 {
-        self.origin.y
-    }
-    pub fn y_max(&self) -> f32 {
-        self.origin.y + self.dimension.y
-    }
-    pub fn z_min(&self) -> f32 {
-        self.origin.z
-    }
-    pub fn z_maz(&self) -> f32 {
-        self.origin.z + self.dimension.z
+
+    pub fn to_transform(&self) -> Transform {
+        Transform {
+            pos: (self.min + self.max) * 0.5,
+            rot: glam::Quat::IDENTITY,
+            scale: self.max - self.min,
+        }
     }
 }
 
 pub fn point_box3d_collision(point: Vec3, box_3d: Box3D) -> bool {
-    let collides_x = point.x >= box_3d.x_min() && point.x <= box_3d.x_max();
-    let collides_y = point.y >= box_3d.y_min() && point.y <= box_3d.y_max();
-    let collides_z = point.x >= box_3d.z_min() && point.x <= box_3d.x_max();
+    let collides_x = point.x >= box_3d.min.x && point.x <= box_3d.max.x;
+    let collides_y = point.y >= box_3d.min.y && point.y <= box_3d.max.y;
+    let collides_z = point.x >= box_3d.min.z && point.x <= box_3d.max.z;
     collides_x && collides_y && collides_z
 }

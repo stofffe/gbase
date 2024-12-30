@@ -33,7 +33,7 @@ impl gbase::Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
             .window_builder(WindowBuilder::new().with_maximized(true))
-            .vsync(false)
+            .vsync(true)
     }
 
     #[no_mangle]
@@ -48,7 +48,7 @@ impl gbase::Callbacks for App {
             render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         let mut camera = render::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, 0.0, 5.0);
+        camera.pos = vec3(0.0, 0.0, 0.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let ui_renderer = render::GUIRenderer::new(
@@ -58,6 +58,7 @@ impl gbase::Callbacks for App {
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );
+
         let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
         let cloud_bb_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -86,7 +87,7 @@ impl gbase::Callbacks for App {
             cloud_bb_buffer,
 
             show_fps: false,
-            debug_msg: String::from("test"),
+            debug_msg: String::from("Ok"),
         }
     }
 
@@ -134,20 +135,15 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
+        let bb = self.cloud_bb.to_transform();
         self.gizmo_renderer.draw_cube(
-            &render::Transform::new(
-                self.cloud_bb.origin,
-                Quat::IDENTITY,
-                self.cloud_bb.dimension,
-            ),
+            &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
             render::RED.xyz(),
         );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
         self.framebuffer_renderer
             .render(ctx, self.framebuffer.view(), screen_view);
-        // self.framebuffer_renderer
-        //     .render(ctx, self.depth_buffer.framebuffer().view(), screen_view);
 
         false
     }
@@ -159,6 +155,14 @@ impl gbase::Callbacks for App {
         self.framebuffer.resize_screen(ctx);
         self.depth_buffer.resize_screen(ctx);
         self.ui_renderer.resize(ctx, new_size);
+
+        let sf = render::window(ctx).scale_factor();
+        println!(
+            "resize, physical {:?} logical {:?} scale factor {:?}",
+            new_size,
+            new_size.to_logical::<f32>(sf),
+            sf,
+        );
     }
 }
 

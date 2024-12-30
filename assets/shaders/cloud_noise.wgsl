@@ -1,19 +1,18 @@
-@group(0) @binding(0) var<uniform> settings : NoiseGeneratorInfo;
+@group(0) @binding(0) var<uniform> settings: NoiseGeneratorInfo;
 struct NoiseGeneratorInfo {
     size: u32,
     cells_r: u32,
     cells_g: u32,
     cells_b: u32,
     cells_a: u32,
-};
-@group(0) @binding(1) var output :  texture_storage_3d<rgba8unorm, write>;
+}
+@group(0) @binding(1) var output: texture_storage_3d<rgba8unorm, write>;
 
 const POINT_OFFSET_MULT = 0.5;
 
 // TODO: are f32s even needed?
 
-@compute
-@workgroup_size(1, 1, 1)
+@compute @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let worley1 = generate_worley_noise_3d(settings.size, settings.cells_r, id);
     let worley2 = generate_worley_noise_3d(settings.size, settings.cells_g, id);
