@@ -1,11 +1,11 @@
 struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) uv: vec2<f32>,
+    @location(0) position: vec3f,
+    @location(1) uv: vec2f,
 }
 
 struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) uv: vec2<f32>,
+    @builtin(position) clip_position: vec4f,
+    @location(0) uv: vec2f,
 }
 
 @group(0) @binding(0) var<uniform> app_info: AppInfo;
@@ -18,22 +18,22 @@ struct AppInfo {
 
 @group(0) @binding(1) var<uniform> camera: CameraUniform;
 struct CameraUniform {
-    pos: vec3<f32>,
-    facing: vec3<f32>,
+    pos: vec3f,
+    facing: vec3f,
 
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    view_proj: mat4x4<f32>,
+    view: mat4x4f,
+    proj: mat4x4f,
+    view_proj: mat4x4f,
 
-    inv_view: mat4x4<f32>,
-    inv_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
+    inv_view: mat4x4f,
+    inv_proj: mat4x4f,
+    inv_view_proj: mat4x4f,
 }
 
 @group(0) @binding(2) var<uniform> bounding_box: Box3D;
 struct Box3D {
-    min: vec3<f32>,
-    max: vec3<f32>,
+    min: vec3f,
+    max: vec3f,
 }
 
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
@@ -44,13 +44,18 @@ fn vs_main(
     in: VertexInput,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = vec4<f32>(in.position, 1.0);
+    out.clip_position = vec4f(in.position, 1.0);
     out.uv = in.uv;
     return out;
 }
 
+const DENSITY_STEPS = 10;
+const SUN_STEPS = 4;
+const ABSORPTION = 0.5;
+const CLOUD_SAMPLE_MULT = 0.05;
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let uv = in.uv;
 
     let ray = get_ray_dir(uv);
@@ -59,20 +64,56 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let enter = max(hit.t_near, 0.0);
     let exit = hit.t_far;
 
-    var color: vec3f;
-    if hit.hit {
-        let d = exit - enter;
-        color = vec3f(d, d, d);
-    } else {
-        color = vec3f(0.0, 0.0, 0.0);
+    if !hit.hit {
+        return vec4f(0.0, 0.0, 0.0, 0.0);
     }
 
-    return vec4<f32>(color, 1.0);
+    let hit_pos = ray.origin + ray.dir * enter;
+
+    let transmittance = cloud_march(ray, enter, exit);
+    let color = vec3f(1.0, 1.0, 1.0) * (1.0 - transmittance);
+
+    return vec4f(color, 1.0);
+}
+
+// returns transmittance
+fn cloud_march(ray: Ray, entry: f32, exit: f32) -> f32 {
+    let step_size = length(exit - entry) / f32(DENSITY_STEPS);
+
+    var t = entry;
+    var transmittance = 1.0;
+
+    for (var i = 0; i < DENSITY_STEPS; i++) {
+        let pos = ray.origin + ray.dir * t;
+
+        let density = ease_in_cubic(sample_density(pos));
+        let attenuation = beers(
+            density,
+            step_size,
+            ABSORPTION,
+        );
+        transmittance *= attenuation;
+
+        t += step_size;
+    }
+
+    return transmittance;
+}
+
+
+fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
+    return exp(-(density * distance * absorption));
+}
+
+fn sample_density(pos: vec3f) -> f32 {
+    let sampled_density = textureSample(noise_tex, noise_samp, pos * CLOUD_SAMPLE_MULT);
+    // return sampled_density.r;
+    return 0.7 * sampled_density.r + 0.2 * sampled_density.g + 0.1 * sampled_density.b;
 }
 
 struct Ray {
-    origin: vec3<f32>,
-    dir: vec3<f32>,
+    origin: vec3f,
+    dir: vec3f,
 }
 
 struct RayHit {
@@ -82,8 +123,7 @@ struct RayHit {
 
 }
 
-fn get_ray_dir(uv: vec2<f32>) -> Ray {
-
+fn get_ray_dir(uv: vec2f) -> Ray {
     let ndc = vec4f(
         2.0 * uv.x - 1.0, // uv [0,1] -> ndc [-1,1]
         1.0 - 2.0 * uv.y, // flip y
@@ -105,13 +145,13 @@ fn get_ray_dir(uv: vec2<f32>) -> Ray {
 // Collisions
 
 fn ray_box_intersection(ray: Ray, box: Box3D) -> RayHit {
-    var t_min = vec3<f32>(
+    var t_min = vec3f(
         (box.min.x - ray.origin.x) / ray.dir.x,
         (box.min.y - ray.origin.y) / ray.dir.y,
         (box.min.z - ray.origin.z) / ray.dir.z,
     );
 
-    var t_max = vec3<f32>(
+    var t_max = vec3f(
         (box.max.x - ray.origin.x) / ray.dir.x,
         (box.max.y - ray.origin.y) / ray.dir.y,
         (box.max.z - ray.origin.z) / ray.dir.z,
@@ -136,4 +176,12 @@ const PI = 3.1415927;
 const PI2 = PI * 2.0;
 const PI1_2 = PI / 2.0;
 const PI1_4 = PI / 4.0;
-const PI1_8 = PI / 8.0; //fn get_ray_dir_2(uv: vec2<f32>) -> vec3<f32> {
+const PI1_8 = PI / 8.0; //fn get_ray_dir_2(uv: vec2f) -> vec3f {
+
+// easeing functions
+fn ease_out_cubic(x: f32) -> f32 {
+    return 1.0 - pow(1.0 - x, 3.0);
+}
+fn ease_in_cubic(x: f32) -> f32 {
+    return x * x * x;
+}

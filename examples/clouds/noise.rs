@@ -4,10 +4,10 @@ use gbase::{filesystem, render, wgpu, Context};
 const NOISE_TEXTURE_DIM: u32 = 128;
 const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
     size: NOISE_TEXTURE_DIM,
-    cells_r: 16,
+    cells_r: 4,
     cells_g: 8,
-    cells_b: 4,
-    cells_a: 4,
+    cells_b: 16,
+    cells_a: 16,
 };
 
 pub fn generate_noise(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {

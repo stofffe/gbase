@@ -48,7 +48,7 @@ impl gbase::Callbacks for App {
             render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         let mut camera = render::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, 0.0, 0.0);
+        camera.pos = vec3(0.0, -10.0, 0.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let ui_renderer = render::GUIRenderer::new(
@@ -59,7 +59,7 @@ impl gbase::Callbacks for App {
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
-        let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(1.0, 1.0, 1.0));
+        let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(20.0, 10.0, 20.0));
         let cloud_bb_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
@@ -95,6 +95,7 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+            println!("Reload cloud renderer");
             if let Ok(r) = cloud_renderer::CloudRenderer::new(
                 ctx,
                 &self.framebuffer,
@@ -102,12 +103,21 @@ impl gbase::Callbacks for App {
                 &self.camera_buffer,
                 &self.cloud_bb_buffer,
             ) {
-                println!("Reloaded cloud renderer");
+                println!("Ok");
                 self.cloud_renderer = r;
                 self.debug_msg = String::from("Ok")
             } else {
+                println!("Fail");
                 self.debug_msg = String::from("Fail");
             }
+        }
+
+        #[cfg(feature = "hot_reload")]
+        if input::key_just_pressed(ctx, input::KeyCode::KeyR)
+            && input::modifier_pressed(ctx, input::KeyModifier::LCtrl)
+        {
+            println!("Hot Restart");
+            gbase::hot_reload::hot_restart(ctx);
         }
 
         if input::key_just_pressed(ctx, input::KeyCode::KeyF) {
@@ -135,11 +145,11 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
-        let bb = self.cloud_bb.to_transform();
-        self.gizmo_renderer.draw_cube(
-            &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
-            render::RED.xyz(),
-        );
+        // let bb = self.cloud_bb.to_transform();
+        // self.gizmo_renderer.draw_cube(
+        //     &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
+        //     render::RED.xyz(),
+        // );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
         self.framebuffer_renderer
@@ -155,14 +165,6 @@ impl gbase::Callbacks for App {
         self.framebuffer.resize_screen(ctx);
         self.depth_buffer.resize_screen(ctx);
         self.ui_renderer.resize(ctx, new_size);
-
-        let sf = render::window(ctx).scale_factor();
-        println!(
-            "resize, physical {:?} logical {:?} scale factor {:?}",
-            new_size,
-            new_size.to_logical::<f32>(sf),
-            sf,
-        );
     }
 }
 

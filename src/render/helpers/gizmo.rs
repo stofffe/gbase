@@ -6,7 +6,7 @@ use crate::{
     },
     Context,
 };
-use glam::{vec3, Quat, Vec2, Vec3, Vec4Swizzles};
+use glam::{vec3, vec4, Quat, Vec2, Vec3, Vec4Swizzles};
 use std::f32::consts::PI;
 
 use super::CameraUniform;
@@ -191,53 +191,53 @@ impl GizmoRenderer {
 
     /// Draw unit cube
     pub fn draw_cube(&mut self, transform: &Transform, color: Vec3) {
-        let d = transform.scale;
         let t = transform.matrix();
         let vertex_start = self.dynamic_vertex_buffer.len() as u32;
 
-        let lbl = vec3(-d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom left
-        let lbr = vec3(d.x * 0.5, -d.y * 0.5, -d.z * 0.5); // lower bottom right
-        let ltr = vec3(d.x * 0.5, -d.y * 0.5, d.z * 0.5); // lower top right
-        let ltl = vec3(-d.x * 0.5, -d.y * 0.5, d.z * 0.5); // lower top left
+        // Create unit cube
+        let lbl = vec4(-0.5, -0.5, -0.5, 1.0); // lower bottom left
+        let lbr = vec4(0.5, -0.5, -0.5, 1.0); // lower bottom right
+        let ltr = vec4(0.5, -0.5, 0.5, 1.0); // lower top right
+        let ltl = vec4(-0.5, -0.5, 0.5, 1.0); // lower top left
 
-        let ubl = vec3(-d.x * 0.5, d.y * 0.5, -d.z * 0.5); // upper bottom left
-        let ubr = vec3(d.x * 0.5, d.y * 0.5, -d.z * 0.5); // upper bottom right
-        let utr = vec3(d.x * 0.5, d.y * 0.5, d.z * 0.5); // upper top right
-        let utl = vec3(-d.x * 0.5, d.y * 0.5, d.z * 0.5); // upper top left
+        let ubl = vec4(-0.5, 0.5, -0.5, 1.0); // upper bottom left
+        let ubr = vec4(0.5, 0.5, -0.5, 1.0); // upper bottom right
+        let utr = vec4(0.5, 0.5, 0.5, 1.0); // upper top right
+        let utl = vec4(-0.5, 0.5, 0.5, 1.0); // upper top left
 
         // Bottom
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * lbl.extend(1.0)).xyz().to_array(),
+            position: (t * lbl).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * lbr.extend(1.0)).xyz().to_array(),
+            position: (t * lbr).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ltr.extend(1.0)).xyz().to_array(),
+            position: (t * ltr).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ltl.extend(1.0)).xyz().to_array(),
+            position: (t * ltl).xyz().to_array(),
             color: color.to_array(),
         });
 
         // Top
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ubl.extend(1.0)).xyz().to_array(),
+            position: (t * ubl).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ubr.extend(1.0)).xyz().to_array(),
+            position: (t * ubr).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * utr.extend(1.0)).xyz().to_array(),
+            position: (t * utr).xyz().to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * utl.extend(1.0)).xyz().to_array(),
+            position: (t * utl).xyz().to_array(),
             color: color.to_array(),
         });
 
