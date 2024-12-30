@@ -40,7 +40,7 @@ struct Box3D {
 @group(0) @binding(4) var noise_samp: sampler;
 
 @vertex
-fn vs_main(
+fn vs(
     in: VertexInput,
 ) -> VertexOutput {
     var out: VertexOutput;
@@ -50,12 +50,16 @@ fn vs_main(
 }
 
 const DENSITY_STEPS = 10;
-const SUN_STEPS = 4;
-const ABSORPTION = 0.5;
-const CLOUD_SAMPLE_MULT = 0.05;
+const SUN_STEPS = 5;
+const ABSORPTION = 1.0;
+const ABSORPTION_SUN = 1.0;
+const CLOUD_SAMPLE_MULT = 0.25;
+const TRANSMITTANCE_CUTOFF = 0.01;
+
+const LIGHT_POS = vec3f(10.0, 0.0, -10.0);
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+fn fs(in: VertexOutput) -> @location(0) vec4f {
     let uv = in.uv;
 
     let ray = get_ray_dir(uv);
@@ -70,36 +74,79 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 
     let hit_pos = ray.origin + ray.dir * enter;
 
-    let transmittance = cloud_march(ray, enter, exit);
-    let color = vec3f(1.0, 1.0, 1.0) * (1.0 - transmittance);
+    let cloud_info = cloud_march(ray, enter, exit);
+    let color = vec4f(cloud_info.color, 1.0 - cloud_info.transmittance);
 
-    return vec4f(color, 1.0);
+    return color;
 }
 
-// returns transmittance
-fn cloud_march(ray: Ray, entry: f32, exit: f32) -> f32 {
-    let step_size = length(exit - entry) / f32(DENSITY_STEPS);
+fn light_march(ray: Ray) -> vec3f {
+    // assume hit
+    let hit = ray_box_intersection(ray, bounding_box);
+    let entry = max(hit.t_near, 0.0);
+    let exit = hit.t_far;
+    let step_size = length(exit - entry) / f32(SUN_STEPS);
 
     var t = entry;
     var transmittance = 1.0;
 
-    for (var i = 0; i < DENSITY_STEPS; i++) {
+    for (var i = 0; i < SUN_STEPS; i++) {
         let pos = ray.origin + ray.dir * t;
 
-        let density = ease_in_cubic(sample_density(pos));
-        let attenuation = beers(
-            density,
-            step_size,
-            ABSORPTION,
-        );
+        let density = (sample_density(pos));
+        let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
         transmittance *= attenuation;
+
+        if transmittance <= TRANSMITTANCE_CUTOFF {
+            transmittance = 0.0;
+            break;
+        }
 
         t += step_size;
     }
 
-    return transmittance;
+    return vec3f(transmittance, transmittance, transmittance);
 }
 
+// returns transmittance
+fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
+    let step_size = length(exit - entry) / f32(DENSITY_STEPS);
+
+    var t = entry;
+    var transmittance = 1.0;
+    var color = vec3f(0.0, 0.0, 0.0);
+
+    for (var i = 0; i < DENSITY_STEPS; i++) {
+        let pos = ray.origin + ray.dir * t;
+
+        // opacity
+        // let density = ease_in_cubic(sample_density(pos));
+        let density = (sample_density(pos));
+        let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
+        transmittance *= attenuation;
+
+        // color
+        var light_ray: Ray;
+        light_ray.origin = pos;
+        light_ray.dir = normalize(LIGHT_POS - pos);
+
+        // let scattered_light = light_march(light_ray) * (1.0 - transmittance);
+        // color += scattered_light * transmittance;
+        color += light_march(light_ray) * transmittance * (1.0 - attenuation);
+
+        if transmittance <= TRANSMITTANCE_CUTOFF {
+            transmittance = 0.0;
+            break;
+        }
+
+        t += step_size;
+    }
+
+    var cloud_info: CloudInfo;
+    cloud_info.transmittance = transmittance;
+    cloud_info.color = color;
+    return cloud_info;
+}
 
 fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
     return exp(-(density * distance * absorption));
@@ -107,8 +154,12 @@ fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
 
 fn sample_density(pos: vec3f) -> f32 {
     let sampled_density = textureSample(noise_tex, noise_samp, pos * CLOUD_SAMPLE_MULT);
-    // return sampled_density.r;
-    return 0.7 * sampled_density.r + 0.2 * sampled_density.g + 0.1 * sampled_density.b;
+    return 0.6 * sampled_density.r + 0.3 * sampled_density.g + 0.1 * sampled_density.b;
+}
+
+struct CloudInfo {
+    transmittance: f32,
+    color: vec3f,
 }
 
 struct Ray {

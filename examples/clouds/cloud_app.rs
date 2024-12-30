@@ -33,7 +33,7 @@ impl gbase::Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
             .window_builder(WindowBuilder::new().with_maximized(true))
-            .vsync(true)
+            .vsync(false)
     }
 
     #[no_mangle]
@@ -48,7 +48,7 @@ impl gbase::Callbacks for App {
             render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         let mut camera = render::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, -10.0, 0.0);
+        camera.pos = vec3(0.0, 0.0, 15.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let ui_renderer = render::GUIRenderer::new(
@@ -59,7 +59,7 @@ impl gbase::Callbacks for App {
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
-        let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(20.0, 10.0, 20.0));
+        let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(10.0, 5.0, 10.0));
         let cloud_bb_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
@@ -138,7 +138,15 @@ impl gbase::Callbacks for App {
         self.cloud_bb_buffer.write(ctx, &self.cloud_bb);
 
         // clear buffers
-        self.framebuffer.clear(ctx, wgpu::Color::BLACK);
+        self.framebuffer.clear(
+            ctx,
+            wgpu::Color {
+                r: 0.35,
+                g: 0.85,
+                b: 0.96,
+                a: 1.0,
+            },
+        );
         self.depth_buffer.clear(ctx);
 
         // render
@@ -183,13 +191,13 @@ impl App {
         outer.layout(renderer, |renderer| {
             Widget::new()
                 .text(format!("Shader: {}", self.debug_msg))
-                .text_color(render::WHITE)
+                .text_color(render::BLUE)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .render(renderer);
             Widget::new()
                 .text(format!("fps: {:.2}", time::fps(ctx)))
-                .text_color(render::WHITE)
+                .text_color(render::BLUE)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .render(renderer);

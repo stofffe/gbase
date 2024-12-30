@@ -109,6 +109,13 @@ impl FrameBuffer {
     pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
     }
+    pub fn target_blend(&self, blend: wgpu::BlendState) -> wgpu::ColorTargetState {
+        wgpu::ColorTargetState {
+            format: self.format,
+            write_mask: wgpu::ColorWrites::ALL,
+            blend: Some(blend),
+        }
+    }
     pub fn target(&self) -> wgpu::ColorTargetState {
         wgpu::ColorTargetState {
             format: self.format,

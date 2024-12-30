@@ -91,7 +91,9 @@ impl CloudRenderer {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertices.desc()])
-            .targets(vec![Some(framebuffer.target())])
+            .targets(vec![Some(
+                framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING),
+            )])
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
