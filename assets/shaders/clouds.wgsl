@@ -36,8 +36,13 @@ struct Box3D {
     max: vec3f,
 }
 
-@group(0) @binding(3) var noise_tex: texture_3d<f32>;
-@group(0) @binding(4) var noise_samp: sampler;
+@group(0) @binding(3) var<uniform> parameters: CloudParameters;
+struct CloudParameters {
+    light_pos: vec3f,
+}
+
+@group(0) @binding(4) var noise_tex: texture_3d<f32>;
+@group(0) @binding(5) var noise_samp: sampler;
 
 @vertex
 fn vs(
@@ -53,10 +58,10 @@ const DENSITY_STEPS = 10;
 const SUN_STEPS = 5;
 const ABSORPTION = 1.0;
 const ABSORPTION_SUN = 1.0;
-const CLOUD_SAMPLE_MULT = 0.25;
-const TRANSMITTANCE_CUTOFF = 0.01;
+const CLOUD_SAMPLE_MULT = 0.15;
+const TRANSMITTANCE_CUTOFF = 0.001;
 
-const LIGHT_POS = vec3f(10.0, 0.0, -10.0);
+// const LIGHT_POS = vec3f(10.0, 0.0, -10.0);
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -128,7 +133,7 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
-        light_ray.dir = normalize(LIGHT_POS - pos);
+        light_ray.dir = normalize(parameters.light_pos - pos);
 
         // let scattered_light = light_march(light_ray) * (1.0 - transmittance);
         // color += scattered_light * transmittance;

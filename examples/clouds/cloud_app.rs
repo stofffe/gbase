@@ -1,13 +1,18 @@
 use crate::cloud_renderer;
-use gbase::render::Widget;
+use gbase::render::{Transform, UniformBufferBuilder, Widget, GRAY};
 use gbase::Context;
 use gbase::{
     collision::{self, Box3D},
     filesystem, glam, input, render, time, wgpu, winit,
 };
-use glam::{vec3, Quat, Vec4Swizzles};
+use glam::{vec3, Quat, Vec3, Vec4Swizzles};
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
+
+#[derive(Debug, Clone, encase::ShaderType)]
+pub struct CloudParameters {
+    pub light_pos: Vec3,
+}
 
 pub struct App {
     framebuffer: render::FrameBuffer,
@@ -22,6 +27,9 @@ pub struct App {
     ui_renderer: render::GUIRenderer,
     gizmo_renderer: render::GizmoRenderer,
     cloud_renderer: cloud_renderer::CloudRenderer,
+
+    cloud_parameters_buffer: render::UniformBuffer<CloudParameters>,
+    cloud_parameters: CloudParameters,
 
     show_fps: bool,
     debug_msg: String,
@@ -59,6 +67,12 @@ impl gbase::Callbacks for App {
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
+        let cloud_parameters = CloudParameters {
+            light_pos: vec3(10.0, 0.0, 10.0),
+        };
+        let cloud_parameters_buffer =
+            UniformBufferBuilder::new(render::UniformBufferSource::Data(cloud_parameters.clone()))
+                .build(ctx);
         let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(10.0, 5.0, 10.0));
         let cloud_bb_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -69,6 +83,7 @@ impl gbase::Callbacks for App {
             &depth_buffer,
             &camera_buffer,
             &cloud_bb_buffer,
+            &cloud_parameters_buffer,
         )
         .expect("could not create cloud renderer");
 
@@ -83,6 +98,8 @@ impl gbase::Callbacks for App {
             camera,
             camera_buffer,
 
+            cloud_parameters,
+            cloud_parameters_buffer,
             cloud_bb,
             cloud_bb_buffer,
 
@@ -102,6 +119,7 @@ impl gbase::Callbacks for App {
                 &self.depth_buffer,
                 &self.camera_buffer,
                 &self.cloud_bb_buffer,
+                &self.cloud_parameters_buffer,
             ) {
                 println!("Ok");
                 self.cloud_renderer = r;
@@ -124,6 +142,23 @@ impl gbase::Callbacks for App {
             self.show_fps = !self.show_fps;
         }
 
+        let mut dir = Vec3::ZERO;
+        if input::key_pressed(ctx, input::KeyCode::ArrowUp) {
+            dir.z -= 1.0;
+        }
+        if input::key_pressed(ctx, input::KeyCode::ArrowDown) {
+            dir.z += 1.0;
+        }
+        if input::key_pressed(ctx, input::KeyCode::ArrowRight) {
+            dir.x += 1.0;
+        }
+        if input::key_pressed(ctx, input::KeyCode::ArrowLeft) {
+            dir.x -= 1.0;
+        }
+        if dir != Vec3::ZERO {
+            self.cloud_parameters.light_pos += dir * time::delta_time(ctx) * 10.0;
+        }
+
         self.ui(ctx);
 
         self.camera.flying_controls(ctx);
@@ -136,6 +171,8 @@ impl gbase::Callbacks for App {
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.cloud_bb_buffer.write(ctx, &self.cloud_bb);
+        self.cloud_parameters_buffer
+            .write(ctx, &self.cloud_parameters);
 
         // clear buffers
         self.framebuffer.clear(
@@ -153,11 +190,16 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
-        // let bb = self.cloud_bb.to_transform();
-        // self.gizmo_renderer.draw_cube(
-        //     &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
-        //     render::RED.xyz(),
-        // );
+        let bb = self.cloud_bb.to_transform();
+        self.gizmo_renderer.draw_cube(
+            &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
+            render::RED.xyz(),
+        );
+        self.gizmo_renderer.draw_cube(
+            &render::Transform::from_pos(self.cloud_parameters.light_pos)
+                .with_scale(Vec3::ONE * 1.0),
+            render::RED.xyz(),
+        );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
         self.framebuffer_renderer
@@ -200,6 +242,11 @@ impl App {
                 .text_color(render::BLUE)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
+                .render(renderer);
+            Widget::new()
+                .width(render::SizeKind::Pixels(700.0))
+                .height(render::SizeKind::Pixels(100.0))
+                .color(GRAY)
                 .render(renderer);
         });
     }

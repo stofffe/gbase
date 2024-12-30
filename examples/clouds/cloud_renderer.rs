@@ -1,3 +1,4 @@
+use crate::cloud_app::CloudParameters;
 use crate::noise::generate_noise;
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
@@ -23,6 +24,7 @@ impl CloudRenderer {
         depth_buffer: &render::DepthBuffer,
         camera: &render::UniformBuffer<CameraUniform>,
         bounding_box: &render::UniformBuffer<collision::Box3D>,
+        parameters: &render::UniformBuffer<CloudParameters>,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_noise(ctx)?;
 
@@ -54,10 +56,9 @@ impl CloudRenderer {
                     .vertex()
                     .fragment(),
                 // Cloud BB
-                render::BindGroupLayoutEntry::new()
-                    .uniform()
-                    .vertex()
-                    .fragment(),
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
+                // Parameters
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // Noise texture
                 render::BindGroupLayoutEntry::new()
                     .ty(wgpu::BindingType::Texture {
@@ -80,6 +81,8 @@ impl CloudRenderer {
                 render::BindGroupEntry::Buffer(camera.buffer()),
                 // Cloud BB
                 render::BindGroupEntry::Buffer(bounding_box.buffer()),
+                // Parameters
+                render::BindGroupEntry::Buffer(parameters.buffer()),
                 // Noise texture
                 render::BindGroupEntry::Texture(noise_texture.view()),
                 // Noise sampler
