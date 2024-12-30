@@ -88,11 +88,11 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
 fn light_march(ray: Ray) -> vec3f {
     // assume hit
     let hit = ray_box_intersection(ray, bounding_box);
-    let entry = max(hit.t_near, 0.0);
-    let exit = hit.t_far;
-    let step_size = length(exit - entry) / f32(SUN_STEPS);
+    let start = max(hit.t_near, 0.0);
+    let end = min(hit.t_far, length(ray.origin - parameters.light_pos));
+    let step_size = length(end - start) / f32(SUN_STEPS);
 
-    var t = entry;
+    var t = start;
     var transmittance = 1.0;
 
     for (var i = 0; i < SUN_STEPS; i++) {
@@ -128,17 +128,14 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // let density = ease_in_cubic(sample_density(pos));
         let density = (sample_density(pos));
         let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
-        transmittance *= attenuation;
 
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
         light_ray.dir = normalize(parameters.light_pos - pos);
-
-        // let scattered_light = light_march(light_ray) * (1.0 - transmittance);
-        // color += scattered_light * transmittance;
         color += light_march(light_ray) * transmittance * (1.0 - attenuation);
 
+        transmittance *= attenuation;
         if transmittance <= TRANSMITTANCE_CUTOFF {
             transmittance = 0.0;
             break;

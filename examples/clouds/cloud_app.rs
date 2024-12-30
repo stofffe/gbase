@@ -1,5 +1,5 @@
 use crate::cloud_renderer;
-use gbase::render::{Transform, UniformBufferBuilder, Widget, GRAY};
+use gbase::render::{Transform, UniformBufferBuilder, Widget, BLUE, GRAY};
 use gbase::Context;
 use gbase::{
     collision::{self, Box3D},
@@ -142,6 +142,10 @@ impl gbase::Callbacks for App {
             self.show_fps = !self.show_fps;
         }
 
+        if !self.show_fps {
+            self.camera.flying_controls(ctx);
+        }
+
         let mut dir = Vec3::ZERO;
         if input::key_pressed(ctx, input::KeyCode::ArrowUp) {
             dir.z -= 1.0;
@@ -160,8 +164,6 @@ impl gbase::Callbacks for App {
         }
 
         self.ui(ctx);
-
-        self.camera.flying_controls(ctx);
 
         false
     }
@@ -228,7 +230,9 @@ impl App {
         let mut outer = Widget::new()
             .direction(render::Direction::Column)
             .width(render::SizeKind::PercentOfParent(1.0))
-            .height(render::SizeKind::PercentOfParent(1.0));
+            .height(render::SizeKind::PercentOfParent(1.0))
+            .gap(20.0)
+            .padding(20.0);
 
         outer.layout(renderer, |renderer| {
             Widget::new()
@@ -236,18 +240,64 @@ impl App {
                 .text_color(render::BLUE)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
+                .text_font_size(75.0)
                 .render(renderer);
             Widget::new()
                 .text(format!("fps: {:.2}", time::fps(ctx)))
                 .text_color(render::BLUE)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
+                .text_font_size(75.0)
                 .render(renderer);
-            Widget::new()
-                .width(render::SizeKind::Pixels(700.0))
-                .height(render::SizeKind::Pixels(100.0))
-                .color(GRAY)
-                .render(renderer);
+
+            fn f32_slider(
+                ctx: &Context,
+                renderer: &mut render::GUIRenderer,
+                value: &mut f32,
+                label: &str,
+            ) {
+                Widget::new()
+                    .text(label)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(50.0)
+                    .render(renderer);
+                Widget::new()
+                    .label(label)
+                    .width(render::SizeKind::Pixels(500.0))
+                    .height(render::SizeKind::Pixels(100.0))
+                    .direction(render::Direction::Row)
+                    .color(GRAY)
+                    .slider_layout(ctx, renderer, -10.0, 10.0, value, |renderer, res| {
+                        Widget::new()
+                            .width(render::SizeKind::PercentOfParent(res.pos))
+                            .render(renderer);
+                        Widget::new()
+                            .width(render::SizeKind::Pixels(20.0))
+                            .height(render::SizeKind::PercentOfParent(1.0))
+                            .color(BLUE)
+                            .render(renderer);
+                    });
+            }
+
+            f32_slider(
+                ctx,
+                renderer,
+                &mut self.cloud_parameters.light_pos.x,
+                "light pos x",
+            );
+            f32_slider(
+                ctx,
+                renderer,
+                &mut self.cloud_parameters.light_pos.y,
+                "light pos y",
+            );
+            f32_slider(
+                ctx,
+                renderer,
+                &mut self.cloud_parameters.light_pos.z,
+                "light pos z",
+            );
         });
     }
 }
