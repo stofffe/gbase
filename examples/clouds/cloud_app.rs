@@ -32,6 +32,7 @@ pub struct App {
     cloud_parameters: CloudParameters,
 
     show_fps: bool,
+    enable_gizmos: bool,
     debug_msg: String,
 }
 
@@ -104,6 +105,7 @@ impl gbase::Callbacks for App {
             cloud_bb_buffer,
 
             show_fps: false,
+            enable_gizmos: false,
             debug_msg: String::from("Ok"),
         }
     }
@@ -192,17 +194,9 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
-        let bb = self.cloud_bb.to_transform();
-        self.gizmo_renderer.draw_cube(
-            &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
-            render::RED.xyz(),
-        );
-        self.gizmo_renderer.draw_cube(
-            &render::Transform::from_pos(self.cloud_parameters.light_pos)
-                .with_scale(Vec3::ONE * 1.0),
-            render::RED.xyz(),
-        );
-        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+        if self.enable_gizmos {
+            self.gizmos(ctx);
+        }
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
         self.framebuffer_renderer
             .render(ctx, self.framebuffer.view(), screen_view);
@@ -221,6 +215,20 @@ impl gbase::Callbacks for App {
 }
 
 impl App {
+    fn gizmos(&mut self, ctx: &Context) {
+        let bb = self.cloud_bb.to_transform();
+        self.gizmo_renderer.draw_cube(
+            &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
+            render::RED.xyz(),
+        );
+        self.gizmo_renderer.draw_cube(
+            &render::Transform::from_pos(self.cloud_parameters.light_pos)
+                .with_scale(Vec3::ONE * 1.0),
+            render::RED.xyz(),
+        );
+        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+    }
+
     fn ui(&mut self, ctx: &Context) {
         if !self.show_fps {
             return;
@@ -248,6 +256,25 @@ impl App {
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(75.0)
+                .render(renderer);
+            let gizmos_btn = Widget::new()
+                .text("Enable gizmos")
+                .width(render::SizeKind::TextSize)
+                .height(render::SizeKind::TextSize)
+                .text_font_size(50.0)
+                .button(ctx, renderer);
+            if gizmos_btn.clicked {
+                self.enable_gizmos = !self.enable_gizmos;
+            }
+            Widget::new()
+                .label("gizmos")
+                .width(render::SizeKind::Pixels(100.0))
+                .height(render::SizeKind::Pixels(100.0))
+                .color(if self.enable_gizmos {
+                    render::GREEN
+                } else {
+                    render::GRAY
+                })
                 .render(renderer);
 
             fn f32_slider(

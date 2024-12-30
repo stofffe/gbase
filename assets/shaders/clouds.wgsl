@@ -57,9 +57,10 @@ fn vs(
 const DENSITY_STEPS = 10;
 const SUN_STEPS = 5;
 const ABSORPTION = 1.0;
-const ABSORPTION_SUN = 1.0;
+const ABSORPTION_SUN = 0.5;
 const CLOUD_SAMPLE_MULT = 0.15;
 const TRANSMITTANCE_CUTOFF = 0.001;
+const HENYEY_GREENSTEIN = 0.7;
 
 // const LIGHT_POS = vec3f(10.0, 0.0, -10.0);
 
@@ -133,7 +134,9 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         var light_ray: Ray;
         light_ray.origin = pos;
         light_ray.dir = normalize(parameters.light_pos - pos);
-        color += light_march(light_ray) * transmittance * (1.0 - attenuation);
+        var light = light_march(light_ray);
+        light = light * henyey_greenstein(HENYEY_GREENSTEIN, dot(light_ray.dir, ray.dir));
+        color += light * transmittance * (1.0 - attenuation);
 
         transmittance *= attenuation;
         if transmittance <= TRANSMITTANCE_CUTOFF {
@@ -152,6 +155,10 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
 
 fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
     return exp(-(density * distance * absorption));
+}
+
+fn henyey_greenstein(g: f32, costheta: f32) -> f32 {
+    return (1.0 / (4.0 * PI)) * ((1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * costheta, 1.5));
 }
 
 fn sample_density(pos: vec3f) -> f32 {
