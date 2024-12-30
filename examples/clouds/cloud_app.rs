@@ -130,6 +130,7 @@ impl gbase::Callbacks for App {
                 println!("Fail");
                 self.debug_msg = String::from("Fail");
             }
+            self.cloud_bb = Box3D::new(Vec3::ZERO, vec3(100.0, 5.0, 100.0));
         }
 
         #[cfg(feature = "hot_reload")]
@@ -146,6 +147,10 @@ impl gbase::Callbacks for App {
 
         if !self.show_fps {
             self.camera.flying_controls(ctx);
+        }
+
+        if input::key_just_pressed(ctx, input::KeyCode::KeyG) {
+            self.enable_gizmos = !self.enable_gizmos;
         }
 
         let mut dir = Vec3::ZERO;
@@ -257,16 +262,13 @@ impl App {
                 .height(render::SizeKind::TextSize)
                 .text_font_size(75.0)
                 .render(renderer);
-            let gizmos_btn = Widget::new()
+            Widget::new()
                 .text("Enable gizmos")
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(50.0)
-                .button(ctx, renderer);
-            if gizmos_btn.clicked {
-                self.enable_gizmos = !self.enable_gizmos;
-            }
-            Widget::new()
+                .render(renderer);
+            let gizmos_btn = Widget::new()
                 .label("gizmos")
                 .width(render::SizeKind::Pixels(100.0))
                 .height(render::SizeKind::Pixels(100.0))
@@ -275,7 +277,10 @@ impl App {
                 } else {
                     render::GRAY
                 })
-                .render(renderer);
+                .button(ctx, renderer);
+            if gizmos_btn.clicked {
+                self.enable_gizmos = !self.enable_gizmos;
+            }
 
             fn f32_slider(
                 ctx: &Context,
@@ -295,7 +300,7 @@ impl App {
                     .height(render::SizeKind::Pixels(100.0))
                     .direction(render::Direction::Row)
                     .color(GRAY)
-                    .slider_layout(ctx, renderer, -10.0, 10.0, value, |renderer, res| {
+                    .slider_layout(ctx, renderer, -100.0, 100.0, value, |renderer, res| {
                         Widget::new()
                             .width(render::SizeKind::PercentOfParent(res.pos))
                             .render(renderer);
