@@ -1,0 +1,1 @@
+{"light_pos":[100.0,0.0,10.0],"alpha_cutoff":0.7,"henyey_forw":0.7,"henyey_back":0.5,"henyey_dist":0.3}

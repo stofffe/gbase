@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 winit = { version = "0.29.3", features = ["rwh_05", "rwh_06"] }
 wgpu = { version = "23.0.0", features = [] }
-glam = "0.24.2"
+glam = { version = "0.24.2", features = ["serde"] }
 log = "0.4.20"
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 bytemuck = { version = "1.14.0", features = ["derive"] }
@@ -35,6 +35,10 @@ web-sys = { version = "0.3.64", features = [
     "GpuCanvasContext",
 ] }
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
+
+[dev-dependencies]
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.134"
 
 [features]
 default = []

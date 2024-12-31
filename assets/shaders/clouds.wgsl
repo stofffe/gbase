@@ -15,7 +15,6 @@ struct AppInfo {
     screen_height: u32,
 }
 
-
 @group(0) @binding(1) var<uniform> camera: CameraUniform;
 struct CameraUniform {
     pos: vec3f,
@@ -36,9 +35,14 @@ struct Box3D {
     max: vec3f,
 }
 
-@group(0) @binding(3) var<uniform> parameters: CloudParameters;
+@group(0) @binding(3) var<uniform> params: CloudParameters;
 struct CloudParameters {
     light_pos: vec3f,
+
+    alpha_cutoff: f32,
+    henyey_forw: f32,
+    henyey_back: f32,
+    henyey_dist: f32,
 }
 
 @group(0) @binding(4) var noise_tex: texture_3d<f32>;
@@ -67,10 +71,10 @@ const BEERS_MULT = 2.0;
 const POWDER_MULT = 0.5;
 const AMBIENT_LIGHT = 0.01;
 
-const ALPHA_CUTOFF = 0.9;
-const HENYEY_GREENSTEIN_FORW = 0.9; // how much scattering [0,1]
-const HENYEY_GREENSTEIN_BACK = 0.4; // how much scattering [0,1]
-const HENYEY_GREENSTEIN_DISTRIBUTION = 0.1; // forward [0,1] backwards
+//const ALPHA_CUTOFF = 0.9;
+//const HENYEY_GREENSTEIN_FORW = 0.9; // how much scattering [0,1]
+//const HENYEY_GREENSTEIN_BACK = 0.4; // how much scattering [0,1]
+//const HENYEY_GREENSTEIN_DISTRIBUTION = 0.1; // forward [0,1] backwards
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -91,7 +95,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     let cloud_info = cloud_march(ray, enter, exit);
 
     var alpha = 1.0 - cloud_info.transmittance;
-    alpha = smoothstep(ALPHA_CUTOFF, 1.0, alpha);
+    alpha = smoothstep(params.alpha_cutoff, 1.0, alpha);
 
     var color = cloud_info.color;
     color = max(color, vec3f(AMBIENT_LIGHT, AMBIENT_LIGHT, AMBIENT_LIGHT));
@@ -103,7 +107,7 @@ fn light_march(ray: Ray) -> vec3f {
     // assume hit
     let hit = ray_box_intersection(ray, bounding_box);
     let start = max(hit.t_near, 0.0);
-    let end = min(hit.t_far, length(ray.origin - parameters.light_pos));
+    let end = min(hit.t_far, length(ray.origin - params.light_pos));
     let step_size = length(end - start) / f32(SUN_STEPS);
 
     var t = start;
@@ -148,9 +152,9 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
-        light_ray.dir = normalize(parameters.light_pos - pos);
+        light_ray.dir = normalize(params.light_pos - pos);
         var light = light_march(light_ray);
-        light = light * dual_henyey_greenstein(dot(light_ray.dir, ray.dir), HENYEY_GREENSTEIN_FORW, HENYEY_GREENSTEIN_BACK, HENYEY_GREENSTEIN_DISTRIBUTION);
+        light = light * dual_henyey_greenstein(dot(light_ray.dir, ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
         light *= SUN_LIGHT_MULT;
         light = saturate(light);
         color += light * transmittance * (1.0 - attenuation);

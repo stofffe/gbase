@@ -1,0 +1,1 @@
+{"light_pos":[54.684372,12.090622,-9.565628],"alpha_cutoff":0.86370313,"henyey_forw":0.89101565,"henyey_back":0.867125,"henyey_dist":0.28973436}

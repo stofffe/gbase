@@ -23,6 +23,7 @@ pub const BLUE: Vec4 = vec4(0.0, 0.0, 1.0, 1.0);
 pub const BLACK: Vec4 = vec4(0.0, 0.0, 0.0, 1.0);
 pub const WHITE: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
 pub const GRAY: Vec4 = vec4(0.5, 0.5, 0.5, 1.0);
+pub const DARK_GREY: Vec4 = vec4(0.2, 0.2, 0.2, 1.0);
 
 impl FontAtlas {
     pub(crate) fn new(ctx: &mut Context, font_bytes: &[u8], supported_chars: &str) -> Self {
