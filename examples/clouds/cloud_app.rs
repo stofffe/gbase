@@ -130,7 +130,7 @@ impl gbase::Callbacks for App {
                 println!("Fail");
                 self.debug_msg = String::from("Fail");
             }
-            self.cloud_bb = Box3D::new(Vec3::ZERO, vec3(100.0, 5.0, 100.0));
+            self.cloud_bb = Box3D::new(Vec3::ZERO, vec3(5.0, 5.0, 5.0));
         }
 
         #[cfg(feature = "hot_reload")]

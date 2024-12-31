@@ -56,16 +56,21 @@ fn vs(
 
 const DENSITY_STEPS = 8;
 const SUN_STEPS = 4;
-const ABSORPTION = 2.0;
+const ABSORPTION = 13.0;
 const ABSORPTION_DENSITY = ABSORPTION;
 const ABSORPTION_SUN = ABSORPTION;
-const CLOUD_SAMPLE_MULT = 0.05;
 const TRANSMITTANCE_CUTOFF = 0.001;
 const SUN_LIGHT_MULT = 5.0;
+const CLOUD_SAMPLE_MULT = 0.25;
+const SAMPLE_DENSITY_DISTRIBUTION = vec4f(3.0, 2.0, 1.0, 0.0);
+const BEERS_MULT = 2.0;
+const POWDER_MULT = 0.5;
+const AMBIENT_LIGHT = 0.01;
 
-const ALPHA_CUTOFF = 0.6;
-const HENYEY_GREENSTEIN_COEFF = 0.6; // how much scattering [0,1]
-const HENYEY_GREENSTEIN_DIST = 0.3; // forward [0,1] backwards
+const ALPHA_CUTOFF = 0.9;
+const HENYEY_GREENSTEIN_FORW = 0.9; // how much scattering [0,1]
+const HENYEY_GREENSTEIN_BACK = 0.4; // how much scattering [0,1]
+const HENYEY_GREENSTEIN_DISTRIBUTION = 0.1; // forward [0,1] backwards
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -88,9 +93,10 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     var alpha = 1.0 - cloud_info.transmittance;
     alpha = smoothstep(ALPHA_CUTOFF, 1.0, alpha);
 
-    let color = vec4f(cloud_info.color, alpha);
+    var color = cloud_info.color;
+    color = max(color, vec3f(AMBIENT_LIGHT, AMBIENT_LIGHT, AMBIENT_LIGHT));
 
-    return color;
+    return vec4f(color, alpha);
 }
 
 fn light_march(ray: Ray) -> vec3f {
@@ -107,7 +113,8 @@ fn light_march(ray: Ray) -> vec3f {
         let pos = ray.origin + ray.dir * t;
 
         let density = (sample_density(pos));
-        let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
+        // let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
         transmittance *= attenuation;
 
         if transmittance <= TRANSMITTANCE_CUTOFF {
@@ -135,14 +142,15 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // opacity
         // let density = ease_in_cubic(sample_density(pos));
         let density = sample_density(pos);
-        let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
+        // let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
 
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
         light_ray.dir = normalize(parameters.light_pos - pos);
         var light = light_march(light_ray);
-        light = light * dual_henyey_greenstein(HENYEY_GREENSTEIN_COEFF, dot(light_ray.dir, ray.dir), HENYEY_GREENSTEIN_DIST);
+        light = light * dual_henyey_greenstein(dot(light_ray.dir, ray.dir), HENYEY_GREENSTEIN_FORW, HENYEY_GREENSTEIN_BACK, HENYEY_GREENSTEIN_DISTRIBUTION);
         light *= SUN_LIGHT_MULT;
         light = saturate(light);
         color += light * transmittance * (1.0 - attenuation);
@@ -166,22 +174,27 @@ fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
     return exp(-(density * distance * absorption));
 }
 
+fn beers_powder(density: f32, distance: f32, absorption: f32) -> f32 {
+    let powder = 1.0 - exp(-2.0 * density * distance * absorption);
+    let beers = exp(-density * distance * absorption);
+    return beers;
+}
+
 fn henyey_greenstein(g: f32, costheta: f32) -> f32 {
     return (1.0 / (4.0 * PI)) * ((1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * costheta, 1.5));
 }
 
-fn dual_henyey_greenstein(g: f32, costheta: f32, p: f32) -> f32 {
-    return mix(henyey_greenstein(g, costheta), henyey_greenstein(-g, costheta), p);
+fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f32 {
+    return mix(henyey_greenstein(g_forw, costheta), henyey_greenstein(-g_back, costheta), p);
 }
 
 fn sample_density(pos: vec3f) -> f32 {
     let sampled_density = textureSample(noise_tex, noise_samp, pos * CLOUD_SAMPLE_MULT);
-    let m = vec4f(7.0, 2.0, 1.0, 0.0);
-    let density = (m.r * sampled_density.r
-        + m.g * sampled_density.g
-        + m.b * sampled_density.b
-        + m.a * sampled_density.a)
-        / (m.r + m.g + m.b + m.a);
+    let density = (SAMPLE_DENSITY_DISTRIBUTION.r * sampled_density.r
+        + SAMPLE_DENSITY_DISTRIBUTION.g * sampled_density.g
+        + SAMPLE_DENSITY_DISTRIBUTION.b * sampled_density.b
+        + SAMPLE_DENSITY_DISTRIBUTION.a * sampled_density.a)
+        / (SAMPLE_DENSITY_DISTRIBUTION.r + SAMPLE_DENSITY_DISTRIBUTION.g + SAMPLE_DENSITY_DISTRIBUTION.b + SAMPLE_DENSITY_DISTRIBUTION.a);
 
     return ease_in_cubic(density);
 }
@@ -251,12 +264,14 @@ fn ray_box_intersection(ray: Ray, box: Box3D) -> RayHit {
     return result;
 }
 
-// constants
+//
+// Utils
+//
 const PI = 3.1415927;
 const PI2 = PI * 2.0;
 const PI1_2 = PI / 2.0;
 const PI1_4 = PI / 4.0;
-const PI1_8 = PI / 8.0; //fn get_ray_dir_2(uv: vec2f) -> vec3f {
+const PI1_8 = PI / 8.0;
 
 // easeing functions
 fn ease_out_cubic(x: f32) -> f32 {

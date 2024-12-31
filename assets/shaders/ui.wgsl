@@ -3,7 +3,8 @@ struct VertexInput {
     @location(1) @interpolate(flat) ty: u32, // 0 shape 1 text
     @location(2) color: vec4<f32>,
     @location(3) uv: vec2<f32>,
-};
+}
+;
 
 const TYPE_SHAPE = 0u;
 const TYPE_TEXT = 1u;
@@ -15,7 +16,7 @@ const TYPE_TEXT = 1u;
 struct CameraUniform {
     pos: vec3<f32>,
     facing: vec3<f32>,
-    
+
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
@@ -23,7 +24,8 @@ struct CameraUniform {
     inv_view: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>,
-};
+}
+;
 
 @vertex
 fn vs_main(
@@ -45,7 +47,8 @@ struct VertexOutput {
     @location(0) color: vec4<f32>,
     @location(1) @interpolate(flat) ty: u32,
     @location(2) uv: vec2<f32>,
-};
+}
+;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {

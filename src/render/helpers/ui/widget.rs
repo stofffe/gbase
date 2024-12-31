@@ -143,6 +143,8 @@ impl Widget {
     }
 
     pub fn button(&mut self, ctx: &Context, renderer: &mut GUIRenderer) -> ButtonResult {
+        debug_assert!(!self.label.is_empty(), "ui button must have a label");
+
         self.parent = renderer.get_layout();
 
         let id = self.label.clone();
@@ -197,6 +199,8 @@ impl Widget {
         max: f32,
         value: &mut f32,
     ) -> SliderResult {
+        debug_assert!(!self.label.is_empty(), "ui slider must have a label");
+
         self.parent = renderer.get_layout();
 
         let id = self.label.clone();
@@ -255,7 +259,7 @@ impl Widget {
     // private api
     //
     pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
-        let mut bounds = self.computed_bounds_margin();
+        let bounds = self.computed_bounds_margin();
 
         // TODO: chaos
         // let font_info = renderer.font_atlas.font_info.clone();
