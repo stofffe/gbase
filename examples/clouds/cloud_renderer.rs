@@ -23,7 +23,6 @@ impl CloudRenderer {
         framebuffer: &render::FrameBuffer,
         depth_buffer: &render::DepthBuffer,
         camera: &render::UniformBuffer<CameraUniform>,
-        bounding_box: &render::UniformBuffer<collision::Box3D>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_noise(ctx)?;
@@ -55,8 +54,6 @@ impl CloudRenderer {
                     .uniform()
                     .vertex()
                     .fragment(),
-                // Cloud BB
-                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // Parameters
                 render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // Noise texture
@@ -79,8 +76,6 @@ impl CloudRenderer {
                 render::BindGroupEntry::Buffer(app_info.buffer()),
                 // Camera
                 render::BindGroupEntry::Buffer(camera.buffer()),
-                // Cloud BB
-                render::BindGroupEntry::Buffer(bounding_box.buffer()),
                 // Parameters
                 render::BindGroupEntry::Buffer(parameters.buffer()),
                 // Noise texture

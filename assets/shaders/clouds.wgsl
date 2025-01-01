@@ -29,22 +29,19 @@ struct CameraUniform {
     inv_view_proj: mat4x4f,
 }
 
-@group(0) @binding(2) var<uniform> bounding_box: Box3D;
-struct Box3D {
-    min: vec3f,
-    max: vec3f,
-}
-
-@group(0) @binding(3) var<uniform> params: CloudParameters;
+@group(0) @binding(2) var<uniform> params: CloudParameters;
 struct CloudParameters {
     light_pos: vec3f,
+    bounds_min: vec3f,
+    bounds_max: vec3f,
 
     alpha_cutoff: f32,
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
 
-    absorption: f32,
+    density_absorption: f32,
+    sun_absorption: f32,
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
@@ -53,8 +50,8 @@ struct CloudParameters {
     ambient_light: f32,
 }
 
-@group(0) @binding(4) var noise_tex: texture_3d<f32>;
-@group(0) @binding(5) var noise_samp: sampler;
+@group(0) @binding(3) var noise_tex: texture_3d<f32>;
+@group(0) @binding(4) var noise_samp: sampler;
 
 @vertex
 fn vs(
@@ -66,7 +63,7 @@ fn vs(
     return out;
 }
 
-const SAMPLE_DENSITY_DISTRIBUTION = vec4f(8.0, 2.0, 1.0, 0.0);
+const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
 const DENSITY_STEPS = 10;
 const SUN_STEPS = 4;
 
@@ -75,6 +72,10 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     let uv = in.uv;
 
     let ray = get_ray_dir(uv);
+
+    var bounding_box: Box3D;
+    bounding_box.min = params.bounds_min;
+    bounding_box.max = params.bounds_max;
 
     let hit = ray_box_intersection(ray, bounding_box);
     let enter = max(hit.t_near, 0.0);
@@ -99,6 +100,10 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
 
 fn light_march(ray: Ray) -> vec3f {
     // assume hit
+    var bounding_box: Box3D;
+    bounding_box.min = params.bounds_min;
+    bounding_box.max = params.bounds_max;
+
     let hit = ray_box_intersection(ray, bounding_box);
     let start = max(hit.t_near, 0.0);
     let end = min(hit.t_far, length(ray.origin - params.light_pos));
@@ -112,7 +117,7 @@ fn light_march(ray: Ray) -> vec3f {
 
         let density = (sample_density(pos));
         // let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
-        let attenuation = beers_powder(density, step_size, params.absorption); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, params.sun_absorption * 0.5); // how much ligth is absorbed un this step
         transmittance *= attenuation;
 
         if transmittance <= params.transmittance_cutoff {
@@ -141,7 +146,7 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // let density = ease_in_cubic(sample_density(pos));
         let density = sample_density(pos);
         // let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
-        let attenuation = beers_powder(density, step_size, params.absorption); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, params.density_absorption); // how much ligth is absorbed un this step
 
         // color
         var light_ray: Ray;
@@ -173,8 +178,8 @@ fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
 }
 
 fn beers_powder(density: f32, distance: f32, absorption: f32) -> f32 {
-    let powder = 1.0 - exp(-2.0 * density * distance * absorption);
-    let beers = exp(-density * distance * absorption);
+    let powder = 1.0 - exp(-2.0 * density * distance * absorption * params.powder_mult);
+    let beers = params.beers_mult * exp(-density * distance * absorption);
     return beers;
 }
 
@@ -187,7 +192,9 @@ fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f3
 }
 
 fn sample_density(pos: vec3f) -> f32 {
-    let sampled_density = textureSample(noise_tex, noise_samp, pos * params.cloud_sample_mult);
+    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.1;
+    let sample_coords = pos * params.cloud_sample_mult + sample_coord_offset;
+    let sampled_density = textureSample(noise_tex, noise_samp, sample_coords);
     let density = (SAMPLE_DENSITY_DISTRIBUTION.r * sampled_density.r
         + SAMPLE_DENSITY_DISTRIBUTION.g * sampled_density.g
         + SAMPLE_DENSITY_DISTRIBUTION.b * sampled_density.b
@@ -200,6 +207,11 @@ fn sample_density(pos: vec3f) -> f32 {
 struct CloudInfo {
     transmittance: f32,
     color: vec3f,
+}
+
+struct Box3D {
+    min: vec3f,
+    max: vec3f,
 }
 
 struct Ray {

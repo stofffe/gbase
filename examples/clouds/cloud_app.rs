@@ -5,25 +5,29 @@ use gbase::{
     collision::{self, Box3D},
     filesystem, glam, input, render, time, wgpu, winit,
 };
-use glam::{vec3, Quat, Vec3, Vec4Swizzles};
+use glam::{vec3, Quat, Vec3, Vec4, Vec4Swizzles};
 use std::fs::File;
 use std::io::{self, Write};
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 
 const FONT_SIZE: f32 = 40.0;
+const FONT_COLOR: Vec4 = render::WHITE;
 const BTN_SIZE: f32 = 80.0;
 
 #[derive(Debug, Clone, PartialEq, encase::ShaderType, serde::Serialize, serde::Deserialize)]
 pub struct CloudParameters {
     light_pos: Vec3,
+    bounds_min: Vec3,
+    bounds_max: Vec3,
 
     alpha_cutoff: f32,
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
 
-    absorption: f32,
+    density_absorption: f32,
+    sun_absorption: f32,
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
@@ -36,17 +40,22 @@ impl Default for CloudParameters {
     fn default() -> Self {
         Self {
             light_pos: vec3(10.0, 0.0, 10.0),
+            bounds_min: vec3(-5.0, -5.0, -5.0),
+            bounds_max: vec3(5.0, 5.0, 5.0),
+
             alpha_cutoff: 0.7,
             henyey_forw: 0.7,
             henyey_back: 0.5,
             henyey_dist: 0.3,
 
-            absorption: 6.0,
+            density_absorption: 6.0,
+            sun_absorption: 3.0,
+
             transmittance_cutoff: 0.001,
             sun_light_mult: 15.0,
             cloud_sample_mult: 0.25,
-            beers_mult: 2.0,
-            powder_mult: 0.5,
+            beers_mult: 1.0,
+            powder_mult: 1.0,
             ambient_light: 0.01,
         }
     }
@@ -59,8 +68,6 @@ pub struct App {
 
     camera: render::PerspectiveCamera,
     camera_buffer: render::UniformBuffer<render::CameraUniform>,
-    cloud_bb: collision::Box3D,
-    cloud_bb_buffer: render::UniformBuffer<Box3D>,
 
     ui_renderer: render::GUIRenderer,
     gizmo_renderer: render::GizmoRenderer,
@@ -115,16 +122,12 @@ impl gbase::Callbacks for App {
         let cloud_parameters_buffer =
             UniformBufferBuilder::new(render::UniformBufferSource::Data(cloud_parameters.clone()))
                 .build(ctx);
-        let cloud_bb = collision::Box3D::new(vec3(0.0, 0.0, 0.0), vec3(10.0, 5.0, 10.0));
-        let cloud_bb_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
         let cloud_renderer = cloud_renderer::CloudRenderer::new(
             ctx,
             &framebuffer,
             &depth_buffer,
             &camera_buffer,
-            &cloud_bb_buffer,
             &cloud_parameters_buffer,
         )
         .expect("could not create cloud renderer");
@@ -142,8 +145,6 @@ impl gbase::Callbacks for App {
 
             cloud_params: cloud_parameters,
             cloud_parameters_buffer,
-            cloud_bb,
-            cloud_bb_buffer,
 
             debug_mode: false,
             enable_gizmos: false,
@@ -165,7 +166,6 @@ impl gbase::Callbacks for App {
                 &self.framebuffer,
                 &self.depth_buffer,
                 &self.camera_buffer,
-                &self.cloud_bb_buffer,
                 &self.cloud_parameters_buffer,
             ) {
                 println!("Ok");
@@ -175,7 +175,6 @@ impl gbase::Callbacks for App {
                 println!("Fail");
                 self.debug_msg = String::from("Fail");
             }
-            self.cloud_bb = Box3D::new(Vec3::ZERO, vec3(5.0, 5.0, 5.0));
         }
 
         #[cfg(feature = "hot_reload")]
@@ -209,7 +208,6 @@ impl gbase::Callbacks for App {
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-        self.cloud_bb_buffer.write(ctx, &self.cloud_bb);
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);
 
         // clear buffers
@@ -250,7 +248,9 @@ impl gbase::Callbacks for App {
 
 impl App {
     fn gizmos(&mut self, ctx: &Context) {
-        let bb = self.cloud_bb.to_transform();
+        let bb = render::Transform::from_scale(
+            self.cloud_params.bounds_max - self.cloud_params.bounds_min,
+        );
         self.gizmo_renderer.draw_cube(
             &render::Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
             render::RED.xyz(),
@@ -273,6 +273,7 @@ impl App {
         }
         if input::key_just_pressed(ctx, input::KeyCode::KeyD) {
             self.params_changed = false;
+            self.load_param_index = true;
         }
 
         if !self.params_changed {
@@ -360,21 +361,21 @@ impl App {
         outer.layout(renderer, |renderer| {
             Widget::new()
                 .text(format!("Shader: {}", self.debug_msg))
-                .text_color(render::BLUE)
+                .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
             Widget::new()
                 .text(format!("fps: {:.2}", time::fps(ctx)))
-                .text_color(render::BLUE)
+                .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
             Widget::new()
                 .text(format!("Params {}", self.param_index))
-                .text_color(render::BLUE)
+                .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
@@ -407,6 +408,7 @@ impl App {
                     let save_btn = Widget::new()
                         .label("params save")
                         .text("Save")
+                        .text_color(FONT_COLOR)
                         .width(render::SizeKind::TextSize)
                         .height(render::SizeKind::TextSize)
                         .text_font_size(FONT_SIZE)
@@ -419,6 +421,7 @@ impl App {
                     let discard_btn = Widget::new()
                         .label("params discard")
                         .text("Discard")
+                        .text_color(FONT_COLOR)
                         .width(render::SizeKind::TextSize)
                         .height(render::SizeKind::TextSize)
                         .text_font_size(FONT_SIZE)
@@ -427,12 +430,14 @@ impl App {
                         .button(ctx, renderer);
                     if discard_btn.clicked {
                         self.params_changed = false;
+                        self.load_param_index = true;
                     }
                 });
 
             let gizmos_btn = Widget::new()
                 .label("gizmos")
                 .text("Gizmos")
+                .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
@@ -461,6 +466,7 @@ impl App {
                     .layout(renderer, |renderer| {
                         Widget::new()
                             .text(label)
+                            .text_color(FONT_COLOR)
                             .width(render::SizeKind::Pixels(250.0))
                             .height(render::SizeKind::TextSize)
                             .text_font_size(FONT_SIZE)
@@ -483,6 +489,7 @@ impl App {
                             });
                         Widget::new()
                             .text(format!("{value:.2}"))
+                            .text_color(FONT_COLOR)
                             .width(render::SizeKind::TextSize)
                             .height(render::SizeKind::TextSize)
                             .text_font_size(FONT_SIZE)
@@ -490,26 +497,35 @@ impl App {
                     });
             }
 
+            let mut bounds_size = self.cloud_params.bounds_max - self.cloud_params.bounds_min;
+
             let p = &mut self.cloud_params;
             let sliders = [
-                ("light x", -100.0, 100.0, &mut p.light_pos.x),
-                ("light y", -100.0, 100.0, &mut p.light_pos.y),
-                ("light z", -100.0, 100.0, &mut p.light_pos.z),
+                ("bounds x", 0.0, 500.0, &mut bounds_size.x),
+                ("bounds y", 0.0, 50.0, &mut bounds_size.y),
+                ("bounds z", 0.0, 500.0, &mut bounds_size.z),
+                ("light x", -500.0, 500.0, &mut p.light_pos.x),
+                ("light y", -500.0, 500.0, &mut p.light_pos.y),
+                ("light z", -500.0, 500.0, &mut p.light_pos.z),
                 ("henyey forw", 0.0, 1.0, &mut p.henyey_forw),
                 ("henyey back", 0.0, 1.0, &mut p.henyey_back),
                 ("henyey dist", 0.0, 1.0, &mut p.henyey_dist),
                 ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
-                ("ambient light", 0.0, 1.0, &mut p.ambient_light),
-                ("absorption", 0.0, 30.0, &mut p.absorption),
-                ("beers mult", 0.0, 5.0, &mut p.beers_mult),
-                ("powder mult", 0.0, 5.0, &mut p.powder_mult),
-                ("noise zoom", 0.0, 5.0, &mut p.cloud_sample_mult),
+                ("ambient light", 0.0, 0.1, &mut p.ambient_light),
+                ("d absorption", 0.0, 10.0, &mut p.density_absorption),
+                ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
+                ("beers mult", 0.0, 2.0, &mut p.beers_mult),
+                ("powder mult", 0.0, 2.0, &mut p.powder_mult),
+                ("noise zoom", 0.0, 0.5, &mut p.cloud_sample_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
                 ("transmittance cut", 0.0, 1.0, &mut p.transmittance_cutoff),
             ];
             for (label, min, max, value) in sliders {
                 f32_slider(ctx, renderer, min, max, value, label);
             }
+
+            self.cloud_params.bounds_min = -bounds_size * 0.5;
+            self.cloud_params.bounds_max = bounds_size * 0.5;
         });
 
         let params_changed = self.cloud_params != params_old;
