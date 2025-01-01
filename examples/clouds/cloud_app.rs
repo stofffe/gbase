@@ -1,5 +1,5 @@
 use crate::cloud_renderer;
-use gbase::render::{window, UniformBufferBuilder, Widget, BLUE, DARK_GREY, GRAY, GREEN, RED};
+use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
 use gbase::{
     collision::{self, Box3D},
@@ -16,13 +16,40 @@ const BTN_SIZE: f32 = 80.0;
 
 #[derive(Debug, Clone, PartialEq, encase::ShaderType, serde::Serialize, serde::Deserialize)]
 pub struct CloudParameters {
-    // lights
     light_pos: Vec3,
 
     alpha_cutoff: f32,
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
+
+    absorption: f32,
+    transmittance_cutoff: f32,
+    sun_light_mult: f32,
+    cloud_sample_mult: f32,
+    beers_mult: f32,
+    powder_mult: f32,
+    ambient_light: f32,
+}
+
+impl Default for CloudParameters {
+    fn default() -> Self {
+        Self {
+            light_pos: vec3(10.0, 0.0, 10.0),
+            alpha_cutoff: 0.7,
+            henyey_forw: 0.7,
+            henyey_back: 0.5,
+            henyey_dist: 0.3,
+
+            absorption: 6.0,
+            transmittance_cutoff: 0.001,
+            sun_light_mult: 15.0,
+            cloud_sample_mult: 0.25,
+            beers_mult: 2.0,
+            powder_mult: 0.5,
+            ambient_light: 0.01,
+        }
+    }
 }
 
 pub struct App {
@@ -84,13 +111,7 @@ impl gbase::Callbacks for App {
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
-        let cloud_parameters = CloudParameters {
-            light_pos: vec3(10.0, 0.0, 10.0),
-            alpha_cutoff: 0.7,
-            henyey_forw: 0.7,
-            henyey_back: 0.5,
-            henyey_dist: 0.3,
-        };
+        let cloud_parameters = CloudParameters::default();
         let cloud_parameters_buffer =
             UniformBufferBuilder::new(render::UniformBufferSource::Data(cloud_parameters.clone()))
                 .build(ctx);
@@ -305,12 +326,20 @@ impl App {
 
         if self.load_param_index && !self.params_changed {
             let Ok(file) = File::open(&file_name) else {
+                println!("could not open file {file_name} aborting params load");
                 return;
             };
             let content = io::read_to_string(file).expect("could not read params file");
-            let params = serde_json::from_str(&content).expect("could not deserialize params");
-            self.cloud_params = params;
 
+            let params = match serde_json::from_str(&content) {
+                Ok(params) => params,
+                Err(err) => {
+                    println!("could not deserialize params: {err}");
+                    return;
+                }
+            };
+
+            self.cloud_params = params;
             self.load_param_index = false;
             self.params_changed = false;
             println!("loaded params {}", self.param_index);
@@ -438,7 +467,7 @@ impl App {
                             .render(renderer);
                         Widget::new()
                             .label(label)
-                            .width(render::SizeKind::Pixels(500.0))
+                            .width(render::SizeKind::Pixels(300.0))
                             .height(render::SizeKind::Pixels(50.0))
                             .direction(render::Direction::Row)
                             .color(GRAY)
@@ -452,65 +481,35 @@ impl App {
                                     .color(BLUE)
                                     .render(renderer);
                             });
+                        Widget::new()
+                            .text(format!("{value:.2}"))
+                            .width(render::SizeKind::TextSize)
+                            .height(render::SizeKind::TextSize)
+                            .text_font_size(FONT_SIZE)
+                            .render(renderer);
                     });
             }
 
-            f32_slider(
-                ctx,
-                renderer,
-                -100.0,
-                100.0,
-                &mut self.cloud_params.light_pos.x,
-                "light pos x",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                -100.0,
-                100.0,
-                &mut self.cloud_params.light_pos.y,
-                "light pos y",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                -100.0,
-                100.0,
-                &mut self.cloud_params.light_pos.z,
-                "light pos z",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                0.0,
-                1.0,
-                &mut self.cloud_params.alpha_cutoff,
-                "alpha cutoff",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                0.0,
-                1.0,
-                &mut self.cloud_params.henyey_forw,
-                "henyey forw",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                0.0,
-                1.0,
-                &mut self.cloud_params.henyey_back,
-                "henyey back",
-            );
-            f32_slider(
-                ctx,
-                renderer,
-                0.0,
-                1.0,
-                &mut self.cloud_params.henyey_dist,
-                "henyey dist",
-            );
+            let p = &mut self.cloud_params;
+            let sliders = [
+                ("light x", -100.0, 100.0, &mut p.light_pos.x),
+                ("light y", -100.0, 100.0, &mut p.light_pos.y),
+                ("light z", -100.0, 100.0, &mut p.light_pos.z),
+                ("henyey forw", 0.0, 1.0, &mut p.henyey_forw),
+                ("henyey back", 0.0, 1.0, &mut p.henyey_back),
+                ("henyey dist", 0.0, 1.0, &mut p.henyey_dist),
+                ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
+                ("ambient light", 0.0, 1.0, &mut p.ambient_light),
+                ("absorption", 0.0, 30.0, &mut p.absorption),
+                ("beers mult", 0.0, 5.0, &mut p.beers_mult),
+                ("powder mult", 0.0, 5.0, &mut p.powder_mult),
+                ("noise zoom", 0.0, 5.0, &mut p.cloud_sample_mult),
+                ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
+                ("transmittance cut", 0.0, 1.0, &mut p.transmittance_cutoff),
+            ];
+            for (label, min, max, value) in sliders {
+                f32_slider(ctx, renderer, min, max, value, label);
+            }
         });
 
         let params_changed = self.cloud_params != params_old;

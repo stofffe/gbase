@@ -43,6 +43,14 @@ struct CloudParameters {
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
+
+    absorption: f32,
+    transmittance_cutoff: f32,
+    sun_light_mult: f32,
+    cloud_sample_mult: f32,
+    beers_mult: f32,
+    powder_mult: f32,
+    ambient_light: f32,
 }
 
 @group(0) @binding(4) var noise_tex: texture_3d<f32>;
@@ -58,23 +66,9 @@ fn vs(
     return out;
 }
 
-const DENSITY_STEPS = 8;
+const SAMPLE_DENSITY_DISTRIBUTION = vec4f(8.0, 2.0, 1.0, 0.0);
+const DENSITY_STEPS = 10;
 const SUN_STEPS = 4;
-const ABSORPTION = 13.0;
-const ABSORPTION_DENSITY = ABSORPTION;
-const ABSORPTION_SUN = ABSORPTION;
-const TRANSMITTANCE_CUTOFF = 0.001;
-const SUN_LIGHT_MULT = 5.0;
-const CLOUD_SAMPLE_MULT = 0.25;
-const SAMPLE_DENSITY_DISTRIBUTION = vec4f(3.0, 2.0, 1.0, 0.0);
-const BEERS_MULT = 2.0;
-const POWDER_MULT = 0.5;
-const AMBIENT_LIGHT = 0.01;
-
-//const ALPHA_CUTOFF = 0.9;
-//const HENYEY_GREENSTEIN_FORW = 0.9; // how much scattering [0,1]
-//const HENYEY_GREENSTEIN_BACK = 0.4; // how much scattering [0,1]
-//const HENYEY_GREENSTEIN_DISTRIBUTION = 0.1; // forward [0,1] backwards
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -98,7 +92,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     alpha = smoothstep(params.alpha_cutoff, 1.0, alpha);
 
     var color = cloud_info.color;
-    color = max(color, vec3f(AMBIENT_LIGHT, AMBIENT_LIGHT, AMBIENT_LIGHT));
+    color = max(color, vec3f(params.ambient_light, params.ambient_light, params.ambient_light));
 
     return vec4f(color, alpha);
 }
@@ -118,10 +112,10 @@ fn light_march(ray: Ray) -> vec3f {
 
         let density = (sample_density(pos));
         // let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
-        let attenuation = beers_powder(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, params.absorption); // how much ligth is absorbed un this step
         transmittance *= attenuation;
 
-        if transmittance <= TRANSMITTANCE_CUTOFF {
+        if transmittance <= params.transmittance_cutoff {
             transmittance = 0.0;
             break;
         }
@@ -147,7 +141,7 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         // let density = ease_in_cubic(sample_density(pos));
         let density = sample_density(pos);
         // let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
-        let attenuation = beers_powder(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
+        let attenuation = beers_powder(density, step_size, params.absorption); // how much ligth is absorbed un this step
 
         // color
         var light_ray: Ray;
@@ -155,12 +149,12 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         light_ray.dir = normalize(params.light_pos - pos);
         var light = light_march(light_ray);
         light = light * dual_henyey_greenstein(dot(light_ray.dir, ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
-        light *= SUN_LIGHT_MULT;
+        light *= params.sun_light_mult;
         light = saturate(light);
         color += light * transmittance * (1.0 - attenuation);
 
         transmittance *= attenuation;
-        if transmittance <= TRANSMITTANCE_CUTOFF {
+        if transmittance <= params.transmittance_cutoff {
             transmittance = 0.0;
             break;
         }
@@ -193,7 +187,7 @@ fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f3
 }
 
 fn sample_density(pos: vec3f) -> f32 {
-    let sampled_density = textureSample(noise_tex, noise_samp, pos * CLOUD_SAMPLE_MULT);
+    let sampled_density = textureSample(noise_tex, noise_samp, pos * params.cloud_sample_mult);
     let density = (SAMPLE_DENSITY_DISTRIBUTION.r * sampled_density.r
         + SAMPLE_DENSITY_DISTRIBUTION.g * sampled_density.g
         + SAMPLE_DENSITY_DISTRIBUTION.b * sampled_density.b

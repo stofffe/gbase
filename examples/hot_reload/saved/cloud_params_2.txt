@@ -1,1 +1,1 @@
-{"light_pos":[54.684372,12.090622,-9.565628],"alpha_cutoff":0.86370313,"henyey_forw":0.89101565,"henyey_back":0.867125,"henyey_dist":0.28973436}
+{"light_pos":[10.0,0.0,10.0],"alpha_cutoff":0.7,"henyey_forw":0.7,"henyey_back":0.5,"henyey_dist":0.3,"density_steps":8,"sun_steps":4,"absorption":6.0,"transmittance_cutoff":0.001,"sun_light_mult":15.0,"cloud_sample_mult":0.25,"beers_mult":2.0,"powder_mult":0.5,"ambient_light":0.01}
