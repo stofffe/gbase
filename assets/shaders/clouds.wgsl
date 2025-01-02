@@ -63,9 +63,18 @@ fn vs(
     return out;
 }
 
+//
+// --------
+//
+// SETTINGS
+//
+// --------
+//
+
 const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
 const DENSITY_STEPS = 10;
 const SUN_STEPS = 4;
+const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -98,37 +107,35 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     return vec4f(color, alpha);
 }
 
-fn light_march(ray: Ray) -> vec3f {
+// get attenuation to sun
+fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
     // assume hit
     var bounding_box: Box3D;
     bounding_box.min = params.bounds_min;
     bounding_box.max = params.bounds_max;
 
-    let hit = ray_box_intersection(ray, bounding_box);
+    let hit = ray_box_intersection(sun_ray, bounding_box);
     let start = max(hit.t_near, 0.0);
-    let end = min(hit.t_far, length(ray.origin - params.light_pos));
-    let step_size = length(end - start) / f32(SUN_STEPS);
+    let end = min(hit.t_far, length(sun_ray.origin - params.light_pos));
+    let dist = (end - start);
+    let step_size = dist / f32(SUN_STEPS);
 
     var t = start;
-    var transmittance = 1.0;
-
+    var density = 0.0;
     for (var i = 0; i < SUN_STEPS; i++) {
-        let pos = ray.origin + ray.dir * t;
+        let pos = sun_ray.origin + sun_ray.dir * t;
 
-        let density = (sample_density(pos));
-        // let attenuation = beers(density, step_size, ABSORPTION_SUN); // how much ligth is absorbed un this step
-        let attenuation = beers_powder(density, step_size, params.sun_absorption * 0.5); // how much ligth is absorbed un this step
-        transmittance *= attenuation;
-
-        if transmittance <= params.transmittance_cutoff {
-            transmittance = 0.0;
+        density += sample_density(pos) / f32(SUN_STEPS);
+        if density >= 1.0 {
             break;
         }
 
         t += step_size;
     }
 
-    return vec3f(transmittance, transmittance, transmittance);
+    let attenuation = beers(density, dist, params.sun_absorption);
+    let scattering = dual_henyey_greenstein(dot(sun_ray.dir, main_ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
+    return SUN_COLOR * attenuation * scattering * params.sun_light_mult;
 }
 
 // returns transmittance
@@ -143,20 +150,17 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         let pos = ray.origin + ray.dir * t;
 
         // opacity
-        // let density = ease_in_cubic(sample_density(pos));
         let density = sample_density(pos);
-        // let attenuation = beers(density, step_size, ABSORPTION); // how much ligth is absorbed un this step
         let attenuation = beers_powder(density, step_size, params.density_absorption); // how much ligth is absorbed un this step
 
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
         light_ray.dir = normalize(params.light_pos - pos);
-        var light = light_march(light_ray);
-        light = light * dual_henyey_greenstein(dot(light_ray.dir, ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
-        light *= params.sun_light_mult;
-        light = saturate(light);
-        color += light * transmittance * (1.0 - attenuation);
+
+        // let light = light_march(ray, light_ray);
+        let light = light_march(ray, light_ray);
+        color += light * (1.0 - attenuation) * transmittance;
 
         transmittance *= attenuation;
         if transmittance <= params.transmittance_cutoff {
@@ -173,20 +177,25 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
     return cloud_info;
 }
 
+
+// calculate attenuation with beers law
 fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
     return exp(-(density * distance * absorption));
 }
 
+// calculate attenuation with beers law and powder equation
 fn beers_powder(density: f32, distance: f32, absorption: f32) -> f32 {
     let powder = 1.0 - exp(-2.0 * density * distance * absorption * params.powder_mult);
     let beers = params.beers_mult * exp(-density * distance * absorption);
     return beers;
 }
 
+// calculate forward scattering
 fn henyey_greenstein(g: f32, costheta: f32) -> f32 {
     return (1.0 / (4.0 * PI)) * ((1.0 - g * g) / pow(1.0 + g * g - 2.0 * g * costheta, 1.5));
 }
 
+// calculate forward/back scattering
 fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f32 {
     return mix(henyey_greenstein(g_forw, costheta), henyey_greenstein(-g_back, costheta), p);
 }

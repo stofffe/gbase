@@ -515,7 +515,7 @@ impl App {
                 ("d absorption", 0.0, 10.0, &mut p.density_absorption),
                 ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
                 ("beers mult", 0.0, 2.0, &mut p.beers_mult),
-                ("powder mult", 0.0, 2.0, &mut p.powder_mult),
+                // ("powder mult", 0.0, 2.0, &mut p.powder_mult),
                 ("noise zoom", 0.0, 0.5, &mut p.cloud_sample_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
                 ("transmittance cut", 0.0, 1.0, &mut p.transmittance_cutoff),
