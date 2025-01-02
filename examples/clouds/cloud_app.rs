@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 
-const FONT_SIZE: f32 = 40.0;
+const FONT_SIZE: f32 = 50.0;
 const FONT_COLOR: Vec4 = render::WHITE;
 const BTN_SIZE: f32 = 80.0;
 
@@ -22,6 +22,7 @@ pub struct CloudParameters {
     bounds_max: Vec3,
 
     alpha_cutoff: f32,
+    density_cutoff: f32,
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
@@ -31,9 +32,6 @@ pub struct CloudParameters {
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
-    beers_mult: f32,
-    powder_mult: f32,
-    ambient_light: f32,
 }
 
 impl Default for CloudParameters {
@@ -43,7 +41,8 @@ impl Default for CloudParameters {
             bounds_min: vec3(-5.0, -5.0, -5.0),
             bounds_max: vec3(5.0, 5.0, 5.0),
 
-            alpha_cutoff: 0.7,
+            alpha_cutoff: 0.0,
+            density_cutoff: 0.0,
             henyey_forw: 0.7,
             henyey_back: 0.5,
             henyey_dist: 0.3,
@@ -54,9 +53,6 @@ impl Default for CloudParameters {
             transmittance_cutoff: 0.001,
             sun_light_mult: 15.0,
             cloud_sample_mult: 0.25,
-            beers_mult: 1.0,
-            powder_mult: 1.0,
-            ambient_light: 0.01,
         }
     }
 }
@@ -511,14 +507,11 @@ impl App {
                 ("henyey back", 0.0, 1.0, &mut p.henyey_back),
                 ("henyey dist", 0.0, 1.0, &mut p.henyey_dist),
                 ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
-                ("ambient light", 0.0, 0.1, &mut p.ambient_light),
-                ("d absorption", 0.0, 10.0, &mut p.density_absorption),
-                ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
-                ("beers mult", 0.0, 2.0, &mut p.beers_mult),
-                // ("powder mult", 0.0, 2.0, &mut p.powder_mult),
+                ("d absorption", 0.0, 3.0, &mut p.density_absorption),
+                ("s absorption", 0.0, 3.0, &mut p.sun_absorption),
                 ("noise zoom", 0.0, 0.5, &mut p.cloud_sample_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
-                ("transmittance cut", 0.0, 1.0, &mut p.transmittance_cutoff),
+                ("density cut", 0.0, 1.0, &mut p.density_cutoff),
             ];
             for (label, min, max, value) in sliders {
                 f32_slider(ctx, renderer, min, max, value, label);

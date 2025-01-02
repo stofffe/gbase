@@ -1,0 +1,1 @@
+{"light_pos":[1e-45,0.0,500.0],"bounds_min":[102.43588,-47.98178,-250.0],"bounds_max":[-102.43588,47.98178,250.0],"alpha_cutoff":1.9290365,"henyey_forw":250.0,"henyey_back":0.42914063,"henyey_dist":0.634401,"density_absorption":0.5,"sun_absorption":0.3,"transmittance_cutoff":2.4221354,"sun_light_mult":0.90833336,"cloud_sample_mult":0.0}

@@ -36,6 +36,7 @@ struct CloudParameters {
     bounds_max: vec3f,
 
     alpha_cutoff: f32,
+    density_cutoff: f32,
     henyey_forw: f32,
     henyey_back: f32,
     henyey_dist: f32,
@@ -45,9 +46,6 @@ struct CloudParameters {
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
-    beers_mult: f32,
-    powder_mult: f32,
-    ambient_light: f32,
 }
 
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
@@ -70,6 +68,9 @@ fn vs(
 //
 // --------
 //
+fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
+    return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
+}
 
 const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
 const DENSITY_STEPS = 10;
@@ -78,6 +79,17 @@ const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
+    // if true {
+    //     let coords = vec3f(in.uv, app_info.t * 0.01);
+    //     let t = textureSample(noise_tex, noise_samp, coords * 1.0);
+    //
+    //     let perlin = t.a;
+    //     let worley_fbm = 0.625 * t.r + 0.25 * t.g + 0.125 * t.b;
+    //     let v = remap(perlin, 0.0, 1.0, worley_fbm, 1.0);
+    //
+    //     return vec4f(v, v, v, 1.0);
+    // }
+
     let uv = in.uv;
 
     let ray = get_ray_dir(uv);
@@ -102,7 +114,6 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     alpha = smoothstep(params.alpha_cutoff, 1.0, alpha);
 
     var color = cloud_info.color;
-    color = max(color, vec3f(params.ambient_light, params.ambient_light, params.ambient_light));
 
     return vec4f(color, alpha);
 }
@@ -158,8 +169,10 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
         light_ray.origin = pos;
         light_ray.dir = normalize(params.light_pos - pos);
 
-        // let light = light_march(ray, light_ray);
         let light = light_march(ray, light_ray);
+        // NOTE:
+        // 1.0 - attenuation: amount that is being absorbed in this point
+        // transmittance: amount of light in this spot that reaches camera
         color += light * (1.0 - attenuation) * transmittance;
 
         transmittance *= attenuation;
@@ -185,8 +198,8 @@ fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
 
 // calculate attenuation with beers law and powder equation
 fn beers_powder(density: f32, distance: f32, absorption: f32) -> f32 {
-    let powder = 1.0 - exp(-2.0 * density * distance * absorption * params.powder_mult);
-    let beers = params.beers_mult * exp(-density * distance * absorption);
+    let powder = 1.0 - exp(-2.0 * density * distance * absorption);
+    let beers = exp(-density * distance * absorption);
     return beers;
 }
 
@@ -201,16 +214,15 @@ fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f3
 }
 
 fn sample_density(pos: vec3f) -> f32 {
-    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.1;
+    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.0;
     let sample_coords = pos * params.cloud_sample_mult + sample_coord_offset;
-    let sampled_density = textureSample(noise_tex, noise_samp, sample_coords);
-    let density = (SAMPLE_DENSITY_DISTRIBUTION.r * sampled_density.r
-        + SAMPLE_DENSITY_DISTRIBUTION.g * sampled_density.g
-        + SAMPLE_DENSITY_DISTRIBUTION.b * sampled_density.b
-        + SAMPLE_DENSITY_DISTRIBUTION.a * sampled_density.a)
-        / (SAMPLE_DENSITY_DISTRIBUTION.r + SAMPLE_DENSITY_DISTRIBUTION.g + SAMPLE_DENSITY_DISTRIBUTION.b + SAMPLE_DENSITY_DISTRIBUTION.a);
+    let d = textureSample(noise_tex, noise_samp, sample_coords);
 
-    return ease_in_cubic(density);
+    let perlin = d.a;
+    let worley = (0.625 * d.r + 0.25 * d.g + 0.125 * d.b);
+
+    let worley_mask = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
+    return worley_mask;
 }
 
 struct CloudInfo {
