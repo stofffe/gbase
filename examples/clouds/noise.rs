@@ -7,7 +7,7 @@ const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
     cells_r: 4,
     cells_g: 8,
     cells_b: 16,
-    cells_a: 16,
+    perlin_scale: 10.0,
 };
 
 pub fn generate_noise(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {
@@ -71,5 +71,5 @@ struct NoiseGeneratorUniforms {
     cells_r: u32,
     cells_g: u32,
     cells_b: u32,
-    cells_a: u32,
+    perlin_scale: f32,
 }

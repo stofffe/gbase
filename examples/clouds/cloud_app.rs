@@ -1,10 +1,7 @@
 use crate::cloud_renderer;
 use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
-use gbase::{
-    collision::{self, Box3D},
-    filesystem, glam, input, render, time, wgpu, winit,
-};
+use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use glam::{vec3, Quat, Vec3, Vec4, Vec4Swizzles};
 use std::fs::File;
 use std::io::{self, Write};
@@ -252,7 +249,7 @@ impl App {
             render::RED.xyz(),
         );
         self.gizmo_renderer.draw_cube(
-            &render::Transform::from_pos(self.cloud_params.light_pos).with_scale(Vec3::ONE * 1.0),
+            &render::Transform::from_pos(self.cloud_params.light_pos).with_scale(Vec3::ONE * 5.0),
             render::RED.xyz(),
         );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
@@ -508,7 +505,7 @@ impl App {
                 ("henyey dist", 0.0, 1.0, &mut p.henyey_dist),
                 ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
                 ("d absorption", 0.0, 3.0, &mut p.density_absorption),
-                ("s absorption", 0.0, 3.0, &mut p.sun_absorption),
+                ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
                 ("noise zoom", 0.0, 0.5, &mut p.cloud_sample_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
                 ("density cut", 0.0, 1.0, &mut p.density_cutoff),

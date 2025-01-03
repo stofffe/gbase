@@ -4,7 +4,7 @@ struct NoiseGeneratorInfo {
     cells_r: u32,
     cells_g: u32,
     cells_b: u32,
-    cells_a: u32,
+    perlin_scale: f32,
 }
 @group(0) @binding(1) var output: texture_storage_3d<rgba8unorm, write>;
 
@@ -20,7 +20,7 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     // let perlin1 = perlinFBM(vec3f(id) / f32(settings.size));
     // let perlin1 = fbm2d(vec3f(id).xy / f32(settings.size));
-    let perlin1 = perlin_fbm_3d(vec3f(id) / f32(settings.size), 10.0);
+    let perlin1 = perlin_fbm_3d(vec3f(id) / f32(settings.size), settings.perlin_scale);
 
     let color = vec4<f32>(worley1, worley2, worley3, perlin1);
     textureStore(output, id, color);

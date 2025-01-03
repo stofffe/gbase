@@ -72,6 +72,19 @@ fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> 
     return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
 }
 
+fn sample_density(pos: vec3f) -> f32 {
+    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.0;
+    let sample_coords = pos * params.cloud_sample_mult + sample_coord_offset;
+    let d = textureSample(noise_tex, noise_samp, sample_coords);
+
+    let perlin = d.a;
+    let worley = (0.625 * d.r + 0.25 * d.g + 0.125 * d.b);
+
+    let worley_mask = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
+    return worley_mask;
+// return remap(perlin, -1.5, 1.0, 0.0, 1.0);
+}
+
 const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
 const DENSITY_STEPS = 10;
 const SUN_STEPS = 4;
@@ -85,7 +98,8 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     //
     //     let perlin = t.a;
     //     let worley_fbm = 0.625 * t.r + 0.25 * t.g + 0.125 * t.b;
-    //     let v = remap(perlin, 0.0, 1.0, worley_fbm, 1.0);
+    //     var v = remap(perlin, 0.0, 1.0, worley_fbm, 1.0);
+    //     v = t.r * 0.625 + t.g * 0.25 + t.b * 0.125;
     //
     //     return vec4f(v, v, v, 1.0);
     // }
@@ -144,9 +158,22 @@ fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
         t += step_size;
     }
 
-    let attenuation = beers(density, dist, params.sun_absorption);
-    let scattering = dual_henyey_greenstein(dot(sun_ray.dir, main_ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
-    return SUN_COLOR * attenuation * scattering * params.sun_light_mult;
+    let costh = dot(sun_ray.dir, main_ray.dir);
+    let attenuation = multiple_octave_scattering(density, costh);
+    let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
+    // return attenuation * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0)) * params.sun_light_mult * SUN_COLOR;
+    return attenuation * params.sun_light_mult * SUN_COLOR;
+// return vec3f(1.0) * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0));
+// return vec3f(attenuation);
+// return vec3f(1.0 - powder);
+// return vec3f(1.0);
+// return attenuation;
+
+// let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
+// let attenuation = beers(density, dist, params.sun_absorption);
+// let scattering = dual_henyey_greenstein(dot(sun_ray.dir, main_ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
+// // return SUN_COLOR * attenuation * scattering * params.sun_light_mult * powder;
+// return SUN_COLOR * attenuation * scattering * params.sun_light_mult;
 }
 
 // returns transmittance
@@ -213,16 +240,31 @@ fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f3
     return mix(henyey_greenstein(g_forw, costheta), henyey_greenstein(-g_back, costheta), p);
 }
 
-fn sample_density(pos: vec3f) -> f32 {
-    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.0;
-    let sample_coords = pos * params.cloud_sample_mult + sample_coord_offset;
-    let d = textureSample(noise_tex, noise_samp, sample_coords);
+fn multiple_octave_scattering(density: f32, costh: f32) -> vec3f {
+    let attenuation = 0.2;
+    let contribution = 0.2;
+    let phaseAttenuation = 0.5;
 
-    let perlin = d.a;
-    let worley = (0.625 * d.r + 0.25 * d.g + 0.125 * d.b);
+    var a = 1.0;
+    var b = 1.0;
+    var c = 1.0;
+    let g = 0.85;
+    let scatteringOctaves = 4.0;
 
-    let worley_mask = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
-    return worley_mask;
+    var luminance = vec3f(0.0);
+
+    for (var i = 0; f32(i) < scatteringOctaves; i = i + 1) {
+        let phaseFunction = dual_henyey_greenstein(costh, params.henyey_forw, params.henyey_back, params.henyey_dist);
+        let beer = exp(-density * params.sun_absorption * a);
+
+        luminance = luminance + b * phaseFunction * beer;
+
+        a = a * attenuation;
+        b = b * contribution;
+        c = c * (1.0 - phaseAttenuation);
+    }
+
+    return luminance;
 }
 
 struct CloudInfo {
