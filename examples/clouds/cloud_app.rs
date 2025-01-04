@@ -49,7 +49,7 @@ impl Default for CloudParameters {
 
             transmittance_cutoff: 0.001,
             sun_light_mult: 15.0,
-            cloud_sample_mult: 0.25,
+            cloud_sample_mult: 100.0,
         }
     }
 }

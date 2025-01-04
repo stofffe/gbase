@@ -50,7 +50,8 @@ struct CloudParameters {
 
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
 @group(0) @binding(4) var weather_map_tex: texture_2d<f32>;
-@group(0) @binding(5) var noise_samp: sampler;
+@group(0) @binding(5) var blue_noise_tex: texture_2d<f32>;
+@group(0) @binding(6) var noise_samp: sampler;
 
 @vertex
 fn vs(
@@ -105,11 +106,13 @@ fn sample_density(pos: vec3f) -> f32 {
 // return remap(perlin, -1.5, 1.0, 0.0, 1.0);
 }
 
-const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
-const DENSITY_STEPS = 10;
+// const SAMPLE_DENSITY_DISTRIBUTION = vec4f(5.0, 2.0, 1.0, 0.0);
+const DENSITY_STEPS = 20;
 const SUN_STEPS = 4;
 const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
 const SCROLL_SPEED = 0.01;
+const BLUE_ZOOM = 5.0;
+const BLUE_STEP = 2.0;
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -117,6 +120,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     // let d = textureSample(noise_tex, noise_samp, vec3f(in.uv, 0.0)).b;
     // return vec4f(d, d, d, 1.0);
     // return textureSample(weather_map_tex, noise_samp, in.uv * vec2f(1.0, 1.0));
+    // return textureSample(blue_noise_tex, noise_samp, in.uv * 2.0).a * vec4f(1.0);
     }
 
     let uv = in.uv;
@@ -128,16 +132,21 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     bounding_box.max = params.bounds_max;
 
     let hit = ray_box_intersection(ray, bounding_box);
-    let enter = max(hit.t_near, 0.0);
+    var entry = max(hit.t_near, 0.0);
     let exit = hit.t_far;
+
+    // offset entry with blue noise
+    let blue_noise = textureSample(blue_noise_tex, noise_samp, uv * BLUE_ZOOM).r;
+    let step_size = length(exit - entry) / f32(DENSITY_STEPS);
+    let entry_offseted = entry + (blue_noise - 0.5) * BLUE_STEP * step_size;
 
     if !hit.hit {
         return vec4f(0.0, 0.0, 0.0, 0.0);
     }
 
-    let hit_pos = ray.origin + ray.dir * enter;
+    let hit_pos = ray.origin + ray.dir * entry;
 
-    let cloud_info = cloud_march(ray, enter, exit);
+    let cloud_info = cloud_march(ray, entry_offseted, exit, uv);
 
     var alpha = 1.0 - cloud_info.transmittance;
     alpha = smoothstep(params.alpha_cutoff, 1.0, alpha);
@@ -174,26 +183,17 @@ fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
     }
 
     let costh = dot(sun_ray.dir, main_ray.dir);
+
     let attenuation = multiple_octave_scattering(density, costh);
+
     let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
     // return attenuation * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0)) * params.sun_light_mult * SUN_COLOR;
     // return 1.0 - powder * vec3f(1.0);
-    return attenuation * params.sun_light_mult * SUN_COLOR * powder;
-// return vec3f(1.0) * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0));
-// return vec3f(attenuation);
-// return vec3f(1.0 - powder);
-// return vec3f(1.0);
-// return attenuation;
-
-// let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
-// let attenuation = beers(density, dist, params.sun_absorption);
-// let scattering = dual_henyey_greenstein(dot(sun_ray.dir, main_ray.dir), params.henyey_forw, params.henyey_back, params.henyey_dist);
-// // return SUN_COLOR * attenuation * scattering * params.sun_light_mult * powder;
-// return SUN_COLOR * attenuation * scattering * params.sun_light_mult;
+    return attenuation * params.sun_light_mult * powder * SUN_COLOR;
 }
 
 // returns transmittance
-fn cloud_march(ray: Ray, entry: f32, exit: f32) -> CloudInfo {
+fn cloud_march(ray: Ray, entry: f32, exit: f32, uv: vec2f) -> CloudInfo {
     let step_size = length(exit - entry) / f32(DENSITY_STEPS);
 
     var t = entry;

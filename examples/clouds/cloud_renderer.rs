@@ -1,5 +1,5 @@
 use crate::cloud_app::CloudParameters;
-use crate::noise::{generate_cloud_noise, generate_weather_map};
+use crate::noise::{generate_blue_noise, generate_cloud_noise, generate_weather_map};
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
@@ -14,7 +14,8 @@ pub struct CloudRenderer {
     bindgroup: render::ArcBindGroup,
 
     noise_texture: render::Texture,
-    weather_map: render::Texture,
+    weather_map_texture: render::Texture,
+    blue_noise_texture: render::Texture,
     app_info: render::AppInfo,
 }
 
@@ -27,7 +28,8 @@ impl CloudRenderer {
         parameters: &render::UniformBuffer<CloudParameters>,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map = generate_weather_map(ctx)?;
+        let weather_map_texture = generate_weather_map(ctx);
+        let blue_noise_texture = generate_blue_noise(ctx);
 
         let app_info = render::AppInfo::new(ctx);
         let noise_sampler = SamplerBuilder::new()
@@ -70,6 +72,10 @@ impl CloudRenderer {
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
                     .fragment(),
+                // Blue noise
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
                 // Noise sampler
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
@@ -87,7 +93,9 @@ impl CloudRenderer {
                 // Noise texture
                 render::BindGroupEntry::Texture(noise_texture.view()),
                 // Weather map
-                render::BindGroupEntry::Texture(weather_map.view()),
+                render::BindGroupEntry::Texture(weather_map_texture.view()),
+                // Blue noise
+                render::BindGroupEntry::Texture(blue_noise_texture.view()),
                 // Noise sampler
                 render::BindGroupEntry::Sampler(noise_sampler.clone()),
             ])
@@ -108,8 +116,10 @@ impl CloudRenderer {
             vertices,
             pipeline,
             bindgroup,
+
             noise_texture,
-            weather_map,
+            weather_map_texture,
+            blue_noise_texture,
         })
     }
 
