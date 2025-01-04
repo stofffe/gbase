@@ -8,14 +8,12 @@ struct VertexOutput {
     @location(0) uv: vec2f,
 }
 
-@group(0) @binding(0) var<uniform> app_info: AppInfo;
 struct AppInfo {
     t: f32,
     screen_width: u32,
     screen_height: u32,
 }
 
-@group(0) @binding(1) var<uniform> camera: CameraUniform;
 struct CameraUniform {
     pos: vec3f,
     facing: vec3f,
@@ -29,7 +27,6 @@ struct CameraUniform {
     inv_view_proj: mat4x4f,
 }
 
-@group(0) @binding(2) var<uniform> params: CloudParameters;
 struct CloudParameters {
     light_pos: vec3f,
     bounds_min: vec3f,
@@ -48,6 +45,9 @@ struct CloudParameters {
     cloud_sample_mult: f32,
 }
 
+@group(0) @binding(0) var<uniform> app_info: AppInfo;
+@group(0) @binding(1) var<uniform> camera: CameraUniform;
+@group(0) @binding(2) var<uniform> params: CloudParameters;
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
 @group(0) @binding(4) var weather_map_tex: texture_2d<f32>;
 @group(0) @binding(5) var blue_noise_tex: texture_2d<f32>;
@@ -63,65 +63,21 @@ fn vs(
     return out;
 }
 
-//
-// --------
-//
-// SETTINGS
-//
-// --------
-//
-
-fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
-    return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
-}
-
-fn sample_density(pos: vec3f) -> f32 {
-    // noise
-    let noise_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * SCROLL_SPEED;
-    let noise_coords = pos / params.cloud_sample_mult + noise_coord_offset;
-    let noise = textureSample(noise_tex, noise_samp, noise_coords);
-    let perlin = noise.a;
-    var worley = (0.625 * noise.r + 0.25 * noise.g + 0.125 * noise.b);
-    worley = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
-
-    // weather
-    let weather_coord_offset = vec2f(1.0, 1.0) * app_info.t * SCROLL_SPEED;
-    let weather_coord = pos.xz * vec2f(1.0 / 1.0, 1.0) * 0.003 + weather_coord_offset;
-    let weather = textureSample(weather_map_tex, noise_samp, weather_coord);
-    let weather_mask = weather.r;
-    let weather_height = weather.g + 0.1;
-
-    let ph = (pos.y - params.bounds_min.y) / (params.bounds_max.y - params.bounds_min.y);
-
-    let bottom_rounding = saturate(remap(ph, 0.0, 0.07, 0.0, 1.0)); // round bottom
-    let top_rounding = saturate(remap(ph, 0.1 * weather_height, weather_height, 1.0, 0.0)); // round top
-
-    let carve = saturate(remap(perlin, worley, 1.0, 0.0, 1.0));
-    // let carve = worley;
-
-    // return perlin;
-    return weather_mask * bottom_rounding * top_rounding * carve;
-
-// return weather;
-// return remap(perlin, -1.5, 1.0, 0.0, 1.0);
-}
-
-// const SAMPLE_DENSITY_DISTRIBUTION = vec4f(5.0, 2.0, 1.0, 0.0);
-const DENSITY_STEPS = 20;
-const SUN_STEPS = 4;
+const DENSITY_STEPS = 30;
+const SUN_STEPS = 15;
 const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
 const SCROLL_SPEED = 0.01;
 const BLUE_ZOOM = 5.0;
-const BLUE_STEP = 2.0;
+const BLUE_STEP = 1.0;
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
-    if true {
+    // if true {
     // let d = textureSample(noise_tex, noise_samp, vec3f(in.uv, 0.0)).b;
     // return vec4f(d, d, d, 1.0);
     // return textureSample(weather_map_tex, noise_samp, in.uv * vec2f(1.0, 1.0));
     // return textureSample(blue_noise_tex, noise_samp, in.uv * 2.0).a * vec4f(1.0);
-    }
+    // }
 
     let uv = in.uv;
 
@@ -158,7 +114,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
 
 // get attenuation to sun
 fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
-    // assume hit
+    // NOTE: assume hit
     var bounding_box: Box3D;
     bounding_box.min = params.bounds_min;
     bounding_box.max = params.bounds_max;
@@ -186,10 +142,10 @@ fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
 
     let attenuation = multiple_octave_scattering(density, costh);
 
-    let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
-    // return attenuation * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0)) * params.sun_light_mult * SUN_COLOR;
-    // return 1.0 - powder * vec3f(1.0);
-    return attenuation * params.sun_light_mult * powder * SUN_COLOR;
+    // NOTE: not used
+    // let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
+
+    return attenuation * params.sun_light_mult * SUN_COLOR;
 }
 
 // returns transmittance
@@ -233,6 +189,31 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32, uv: vec2f) -> CloudInfo {
     return cloud_info;
 }
 
+
+fn sample_density(pos: vec3f) -> f32 {
+    // noise
+    let noise_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * SCROLL_SPEED;
+    let noise_coords = pos / params.cloud_sample_mult + noise_coord_offset;
+    let noise = textureSample(noise_tex, noise_samp, noise_coords);
+    let perlin = noise.a;
+    var worley = (0.625 * noise.r + 0.25 * noise.g + 0.125 * noise.b);
+    worley = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
+    let carve = saturate(remap(perlin, worley, 1.0, 0.0, 1.0));
+
+    // weather
+    let weather_coord_offset = vec2f(1.0, 1.0) * app_info.t * SCROLL_SPEED;
+    let weather_coord = pos.xz * vec2f(1.0 / 1.0, 1.0) * 0.003 + weather_coord_offset;
+    let weather = textureSample(weather_map_tex, noise_samp, weather_coord);
+    let weather_mask = weather.r;
+    let weather_height = weather.g + 0.1;
+
+    // top/bottom rounding
+    let ph = (pos.y - params.bounds_min.y) / (params.bounds_max.y - params.bounds_min.y);
+    let bottom_rounding = saturate(remap(ph, 0.0, 0.07, 0.0, 1.0)); // round bottom
+    let top_rounding = saturate(remap(ph, 0.1 * weather_height, weather_height, 1.0, 0.0)); // round top
+
+    return weather_mask * bottom_rounding * top_rounding * carve;
+}
 
 // calculate attenuation with beers law
 fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
@@ -302,7 +283,6 @@ struct RayHit {
     hit: bool,
     t_near: f32,
     t_far: f32,
-
 }
 
 fn get_ray_dir(uv: vec2f) -> Ray {
@@ -356,6 +336,11 @@ fn ray_box_intersection(ray: Ray, box: Box3D) -> RayHit {
 //
 // Utils
 //
+
+fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
+    return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
+}
+
 const PI = 3.1415927;
 const PI2 = PI * 2.0;
 const PI1_2 = PI / 2.0;
