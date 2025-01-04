@@ -495,7 +495,7 @@ impl App {
             let p = &mut self.cloud_params;
             let sliders = [
                 ("bounds x", 0.0, 500.0, &mut bounds_size.x),
-                ("bounds y", 0.0, 50.0, &mut bounds_size.y),
+                ("bounds y", 0.0, 100.0, &mut bounds_size.y),
                 ("bounds z", 0.0, 500.0, &mut bounds_size.z),
                 ("light x", -500.0, 500.0, &mut p.light_pos.x),
                 ("light y", -500.0, 500.0, &mut p.light_pos.y),
@@ -506,7 +506,7 @@ impl App {
                 ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
                 ("d absorption", 0.0, 3.0, &mut p.density_absorption),
                 ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
-                ("noise zoom", 0.0, 0.5, &mut p.cloud_sample_mult),
+                ("noise zoom", 0.0, 300.0, &mut p.cloud_sample_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
                 ("density cut", 0.0, 1.0, &mut p.density_cutoff),
             ];

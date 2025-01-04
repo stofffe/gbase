@@ -1,16 +1,16 @@
 use encase::ShaderType;
-use gbase::{filesystem, render, wgpu, Context};
+use gbase::{filesystem, load_b, render, wgpu, Context};
 
 const NOISE_TEXTURE_DIM: u32 = 128;
 const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
     size: NOISE_TEXTURE_DIM,
-    cells_r: 4,
-    cells_g: 8,
-    cells_b: 16,
+    cells_r: 8,
+    cells_g: 16,
+    cells_b: 32,
     perlin_scale: 10.0,
 };
 
-pub fn generate_noise(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {
+pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {
     // generate 3d texture
     let texture = render::TextureBuilder::new(render::TextureSource::Empty(
         NOISE_TEXTURE_DIM,
@@ -72,4 +72,70 @@ struct NoiseGeneratorUniforms {
     cells_g: u32,
     cells_b: u32,
     perlin_scale: f32,
+}
+
+#[derive(Clone, Debug, ShaderType)]
+struct WeatherMapUniforms {
+    size: u32,
+}
+const WEATHER_DIM: u32 = 512;
+const WEATHER_UNIFORM: WeatherMapUniforms = WeatherMapUniforms { size: WEATHER_DIM };
+
+pub fn generate_weather_map(ctx: &mut Context) -> Result<render::Texture, wgpu::Error> {
+    let a = render::TextureBuilder::new(render::TextureSource::Bytes(
+        load_b!("textures/clouds_weather_map.png").unwrap(),
+    ))
+    .format(wgpu::TextureFormat::Rgba8Unorm)
+    .dimension(wgpu::TextureDimension::D2)
+    .usage(
+        wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST,
+    )
+    .build(ctx);
+    return Ok(a);
+
+    // generate 2d texture
+    let texture =
+        render::TextureBuilder::new(render::TextureSource::Empty(WEATHER_DIM, WEATHER_DIM))
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .dimension(wgpu::TextureDimension::D2)
+            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+            .build(ctx);
+
+    let uniform =
+        render::UniformBufferBuilder::new(render::UniformBufferSource::Data(WEATHER_UNIFORM))
+            .build(ctx);
+
+    let shader_str = filesystem::load_s!("shaders/cloud_weather_map.wgsl").unwrap();
+    #[cfg(feature = "hot_reload")]
+    let shader = render::ShaderBuilder::new(shader_str).build_err(ctx)?;
+    #[cfg(not(feature = "hot_reload"))]
+    let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+
+    let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
+        .entries(vec![
+            // app info
+            render::BindGroupCombinedEntry::new(render::BindGroupEntry::Buffer(uniform.buffer()))
+                .uniform()
+                .compute(),
+            // output texture
+            render::BindGroupCombinedEntry::new(render::BindGroupEntry::Texture(texture.view()))
+                .storage_texture_2d_write(wgpu::TextureFormat::Rgba8Unorm)
+                .compute(),
+        ])
+        .build(ctx);
+    let compute_pipeline_layoyt = render::PipelineLayoutBuilder::new()
+        .bind_groups(vec![bindgroup_layout])
+        .build(ctx);
+    let compute_pipeline =
+        render::ComputePipelineBuilder::new(shader, compute_pipeline_layoyt).build(ctx);
+
+    render::ComputePassBuilder::new().build_run_new_encoder(ctx, |mut pass| {
+        pass.set_pipeline(&compute_pipeline);
+        pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+        pass.dispatch_workgroups(WEATHER_DIM, WEATHER_DIM, 1);
+    });
+
+    Ok(texture)
 }

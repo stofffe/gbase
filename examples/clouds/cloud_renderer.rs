@@ -1,5 +1,5 @@
 use crate::cloud_app::CloudParameters;
-use crate::noise::generate_noise;
+use crate::noise::{generate_cloud_noise, generate_weather_map};
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
@@ -14,6 +14,7 @@ pub struct CloudRenderer {
     bindgroup: render::ArcBindGroup,
 
     noise_texture: render::Texture,
+    weather_map: render::Texture,
     app_info: render::AppInfo,
 }
 
@@ -25,7 +26,8 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) -> Result<Self, wgpu::Error> {
-        let noise_texture = generate_noise(ctx)?;
+        let noise_texture = generate_cloud_noise(ctx)?;
+        let weather_map = generate_weather_map(ctx)?;
 
         let app_info = render::AppInfo::new(ctx);
         let noise_sampler = SamplerBuilder::new()
@@ -64,6 +66,10 @@ impl CloudRenderer {
                         multisampled: false,
                     })
                     .fragment(),
+                // Weather map
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
                 // Noise sampler
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
@@ -80,6 +86,8 @@ impl CloudRenderer {
                 render::BindGroupEntry::Buffer(parameters.buffer()),
                 // Noise texture
                 render::BindGroupEntry::Texture(noise_texture.view()),
+                // Weather map
+                render::BindGroupEntry::Texture(weather_map.view()),
                 // Noise sampler
                 render::BindGroupEntry::Sampler(noise_sampler.clone()),
             ])
@@ -101,6 +109,7 @@ impl CloudRenderer {
             pipeline,
             bindgroup,
             noise_texture,
+            weather_map,
         })
     }
 

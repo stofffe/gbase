@@ -49,7 +49,8 @@ struct CloudParameters {
 }
 
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
-@group(0) @binding(4) var noise_samp: sampler;
+@group(0) @binding(4) var weather_map_tex: texture_2d<f32>;
+@group(0) @binding(5) var noise_samp: sampler;
 
 @vertex
 fn vs(
@@ -68,20 +69,39 @@ fn vs(
 //
 // --------
 //
+
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     return to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min));
 }
 
 fn sample_density(pos: vec3f) -> f32 {
-    let sample_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * 0.0;
-    let sample_coords = pos * params.cloud_sample_mult + sample_coord_offset;
-    let d = textureSample(noise_tex, noise_samp, sample_coords);
+    // noise
+    let noise_coord_offset = vec3f(1.0, 0.0, 1.0) * app_info.t * SCROLL_SPEED;
+    let noise_coords = pos / params.cloud_sample_mult + noise_coord_offset;
+    let noise = textureSample(noise_tex, noise_samp, noise_coords);
+    let perlin = noise.a;
+    var worley = (0.625 * noise.r + 0.25 * noise.g + 0.125 * noise.b);
+    worley = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
 
-    let perlin = d.a;
-    let worley = (0.625 * d.r + 0.25 * d.g + 0.125 * d.b);
+    // weather
+    let weather_coord_offset = vec2f(1.0, 1.0) * app_info.t * SCROLL_SPEED;
+    let weather_coord = pos.xz * vec2f(1.0 / 1.0, 1.0) * 0.003 + weather_coord_offset;
+    let weather = textureSample(weather_map_tex, noise_samp, weather_coord);
+    let weather_mask = weather.r;
+    let weather_height = weather.g + 0.1;
 
-    let worley_mask = remap(worley, params.density_cutoff, 1.0, 0.0, 1.0);
-    return worley_mask;
+    let ph = (pos.y - params.bounds_min.y) / (params.bounds_max.y - params.bounds_min.y);
+
+    let bottom_rounding = saturate(remap(ph, 0.0, 0.07, 0.0, 1.0)); // round bottom
+    let top_rounding = saturate(remap(ph, 0.1 * weather_height, weather_height, 1.0, 0.0)); // round top
+
+    let carve = saturate(remap(perlin, worley, 1.0, 0.0, 1.0));
+    // let carve = worley;
+
+    // return perlin;
+    return weather_mask * bottom_rounding * top_rounding * carve;
+
+// return weather;
 // return remap(perlin, -1.5, 1.0, 0.0, 1.0);
 }
 
@@ -89,20 +109,15 @@ const SAMPLE_DENSITY_DISTRIBUTION = vec4f(2.0, 2.0, 1.0, 0.0);
 const DENSITY_STEPS = 10;
 const SUN_STEPS = 4;
 const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
+const SCROLL_SPEED = 0.01;
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
-    // if true {
-    //     let coords = vec3f(in.uv, app_info.t * 0.01);
-    //     let t = textureSample(noise_tex, noise_samp, coords * 1.0);
-    //
-    //     let perlin = t.a;
-    //     let worley_fbm = 0.625 * t.r + 0.25 * t.g + 0.125 * t.b;
-    //     var v = remap(perlin, 0.0, 1.0, worley_fbm, 1.0);
-    //     v = t.r * 0.625 + t.g * 0.25 + t.b * 0.125;
-    //
-    //     return vec4f(v, v, v, 1.0);
-    // }
+    if true {
+    // let d = textureSample(noise_tex, noise_samp, vec3f(in.uv, 0.0)).b;
+    // return vec4f(d, d, d, 1.0);
+    // return textureSample(weather_map_tex, noise_samp, in.uv * vec2f(1.0, 1.0));
+    }
 
     let uv = in.uv;
 
@@ -162,7 +177,8 @@ fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
     let attenuation = multiple_octave_scattering(density, costh);
     let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
     // return attenuation * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0)) * params.sun_light_mult * SUN_COLOR;
-    return attenuation * params.sun_light_mult * SUN_COLOR;
+    // return 1.0 - powder * vec3f(1.0);
+    return attenuation * params.sun_light_mult * SUN_COLOR * powder;
 // return vec3f(1.0) * mix(2.0 * powder, 1.0, remap(costh, -1.0, 1.0, 0.0, 1.0));
 // return vec3f(attenuation);
 // return vec3f(1.0 - powder);
