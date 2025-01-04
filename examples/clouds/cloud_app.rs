@@ -1,10 +1,13 @@
 use crate::cloud_renderer;
+use encase::internal::BufferMut;
 use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use glam::{vec3, Quat, Vec3, Vec4, Vec4Swizzles};
+use std::fmt::format;
 use std::fs::File;
 use std::io::{self, Write};
+use std::sync::mpsc;
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 
@@ -77,6 +80,7 @@ pub struct App {
     load_param_index: bool,
     write_param_index: bool,
     params_changed: bool,
+    store_surface: bool,
 }
 
 impl gbase::Callbacks for App {
@@ -146,6 +150,7 @@ impl gbase::Callbacks for App {
             load_param_index: true,
             write_param_index: false,
             params_changed: false,
+            store_surface: false,
         }
     }
 
@@ -219,6 +224,12 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
+        // render to image
+        if self.store_surface {
+            self.store(ctx);
+            self.store_surface = false;
+        }
+
         if self.enable_gizmos {
             self.gizmos(ctx);
         }
@@ -233,8 +244,11 @@ impl gbase::Callbacks for App {
     fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer
             .resize(ctx, new_size.width, new_size.height);
-        self.framebuffer.resize_screen(ctx);
-        self.depth_buffer.resize_screen(ctx);
+
+        self.framebuffer
+            .resize(ctx, new_size.width, new_size.height);
+        self.depth_buffer
+            .resize(ctx, new_size.width, new_size.height);
         self.ui_renderer.resize(ctx, new_size);
     }
 }
@@ -261,13 +275,13 @@ impl App {
         // Keyboard shortcuts
         //
 
-        if input::key_just_pressed(ctx, input::KeyCode::KeyS) {
-            self.write_param_index = true;
-        }
-        if input::key_just_pressed(ctx, input::KeyCode::KeyD) {
-            self.params_changed = false;
-            self.load_param_index = true;
-        }
+        // if input::key_just_pressed(ctx, input::KeyCode::KeyS) {
+        //     self.write_param_index = true;
+        // }
+        // if input::key_just_pressed(ctx, input::KeyCode::KeyD) {
+        //     self.params_changed = false;
+        //     self.load_param_index = true;
+        // }
 
         if !self.params_changed {
             if input::key_just_pressed(ctx, input::KeyCode::Digit1) {
@@ -426,6 +440,18 @@ impl App {
                         self.load_param_index = true;
                     }
                 });
+            let store = Widget::new()
+                .label("store")
+                .text("Store")
+                .text_color(FONT_COLOR)
+                .width(render::SizeKind::TextSize)
+                .height(render::SizeKind::TextSize)
+                .text_font_size(FONT_SIZE)
+                .color(render::GRAY)
+                .button(ctx, renderer);
+            if store.clicked {
+                self.store_surface = true;
+            }
 
             let gizmos_btn = Widget::new()
                 .label("gizmos")
@@ -523,4 +549,100 @@ impl App {
             self.params_changed = true;
         }
     }
+
+    /// store the image and the metadata
+    fn store(&self, ctx: &mut Context) {
+        let width = render::surface_size(ctx).width;
+        let height = render::surface_size(ctx).height;
+
+        // info
+        let ms = time::frame_time(ctx);
+        let mut metadata_file = File::create(format!("saved/image_{}_{}.info", width, height))
+            .expect("could not create metadata file");
+        metadata_file
+            .write_all(ms.to_string().as_bytes())
+            .expect("could not write to metadata file");
+
+        // image
+        let image_bytes = texture_to_buffer_gamma(ctx, self.framebuffer.view().clone());
+        let image_buffer = gbase::image::ImageBuffer::<gbase::image::Rgba<u8>, _>::from_raw(
+            width,
+            height,
+            image_bytes,
+        )
+        .expect("could not create image buffer");
+        image_buffer
+            .save(format!("saved/image_{}_{}.png", width, height))
+            .expect("could not write to image file");
+
+        println!("STORE")
+    }
+}
+
+// render texture to Rgba8UnormSrgb and then load to PNG
+fn texture_to_buffer_gamma(ctx: &mut Context, texture: render::ArcTextureView) -> Vec<u8> {
+    let temp_framebuffer = render::FrameBufferBuilder::new()
+        .screen_size(ctx)
+        .format(wgpu::TextureFormat::Rgba8UnormSrgb)
+        .build(ctx);
+    render::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb).render(
+        ctx,
+        texture,
+        temp_framebuffer.view_ref(),
+    );
+    texture_to_buffer_sync(ctx, temp_framebuffer.texture_ref())
+}
+
+fn texture_to_buffer_sync(ctx: &Context, texture: &wgpu::Texture) -> Vec<u8> {
+    let pixel_size = std::mem::size_of::<u8>() as u32 * 4;
+    let window_size = render::surface_size(ctx);
+    let buffer_size = window_size.width * window_size.height * pixel_size;
+    let read_back_buffer = render::RawBufferBuilder::new()
+        .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+        .build(ctx, buffer_size);
+
+    let mut encoder = render::EncoderBuilder::new().build(ctx);
+    encoder.copy_texture_to_buffer(
+        wgpu::ImageCopyTextureBase {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::ImageCopyBufferBase {
+            buffer: &read_back_buffer.buffer(),
+            layout: wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(window_size.width * pixel_size),
+                rows_per_image: Some(window_size.height),
+            },
+        },
+        wgpu::Extent3d {
+            width: window_size.width,
+            height: window_size.height,
+            depth_or_array_layers: 1,
+        },
+    );
+    let queue = render::queue(ctx);
+    queue.submit(Some(encoder.finish()));
+
+    read_buffer_sync(render::device(ctx), &read_back_buffer.buffer())
+}
+
+fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
+    device: &wgpu::Device,
+    buffer: &wgpu::Buffer,
+) -> Vec<T> {
+    let buffer_slice = buffer.slice(..);
+    let (sc, rc) = mpsc::channel();
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        sc.send(res).unwrap();
+    });
+    device.poll(wgpu::MaintainBase::Wait);
+    let _ = rc.recv().unwrap();
+    let data = buffer_slice.get_mapped_range();
+    let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+    drop(data);
+    buffer.unmap();
+    result
 }

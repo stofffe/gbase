@@ -52,8 +52,8 @@ impl RawBufferBuilder {
 }
 
 impl RawBufferBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn usage(mut self, value: wgpu::BufferUsages) -> Self {

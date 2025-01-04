@@ -63,10 +63,12 @@ fn vs(
     return out;
 }
 
-const DENSITY_STEPS = 30;
-const SUN_STEPS = 15;
+// const DENSITY_STEPS = 30;
+// const SUN_STEPS = 15;
+const DENSITY_STEPS = 10;
+const SUN_STEPS = 5;
 const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
-const SCROLL_SPEED = 0.01;
+const SCROLL_SPEED = 0.0;
 const BLUE_ZOOM = 5.0;
 const BLUE_STEP = 1.0;
 
