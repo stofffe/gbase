@@ -1,11 +1,9 @@
 use crate::cloud_renderer;
-use encase::internal::BufferMut;
 use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use glam::{vec3, Quat, Vec3, Vec4, Vec4Swizzles};
-use std::fmt::format;
-use std::fs::File;
+use std::fs;
 use std::io::{self, Write};
 use std::sync::mpsc;
 use winit::dpi::PhysicalSize;
@@ -59,7 +57,7 @@ impl Default for CloudParameters {
 
 pub struct App {
     framebuffer: render::FrameBuffer,
-    framebuffer_renderer: render::TextureRenderer,
+    texture_to_screen: render::TextureRenderer,
     depth_buffer: render::DepthBuffer,
 
     camera: render::PerspectiveCamera,
@@ -81,6 +79,9 @@ pub struct App {
     write_param_index: bool,
     params_changed: bool,
     store_surface: bool,
+
+    framebuffer_width: u32,
+    framebuffer_height: u32,
 }
 
 impl gbase::Callbacks for App {
@@ -107,19 +108,20 @@ impl gbase::Callbacks for App {
         camera.pos = vec3(0.0, 0.0, 15.0);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+
+        let screen_format = render::surface_config(ctx).format;
         let ui_renderer = render::GUIRenderer::new(
             ctx,
-            framebuffer.format(),
+            screen_format,
             1024,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
         );
-
-        let cloud_parameters = CloudParameters::default();
-        let cloud_parameters_buffer =
-            UniformBufferBuilder::new(render::UniformBufferSource::Data(cloud_parameters.clone()))
-                .build(ctx);
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
+        let cloud_parameters_buffer = UniformBufferBuilder::new(render::UniformBufferSource::Data(
+            CloudParameters::default(),
+        ))
+        .build(ctx);
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, screen_format, &camera_buffer);
         let cloud_renderer = cloud_renderer::CloudRenderer::new(
             ctx,
             &framebuffer,
@@ -132,7 +134,7 @@ impl gbase::Callbacks for App {
         Self {
             framebuffer,
             depth_buffer,
-            framebuffer_renderer,
+            texture_to_screen: framebuffer_renderer,
             ui_renderer,
             gizmo_renderer,
             cloud_renderer,
@@ -140,7 +142,7 @@ impl gbase::Callbacks for App {
             camera,
             camera_buffer,
 
-            cloud_params: cloud_parameters,
+            cloud_params: CloudParameters::default(),
             cloud_parameters_buffer,
 
             debug_mode: false,
@@ -151,6 +153,9 @@ impl gbase::Callbacks for App {
             write_param_index: false,
             params_changed: false,
             store_surface: false,
+
+            framebuffer_width: 1920,
+            framebuffer_height: 1080,
         }
     }
 
@@ -158,6 +163,13 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+            self.framebuffer_width = 1920 / 16;
+            self.framebuffer_height = 1080 / 16;
+            self.framebuffer
+                .resize(ctx, self.framebuffer_width, self.framebuffer_height);
+            self.depth_buffer
+                .resize(ctx, self.framebuffer_width, self.framebuffer_height);
+
             println!("Reload cloud renderer");
             if let Ok(r) = cloud_renderer::CloudRenderer::new(
                 ctx,
@@ -224,6 +236,9 @@ impl gbase::Callbacks for App {
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
 
+        self.texture_to_screen
+            .render(ctx, self.framebuffer.view(), screen_view);
+
         // render to image
         if self.store_surface {
             self.store(ctx);
@@ -232,10 +247,9 @@ impl gbase::Callbacks for App {
 
         if self.enable_gizmos {
             self.gizmos(ctx);
+            self.gizmo_renderer.render(ctx, screen_view);
         }
-        self.ui_renderer.render(ctx, self.framebuffer.view_ref());
-        self.framebuffer_renderer
-            .render(ctx, self.framebuffer.view(), screen_view);
+        self.ui_renderer.render(ctx, screen_view);
 
         false
     }
@@ -266,7 +280,6 @@ impl App {
             &render::Transform::from_pos(self.cloud_params.light_pos).with_scale(Vec3::ONE * 5.0),
             render::RED.xyz(),
         );
-        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
     }
 
     // save and load param configs
@@ -274,14 +287,6 @@ impl App {
         //
         // Keyboard shortcuts
         //
-
-        // if input::key_just_pressed(ctx, input::KeyCode::KeyS) {
-        //     self.write_param_index = true;
-        // }
-        // if input::key_just_pressed(ctx, input::KeyCode::KeyD) {
-        //     self.params_changed = false;
-        //     self.load_param_index = true;
-        // }
 
         if !self.params_changed {
             if input::key_just_pressed(ctx, input::KeyCode::Digit1) {
@@ -323,7 +328,7 @@ impl App {
         if self.write_param_index {
             let content =
                 serde_json::to_string(&self.cloud_params).expect("could not serialze params");
-            let mut file = File::create(&file_name).expect("could not open params file");
+            let mut file = fs::File::create(&file_name).expect("could not open params file");
             file.write_all(content.as_bytes())
                 .expect("could not write to params file");
 
@@ -333,7 +338,7 @@ impl App {
         }
 
         if self.load_param_index && !self.params_changed {
-            let Ok(file) = File::open(&file_name) else {
+            let Ok(file) = fs::File::open(&file_name) else {
                 println!("could not open file {file_name} aborting params load");
                 return;
             };
@@ -552,27 +557,34 @@ impl App {
 
     /// store the image and the metadata
     fn store(&self, ctx: &mut Context) {
-        let width = render::surface_size(ctx).width;
-        let height = render::surface_size(ctx).height;
+        let custom_width = self.framebuffer_width;
+        let custom_height = self.framebuffer_height;
 
         // info
         let ms = time::frame_time(ctx);
-        let mut metadata_file = File::create(format!("saved/image_{}_{}.info", width, height))
-            .expect("could not create metadata file");
+        let mut metadata_file = fs::File::create(format!(
+            "saved/image_{}_{}.info",
+            custom_width, custom_height
+        ))
+        .expect("could not create metadata file");
         metadata_file
             .write_all(ms.to_string().as_bytes())
             .expect("could not write to metadata file");
 
         // image
-        let image_bytes = texture_to_buffer_gamma(ctx, self.framebuffer.view().clone());
+        // NOTE: always render to original resolution
+        let image_bytes = texture_to_buffer_gamma(ctx, self.framebuffer.view(), 1920, 1080);
         let image_buffer = gbase::image::ImageBuffer::<gbase::image::Rgba<u8>, _>::from_raw(
-            width,
-            height,
+            1920,
+            1080,
             image_bytes,
         )
         .expect("could not create image buffer");
         image_buffer
-            .save(format!("saved/image_{}_{}.png", width, height))
+            .save(format!(
+                "saved/image_{}_{}.png",
+                custom_width, custom_height
+            ))
             .expect("could not write to image file");
 
         println!("STORE")
@@ -580,9 +592,14 @@ impl App {
 }
 
 // render texture to Rgba8UnormSrgb and then load to PNG
-fn texture_to_buffer_gamma(ctx: &mut Context, texture: render::ArcTextureView) -> Vec<u8> {
+fn texture_to_buffer_gamma(
+    ctx: &mut Context,
+    texture: render::ArcTextureView,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
     let temp_framebuffer = render::FrameBufferBuilder::new()
-        .screen_size(ctx)
+        .size(width, height)
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx);
     render::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb).render(
@@ -590,13 +607,17 @@ fn texture_to_buffer_gamma(ctx: &mut Context, texture: render::ArcTextureView) -
         texture,
         temp_framebuffer.view_ref(),
     );
-    texture_to_buffer_sync(ctx, temp_framebuffer.texture_ref())
+    texture_to_buffer_sync(ctx, temp_framebuffer.texture_ref(), width, height)
 }
 
-fn texture_to_buffer_sync(ctx: &Context, texture: &wgpu::Texture) -> Vec<u8> {
+fn texture_to_buffer_sync(
+    ctx: &Context,
+    texture: &wgpu::Texture,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
     let pixel_size = std::mem::size_of::<u8>() as u32 * 4;
-    let window_size = render::surface_size(ctx);
-    let buffer_size = window_size.width * window_size.height * pixel_size;
+    let buffer_size = width * height * pixel_size;
     let read_back_buffer = render::RawBufferBuilder::new()
         .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
         .build(ctx, buffer_size);
@@ -613,13 +634,13 @@ fn texture_to_buffer_sync(ctx: &Context, texture: &wgpu::Texture) -> Vec<u8> {
             buffer: &read_back_buffer.buffer(),
             layout: wgpu::ImageDataLayout {
                 offset: 0,
-                bytes_per_row: Some(window_size.width * pixel_size),
-                rows_per_image: Some(window_size.height),
+                bytes_per_row: Some(width * pixel_size),
+                rows_per_image: Some(height),
             },
         },
         wgpu::Extent3d {
-            width: window_size.width,
-            height: window_size.height,
+            width,
+            height,
             depth_or_array_layers: 1,
         },
     );
