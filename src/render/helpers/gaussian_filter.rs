@@ -17,7 +17,6 @@ pub struct GaussianFilter {
 }
 
 impl GaussianFilter {
-    // TODO: pass size and format only?
     pub fn new(ctx: &mut Context) -> Self {
         let shader = render::ShaderBuilder::new(
             filesystem::load_s!("shaders/gaussian_filter.wgsl").unwrap(),
@@ -92,7 +91,7 @@ impl GaussianFilter {
                 .build(ctx);
         }
 
-        // Run box filter compute shader
+        // Create bindgroups
         let horizontal_bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 render::BindGroupEntry::Texture(framebuffer.view()), // in
@@ -108,6 +107,7 @@ impl GaussianFilter {
             ])
             .build(ctx);
 
+        // Run shader
         render::ComputePassBuilder::new().build_run(&mut encoder, |mut pass| {
             // horizontal
             pass.set_pipeline(&self.horizontal_pipeline);
