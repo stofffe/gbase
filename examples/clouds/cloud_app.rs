@@ -188,13 +188,6 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            // self.cloud_resolution.x = CLOUD_BASE_WIDTH / 16;
-            // self.cloud_resolution.y = CLOUD_BASE_HEIGHT / 16;
-            // self.framebuffer
-            //     .resize(ctx, self.cloud_resolution.x, self.cloud_resolution.y);
-            // self.depth_buffer
-            //     .resize(ctx, self.cloud_resolution.x, self.cloud_resolution.y);
-
             println!("Reload cloud renderer");
             if let Ok(r) = cloud_renderer::CloudRenderer::new(
                 ctx,

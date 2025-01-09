@@ -19,7 +19,7 @@ struct App {
     texture4: render::Texture,
     texture5: render::Texture,
 
-    last_texture: ArcTextureView,
+    current_texture: ArcTextureView,
 
     box_filter: render::BoxFilter,
     median_filter: render::MedianFilter,
@@ -28,6 +28,10 @@ struct App {
 }
 
 impl Callbacks for App {
+    fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.framebuffer
+            .resize(ctx, new_size.width, new_size.height);
+    }
     fn new(ctx: &mut Context) -> Self {
         // renderers
         let framebuffer = render::FrameBufferBuilder::new()
@@ -79,8 +83,6 @@ impl Callbacks for App {
         let sobel_filter = render::SobelFilter::new(ctx);
         let gaussian_filter = render::GaussianFilter::new(ctx);
 
-        texture_renderer_base.render(ctx, texture1.view(), framebuffer.view_ref());
-
         Self {
             texture_renderer_final,
             texture_renderer_base,
@@ -91,7 +93,7 @@ impl Callbacks for App {
             texture3,
             texture4,
             texture5,
-            last_texture,
+            current_texture: last_texture,
 
             box_filter,
             median_filter,
@@ -100,13 +102,13 @@ impl Callbacks for App {
         }
     }
 
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Backspace)
             || input::key_just_pressed(ctx, KeyCode::KeyR)
         {
             self.texture_renderer_base.render(
                 ctx,
-                self.last_texture.clone(),
+                self.current_texture.clone(),
                 self.framebuffer.view_ref(),
             );
         }
@@ -127,7 +129,7 @@ impl Callbacks for App {
                 self.texture1.view(),
                 self.framebuffer.view_ref(),
             );
-            self.last_texture = self.texture1.view();
+            self.current_texture = self.texture1.view();
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
             self.texture_renderer_base.render(
@@ -135,7 +137,7 @@ impl Callbacks for App {
                 self.texture2.view(),
                 self.framebuffer.view_ref(),
             );
-            self.last_texture = self.texture2.view();
+            self.current_texture = self.texture2.view();
         }
         if input::key_just_pressed(ctx, KeyCode::Digit3) {
             self.texture_renderer_base.render(
@@ -143,7 +145,7 @@ impl Callbacks for App {
                 self.texture3.view(),
                 self.framebuffer.view_ref(),
             );
-            self.last_texture = self.texture3.view();
+            self.current_texture = self.texture3.view();
         }
         if input::key_just_pressed(ctx, KeyCode::Digit4) {
             self.texture_renderer_base.render(
@@ -151,7 +153,7 @@ impl Callbacks for App {
                 self.texture4.view(),
                 self.framebuffer.view_ref(),
             );
-            self.last_texture = self.texture4.view();
+            self.current_texture = self.texture4.view();
         }
         if input::key_just_pressed(ctx, KeyCode::Digit5) {
             self.texture_renderer_base.render(
@@ -159,7 +161,7 @@ impl Callbacks for App {
                 self.texture5.view(),
                 self.framebuffer.view_ref(),
             );
-            self.last_texture = self.texture5.view();
+            self.current_texture = self.texture5.view();
         }
 
         // filters
@@ -218,9 +220,6 @@ impl Callbacks for App {
                 &render::GaussianFilterParams::new(3, 2.0),
             );
         }
-        false
-    }
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // final
         self.texture_renderer_final
             .render(ctx, self.framebuffer.view(), screen_view);

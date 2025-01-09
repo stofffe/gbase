@@ -268,8 +268,8 @@ impl ComputePipelineBuilder {
         self.label = Some(value);
         self
     }
-    pub fn entry_point(mut self, value: String) -> Self {
-        self.entry_point = Some(value);
+    pub fn entry_point(mut self, value: impl Into<String>) -> Self {
+        self.entry_point = Some(value.into());
         self
     }
 }

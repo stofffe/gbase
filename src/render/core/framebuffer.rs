@@ -1,6 +1,6 @@
 use crate::{render, Context};
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameBufferBuilder {
     label: Option<String>,
     usage: wgpu::TextureUsages,
@@ -89,6 +89,7 @@ impl FrameBufferBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct FrameBuffer {
     texture: render::ArcTexture,
     view: render::ArcTextureView,
@@ -156,6 +157,9 @@ impl FrameBuffer {
             })])
             .build(&mut encoder);
         render::queue(ctx).submit(Some(encoder.finish()));
+    }
+    pub fn builder(&self) -> FrameBufferBuilder {
+        self.builder.clone()
     }
 }
 
