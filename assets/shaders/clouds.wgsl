@@ -43,6 +43,11 @@ struct CloudParameters {
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
+
+    blue_noise_zoom: f32,
+    blue_noise_step_mult: f32,
+
+    sun_density_contribution_limit: f32,
 }
 
 @group(0) @binding(0) var<uniform> app_info: AppInfo;
@@ -63,14 +68,12 @@ fn vs(
     return out;
 }
 
-// const DENSITY_STEPS = 30;
-// const SUN_STEPS = 15;
-const DENSITY_STEPS = 10;
+const DENSITY_STEPS = 50;
 const SUN_STEPS = 5;
+// const DENSITY_STEPS = 10;
+// const SUN_STEPS = 5;
 const SUN_COLOR = vec3f(1.0, 1.0, 0.80);
-const SCROLL_SPEED = 0.0;
-const BLUE_ZOOM = 5.0;
-const BLUE_STEP = 1.0;
+const SCROLL_SPEED = 0.00;
 
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
@@ -94,9 +97,9 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     let exit = hit.t_far;
 
     // offset entry with blue noise
-    let blue_noise = textureSample(blue_noise_tex, noise_samp, uv * BLUE_ZOOM).r;
+    let blue_noise = textureSample(blue_noise_tex, noise_samp, uv * params.blue_noise_zoom).r;
     let step_size = length(exit - entry) / f32(DENSITY_STEPS);
-    let entry_offseted = entry + (blue_noise - 0.5) * BLUE_STEP * step_size;
+    let entry_offseted = entry + (blue_noise - 0.5) * params.blue_noise_step_mult * step_size;
 
     if !hit.hit {
         return vec4f(0.0, 0.0, 0.0, 0.0);
@@ -104,7 +107,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
 
     let hit_pos = ray.origin + ray.dir * entry;
 
-    let cloud_info = cloud_march(ray, entry_offseted, exit, uv);
+    let cloud_info = cloud_march(ray, entry_offseted, exit, blue_noise);
 
     var alpha = 1.0 - cloud_info.transmittance;
     alpha = smoothstep(params.alpha_cutoff, 1.0, alpha);
@@ -115,7 +118,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
 }
 
 // get attenuation to sun
-fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
+fn light_march(main_ray: Ray, sun_ray: Ray, blue_noise: f32) -> vec3f {
     // NOTE: assume hit
     var bounding_box: Box3D;
     bounding_box.min = params.bounds_min;
@@ -142,17 +145,20 @@ fn light_march(main_ray: Ray, sun_ray: Ray) -> vec3f {
 
     let costh = dot(sun_ray.dir, main_ray.dir);
 
-    let attenuation = multiple_octave_scattering(density, costh);
+    var attenuation = beers(density, end - start, params.sun_absorption) * multiple_octave_scattering(density, costh);
+    // attenuation += blue_noise * 0.005;
 
     // NOTE: not used
-    // let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
+    let powder = 1.0 - exp(-2.0 * density * params.sun_absorption);
 
-    return attenuation * params.sun_light_mult * SUN_COLOR;
+    return attenuation * params.sun_light_mult * SUN_COLOR + powder * 2.0;
+// return attenuation * params.sun_light_mult * SUN_COLOR * remap(powder, 0.0, 1.0, 0.6, 1.0);
 }
 
 // returns transmittance
-fn cloud_march(ray: Ray, entry: f32, exit: f32, uv: vec2f) -> CloudInfo {
-    let step_size = length(exit - entry) / f32(DENSITY_STEPS);
+fn cloud_march(ray: Ray, entry: f32, exit: f32, blue_noise: f32) -> CloudInfo {
+    let steps = f32(DENSITY_STEPS);
+    let step_size = length(exit - entry) / steps;
 
     var t = entry;
     var transmittance = 1.0;
@@ -163,18 +169,22 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32, uv: vec2f) -> CloudInfo {
 
         // opacity
         let density = sample_density(pos);
-        let attenuation = beers_powder(density, step_size, params.density_absorption); // how much ligth is absorbed un this step
+        let attenuation = beers(density, step_size, params.density_absorption); // how much ligth is absorbed un this step
 
         // color
         var light_ray: Ray;
         light_ray.origin = pos;
         light_ray.dir = normalize(params.light_pos - pos);
 
-        let light = light_march(ray, light_ray);
-        // NOTE:
-        // 1.0 - attenuation: amount that is being absorbed in this point
-        // transmittance: amount of light in this spot that reaches camera
-        color += light * (1.0 - attenuation) * transmittance;
+        // only calc light if density large enough
+        if density >= params.sun_density_contribution_limit {
+            let light = light_march(ray, light_ray, blue_noise);
+            // NOTE:
+            // 1.0 - attenuation: amount that is being absorbed in this point
+            // transmittance: amount of light in this spot that reaches camera
+            color += light * (1.0 - attenuation) * transmittance;
+
+        }
 
         transmittance *= attenuation;
         if transmittance <= params.transmittance_cutoff {
@@ -226,7 +236,7 @@ fn beers(density: f32, distance: f32, absorption: f32) -> f32 {
 fn beers_powder(density: f32, distance: f32, absorption: f32) -> f32 {
     let powder = 1.0 - exp(-2.0 * density * distance * absorption);
     let beers = exp(-density * distance * absorption);
-    return beers;
+    return beers * powder;
 }
 
 // calculate forward scattering
@@ -240,19 +250,16 @@ fn dual_henyey_greenstein(costheta: f32, g_forw: f32, g_back: f32, p: f32) -> f3
 }
 
 fn multiple_octave_scattering(density: f32, costh: f32) -> vec3f {
-    let attenuation = 0.2;
-    let contribution = 0.2;
-    let phaseAttenuation = 0.5;
+    const attenuation = 0.2;
+    const contribution = 0.2;
+    const phaseAttenuation = 0.5;
+    const scatteringOctaves = 4;
 
     var a = 1.0;
     var b = 1.0;
     var c = 1.0;
-    let g = 0.85;
-    let scatteringOctaves = 4.0;
-
     var luminance = vec3f(0.0);
-
-    for (var i = 0; f32(i) < scatteringOctaves; i = i + 1) {
+    for (var i = 0; i < scatteringOctaves; i += 1) {
         let phaseFunction = dual_henyey_greenstein(costh, params.henyey_forw, params.henyey_back, params.henyey_dist);
         let beer = exp(-density * params.sun_absorption * a);
 

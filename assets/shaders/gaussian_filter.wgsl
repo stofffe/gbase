@@ -5,7 +5,8 @@
 struct Params {
     kernel_size: i32, // side length (3 => 3x3 matrix)
     sigma: f32,
-};
+}
+;
 
 //const SIGMA: f32 = 1.0;
 const PI: f32 = 3.14159265359;
@@ -17,8 +18,7 @@ fn gaussian(x: f32, y: f32, sigma: f32) -> f32 {
     return (1.0 / (2.0 * PI * sigma2)) * exp(exponent);
 }
 
-@compute
-@workgroup_size(1, 1, 1)
+@compute @workgroup_size(1, 1, 1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = i32(global_id.x);
     let y = i32(global_id.y);
@@ -39,7 +39,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             if sample_pos.x >= 0 && sample_pos.x < dim.x && sample_pos.y >= 0 && sample_pos.y < dim.y {
                 let distance_x: f32 = f32(i);
                 let distance_y: f32 = f32(j);
-                
+
                 // Compute the Gaussian weight for the current offset (i, j)
                 let weight: f32 = gaussian(distance_x, distance_y, params.sigma);
 

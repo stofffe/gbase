@@ -2,16 +2,17 @@ use crate::cloud_renderer;
 use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
-use glam::{vec3, Quat, Vec3, Vec4, Vec4Swizzles};
+use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::fs;
 use std::io::{self, Write};
 use std::sync::mpsc;
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 
-const FONT_SIZE: f32 = 50.0;
+const FONT_SIZE: f32 = 40.0;
 const FONT_COLOR: Vec4 = render::WHITE;
-const BTN_SIZE: f32 = 80.0;
+const BTN_SIZE: f32 = 50.0;
+const CLOUD_BASE_RESOLUTION: UVec2 = uvec2(3840, 2160);
 
 #[derive(Debug, Clone, PartialEq, encase::ShaderType, serde::Serialize, serde::Deserialize)]
 pub struct CloudParameters {
@@ -30,6 +31,11 @@ pub struct CloudParameters {
     transmittance_cutoff: f32,
     sun_light_mult: f32,
     cloud_sample_mult: f32,
+
+    blue_noise_zoom: f32,
+    blue_noise_step_mult: f32,
+
+    sun_density_contribution_limit: f32,
 }
 
 impl Default for CloudParameters {
@@ -51,6 +57,11 @@ impl Default for CloudParameters {
             transmittance_cutoff: 0.001,
             sun_light_mult: 15.0,
             cloud_sample_mult: 100.0,
+
+            blue_noise_zoom: 5.0,
+            blue_noise_step_mult: 1.0,
+
+            sun_density_contribution_limit: 0.01,
         }
     }
 }
@@ -66,6 +77,7 @@ pub struct App {
     ui_renderer: render::GUIRenderer,
     gizmo_renderer: render::GizmoRenderer,
     cloud_renderer: cloud_renderer::CloudRenderer,
+    gaussian_blur: render::GaussianFilter,
 
     cloud_parameters_buffer: render::UniformBuffer<CloudParameters>,
     cloud_params: CloudParameters,
@@ -80,22 +92,29 @@ pub struct App {
     params_changed: bool,
     store_surface: bool,
 
-    framebuffer_width: u32,
-    framebuffer_height: u32,
+    cloud_resolution: UVec2,
+
+    frames: u32,
 }
 
 impl gbase::Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Info)
+            .log_level(gbase::LogLevel::None)
             .window_builder(WindowBuilder::new().with_maximized(true))
-            .vsync(true)
+            .vsync(false)
     }
 
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
         let framebuffer = render::FrameBufferBuilder::new()
+            .usage(
+                wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::COPY_SRC,
+            )
             .screen_size(ctx)
             .build(ctx);
         let depth_buffer = render::DepthBufferBuilder::new()
@@ -105,7 +124,9 @@ impl gbase::Callbacks for App {
             render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         let mut camera = render::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, 0.0, 15.0);
+        camera.pos = vec3(-68.0, -68.0, -67.0);
+        camera.yaw = 3.43;
+        camera.pitch = 0.35;
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
@@ -131,6 +152,8 @@ impl gbase::Callbacks for App {
         )
         .expect("could not create cloud renderer");
 
+        let gaussian_blur = render::GaussianFilter::new(ctx);
+
         Self {
             framebuffer,
             depth_buffer,
@@ -138,6 +161,7 @@ impl gbase::Callbacks for App {
             ui_renderer,
             gizmo_renderer,
             cloud_renderer,
+            gaussian_blur,
 
             camera,
             camera_buffer,
@@ -154,8 +178,9 @@ impl gbase::Callbacks for App {
             params_changed: false,
             store_surface: false,
 
-            framebuffer_width: 1920,
-            framebuffer_height: 1080,
+            cloud_resolution: CLOUD_BASE_RESOLUTION,
+
+            frames: 0,
         }
     }
 
@@ -163,12 +188,12 @@ impl gbase::Callbacks for App {
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            self.framebuffer_width = 1920 / 16;
-            self.framebuffer_height = 1080 / 16;
-            self.framebuffer
-                .resize(ctx, self.framebuffer_width, self.framebuffer_height);
-            self.depth_buffer
-                .resize(ctx, self.framebuffer_width, self.framebuffer_height);
+            // self.cloud_resolution.x = CLOUD_BASE_WIDTH / 16;
+            // self.cloud_resolution.y = CLOUD_BASE_HEIGHT / 16;
+            // self.framebuffer
+            //     .resize(ctx, self.cloud_resolution.x, self.cloud_resolution.y);
+            // self.depth_buffer
+            //     .resize(ctx, self.cloud_resolution.x, self.cloud_resolution.y);
 
             println!("Reload cloud renderer");
             if let Ok(r) = cloud_renderer::CloudRenderer::new(
@@ -235,6 +260,21 @@ impl gbase::Callbacks for App {
         // render
         self.cloud_renderer
             .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
+
+        if input::key_pressed(ctx, input::KeyCode::KeyH) {
+            self.gaussian_blur.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::GaussianFilterParams::new(2, 1.5),
+            );
+        }
+        if input::key_pressed(ctx, input::KeyCode::KeyJ) {
+            self.gaussian_blur.apply_filter(
+                ctx,
+                &self.framebuffer,
+                &render::GaussianFilterParams::new(1, 1.0),
+            );
+        }
 
         self.texture_to_screen
             .render(ctx, self.framebuffer.view(), screen_view);
@@ -369,7 +409,6 @@ impl App {
             .height(render::SizeKind::PercentOfParent(1.0))
             .gap(20.0)
             .padding(20.0);
-
         outer.layout(renderer, |renderer| {
             Widget::new()
                 .text(format!("Shader: {}", self.debug_msg))
@@ -386,77 +425,152 @@ impl App {
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
             Widget::new()
-                .text(format!("Params {}", self.param_index))
+                .text("Params")
                 .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
-            Widget::new()
+            let mut params = Widget::new()
                 .width(render::SizeKind::ChildrenSum)
                 .height(render::SizeKind::ChildrenSum)
                 .direction(render::Direction::Row)
                 .cross_axis_alignment(render::Alignment::Center)
-                .gap(20.0)
-                .layout(renderer, |renderer| {
-                    for i in 1..=5 {
-                        let param_index_btn = Widget::new()
-                            .label(format!("param index {i}"))
-                            .width(render::SizeKind::Pixels(BTN_SIZE))
-                            .height(render::SizeKind::Pixels(BTN_SIZE))
-                            .color(if i == self.param_index {
-                                GREEN
-                            } else if self.params_changed {
-                                RED
-                            } else {
-                                GRAY
-                            })
-                            .button(ctx, renderer);
-                        if !self.params_changed && param_index_btn.clicked {
-                            self.param_index = i;
-                            self.load_param_index = true;
-                        }
-                    }
-                    let save_btn = Widget::new()
-                        .label("params save")
-                        .text("Save")
-                        .text_color(FONT_COLOR)
-                        .width(render::SizeKind::TextSize)
-                        .height(render::SizeKind::TextSize)
-                        .text_font_size(FONT_SIZE)
-                        .color(if self.params_changed { RED } else { GRAY })
-                        .padding(10.0)
+                .gap(20.0);
+            params.layout(renderer, |renderer| {
+                for i in 1..=5 {
+                    let param_index_btn = Widget::new()
+                        .label(format!("param index {i}"))
+                        .width(render::SizeKind::Pixels(BTN_SIZE))
+                        .height(render::SizeKind::Pixels(BTN_SIZE))
+                        .color(if i == self.param_index {
+                            GREEN
+                        } else if self.params_changed {
+                            RED
+                        } else {
+                            GRAY
+                        })
                         .button(ctx, renderer);
-                    if save_btn.clicked {
-                        self.write_param_index = true;
-                    }
-                    let discard_btn = Widget::new()
-                        .label("params discard")
-                        .text("Discard")
-                        .text_color(FONT_COLOR)
-                        .width(render::SizeKind::TextSize)
-                        .height(render::SizeKind::TextSize)
-                        .text_font_size(FONT_SIZE)
-                        .color(if self.params_changed { RED } else { GRAY })
-                        .padding(10.0)
-                        .button(ctx, renderer);
-                    if discard_btn.clicked {
-                        self.params_changed = false;
+                    if !self.params_changed && param_index_btn.clicked {
+                        self.param_index = i;
                         self.load_param_index = true;
                     }
-                });
-            let store = Widget::new()
-                .label("store")
-                .text("Store")
+                }
+                let save_btn = Widget::new()
+                    .label("params save")
+                    .text("Save")
+                    .text_color(FONT_COLOR)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(FONT_SIZE)
+                    .color(if self.params_changed { RED } else { GRAY })
+                    .padding(10.0)
+                    .button(ctx, renderer);
+                if save_btn.clicked {
+                    self.write_param_index = true;
+                }
+                let discard_btn = Widget::new()
+                    .label("params discard")
+                    .text("Discard")
+                    .text_color(FONT_COLOR)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(FONT_SIZE)
+                    .color(if self.params_changed { RED } else { GRAY })
+                    .padding(10.0)
+                    .button(ctx, renderer);
+                if discard_btn.clicked {
+                    self.params_changed = false;
+                    self.load_param_index = true;
+                }
+            });
+            Widget::new()
+                .text("Resolution")
                 .text_color(FONT_COLOR)
                 .width(render::SizeKind::TextSize)
                 .height(render::SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
-                .color(render::GRAY)
-                .button(ctx, renderer);
-            if store.clicked {
-                self.store_surface = true;
-            }
+                .render(renderer);
+            let mut resolution = Widget::new()
+                .width(render::SizeKind::ChildrenSum)
+                .height(render::SizeKind::ChildrenSum)
+                .direction(render::Direction::Row)
+                .cross_axis_alignment(render::Alignment::Center)
+                .gap(20.0);
+            resolution.layout(renderer, |renderer| {
+                let resolutions = [
+                    // same aspect ratio
+                    CLOUD_BASE_RESOLUTION / 1,
+                    CLOUD_BASE_RESOLUTION / 2,
+                    CLOUD_BASE_RESOLUTION / 3,
+                    CLOUD_BASE_RESOLUTION / 4,
+                    CLOUD_BASE_RESOLUTION / 6,
+                    CLOUD_BASE_RESOLUTION / 7,
+                    CLOUD_BASE_RESOLUTION / 8,
+                    CLOUD_BASE_RESOLUTION / 12,
+                    CLOUD_BASE_RESOLUTION / 16,
+                    CLOUD_BASE_RESOLUTION / 32,
+                    uvec2(321, 181),
+                    uvec2(319, 179),
+                ];
+                for res in resolutions {
+                    let resolution_btn = Widget::new()
+                        .label(format!("resolution {} {}", res.x, res.y))
+                        .text(format!("{} {}", res.x, res.y))
+                        .text_font_size(FONT_SIZE)
+                        .text_color(FONT_COLOR)
+                        .color(if res == self.cloud_resolution {
+                            GREEN
+                        } else {
+                            GRAY
+                        })
+                        .width(render::SizeKind::TextSize)
+                        .height(render::SizeKind::TextSize)
+                        .button(ctx, renderer);
+                    if resolution_btn.clicked {
+                        println!("change cloud res to {} {}", res.x, res.y);
+                        self.cloud_resolution = res;
+                        self.framebuffer.resize(
+                            ctx,
+                            self.cloud_resolution.x,
+                            self.cloud_resolution.y,
+                        );
+                        self.depth_buffer.resize(
+                            ctx,
+                            self.cloud_resolution.x,
+                            self.cloud_resolution.y,
+                        );
+                    }
+                }
+            });
+
+            let mut store_layout = Widget::new()
+                .width(render::SizeKind::ChildrenSum)
+                .height(render::SizeKind::ChildrenSum)
+                .direction(render::Direction::Row)
+                .gap(20.0);
+            store_layout.layout(renderer, |renderer| {
+                let store = Widget::new()
+                    .label("store")
+                    .text("Store")
+                    .text_color(FONT_COLOR)
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(FONT_SIZE)
+                    .color(render::GRAY)
+                    .button(ctx, renderer);
+                if store.clicked {
+                    self.frames = 0;
+                    self.store_surface = true;
+                }
+                Widget::new()
+                    .width(render::SizeKind::TextSize)
+                    .height(render::SizeKind::TextSize)
+                    .text_font_size(FONT_SIZE)
+                    .text(format!("{}", self.frames))
+                    .render(renderer);
+            });
+            self.frames += 1;
 
             let gizmos_btn = Widget::new()
                 .label("gizmos")
@@ -525,21 +639,29 @@ impl App {
 
             let p = &mut self.cloud_params;
             let sliders = [
-                ("bounds x", 0.0, 500.0, &mut bounds_size.x),
+                ("bounds x", 0.0, 1000.0, &mut bounds_size.x),
                 ("bounds y", 0.0, 100.0, &mut bounds_size.y),
-                ("bounds z", 0.0, 500.0, &mut bounds_size.z),
-                ("light x", -500.0, 500.0, &mut p.light_pos.x),
-                ("light y", -500.0, 500.0, &mut p.light_pos.y),
-                ("light z", -500.0, 500.0, &mut p.light_pos.z),
+                ("bounds z", 0.0, 1000.0, &mut bounds_size.z),
+                // ("light x", -500.0, 500.0, &mut p.light_pos.x),
+                // ("light y", -500.0, 500.0, &mut p.light_pos.y),
+                // ("light z", -500.0, 500.0, &mut p.light_pos.z),
                 ("henyey forw", 0.0, 1.0, &mut p.henyey_forw),
                 ("henyey back", 0.0, 1.0, &mut p.henyey_back),
                 ("henyey dist", 0.0, 1.0, &mut p.henyey_dist),
                 ("sun light mult", 0.0, 30.0, &mut p.sun_light_mult),
                 ("d absorption", 0.0, 3.0, &mut p.density_absorption),
-                ("s absorption", 0.0, 10.0, &mut p.sun_absorption),
+                ("s absorption", 0.0, 1.0, &mut p.sun_absorption),
                 ("noise zoom", 0.0, 300.0, &mut p.cloud_sample_mult),
+                ("blue zoom", 0.0, 10.0, &mut p.blue_noise_zoom),
+                ("blue step", 0.0, 1.0, &mut p.blue_noise_step_mult),
                 ("alpha cut", 0.0, 1.0, &mut p.alpha_cutoff),
                 ("density cut", 0.0, 1.0, &mut p.density_cutoff),
+                (
+                    "sun density limit",
+                    0.0,
+                    0.1,
+                    &mut p.sun_density_contribution_limit,
+                ),
             ];
             for (label, min, max, value) in sliders {
                 f32_slider(ctx, renderer, min, max, value, label);
@@ -557,14 +679,11 @@ impl App {
 
     /// store the image and the metadata
     fn store(&self, ctx: &mut Context) {
-        let custom_width = self.framebuffer_width;
-        let custom_height = self.framebuffer_height;
-
         // info
         let ms = time::frame_time(ctx);
         let mut metadata_file = fs::File::create(format!(
             "saved/image_{}_{}.info",
-            custom_width, custom_height
+            self.cloud_resolution.x, self.cloud_resolution.y
         ))
         .expect("could not create metadata file");
         metadata_file
@@ -573,17 +692,22 @@ impl App {
 
         // image
         // NOTE: always render to original resolution
-        let image_bytes = texture_to_buffer_gamma(ctx, self.framebuffer.view(), 1920, 1080);
+        let image_bytes = texture_to_buffer_gamma(
+            ctx,
+            self.framebuffer.view(),
+            CLOUD_BASE_RESOLUTION.x,
+            CLOUD_BASE_RESOLUTION.y,
+        );
         let image_buffer = gbase::image::ImageBuffer::<gbase::image::Rgba<u8>, _>::from_raw(
-            1920,
-            1080,
+            CLOUD_BASE_RESOLUTION.x,
+            CLOUD_BASE_RESOLUTION.y,
             image_bytes,
         )
         .expect("could not create image buffer");
         image_buffer
             .save(format!(
                 "saved/image_{}_{}.png",
-                custom_width, custom_height
+                self.cloud_resolution.x, self.cloud_resolution.y
             ))
             .expect("could not write to image file");
 

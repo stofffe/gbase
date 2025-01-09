@@ -3,7 +3,7 @@ use crate::noise::{generate_blue_noise, generate_cloud_noise, generate_weather_m
 use gbase::render::SamplerBuilder;
 use gbase::wgpu;
 use gbase::{
-    collision, filesystem,
+    filesystem,
     render::{self, CameraUniform},
     Context,
 };
