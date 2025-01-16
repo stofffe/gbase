@@ -3,7 +3,7 @@ use glam::Vec3;
 
 use crate::render::Transform;
 
-#[derive(Clone, Copy, ShaderType)]
+#[derive(Debug, Clone, Copy, ShaderType)]
 pub struct Box3D {
     pub min: Vec3,
     pub max: Vec3,

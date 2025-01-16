@@ -11,9 +11,9 @@ const OUTPUT_SIZE: u32 = 4;
 const OUTPUT_MEM_SIZE: u64 = std::mem::size_of::<u32>() as u64 * OUTPUT_SIZE as u64;
 
 struct App {
-    input_buffer: render::RawBuffer,
-    output_buffer: render::RawBuffer,
-    cpu_buffer: render::RawBuffer,
+    input_buffer: render::RawBuffer<u32>,
+    output_buffer: render::RawBuffer<u32>,
+    cpu_buffer: render::RawBuffer<u32>,
     bindgroup: render::ArcBindGroup,
     compute_pipeline: render::ArcComputePipeline,
 }
@@ -21,15 +21,18 @@ struct App {
 impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
         // Buffers
-        let input_buffer = render::RawBufferBuilder::new()
-            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, INPUT_MEM_SIZE);
-        let output_buffer = render::RawBufferBuilder::new()
-            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC)
-            .build(ctx, OUTPUT_MEM_SIZE);
-        let cpu_buffer = render::RawBufferBuilder::new()
-            .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, OUTPUT_MEM_SIZE);
+        let input_buffer =
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(INPUT_MEM_SIZE))
+                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+                .build(ctx);
+        let output_buffer =
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(OUTPUT_MEM_SIZE))
+                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC)
+                .build(ctx);
+        let cpu_buffer =
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(OUTPUT_MEM_SIZE))
+                .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+                .build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // input

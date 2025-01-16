@@ -5,7 +5,7 @@ all:
 	@make run
 	
 copy:
-	@cp -p ../examples/$(path) src/lib.rs
+	@cp -p ../$(path) src/lib.rs
 	@sed -i "" "1s/^/use gbase::log;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::winit;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::wgpu;\n/" src/lib.rs
@@ -14,7 +14,6 @@ copy:
 	@sed -i "" "1s/^/use gbase::encase;\n/" src/lib.rs
 	@sed -i "" "s/#\[pollster::main\]/#\[wasm_bindgen::prelude::wasm_bindgen\]/" src/lib.rs
 	@sed -i "" "s/fn main/fn run/" src/lib.rs
-	@cp -r ../assets .
 
 compile:
 	@RUSTFLAGS=--cfg=web_sys_unstable_apis wasm-pack build --target web

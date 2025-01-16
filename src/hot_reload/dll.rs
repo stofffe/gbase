@@ -1,7 +1,3 @@
-// NOTE:
-// init_ctx should only be called at program startup and never through dll
-// so we never store it here and we panic if called on DllContext
-
 #[rustfmt::skip]
 type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool;
 type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
@@ -23,6 +19,9 @@ pub struct DllCallbacks<T> {
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
+    // NOTE:
+    // init_ctx should only be called at program startup and never through dll
+    // so we never store it here and we panic if called on DllContext
     fn init_ctx() -> crate::ContextBuilder {
         panic!("init_ctx on DllCallbacks should never be called");
     }

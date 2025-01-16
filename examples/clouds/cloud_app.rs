@@ -735,9 +735,10 @@ fn texture_to_buffer_sync(
 ) -> Vec<u8> {
     let pixel_size = std::mem::size_of::<u8>() as u32 * 4;
     let buffer_size = width * height * pixel_size;
-    let read_back_buffer = render::RawBufferBuilder::new()
-        .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
-        .build(ctx, buffer_size);
+    let read_back_buffer =
+        render::RawBufferBuilder::<u8>::new(render::RawBufferSource::Size(buffer_size as u64))
+            .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+            .build(ctx);
 
     let mut encoder = render::EncoderBuilder::new().build(ctx);
     encoder.copy_texture_to_buffer(

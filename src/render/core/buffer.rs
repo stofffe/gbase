@@ -1,4 +1,5 @@
 use crate::{render, Context};
+use bytemuck::NoUninit;
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
 use std::{marker::PhantomData, ops::RangeBounds};
@@ -8,50 +9,53 @@ use wgpu::util::DeviceExt;
 // Raw Buffer
 //
 
+pub enum RawBufferSource<T: bytemuck::NoUninit> {
+    Size(u64),
+    Data(Vec<T>),
+}
+
 // TODO: add type to this
-pub struct RawBufferBuilder {
+pub struct RawBufferBuilder<T: bytemuck::NoUninit> {
+    source: RawBufferSource<T>,
     label: Option<String>,
     usage: wgpu::BufferUsages,
 }
 
-impl RawBufferBuilder {
-    pub fn new() -> Self {
+impl<T: NoUninit> RawBufferBuilder<T> {
+    pub fn new(source: RawBufferSource<T>) -> Self {
         Self {
+            source,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             label: None,
         }
     }
 
-    pub fn build(self, ctx: &Context, size: impl Into<u64>) -> RawBuffer {
+    pub fn build(self, ctx: &Context) -> RawBuffer<T> {
         let device = render::device(ctx);
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: self.label.as_deref(),
-            size: size.into(),
-            usage: self.usage,
-            mapped_at_creation: false,
-        });
+        let buffer = match self.source {
+            RawBufferSource::Size(size) => device.create_buffer(&wgpu::BufferDescriptor {
+                label: self.label.as_deref(),
+                size,
+                usage: self.usage,
+                mapped_at_creation: false,
+            }),
+            RawBufferSource::Data(data) => {
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: self.label.as_deref(),
+                    usage: self.usage,
+                    contents: bytemuck::cast_slice(&data),
+                })
+            }
+        };
 
         RawBuffer {
             buffer: ArcBuffer::new(buffer),
-        }
-    }
-
-    pub fn build_init(self, ctx: &Context, data: &[impl bytemuck::NoUninit]) -> RawBuffer {
-        let device = render::device(ctx);
-
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: self.label.as_deref(),
-            usage: self.usage,
-            contents: bytemuck::cast_slice(data),
-        });
-
-        RawBuffer {
-            buffer: ArcBuffer::new(buffer),
+            ty: PhantomData::<T>,
         }
     }
 }
 
-impl RawBufferBuilder {
+impl<T: NoUninit> RawBufferBuilder<T> {
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.label = Some(value.into());
         self
@@ -62,11 +66,12 @@ impl RawBufferBuilder {
     }
 }
 
-pub struct RawBuffer {
+pub struct RawBuffer<T: bytemuck::NoUninit> {
     buffer: ArcBuffer,
+    ty: PhantomData<T>,
 }
 
-impl RawBuffer {
+impl<T: bytemuck::NoUninit> RawBuffer<T> {
     pub fn write(&self, ctx: &Context, buffer: &[impl bytemuck::NoUninit]) {
         render::queue(ctx).write_buffer(&self.buffer, 0, bytemuck::cast_slice(buffer));
     }
@@ -75,7 +80,7 @@ impl RawBuffer {
     }
 }
 
-impl RawBuffer {
+impl<T: bytemuck::NoUninit> RawBuffer<T> {
     pub fn buffer(&self) -> ArcBuffer {
         self.buffer.clone()
     }
@@ -85,6 +90,7 @@ impl RawBuffer {
     pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
         self.buffer.slice(bounds)
     }
+    // TODO: mapped read?
 }
 
 //

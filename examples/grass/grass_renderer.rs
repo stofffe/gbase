@@ -15,9 +15,9 @@ const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 pub struct GrassRenderer {
-    instances: [render::RawBuffer; 2],
-    indirect_buffer: [render::RawBuffer; 2],
-    instance_count: render::RawBuffer,
+    instances: [render::RawBuffer<GrassInstanceGPU>; 2],
+    indirect_buffer: [render::RawBuffer<DrawIndirectArgs>; 2],
+    instance_count: render::RawBuffer<u32>,
     tile_buffer: render::UniformBuffer<Tile>,
     app_info: render::AppInfo,
 
@@ -117,26 +117,31 @@ impl GrassRenderer {
         camera_buffer: &render::UniformBuffer<CameraUniform>,
     ) -> Self {
         let instances = [
-            render::RawBufferBuilder::new()
-                .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
-                .build(ctx, GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64),
-            render::RawBufferBuilder::new()
-                .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
-                .build(ctx, GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64),
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(
+                GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
+            ))
+            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
+            .build(ctx),
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(
+                GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
+            ))
+            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
+            .build(ctx),
         ];
 
-        let instance_count = render::RawBufferBuilder::new()
-            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
-            .build(ctx, size_of::<u32>() as u64);
+        let instance_count =
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
+                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+                .build(ctx);
 
         #[rustfmt::skip]
         let indirect_buffer = [
-            render::RawBufferBuilder::new()
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
-                .build(ctx, size_of::<wgpu::util::DrawIndirectArgs>() as u64),
-            render::RawBufferBuilder::new()
+                .build(ctx),
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
-                .build(ctx, size_of::<wgpu::util::DrawIndirectArgs>() as u64),
+                .build(ctx),
         ];
 
         let perlin_noise_bytes = filesystem::load_b!("textures/perlin_noise.png").unwrap();
@@ -377,4 +382,17 @@ impl GrassInstanceGPU {
             attributes: &Self::ATTRIBUTES,
         }
     }
+}
+
+// assert DrawIndirectArgs == wgpu::DrawIndirectArgs
+const _: [(); 1] = [(); (std::mem::size_of::<DrawIndirectArgs>()
+    == std::mem::size_of::<wgpu::util::DrawIndirectArgs>()) as usize]; // Passes
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct DrawIndirectArgs {
+    vertex_count: u32,
+    instance_count: u32,
+    first_vertex: u32,
+    first_instance: u32,
 }
