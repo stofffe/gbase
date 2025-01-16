@@ -30,7 +30,12 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 
     fn new(ctx: &mut crate::Context) -> Self {
         let dll = load_dll();
-        let callbacks = (dll.new)(ctx);
+        let mut callbacks = (dll.new)(ctx);
+
+        if let Some(hot_reload) = dll.hot_reload {
+            hot_reload(&mut callbacks, ctx);
+        }
+
         Self { callbacks, dll }
     }
 
