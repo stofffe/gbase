@@ -70,7 +70,7 @@ pub(crate) fn run_window<C: Callbacks + 'static>(
                         {
                             if ctx.hot_reload.should_reload() {
                                 log::info!("Hot reload");
-                                app.callbacks.hot_reload();
+                                app.callbacks.hot_reload(&mut ctx);
                             }
                             if ctx.hot_reload.should_restart() {
                                 log::info!("Hot restart");

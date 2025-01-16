@@ -356,7 +356,7 @@ impl App {
         //
 
         let index = self.param_index;
-        let file_name = format!("saved/cloud_params_{index}.txt");
+        let file_name = format!("assets/temporary/cloud_params_{index}.txt");
 
         if self.write_param_index {
             let content =
@@ -675,7 +675,7 @@ impl App {
         // info
         let ms = time::frame_time(ctx);
         let mut metadata_file = fs::File::create(format!(
-            "saved/image_{}_{}.info",
+            "assets/temporary/image_{}_{}.info",
             self.cloud_resolution.x, self.cloud_resolution.y
         ))
         .expect("could not create metadata file");
@@ -699,7 +699,7 @@ impl App {
         .expect("could not create image buffer");
         image_buffer
             .save(format!(
-                "saved/image_{}_{}.png",
+                "assets/temporary/image_{}_{}.png",
                 self.cloud_resolution.x, self.cloud_resolution.y
             ))
             .expect("could not write to image file");

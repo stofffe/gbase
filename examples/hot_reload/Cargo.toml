@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 gbase = { path = "../.." }
-pollster = { version = "0.3.0", features = ["macro"] }
+# pollster = { version = "0.3.0", features = ["macro"] }
 bytemuck = { version = "1.14.0", features = ["derive"] }
 encase = { version = "0.6.1", features = ["glam"] }
 serde = { version = "1.0.217", features = ["derive"] }
