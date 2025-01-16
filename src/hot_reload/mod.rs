@@ -33,10 +33,10 @@ impl HotReloadContext {
 
         let (tx, rx) = mpsc::channel();
 
-        let mut watcher = notify::recommended_watcher(tx).unwrap();
+        let mut watcher = notify::recommended_watcher(tx).expect("could not create file watcher");
         watcher
             .watch(Path::new(&dllname()), notify::RecursiveMode::NonRecursive)
-            .unwrap();
+            .expect("could not watch dll");
 
         Self {
             force_reload: false,
@@ -52,6 +52,7 @@ impl HotReloadContext {
                 return true;
             }
         }
+
         false
     }
 

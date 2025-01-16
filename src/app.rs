@@ -117,7 +117,7 @@ impl<C: Callbacks + 'static> App<C> {
 }
 
 /// What level of info that should be logged
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum LogLevel {
     None,
     Info,
@@ -127,39 +127,49 @@ pub enum LogLevel {
     Trace,
 }
 
-/// Initialize init_logging
-///
-/// Panics if called multiple times
-fn init_logging(log_level: LogLevel) {
-    if let LogLevel::None = log_level {
-        return;
-    }
+impl ContextBuilder {
+    /// Initialize init_logging
+    ///
+    /// Panics if called multiple times
+    pub fn init_logging(&self) {
+        let log_level = self.log_level;
 
-    #[cfg(target_arch = "wasm32")]
-    {
-        let log_level = match log_level {
-            LogLevel::Info => log::Level::Info,
-            LogLevel::Warn => log::Level::Warn,
-            LogLevel::Error => log::Level::Error,
-            LogLevel::Debug => log::Level::Debug,
-            LogLevel::Trace => log::Level::Trace,
-            LogLevel::None => panic!("unreachable"),
-        };
-        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-        console_log::init_with_level(log_level).expect("Couldn't initialize logger");
-    }
+        if let LogLevel::None = log_level {
+            return;
+        }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        let log_level = match log_level {
-            LogLevel::Info => log::LevelFilter::Info,
-            LogLevel::Warn => log::LevelFilter::Warn,
-            LogLevel::Error => log::LevelFilter::Error,
-            LogLevel::Debug => log::LevelFilter::Debug,
-            LogLevel::Trace => log::LevelFilter::Trace,
-            LogLevel::None => panic!("unreachable"),
-        };
-        env_logger::Builder::new().filter_level(log_level).init();
+        #[cfg(target_arch = "wasm32")]
+        {
+            let log_level = match log_level {
+                LogLevel::Info => log::Level::Info,
+                LogLevel::Warn => log::Level::Warn,
+                LogLevel::Error => log::Level::Error,
+                LogLevel::Debug => log::Level::Debug,
+                LogLevel::Trace => log::Level::Trace,
+                LogLevel::None => panic!("unreachable"),
+            };
+            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+            console_log::init_with_level(log_level).expect("Couldn't initialize logger");
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let log_level = match log_level {
+                LogLevel::Info => log::LevelFilter::Info,
+                LogLevel::Warn => log::LevelFilter::Warn,
+                LogLevel::Error => log::LevelFilter::Error,
+                LogLevel::Debug => log::LevelFilter::Debug,
+                LogLevel::Trace => log::LevelFilter::Trace,
+                LogLevel::None => panic!("unreachable"),
+            };
+            match env_logger::Builder::new()
+                .filter_level(log_level)
+                .try_init()
+            {
+                Ok(_) => log::info!("Sucessfully initialized logging"),
+                Err(err) => println!("Error initalizing logging: {}", err),
+            }
+        }
     }
 }
 
@@ -169,27 +179,15 @@ pub struct ContextBuilder {
     window_builder: Option<winit::window::WindowBuilder>,
     assets_path: PathBuf,
     log_level: LogLevel,
-    vsync: bool,
+    vsync: bool, // can be set later
     device_features: wgpu::Features,
-}
-
-impl Default for ContextBuilder {
-    fn default() -> Self {
-        Self {
-            window_builder: None,
-            assets_path: PathBuf::from("assets"),
-            log_level: LogLevel::Info,
-            vsync: true,
-            device_features: wgpu::Features::empty(),
-        }
-    }
 }
 
 #[allow(clippy::new_without_default)]
 impl ContextBuilder {
     pub fn new() -> Self {
         Self {
-            log_level: LogLevel::Warn,
+            log_level: LogLevel::Info,
             assets_path: PathBuf::from("assets"),
             vsync: true,
             device_features: wgpu::Features::default(),
@@ -225,8 +223,7 @@ impl ContextBuilder {
 
 pub async fn run<C: Callbacks + 'static>() {
     let builder = C::init_ctx();
-
-    init_logging(builder.log_level);
+    builder.init_logging();
 
     let (window, event_loop) = window::new_window(builder.window_builder);
     let input = input::InputContext::default();

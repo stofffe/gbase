@@ -7,11 +7,11 @@ type ResizeFunc<T> =
 type ReloadFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
 
 pub struct DllApi<T> {
-    new: NewFunc<T>,
-    update: Option<UpdateFunc<T>>,
-    render: Option<RenderFunc<T>>,
-    resize: Option<ResizeFunc<T>>,
-    hot_reload: Option<ReloadFunc<T>>,
+    new_callback: NewFunc<T>,
+    update_callback: Option<UpdateFunc<T>>,
+    render_callback: Option<RenderFunc<T>>,
+    resize_callback: Option<ResizeFunc<T>>,
+    reload_callback: Option<ReloadFunc<T>>,
 }
 
 /// Wrapper for callbacks + dll
@@ -30,9 +30,9 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 
     fn new(ctx: &mut crate::Context) -> Self {
         let dll = load_dll();
-        let mut callbacks = (dll.new)(ctx);
+        let mut callbacks = (dll.new_callback)(ctx);
 
-        if let Some(hot_reload) = dll.hot_reload {
+        if let Some(hot_reload) = dll.reload_callback {
             hot_reload(&mut callbacks, ctx);
         }
 
@@ -40,14 +40,14 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     }
 
     fn update(&mut self, ctx: &mut crate::Context) -> bool {
-        match self.dll.update {
+        match self.dll.update_callback {
             Some(update) => update(&mut self.callbacks, ctx),
             None => false,
         }
     }
 
     fn render(&mut self, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool {
-        match self.dll.render {
+        match self.dll.render_callback {
             Some(render) => render(&mut self.callbacks, ctx, screen_view),
             None => false,
         }
@@ -55,7 +55,7 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 
     fn resize(&mut self, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>) {
         #[allow(clippy::single_match)]
-        match self.dll.resize {
+        match self.dll.resize_callback {
             Some(resize) => resize(&mut self.callbacks, ctx, new_size),
             None => {}
         }
@@ -69,7 +69,7 @@ impl<T> DllCallbacks<T> {
     pub fn hot_reload(&mut self, ctx: &mut crate::Context) {
         self.dll = load_dll();
 
-        if let Some(hot_reload) = self.dll.hot_reload {
+        if let Some(hot_reload) = self.dll.reload_callback {
             hot_reload(&mut self.callbacks, ctx);
         }
     }
@@ -79,14 +79,14 @@ impl<T> DllCallbacks<T> {
     /// reset game state
     pub fn hot_restart(&mut self, ctx: &mut crate::Context) {
         self.hot_reload(ctx);
-        self.callbacks = (self.dll.new)(ctx);
+        self.callbacks = (self.dll.new_callback)(ctx);
     }
 }
 
 fn load_dll<T>() -> DllApi<T> {
     let lib = dlopen::symbor::Library::open(super::dllname()).unwrap();
 
-    let new = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
+    let new_callback = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
         Ok(f) => *f,
         Err(err) => {
             log::error!("could not find function new");
@@ -96,28 +96,28 @@ fn load_dll<T>() -> DllApi<T> {
         }
     };
 
-    let update = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
+    let update_callback = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
         Ok(f) => Some(*f),
         Err(err) => {
             log::warn!("could not find function update: {}", err);
             None
         }
     };
-    let render = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
+    let render_callback = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
         Ok(f) => Some(*f),
         Err(err) => {
             log::warn!("could not find function render: {}", err);
             None
         }
     };
-    let resize = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
+    let resize_callback = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
         Ok(f) => Some(*f),
         Err(err) => {
             log::warn!("could not find function resize: {}", err);
             None
         }
     };
-    let hot_reload = match unsafe { lib.symbol::<ReloadFunc<T>>("hot_reload") } {
+    let reload_callback = match unsafe { lib.symbol::<ReloadFunc<T>>("hot_reload") } {
         Ok(f) => Some(*f),
         Err(err) => {
             log::warn!("could not find function hot_reload: {}", err);
@@ -126,10 +126,10 @@ fn load_dll<T>() -> DllApi<T> {
     };
 
     DllApi {
-        new,
-        update,
-        render,
-        resize,
-        hot_reload,
+        new_callback,
+        update_callback,
+        render_callback,
+        resize_callback,
+        reload_callback,
     }
 }

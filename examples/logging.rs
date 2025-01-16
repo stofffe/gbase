@@ -1,6 +1,6 @@
 use gbase::{
     input::{self, KeyCode},
-    log, Callbacks, Context,
+    log, render, Callbacks, Context,
 };
 
 pub fn main() {
@@ -21,21 +21,16 @@ impl Callbacks for App {
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
             log::error!("log error");
+            log::info!("log info");
         }
-        if input::key_just_pressed(ctx, KeyCode::Digit3) {
-            input::log_error("gbase error");
-        }
+
         false
     }
 }
 
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, ctx: &mut Context) {
-        println!("RELOAD");
-        match gbase::env_logger::builder().try_init() {
-            Ok(_) => println!("RELOAD OK"),
-            Err(_) => println!("RELOAD FAIL"),
-        };
+    fn hot_reload(&mut self, _ctx: &mut Context) {
+        Self::init_ctx().init_logging();
     }
 }
