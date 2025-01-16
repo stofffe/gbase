@@ -13,7 +13,6 @@ copy:
 	@sed -i "" "1s/^/use gbase::bytemuck;\n/" src/lib.rs
 	@sed -i "" "1s/^/use gbase::encase;\n/" src/lib.rs
 	@sed -i "" "s/#\[pollster::main\]/#\[wasm_bindgen::prelude::wasm_bindgen\]/" src/lib.rs
-	@sed -i "" "s/fn main/fn run/" src/lib.rs
 
 compile:
 	@RUSTFLAGS=--cfg=web_sys_unstable_apis wasm-pack build --target web

@@ -10,6 +10,78 @@ impl FileSystemContext {
 // Commands
 //
 
+pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let storage = get_local_storage();
+        use base64::Engine;
+        let encoded = base64::engine::general_purpose::STANDARD.encode(data);
+        storage
+            .set_item(path, &encoded)
+            .expect("could not set data in localstorage");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fs::write(Path::new(path), data).expect("could not write file");
+}
+
+pub fn load_bytes(ctx: &Context, path: &str) -> Vec<u8> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let storage = get_local_storage();
+        let data = storage
+            .get_item(path)
+            .expect("could not get data from localstorage")
+            .expect("data does not exist");
+        use base64::Engine;
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .expect("could not decode bytes");
+        return decoded.to_vec();
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fs::read(path).expect("could not read data from file")
+}
+
+pub fn store_str(ctx: &Context, path: &str, data: &str) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let storage = get_local_storage();
+        storage
+            .set_item(path, data)
+            .expect("could not set data in localstorage");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fs::write(Path::new(path), data).expect("could not write file");
+}
+
+pub fn load_str(ctx: &Context, path: &str) -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let storage = get_local_storage();
+        let data = storage
+            .get_item(path)
+            .expect("could not get data from localstorage");
+
+        return data.expect("data does not exist");
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fs::read_to_string(path).expect("could not read data from file")
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_local_storage() -> web_sys::Storage {
+    let window = web_sys::window().expect("could not get window");
+    let storage = window
+        .local_storage()
+        .expect("could not get local storage")
+        .expect("local storage is empty");
+    storage
+}
+
 /// Load bytes from assets folder
 ///
 /// # Input/Output
@@ -70,8 +142,12 @@ macro_rules! load_s {
     };
 }
 
+use std::{fs, path::Path};
+
 pub use load_b;
 pub use load_s;
+
+use crate::Context;
 
 // /// Loads bytes from file in assets folder
 // pub(crate) async fn load_bytes(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
