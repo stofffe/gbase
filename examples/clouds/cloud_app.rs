@@ -42,27 +42,27 @@ pub struct CloudParameters {
 impl Default for CloudParameters {
     fn default() -> Self {
         Self {
-            light_pos: vec3(10.0, 0.0, 10.0),
-            bounds_min: vec3(-5.0, -5.0, -5.0),
-            bounds_max: vec3(5.0, 5.0, 5.0),
+            light_pos: vec3(108.0, 167.0, 328.0),
+            bounds_min: vec3(-250.0, -25.0, -250.0),
+            bounds_max: vec3(250.0, 25.0, 250.0),
 
             alpha_cutoff: 0.0,
-            density_cutoff: 0.0,
-            henyey_forw: 0.7,
-            henyey_back: 0.5,
-            henyey_dist: 0.3,
+            density_cutoff: 0.27,
+            henyey_forw: 0.57,
+            henyey_back: 0.51,
+            henyey_dist: 0.4,
 
-            density_absorption: 6.0,
-            sun_absorption: 3.0,
+            density_absorption: 0.65,
+            sun_absorption: 0.1,
 
             transmittance_cutoff: 0.001,
-            sun_light_mult: 15.0,
-            cloud_sample_mult: 100.0,
+            sun_light_mult: 2.88,
+            cloud_sample_mult: 200.0,
 
             blue_noise_zoom: 5.0,
             blue_noise_step_mult: 1.0,
 
-            sun_density_contribution_limit: 0.01,
+            sun_density_contribution_limit: 0.016,
         }
     }
 }
