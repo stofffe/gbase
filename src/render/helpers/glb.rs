@@ -591,7 +591,7 @@ impl MeshRenderer {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![render::VertexFull::desc()])
-            .targets(deferred_buffers.targets().to_vec())
+            .multiple_targets(deferred_buffers.targets().to_vec())
             .depth_stencil(deferred_buffers.depth_stencil_state())
             .cull_mode(wgpu::Face::Back)
             .build(ctx);
@@ -627,23 +627,21 @@ impl MeshRenderer {
     ) {
         let queue = render::queue(ctx);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
-        let color_attachments = deferred_buffers.color_attachments();
-        let mut mesh_pass = render::RenderPassBuilder::new()
-            .color_attachments(&color_attachments)
+        render::RenderPassBuilder::new()
+            .color_attachments(&deferred_buffers.color_attachments())
             .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
-            .build(&mut encoder);
+            .build_run(&mut encoder, |mut mesh_pass| {
+                mesh_pass.set_pipeline(&self.pipeline);
 
-        mesh_pass.set_pipeline(&self.pipeline);
-
-        for &draw in draws.iter() {
-            let mesh = &draw.mesh;
-            mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-            mesh_pass.set_index_buffer(mesh.index_buffer.slice(..), mesh.index_buffer.format());
-            mesh_pass.set_bind_group(0, Some(draw.bindgroup.as_ref()), &[]);
-            mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
-        }
-
-        drop(mesh_pass);
+                for &draw in draws.iter() {
+                    let mesh = &draw.mesh;
+                    mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                    mesh_pass
+                        .set_index_buffer(mesh.index_buffer.slice(..), mesh.index_buffer.format());
+                    mesh_pass.set_bind_group(0, Some(draw.bindgroup.as_ref()), &[]);
+                    mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
+                }
+            });
 
         queue.submit(Some(encoder.finish()));
     }

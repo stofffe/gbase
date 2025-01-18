@@ -60,19 +60,14 @@ impl GizmoRenderer {
             .screen_size(ctx)
             .build(ctx);
 
-        let shader_str = filesystem::load_s!("shaders/gizmo.wgsl").unwrap();
+        let shader_str = filesystem::load_s!("shaders/gizmo.wgsl").expect("could not load shader");
         let shader = ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
         let pipeline = RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertex_buffer.desc()])
-            // .targets(vec![RenderPipelineBuilder::default_target(ctx)])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: output_format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
+            .single_target(render::ColorTargetState::new().format(output_format))
             .depth_stencil(depth_buffer.depth_stencil_state())
             .topology(wgpu::PrimitiveTopology::LineList)
             .build(ctx);
@@ -92,25 +87,16 @@ impl GizmoRenderer {
         self.index_buffer.write(ctx, &self.dynamic_index_buffer);
 
         let mut encoder = EncoderBuilder::new().build(ctx);
-        let attachments = vec![Some(wgpu::RenderPassColorAttachment {
-            view,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            },
-        })];
-        let mut pass = render::RenderPassBuilder::new()
-            .color_attachments(&attachments)
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
-            .build(&mut encoder);
-
-        pass.set_pipeline(&self.pipeline);
-        pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
-        pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
-        pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
-        drop(pass);
+            .build_run(&mut encoder, |mut pass| {
+                pass.set_pipeline(&self.pipeline);
+                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
+                pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
+                pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
+            });
 
         let queue = render::queue(ctx);
         queue.submit(Some(encoder.finish()));

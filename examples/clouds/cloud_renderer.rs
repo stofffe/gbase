@@ -105,9 +105,7 @@ impl CloudRenderer {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertices.desc()])
-            .targets(vec![Some(
-                framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING),
-            )])
+            .single_target(framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING))
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
@@ -133,14 +131,7 @@ impl CloudRenderer {
 
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
-            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })])
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run(&mut encoder, |mut rp| {
                 rp.set_pipeline(&self.pipeline);

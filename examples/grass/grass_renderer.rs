@@ -317,7 +317,7 @@ impl GrassRenderer {
             render::RenderPipelineBuilder::new(render_shader, render_pipeline_layout)
                 .label("render".to_string())
                 .buffers(vec![GrassInstanceGPU::desc()])
-                .targets(deferred_buffers.targets().to_vec())
+                .multiple_targets(deferred_buffers.targets().to_vec())
                 .depth_stencil(deferred_buffers.depth_stencil_state())
                 .topology(wgpu::PrimitiveTopology::TriangleStrip)
                 // .polygon_mode(wgpu::PolygonMode::Line)

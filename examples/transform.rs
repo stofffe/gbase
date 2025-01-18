@@ -55,7 +55,7 @@ impl Callbacks for App {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .buffers(vec![Vertex::desc()])
-            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .single_target(render::ColorTargetState::from_current_screen(ctx))
             .build_uncached(ctx);
 
         Self {

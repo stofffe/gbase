@@ -141,11 +141,11 @@ impl GUIRenderer {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertices.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: output_format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
+            .single_target(
+                render::ColorTargetState::new()
+                    .format(output_format)
+                    .blend(wgpu::BlendState::ALPHA_BLENDING),
+            )
             .build(ctx);
 
         Self {
@@ -181,8 +181,6 @@ impl GUIRenderer {
             widget.inner_render(self);
         }
 
-        // self.debug(ctx);
-
         //
         // Rendering
         //
@@ -194,14 +192,7 @@ impl GUIRenderer {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         render::RenderPassBuilder::new()
-            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-            })])
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
             .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));

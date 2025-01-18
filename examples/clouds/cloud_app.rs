@@ -302,7 +302,7 @@ impl gbase::Callbacks for App {
 }
 
 impl App {
-    fn gizmos(&mut self, ctx: &Context) {
+    fn gizmos(&mut self, _ctx: &Context) {
         let bb = render::Transform::from_scale(
             self.cloud_params.bounds_max - self.cloud_params.bounds_min,
         );

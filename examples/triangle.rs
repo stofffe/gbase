@@ -1,14 +1,15 @@
 use gbase::{
     filesystem,
     render::{self, ArcRenderPipeline, Vertex},
-    Callbacks, Context,
+    wgpu, Callbacks, Context,
 };
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     gbase::run_sync::<App>();
 }
 
-struct App {
+pub struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: ArcRenderPipeline,
 }
@@ -30,7 +31,7 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
             .buffers(vec![vertex_buffer.desc()])
-            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .single_target(render::ColorTargetState::from_current_screen(ctx))
             .build(ctx);
 
         Self {
@@ -40,14 +41,9 @@ impl Callbacks for App {
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         render::RenderPassBuilder::new()
-            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })])
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLUE),
+            )])
             .build_run_new_encoder(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

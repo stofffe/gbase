@@ -4,7 +4,7 @@ pub struct EncoderBuilder<'a> {
     label: Option<&'a str>,
 }
 
-impl<'a> EncoderBuilder<'a> {
+impl EncoderBuilder<'_> {
     pub fn new() -> Self {
         Self { label: None }
     }
@@ -15,10 +15,57 @@ impl<'a> EncoderBuilder<'a> {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct RenderPassColorAttachment<'a> {
+    view: &'a wgpu::TextureView,
+    resolve_target: Option<&'a wgpu::TextureView>,
+    ops: wgpu::Operations<wgpu::Color>,
+}
+
+impl<'a> RenderPassColorAttachment<'a> {
+    pub fn new(view: &'a wgpu::TextureView) -> Self {
+        Self {
+            view,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Load,
+                store: wgpu::StoreOp::Store,
+            },
+        }
+    }
+
+    pub fn resolve_target(mut self, value: &'a wgpu::TextureView) -> Self {
+        self.resolve_target = Some(value);
+        self
+    }
+    pub fn load(mut self) -> Self {
+        self.ops.load = wgpu::LoadOp::Load;
+        self
+    }
+    pub fn clear(mut self, value: wgpu::Color) -> Self {
+        self.ops.load = wgpu::LoadOp::Clear(value);
+        self
+    }
+    pub fn store(mut self, value: wgpu::StoreOp) -> Self {
+        self.ops.store = value;
+        self
+    }
+}
+
+impl<'a> From<RenderPassColorAttachment<'a>> for wgpu::RenderPassColorAttachment<'a> {
+    fn from(val: RenderPassColorAttachment<'a>) -> Self {
+        wgpu::RenderPassColorAttachment {
+            view: val.view,
+            resolve_target: val.resolve_target,
+            ops: val.ops,
+        }
+    }
+}
+
 // TODO very sketchy rn
 pub struct RenderPassBuilder<'a> {
     label: Option<&'a str>,
-    color_attachments: &'a [Option<wgpu::RenderPassColorAttachment<'a>>],
+    color_attachments: &'a [Option<RenderPassColorAttachment<'a>>],
     depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'a>>,
     timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'a>>,
     occlusion_query_set: Option<&'a wgpu::QuerySet>,
@@ -39,7 +86,11 @@ impl<'a> RenderPassBuilder<'a> {
     pub fn build(self, encoder: &'a mut wgpu::CommandEncoder) -> wgpu::RenderPass<'a> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
-            color_attachments: self.color_attachments,
+            color_attachments: &self
+                .color_attachments
+                .iter()
+                .map(|att| att.clone().map(RenderPassColorAttachment::into))
+                .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
             timestamp_writes: self.timestamp_writes,
             occlusion_query_set: self.occlusion_query_set,
@@ -54,7 +105,11 @@ impl<'a> RenderPassBuilder<'a> {
     ) {
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
-            color_attachments: self.color_attachments,
+            color_attachments: &self
+                .color_attachments
+                .iter()
+                .map(|att| att.clone().map(RenderPassColorAttachment::into))
+                .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
             timestamp_writes: self.timestamp_writes,
             occlusion_query_set: self.occlusion_query_set,
@@ -69,7 +124,11 @@ impl<'a> RenderPassBuilder<'a> {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
-            color_attachments: self.color_attachments,
+            color_attachments: &self
+                .color_attachments
+                .iter()
+                .map(|att| att.clone().map(RenderPassColorAttachment::into))
+                .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
             timestamp_writes: self.timestamp_writes,
             occlusion_query_set: self.occlusion_query_set,
@@ -84,10 +143,7 @@ impl<'a> RenderPassBuilder<'a> {
         self.label = Some(value);
         self
     }
-    pub fn color_attachments(
-        mut self,
-        value: &'a [Option<wgpu::RenderPassColorAttachment<'a>>],
-    ) -> Self {
+    pub fn color_attachments(mut self, value: &'a [Option<RenderPassColorAttachment<'a>>]) -> Self {
         self.color_attachments = value;
         self
     }

@@ -82,7 +82,7 @@ impl DeferredBuffers {
     /// * Albedo
     /// * Normal
     /// * Roughness
-    pub fn targets(&self) -> [Option<wgpu::ColorTargetState>; 4] {
+    pub fn targets(&self) -> [Option<render::ColorTargetState>; 4] {
         [
             Some(self.position.target()),
             Some(self.albedo.target()),
@@ -97,12 +97,10 @@ impl DeferredBuffers {
     pub fn clear(&self, ctx: &Context) {
         let queue = render::queue(ctx);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
-        let attachments = &self.color_attachments_clear();
-        let pass = render::RenderPassBuilder::new()
-            .color_attachments(attachments)
+        render::RenderPassBuilder::new()
+            .color_attachments(&self.color_attachments_clear())
             .depth_stencil_attachment(self.depth_stencil_attachment_clear())
             .build(&mut encoder);
-        drop(pass);
         queue.submit(Some(encoder.finish()));
     }
 
@@ -112,40 +110,20 @@ impl DeferredBuffers {
     /// * Albedo
     /// * Normal
     /// * Roughness
-    pub fn color_attachments(&self) -> [Option<wgpu::RenderPassColorAttachment<'_>>; 4] {
+    pub fn color_attachments(&self) -> [Option<render::RenderPassColorAttachment<'_>>; 4] {
         [
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.position.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.albedo.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.normal.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.roughness.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
+            Some(render::RenderPassColorAttachment::new(
+                self.position.view_ref(),
+            )),
+            Some(render::RenderPassColorAttachment::new(
+                self.albedo.view_ref(),
+            )),
+            Some(render::RenderPassColorAttachment::new(
+                self.normal.view_ref(),
+            )),
+            Some(render::RenderPassColorAttachment::new(
+                self.roughness.view_ref(),
+            )),
         ]
     }
 
@@ -154,41 +132,13 @@ impl DeferredBuffers {
     /// * Albedo
     /// * Normal
     /// * Roughness
-    pub fn color_attachments_clear(&self) -> [Option<wgpu::RenderPassColorAttachment<'_>>; 4] {
-        const CLEAR_COLOR: wgpu::Color = wgpu::Color::BLACK;
+    pub fn color_attachments_clear(&self) -> [Option<render::RenderPassColorAttachment<'_>>; 4] {
+        const COLOR: wgpu::Color = wgpu::Color::BLACK;
         [
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.position.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.albedo.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.normal.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
-            Some(wgpu::RenderPassColorAttachment {
-                view: self.roughness.view_ref(),
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(CLEAR_COLOR),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            }),
+            Some(render::RenderPassColorAttachment::new(self.position.view_ref()).clear(COLOR)),
+            Some(render::RenderPassColorAttachment::new(self.albedo.view_ref()).clear(COLOR)),
+            Some(render::RenderPassColorAttachment::new(self.normal.view_ref()).clear(COLOR)),
+            Some(render::RenderPassColorAttachment::new(self.roughness.view_ref()).clear(COLOR)),
         ]
     }
 

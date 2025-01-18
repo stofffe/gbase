@@ -2,7 +2,9 @@ use glam::Vec3;
 
 use crate::{
     filesystem,
-    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
+    render::{
+        self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline, RenderPassColorAttachment,
+    },
     Context,
 };
 
@@ -41,12 +43,7 @@ impl DeferredRenderer {
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: output_format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
-            // .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .single_target(render::ColorTargetState::new().format(output_format))
             .buffers(vec![vertex_buffer.desc()])
             .build(ctx);
         Self {
@@ -63,24 +60,16 @@ impl DeferredRenderer {
         let queue = render::queue(ctx);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
-        let color_attachments = [Some(wgpu::RenderPassColorAttachment {
-            view: screen_view,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: wgpu::StoreOp::Store,
-            },
-        })];
-        let mut render_pass = render::RenderPassBuilder::new()
-            .color_attachments(&color_attachments)
-            .build(&mut encoder);
-
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
-        render_pass.draw(0..self.vertex_buffer.len(), 0..1);
-
-        drop(render_pass);
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
+            )])
+            .build_run(&mut encoder, |mut render_pass| {
+                render_pass.set_pipeline(&self.pipeline);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
+                render_pass.draw(0..self.vertex_buffer.len(), 0..1);
+            });
 
         queue.submit(Some(encoder.finish()));
     }

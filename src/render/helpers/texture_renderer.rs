@@ -43,13 +43,7 @@ impl TextureRenderer {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .targets(vec![Some(wgpu::ColorTargetState {
-                // format: wgpu::TextureFormat::Bgra8Unorm,
-                // format: wgpu::TextureFormat::Bgra8UnormSrgb,
-                format: output_texture_format,
-                blend: None,
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
+            .single_target(render::ColorTargetState::new().format(output_texture_format))
             .buffers(vec![vertices.desc()])
             .build(ctx);
 
@@ -80,24 +74,17 @@ impl TextureRenderer {
         let queue = render::queue(ctx);
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
-        let color_attachment = [Some(wgpu::RenderPassColorAttachment {
-            view: out_texture,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                store: wgpu::StoreOp::Store,
-            },
-            resolve_target: None,
-        })];
-        let mut render_pass = render::RenderPassBuilder::new()
-            .color_attachments(&color_attachment)
-            .build(&mut encoder);
-
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertices.slice(..));
-        render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
-        render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-        render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
-        drop(render_pass);
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
+            )])
+            .build_run(&mut encoder, |mut render_pass| {
+                render_pass.set_pipeline(&self.pipeline);
+                render_pass.set_vertex_buffer(0, self.vertices.slice(..));
+                render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
+                render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+                render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+            });
 
         queue.submit(Some(encoder.finish()));
     }

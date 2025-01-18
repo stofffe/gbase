@@ -110,19 +110,13 @@ impl FrameBuffer {
     pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
     }
-    pub fn target_blend(&self, blend: wgpu::BlendState) -> wgpu::ColorTargetState {
-        wgpu::ColorTargetState {
-            format: self.format,
-            write_mask: wgpu::ColorWrites::ALL,
-            blend: Some(blend),
-        }
+    pub fn target_blend(&self, blend: wgpu::BlendState) -> render::ColorTargetState {
+        render::ColorTargetState::new()
+            .format(self.format)
+            .blend(blend)
     }
-    pub fn target(&self) -> wgpu::ColorTargetState {
-        wgpu::ColorTargetState {
-            format: self.format,
-            write_mask: wgpu::ColorWrites::ALL,
-            blend: None,
-        }
+    pub fn target(&self) -> render::ColorTargetState {
+        render::ColorTargetState::new().format(self.format)
     }
     pub fn attachment(&self) -> wgpu::RenderPassColorAttachment<'_> {
         wgpu::RenderPassColorAttachment {
@@ -147,14 +141,9 @@ impl FrameBuffer {
     pub fn clear(&self, ctx: &Context, color: wgpu::Color) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
-            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-                view: &self.view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(color),
-                    store: wgpu::StoreOp::Store,
-                },
-            })])
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(self.view_ref()).clear(color),
+            )])
             .build(&mut encoder);
         render::queue(ctx).submit(Some(encoder.finish()));
     }

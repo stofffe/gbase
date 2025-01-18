@@ -74,13 +74,59 @@ impl PipelineLayoutBuilder {
 // Render Pipeline Builder
 //
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct ColorTargetState {
+    format: wgpu::TextureFormat,
+    blend: Option<wgpu::BlendState>,
+    write_mask: wgpu::ColorWrites,
+}
+
+impl ColorTargetState {
+    pub fn new() -> Self {
+        Self {
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            blend: None,
+            write_mask: wgpu::ColorWrites::ALL,
+        }
+    }
+    pub fn from_current_screen(ctx: &Context) -> Self {
+        Self {
+            format: render::surface_config(ctx).format,
+            blend: None,
+            write_mask: wgpu::ColorWrites::ALL,
+        }
+    }
+    pub fn format(mut self, value: wgpu::TextureFormat) -> Self {
+        self.format = value;
+        self
+    }
+    pub fn blend(mut self, value: wgpu::BlendState) -> Self {
+        self.blend = Some(value);
+        self
+    }
+    pub fn write_mask(mut self, value: wgpu::ColorWrites) -> Self {
+        self.write_mask = value;
+        self
+    }
+}
+
+impl Into<wgpu::ColorTargetState> for ColorTargetState {
+    fn into(self) -> wgpu::ColorTargetState {
+        wgpu::ColorTargetState {
+            format: self.format,
+            blend: self.blend,
+            write_mask: self.write_mask,
+        }
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct RenderPipelineBuilder {
     layout: ArcPipelineLayout,
     label: Option<String>,
     shader: ArcShaderModule,
     buffers: Vec<wgpu::VertexBufferLayout<'static>>,
-    targets: Vec<Option<wgpu::ColorTargetState>>,
+    targets: Vec<Option<ColorTargetState>>,
     topology: wgpu::PrimitiveTopology,
     polygon_mode: wgpu::PolygonMode,
     cull_mode: Option<wgpu::Face>,
@@ -120,7 +166,11 @@ impl RenderPipelineBuilder {
             fragment: Some(wgpu::FragmentState {
                 module: &self.shader,
                 entry_point: self.fragment_entry_point.as_deref(),
-                targets: &self.targets,
+                targets: &self
+                    .targets
+                    .iter()
+                    .map(|state| state.clone().map(|a| a.into()))
+                    .collect::<Vec<_>>(),
                 compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             }),
             primitive: wgpu::PrimitiveState {
@@ -170,8 +220,12 @@ impl RenderPipelineBuilder {
         self
     }
     // TODO: make this custom type? (with empty)
-    pub fn targets(mut self, value: Vec<Option<wgpu::ColorTargetState>>) -> Self {
+    pub fn multiple_targets(mut self, value: Vec<Option<ColorTargetState>>) -> Self {
         self.targets = value;
+        self
+    }
+    pub fn single_target(mut self, value: ColorTargetState) -> Self {
+        self.targets = vec![Some(value)];
         self
     }
     pub fn depth_stencil(mut self, value: wgpu::DepthStencilState) -> Self {

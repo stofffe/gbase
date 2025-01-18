@@ -168,3 +168,15 @@ pub fn surface_size(ctx: &Context) -> winit::dpi::PhysicalSize<u32> {
 pub fn cache(ctx: &Context) -> &RenderCache {
     &ctx.render.cache
 }
+pub fn set_vsync(ctx: &mut Context, vsync: bool) {
+    let mut surface_config = surface_config(ctx).clone();
+    surface_config.present_mode = if vsync {
+        wgpu::PresentMode::AutoVsync
+    } else {
+        wgpu::PresentMode::AutoNoVsync
+    };
+
+    let device = device(ctx);
+    let surface = surface(ctx);
+    surface.configure(device, &surface_config);
+}

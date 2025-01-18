@@ -173,11 +173,11 @@ impl SpriteRenderer {
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
             .buffers(vec![vertex_buffer.desc()])
-            .targets(vec![Some(wgpu::ColorTargetState {
-                format: output_format,
-                blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })])
+            .single_target(
+                render::ColorTargetState::new()
+                    .format(output_format)
+                    .blend(wgpu::BlendState::ALPHA_BLENDING),
+            )
             .build(ctx);
 
         Self {
@@ -210,14 +210,9 @@ impl SpriteRenderer {
             .build(ctx);
 
         render::RenderPassBuilder::new()
-            .color_attachments(&[Some(wgpu::RenderPassColorAttachment {
-                view: output_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })])
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(output_view).clear(wgpu::Color::BLACK),
+            )])
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_bind_group(0, bindgroup.as_ref(), &[]);

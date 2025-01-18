@@ -52,7 +52,7 @@ impl Callbacks for App {
             .bind_groups(vec![texture_bindgroup_layout.clone()])
             .build_uncached(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .targets(vec![render::RenderPipelineBuilder::default_target(ctx)])
+            .single_target(render::ColorTargetState::from_current_screen(ctx))
             .buffers(vec![vertex_buffer.desc()])
             .build(ctx);
 
