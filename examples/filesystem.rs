@@ -3,7 +3,12 @@ use gbase::{
     input::{self, KeyCode},
     Callbacks, Context,
 };
+use gbase::{log, run_sync};
 
+// #[wasm_bindgen::prelude::wasm_bindgen]
+// pub async fn main() {
+//     gbase::run::<App>().await;
+// }
 pub fn main() {
     gbase::run_sync::<App>();
 }
@@ -18,21 +23,21 @@ impl Callbacks for App {
     fn update(&mut self, ctx: &mut Context) -> bool {
         let str_path = "tmp/string";
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
-            log::info!("write string");
+            println!("write string");
             log::warn!("{:?}", filesystem::load_str(ctx, str_path));
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
-            log::info!("load string");
+            println!("load string");
             filesystem::store_str(ctx, str_path, "hello");
         }
 
         let bytes_path = "tmp/bytes";
         if input::key_just_pressed(ctx, KeyCode::Digit3) {
-            log::info!("write bytes");
+            println!("write bytes");
             log::warn!("{:?}", filesystem::load_bytes(ctx, bytes_path));
         }
         if input::key_just_pressed(ctx, KeyCode::Digit4) {
-            log::info!("load bytes");
+            println!("load bytes");
             filesystem::store_bytes(ctx, bytes_path, &[1, 2, 3]);
         }
 

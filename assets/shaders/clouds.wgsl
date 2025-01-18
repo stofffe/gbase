@@ -1,3 +1,5 @@
+diagnostic (info, derivative_uniformity);
+
 struct VertexInput {
     @location(0) position: vec3f,
     @location(1) uv: vec2f,
@@ -183,7 +185,6 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32, blue_noise: f32) -> CloudInfo {
             // 1.0 - attenuation: amount that is being absorbed in this point
             // transmittance: amount of light in this spot that reaches camera
             color += light * (1.0 - attenuation) * transmittance;
-
         }
 
         transmittance *= attenuation;

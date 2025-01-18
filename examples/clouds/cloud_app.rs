@@ -1,10 +1,11 @@
 use crate::cloud_renderer;
+use gbase::log;
 use gbase::render::{UniformBufferBuilder, Widget, BLUE, GRAY, GREEN, RED};
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::fs;
-use std::io::{self, Write};
+use std::io::Write;
 use std::sync::mpsc;
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
@@ -101,7 +102,7 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::None)
+            .log_level(gbase::LogLevel::Warn)
             .window_builder(WindowBuilder::new().with_maximized(true))
             .vsync(false)
     }
@@ -361,31 +362,31 @@ impl App {
         if self.write_param_index {
             let content =
                 serde_json::to_string(&self.cloud_params).expect("could not serialze params");
-            let mut file = fs::File::create(&file_name).expect("could not open params file");
-            file.write_all(content.as_bytes())
-                .expect("could not write to params file");
+            match filesystem::store_str(ctx, &file_name, &content) {
+                Ok(_) => log::info!("Sucessfully updated params {}", index),
+                Err(err) => log::error!("could not write params: {}", err),
+            }
 
             self.write_param_index = false;
             self.params_changed = false;
-            println!("wrote params {}", self.param_index);
+            println!("aaaaa wrote params {}", self.param_index);
         }
 
         if self.load_param_index && !self.params_changed {
-            let Ok(file) = fs::File::open(&file_name) else {
-                println!("could not open file {file_name} aborting params load");
-                return;
-            };
-            let content = io::read_to_string(file).expect("could not read params file");
-
-            let params = match serde_json::from_str(&content) {
-                Ok(params) => params,
-                Err(err) => {
-                    println!("could not deserialize params: {err}");
-                    return;
+            match filesystem::load_str(ctx, &file_name) {
+                Ok(content) => {
+                    let params = match serde_json::from_str(&content) {
+                        Ok(params) => params,
+                        Err(err) => {
+                            println!("could not deserialize params: {err}");
+                            return;
+                        }
+                    };
+                    self.cloud_params = params;
                 }
-            };
+                Err(err) => log::error!("could not load params {}: {}", index, err),
+            }
 
-            self.cloud_params = params;
             self.load_param_index = false;
             self.params_changed = false;
             println!("loaded params {}", self.param_index);

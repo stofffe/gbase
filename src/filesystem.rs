@@ -10,66 +10,66 @@ impl FileSystemContext {
 // Commands
 //
 
-pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) {
+pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         use base64::Engine;
         let encoded = base64::engine::general_purpose::STANDARD.encode(data);
-        storage
-            .set_item(path, &encoded)
-            .expect("could not set data in localstorage");
+        storage.set_item(path, &encoded);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(Path::new(path), data).expect("could not write file");
+    fs::write(Path::new(path), data)?;
+
+    Ok(())
 }
 
-pub fn load_bytes(ctx: &Context, path: &str) -> Vec<u8> {
+pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         let data = storage
             .get_item(path)
-            .expect("could not get data from localstorage")
-            .expect("data does not exist");
+            .map_err(|e| anyhow!("could not get item"))?
+            .ok_or(anyhow!("empty"))?;
         use base64::Engine;
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(data)
-            .expect("could not decode bytes");
-        return decoded.to_vec();
+        let decoded = base64::engine::general_purpose::STANDARD.decode(data)?;
+        return Ok(decoded.to_vec());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::read(path).expect("could not read data from file")
+    Ok(fs::read(path)?)
 }
 
-pub fn store_str(ctx: &Context, path: &str, data: &str) {
+pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         storage
             .set_item(path, data)
-            .expect("could not set data in localstorage");
+            .map_err(|err| anyhow!("could not set item"))?;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(Path::new(path), data).expect("could not write file");
+    fs::write(Path::new(path), data)?;
+
+    Ok(())
 }
 
-pub fn load_str(ctx: &Context, path: &str) -> String {
+pub fn load_str(ctx: &Context, path: &str) -> anyhow::Result<String> {
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         let data = storage
             .get_item(path)
-            .expect("could not get data from localstorage");
-
-        return data.expect("data does not exist");
+            .map_err(|err| anyhow!("could not get item"))?
+            .ok_or(anyhow!("empty"));
+        return data;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::read_to_string(path).expect("could not read data from file")
+    Ok(fs::read_to_string(path)?)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -142,8 +142,9 @@ macro_rules! load_s {
     };
 }
 
-use std::{fs, path::Path};
+use std::{any, fs, path::Path};
 
+use anyhow::anyhow;
 pub use load_b;
 pub use load_s;
 

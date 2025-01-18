@@ -14,6 +14,7 @@ image = "0.24.7"
 encase = { version = "0.6.1", features = ["glam"] }
 fontdue = "0.8.0"
 gltf = "1.4.0"
+anyhow = "1.0.95"
 
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
