@@ -6,9 +6,31 @@ use crate::{render, Context};
 //
 
 #[derive(Clone, Eq, PartialEq, Hash)]
+pub enum ShaderDiagnosticLevel {
+    Off,
+    Info,
+    Warn,
+    Error,
+}
+
+impl ShaderDiagnosticLevel {
+    const fn to_shader_string(&self) -> &'static str {
+        match self {
+            ShaderDiagnosticLevel::Off => "off",
+            ShaderDiagnosticLevel::Info => "info",
+            ShaderDiagnosticLevel::Warn => "warning",
+            ShaderDiagnosticLevel::Error => "error",
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
     source: String,
     label: Option<String>,
+
+    diagnostic_derivative_uniformity: Option<ShaderDiagnosticLevel>,
+    diagnostic_subgroup_uniformity: Option<ShaderDiagnosticLevel>,
 }
 
 impl ShaderBuilder {
@@ -16,6 +38,8 @@ impl ShaderBuilder {
         Self {
             source,
             label: None,
+            diagnostic_derivative_uniformity: None,
+            diagnostic_subgroup_uniformity: None,
         }
     }
 
@@ -23,11 +47,27 @@ impl ShaderBuilder {
     ///
     /// panics if source is invalid
     pub fn build_uncached(&self, ctx: &Context) -> ArcShaderModule {
-        let device = render::device(ctx);
+        let mut shader_code = String::with_capacity(self.source.len());
 
+        if let Some(d) = &self.diagnostic_derivative_uniformity {
+            shader_code.push_str(&format!(
+                "diagnostic ({}, derivative_uniformity);",
+                d.to_shader_string()
+            ));
+        }
+        if let Some(d) = &self.diagnostic_subgroup_uniformity {
+            shader_code.push_str(&format!(
+                "diagnostic ({}, subgroup_uniformity);",
+                d.to_shader_string()
+            ));
+        }
+
+        shader_code.push_str(&self.source);
+
+        let device = render::device(ctx);
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label.as_deref(),
-            source: wgpu::ShaderSource::Wgsl(self.source.clone().into()),
+            source: wgpu::ShaderSource::Wgsl(shader_code.into()),
         });
 
         ArcShaderModule::new(module)
@@ -96,6 +136,16 @@ impl ShaderBuilder {
 impl ShaderBuilder {
     pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
+        self
+    }
+
+    pub fn diagnostic_derivative_uniformity(mut self, value: ShaderDiagnosticLevel) -> Self {
+        self.diagnostic_derivative_uniformity = Some(value);
+        self
+    }
+
+    pub fn diagnostic_subgroup_uniformity(mut self, value: ShaderDiagnosticLevel) -> Self {
+        self.diagnostic_subgroup_uniformity = Some(value);
         self
     }
 }

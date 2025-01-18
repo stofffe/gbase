@@ -142,13 +142,11 @@ macro_rules! load_s {
     };
 }
 
-use std::{any, fs, path::Path};
-
-use anyhow::anyhow;
 pub use load_b;
 pub use load_s;
 
 use crate::Context;
+use std::{fs, path::Path};
 
 // /// Loads bytes from file in assets folder
 // pub(crate) async fn load_bytes(&self, path: &Path) -> anyhow::Result<Vec<u8>> {

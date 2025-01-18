@@ -1,5 +1,3 @@
-diagnostic (info, derivative_uniformity);
-
 struct VertexInput {
     @location(0) position: vec3f,
     @location(1) uv: vec2f,

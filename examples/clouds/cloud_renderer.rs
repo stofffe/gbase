@@ -40,11 +40,17 @@ impl CloudRenderer {
         ))
         .build(ctx);
 
-        let shader_str = filesystem::load_s!("shaders/clouds.wgsl").unwrap();
-        #[cfg(feature = "hot_reload")]
-        let shader = render::ShaderBuilder::new(shader_str).build_err(ctx)?;
-        #[cfg(not(feature = "hot_reload"))]
-        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+        let shader =
+            render::ShaderBuilder::new(filesystem::load_s!("shaders/clouds.wgsl").unwrap());
+
+        #[cfg(target_arch = "wasm32")]
+        let shader = shader.diagnostic_derivative_uniformity(render::ShaderDiagnosticLevel::Off);
+
+        let shader = if !cfg!(target_arch = "wasm32") {
+            shader.build_err(ctx)?
+        } else {
+            shader.build(ctx)
+        };
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
