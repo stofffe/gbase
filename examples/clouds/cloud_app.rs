@@ -79,6 +79,7 @@ pub struct App {
     gizmo_renderer: render::GizmoRenderer,
     cloud_renderer: cloud_renderer::CloudRenderer,
     gaussian_blur: render::GaussianFilter,
+    gamma_correction: render::GammaCorrection,
 
     cloud_parameters_buffer: render::UniformBuffer<CloudParameters>,
     cloud_params: CloudParameters,
@@ -131,10 +132,9 @@ impl gbase::Callbacks for App {
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let screen_format = render::surface_config(ctx).format;
         let ui_renderer = render::GUIRenderer::new(
             ctx,
-            screen_format,
+            framebuffer.format(),
             1024,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             render::DEFAULT_SUPPORTED_CHARS,
@@ -143,7 +143,7 @@ impl gbase::Callbacks for App {
             CloudParameters::default(),
         ))
         .build(ctx);
-        let gizmo_renderer = render::GizmoRenderer::new(ctx, screen_format, &camera_buffer);
+        let gizmo_renderer = render::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
         let cloud_renderer = cloud_renderer::CloudRenderer::new(
             ctx,
             &framebuffer,
@@ -154,6 +154,7 @@ impl gbase::Callbacks for App {
         .expect("could not create cloud renderer");
 
         let gaussian_blur = render::GaussianFilter::new(ctx);
+        let gamma_correction = render::GammaCorrection::new(ctx);
 
         Self {
             framebuffer,
@@ -163,6 +164,7 @@ impl gbase::Callbacks for App {
             gizmo_renderer,
             cloud_renderer,
             gaussian_blur,
+            gamma_correction,
 
             camera,
             camera_buffer,
@@ -270,10 +272,8 @@ impl gbase::Callbacks for App {
             );
         }
 
-        self.texture_to_screen
-            .render(ctx, self.framebuffer.view(), screen_view);
-
         // render to image
+        // ignores gizmos and ui
         if self.store_surface {
             self.store(ctx);
             self.store_surface = false;
@@ -281,9 +281,16 @@ impl gbase::Callbacks for App {
 
         if self.enable_gizmos {
             self.gizmos(ctx);
-            self.gizmo_renderer.render(ctx, screen_view);
+            self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         }
-        self.ui_renderer.render(ctx, screen_view);
+        self.ui_renderer.render(ctx, self.framebuffer.view_ref());
+
+        if !render::surface_config(ctx).format.is_srgb() {
+            self.gamma_correction.apply(ctx, &self.framebuffer);
+        }
+
+        self.texture_to_screen
+            .render(ctx, self.framebuffer.view(), screen_view);
 
         false
     }
