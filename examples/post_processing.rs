@@ -13,11 +13,11 @@ struct App {
     texture_renderer_final: render::TextureRenderer,
     framebuffer: render::FrameBuffer,
 
-    texture1: render::Texture,
-    texture2: render::Texture,
-    texture3: render::Texture,
-    texture4: render::Texture,
-    texture5: render::Texture,
+    texture1: render::TextureWithView,
+    texture2: render::TextureWithView,
+    texture3: render::TextureWithView,
+    texture4: render::TextureWithView,
+    texture5: render::TextureWithView,
 
     current_texture: ArcTextureView,
 
@@ -54,27 +54,33 @@ impl Callbacks for App {
             include_bytes!("../assets/textures/nature.jpg").to_vec(),
         ))
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx);
+        .build(ctx)
+        .with_default_view(ctx);
         let texture2 = render::TextureBuilder::new(render::TextureSource::Bytes(
             include_bytes!("../assets/textures/city.jpg").to_vec(),
         ))
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx);
+        .build(ctx)
+        .with_default_view(ctx);
+
         let texture3 = render::TextureBuilder::new(render::TextureSource::Bytes(
             include_bytes!("../assets/textures/hellokitty.jpg").to_vec(),
         ))
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx);
+        .build(ctx)
+        .with_default_view(ctx);
         let texture4 = render::TextureBuilder::new(render::TextureSource::Bytes(
             include_bytes!("../assets/textures/mario.jpg").to_vec(),
         ))
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx);
+        .build(ctx)
+        .with_default_view(ctx);
         let texture5 = render::TextureBuilder::new(render::TextureSource::Bytes(
             include_bytes!("../assets/textures/antialiasing.png").to_vec(),
         ))
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx);
+        .build(ctx)
+        .with_default_view(ctx);
         let last_texture = texture1.view();
 
         // filters

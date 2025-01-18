@@ -1,4 +1,7 @@
-use crate::{render, Context};
+use crate::{
+    render::{self, device},
+    Context,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameBufferBuilder {
@@ -50,7 +53,6 @@ impl FrameBufferBuilder {
         FrameBuffer {
             texture: render::ArcTexture::new(texture),
             view: render::ArcTextureView::new(view),
-            format: self.format,
             builder: self,
         }
     }
@@ -93,7 +95,6 @@ impl FrameBufferBuilder {
 pub struct FrameBuffer {
     texture: render::ArcTexture,
     view: render::ArcTextureView,
-    format: wgpu::TextureFormat,
     builder: FrameBufferBuilder,
 }
 
@@ -112,11 +113,11 @@ impl FrameBuffer {
     }
     pub fn target_blend(&self, blend: wgpu::BlendState) -> render::ColorTargetState {
         render::ColorTargetState::new()
-            .format(self.format)
+            .format(self.format())
             .blend(blend)
     }
     pub fn target(&self) -> render::ColorTargetState {
-        render::ColorTargetState::new().format(self.format)
+        render::ColorTargetState::new().format(self.format())
     }
     pub fn attachment(&self) -> wgpu::RenderPassColorAttachment<'_> {
         wgpu::RenderPassColorAttachment {
@@ -135,7 +136,7 @@ impl FrameBuffer {
         *self = self.builder.clone().screen_size(ctx).build(ctx);
     }
     pub fn format(&self) -> wgpu::TextureFormat {
-        self.format
+        self.texture().format()
     }
 
     pub fn clear(&self, ctx: &Context, color: wgpu::Color) {
@@ -212,7 +213,7 @@ pub struct DepthBuffer {
 impl DepthBuffer {
     pub fn depth_stencil_state(&self) -> wgpu::DepthStencilState {
         wgpu::DepthStencilState {
-            format: self.framebuffer.format,
+            format: self.framebuffer.format(),
             depth_write_enabled: self.depth_write_enabled,
             depth_compare: self.depth_compare,
             stencil: wgpu::StencilState::default(),

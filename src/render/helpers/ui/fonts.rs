@@ -49,7 +49,8 @@ impl FontAtlas {
         let texture =
             render::TextureBuilder::new(render::TextureSource::Empty(texture_dim.x, texture_dim.y))
                 .format(wgpu::TextureFormat::R8Unorm)
-                .build(ctx);
+                .build(ctx)
+                .with_default_view(ctx);
         let mut texture_atlas = render::TextureAtlasBuilder::new().build(texture);
 
         let mut offset = UVec2::ZERO;

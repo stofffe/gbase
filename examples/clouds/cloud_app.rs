@@ -357,7 +357,7 @@ impl App {
         //
 
         let index = self.param_index;
-        let file_name = format!("assets/temporary/cloud_params_{index}.txt");
+        let file_name = format!("temporary/cloud_params_{index}.txt");
 
         if self.write_param_index {
             let content =

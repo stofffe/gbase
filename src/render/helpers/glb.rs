@@ -60,9 +60,9 @@ impl GpuDrawCall {
 }
 
 pub struct GpuMaterial {
-    pub albedo_texture: render::Texture,
-    pub normal_texture: render::Texture,
-    pub roughness_texture: render::Texture,
+    pub albedo_texture: render::TextureWithView,
+    pub normal_texture: render::TextureWithView,
+    pub roughness_texture: render::TextureWithView,
 }
 
 impl GpuMaterial {
@@ -83,26 +83,31 @@ impl GpuMaterial {
             render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         } else {
             let default_color = color_factor.map(|a| (a * 255.0) as u8).to_vec();
             render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_color.to_vec()))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         };
         let normal_texture = if let Some(bytes) = normal {
             render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         } else {
             let default_normal = [128, 128, 255, 128].to_vec();
             render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_normal))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         };
         let roughness_texture = if let Some(bytes) = roughness {
             render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         } else {
             let default_roughness = [
                 (occlusion_strength * 255.0) as u8,
@@ -114,6 +119,7 @@ impl GpuMaterial {
             render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_roughness))
                 .usage(texture_usage)
                 .build(ctx)
+                .with_default_view(ctx)
         };
         Self {
             albedo_texture,

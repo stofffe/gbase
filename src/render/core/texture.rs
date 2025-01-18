@@ -158,7 +158,7 @@ impl TextureBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> Texture {
+    pub fn build_uncached(&self, ctx: &Context) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         match &self.source {
@@ -178,12 +178,7 @@ impl TextureBuilder {
                     view_formats: &self.view_formats,
                 });
 
-                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-                Texture {
-                    texture: ArcTexture::new(texture),
-                    view: ArcTextureView::new(view),
-                }
+                ArcTexture::new(texture)
             }
             TextureSource::Filled(width, height, bytes) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -219,12 +214,7 @@ impl TextureBuilder {
                     texture.size(),
                 );
 
-                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-                Texture {
-                    texture: ArcTexture::new(texture),
-                    view: ArcTextureView::new(view),
-                }
+                ArcTexture::new(texture)
             }
             TextureSource::Bytes(bytes) => {
                 let img = image::load_from_memory(bytes)
@@ -261,16 +251,11 @@ impl TextureBuilder {
                     texture.size(),
                 );
 
-                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-                Texture {
-                    texture: ArcTexture::new(texture),
-                    view: ArcTextureView::new(view),
-                }
+                ArcTexture::new(texture)
             }
         }
     }
-    pub fn build(&self, ctx: &mut Context) -> Texture {
+    pub fn build(&self, ctx: &mut Context) -> render::ArcTexture {
         if let Some(texture) = ctx.render.cache.textures.get(self) {
             log::info!("Fetch cached texture");
             return texture.clone();
@@ -322,12 +307,80 @@ impl TextureBuilder {
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct Texture {
+pub struct TextureViewBuilder {
+    texture: render::ArcTexture,
+
+    label: Option<String>,
+    format: Option<wgpu::TextureFormat>,
+    dimension: Option<wgpu::TextureViewDimension>,
+    apspect: wgpu::TextureAspect,
+    base_mip_level: u32,
+    mip_level_count: Option<u32>,
+    base_array_layer: u32,
+    array_layer_count: Option<u32>,
+}
+
+impl TextureViewBuilder {
+    pub fn new(texture: render::ArcTexture) -> Self {
+        Self {
+            texture,
+            label: None,
+            format: None,
+            dimension: None,
+            apspect: wgpu::TextureAspect::All,
+            base_mip_level: 0,
+            mip_level_count: None,
+            base_array_layer: 0,
+            array_layer_count: None,
+        }
+    }
+
+    pub fn build_uncached(&self, _ctx: &Context) -> render::ArcTextureView {
+        let view = self.texture.create_view(&wgpu::TextureViewDescriptor {
+            label: self.label.as_deref(),
+            format: self.format,
+            dimension: self.dimension,
+            aspect: self.apspect,
+            base_mip_level: self.base_mip_level,
+            mip_level_count: self.mip_level_count,
+            base_array_layer: self.base_array_layer,
+            array_layer_count: self.array_layer_count,
+        });
+
+        render::ArcTextureView::new(view)
+    }
+
+    pub fn build(&self, ctx: &mut Context) -> render::ArcTextureView {
+        if let Some(view) = ctx.render.cache.texture_views.get(self) {
+            log::info!("Fetched cached texture view");
+            return view.clone();
+        }
+
+        log::info!("Create cached texture view");
+        let view = self.build_uncached(ctx);
+        ctx.render
+            .cache
+            .texture_views
+            .insert(self.clone(), view.clone());
+        view
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct TextureWithView {
     pub(crate) texture: ArcTexture,
     pub(crate) view: ArcTextureView,
 }
 
-impl Texture {
+impl TextureWithView {
+    pub fn new(texture: ArcTexture, view: ArcTextureView) -> Self {
+        Self { texture, view }
+    }
+    pub fn from_texture(ctx: &mut Context, texture: ArcTexture) -> Self {
+        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        Self { texture, view }
+    }
+
     pub fn texture(&self) -> ArcTexture {
         self.texture.clone()
     }
@@ -341,5 +394,11 @@ impl Texture {
 
     pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
+    }
+}
+
+impl render::ArcTexture {
+    pub fn with_default_view(self, ctx: &mut Context) -> render::TextureWithView {
+        render::TextureWithView::from_texture(ctx, self)
     }
 }

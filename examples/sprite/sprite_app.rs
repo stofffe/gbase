@@ -7,10 +7,6 @@ use gbase::{
     time, wgpu, Callbacks, Context,
 };
 
-fn main() {
-    gbase::run_sync::<App>();
-}
-
 const MAX_SPRITES: u64 = 1000;
 
 pub struct App {
@@ -56,8 +52,8 @@ impl Callbacks for App {
         let sprite_renderer =
             SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_config(ctx).format);
 
-        let mut camera = render::Camera::new(render::CameraProjection::orthographic(10.0, 10.0));
-        camera.pos.z = 2.0;
+        let mut camera = render::Camera::new(render::CameraProjection::orthographic(2.0, 2.0));
+        camera.pos.z = 1.0;
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -80,7 +76,7 @@ impl Callbacks for App {
             gbase::hot_reload::hot_restart(ctx);
             println!("hot restart");
         }
-        self.camera.flying_controls(ctx);
+        // self.camera.flying_controls(ctx);
 
         // hot restart
         let dt = time::delta_time(ctx);

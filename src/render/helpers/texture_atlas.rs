@@ -4,7 +4,10 @@
 
 use glam::UVec2;
 
-use crate::{render, Context};
+use crate::{
+    render::{self},
+    Context,
+};
 
 pub struct TextureAtlasBuilder {}
 
@@ -12,13 +15,13 @@ impl TextureAtlasBuilder {
     pub fn new() -> Self {
         Self {}
     }
-    pub fn build(self, texture: render::Texture) -> TextureAtlas {
+    pub fn build(self, texture: render::TextureWithView) -> TextureAtlas {
         TextureAtlas { texture }
     }
 }
 
 pub struct TextureAtlas {
-    texture: render::Texture,
+    texture: render::TextureWithView,
 }
 
 impl TextureAtlas {
@@ -50,7 +53,7 @@ impl TextureAtlas {
         );
     }
 
-    pub fn texture(&self) -> &render::Texture {
+    pub fn texture(&self) -> &render::TextureWithView {
         &self.texture
     }
 }

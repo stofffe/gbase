@@ -13,9 +13,9 @@ pub struct CloudRenderer {
     pipeline: render::ArcRenderPipeline,
     bindgroup: render::ArcBindGroup,
 
-    noise_texture: render::Texture,
-    weather_map_texture: render::Texture,
-    blue_noise_texture: render::Texture,
+    noise_texture: render::TextureWithView,
+    weather_map_texture: render::TextureWithView,
+    blue_noise_texture: render::TextureWithView,
     app_info: render::AppInfo,
 }
 

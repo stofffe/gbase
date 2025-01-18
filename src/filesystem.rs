@@ -1,3 +1,6 @@
+#[cfg(target_arch = "wasm32")]
+use anyhow::anyhow;
+
 pub(crate) struct FileSystemContext {}
 
 impl FileSystemContext {
@@ -11,26 +14,30 @@ impl FileSystemContext {
 //
 
 pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
+    let path = asset_prefix(path);
+
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         use base64::Engine;
         let encoded = base64::engine::general_purpose::STANDARD.encode(data);
-        storage.set_item(path, &encoded);
+        storage.set_item(&path, &encoded);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(Path::new(path), data)?;
+    fs::write(path, data)?;
 
     Ok(())
 }
 
 pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
+    let path = asset_prefix(path);
+
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         let data = storage
-            .get_item(path)
+            .get_item(&path)
             .map_err(|e| anyhow!("could not get item"))?
             .ok_or(anyhow!("empty"))?;
         use base64::Engine;
@@ -43,26 +50,30 @@ pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
 }
 
 pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
+    let path = asset_prefix(path);
+
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         storage
-            .set_item(path, data)
+            .set_item(&path, data)
             .map_err(|err| anyhow!("could not set item"))?;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(Path::new(path), data)?;
+    fs::write(path, data)?;
 
     Ok(())
 }
 
 pub fn load_str(ctx: &Context, path: &str) -> anyhow::Result<String> {
+    let path = asset_prefix(path);
+
     #[cfg(target_arch = "wasm32")]
     {
         let storage = get_local_storage();
         let data = storage
-            .get_item(path)
+            .get_item(&path)
             .map_err(|err| anyhow!("could not get item"))?
             .ok_or(anyhow!("empty"));
         return data;
@@ -80,6 +91,10 @@ fn get_local_storage() -> web_sys::Storage {
         .expect("could not get local storage")
         .expect("local storage is empty");
     storage
+}
+
+fn asset_prefix(path: &str) -> String {
+    format!("assets/{path}")
 }
 
 /// Load bytes from assets folder
