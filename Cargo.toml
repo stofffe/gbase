@@ -49,4 +49,4 @@ default = []
 hot_reload = ["dep:dlopen", "dep:dlopen_derive", "dep:notify"]
 
 [workspace]
-members = ["examples/hot_reload", "examples/web"]
+members = ["examples/hot_reload", "examples/web", "tools/atlas_generator"]
