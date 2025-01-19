@@ -1,3 +1,4 @@
+mod atlas;
 mod sprite_app;
 mod sprite_packer;
 

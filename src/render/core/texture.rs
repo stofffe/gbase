@@ -221,6 +221,7 @@ impl TextureBuilder {
                     .expect("could not load texture from bytes")
                     .to_rgba8();
 
+                // TODO: use util instead?
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: self.label.as_deref(),
                     size: wgpu::Extent3d {
@@ -272,8 +273,8 @@ impl TextureBuilder {
 }
 
 impl TextureBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn usage(mut self, value: wgpu::TextureUsages) -> Self {

@@ -7,17 +7,9 @@ use gbase::{
     time, wgpu, Callbacks, Context,
 };
 
+use crate::sprite_packer::{SpriteAtlas, SpriteAtlasBuilder, SpriteHandle};
+
 const MAX_SPRITES: u64 = 1000;
-
-pub struct App {
-    player: Player,
-    obstacles: Vec<Obstacle>,
-
-    camera: render::Camera,
-    camera_buffer: render::UniformBuffer<CameraUniform>,
-
-    sprite_renderer: SpriteRenderer,
-}
 
 struct Player {
     pos: Vec2,
@@ -28,6 +20,26 @@ struct Player {
 struct Obstacle {
     pos: Vec2,
     size: Vec2,
+}
+
+pub struct App {
+    player: Player,
+    obstacles: Vec<Obstacle>,
+
+    camera: render::Camera,
+    camera_buffer: render::UniformBuffer<CameraUniform>,
+
+    sprite_renderer: SpriteRenderer,
+
+    atlas_renderer: render::TextureRenderer,
+
+    sprite_atlas: SpriteAtlas,
+    bird_up: SpriteHandle,
+    bird_mid: SpriteHandle,
+    bird_down: SpriteHandle,
+    background: SpriteHandle,
+    pipe: SpriteHandle,
+    base: SpriteHandle,
 }
 
 impl Callbacks for App {
@@ -58,6 +70,63 @@ impl Callbacks for App {
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
+        let mut sprite_atlas_builder = SpriteAtlasBuilder::new(1024, 1024);
+
+        let base = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_b!("textures/base.png").unwrap().to_vec(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+        let background = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_b!("textures/background.png")
+                    .unwrap()
+                    .to_vec(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+        let bird_up = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_b!("textures/bluebird-upflap.png")
+                    .unwrap()
+                    .to_vec(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+        let bird_mid = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_b!("textures/bluebird-midflap.png")
+                    .unwrap()
+                    .to_vec(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+        let bird_down = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_b!("textures/bluebird-downflap.png")
+                    .unwrap()
+                    .to_vec(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+        let pipe = sprite_atlas_builder.add_sprite(
+            render::TextureBuilder::new(render::TextureSource::Bytes(
+                filesystem::load_bytes(ctx, "textures/pipe.png").unwrap(),
+            ))
+            .usage(wgpu::TextureUsages::COPY_SRC | wgpu::TextureUsages::COPY_DST)
+            .build(ctx),
+        );
+
+        let sprite_atlas = sprite_atlas_builder.build(ctx);
+
+        let atlas_renderer = render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
+
         Self {
             player,
             obstacles,
@@ -66,6 +135,15 @@ impl Callbacks for App {
             camera_buffer,
 
             sprite_renderer,
+
+            sprite_atlas,
+            atlas_renderer,
+            bird_up,
+            bird_mid,
+            bird_down,
+            pipe,
+            background,
+            base,
         }
     }
 
@@ -123,6 +201,9 @@ impl Callbacks for App {
         self.sprite_renderer.draw_quad(player_quad, render::BLUE);
         self.sprite_renderer
             .render(ctx, screen_view, &self.camera_buffer);
+
+        self.atlas_renderer
+            .render(ctx, self.sprite_atlas.view(), screen_view);
 
         false
     }
