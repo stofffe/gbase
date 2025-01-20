@@ -19,28 +19,16 @@ pub struct CameraUniform {
 
 #[derive(Debug)]
 pub enum CameraProjection {
-    Perspective {
-        fov: f32,
-    },
-    Orthographic {
-        left: f32,
-        right: f32,
-        bottom: f32,
-        top: f32,
-    },
+    Perspective { fov: f32 },
+    Orthographic { height: f32 },
 }
 
 impl CameraProjection {
     pub fn perspective(fov: f32) -> Self {
         Self::Perspective { fov }
     }
-    pub fn orthographic(width: f32, height: f32) -> Self {
-        Self::Orthographic {
-            left: -width / 2.0,
-            right: width / 2.0,
-            bottom: -height / 2.0,
-            top: height / 2.0,
-        }
+    pub fn orthographic(height: f32) -> Self {
+        Self::Orthographic { height }
     }
 }
 
@@ -103,17 +91,20 @@ impl Camera {
         let pos = self.pos;
         let facing = self.forward();
 
+        let aspect = ctx.render.aspect_ratio();
         let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
         let proj = match self.projection {
             CameraProjection::Perspective { fov } => {
-                Mat4::perspective_rh(fov, ctx.render.aspect_ratio(), self.znear, self.zfar)
+                Mat4::perspective_rh(fov, aspect, self.znear, self.zfar)
             }
-            CameraProjection::Orthographic {
-                left,
-                right,
-                bottom,
-                top,
-            } => Mat4::orthographic_rh(left, right, bottom, top, self.znear, self.zfar),
+            CameraProjection::Orthographic { height } => Mat4::orthographic_rh(
+                aspect * -height / 2.0,
+                aspect * height / 2.0,
+                -height / 2.0,
+                height / 2.0,
+                self.znear,
+                self.zfar,
+            ),
         };
         let view_proj = proj * view;
 
@@ -435,7 +426,7 @@ impl PerspectiveCamera {
         if input::key_pressed(ctx, winit::keyboard::KeyCode::ShiftLeft) {
             camera_movement_dir -= self.world_up();
         }
-        const CAMERA_MOVE_SPEED: f32 = 15.0;
+        const CAMERA_MOVE_SPEED: f32 = 25.0;
         if camera_movement_dir != Vec3::ZERO {
             if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyM) {
                 self.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED / 10.0;

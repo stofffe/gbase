@@ -30,8 +30,6 @@ pub struct App {
 
     sprite_renderer: sprite_renderer::SpriteRenderer,
 
-    atlas_renderer: render::TextureRenderer,
-
     sprite_atlas: render::TextureWithView,
 }
 
@@ -60,13 +58,11 @@ impl Callbacks for App {
             render::surface_config(ctx).format,
         );
 
-        let mut camera = render::Camera::new(render::CameraProjection::orthographic(2.0, 2.0));
+        let mut camera = render::Camera::new(render::CameraProjection::orthographic(1.0));
         camera.pos.z = 1.0;
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-
-        let atlas_renderer = render::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         let sprite_atlas = render::TextureBuilder::new(render::TextureSource::Bytes(
             sprite_atlas::ATLAS_BYTES.to_vec(),
@@ -83,7 +79,6 @@ impl Callbacks for App {
 
             sprite_renderer,
 
-            atlas_renderer,
             sprite_atlas,
         }
     }
@@ -126,34 +121,40 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         // player
-        let player_quad = Quad::new(self.player.pos, self.player.size);
+        let mut player_quad: Quad = sprite_atlas::BIRD_FLAP_0.quad();
+        player_quad.pos += self.player.pos;
 
         // obstacles
         for obstacle in self.obstacles.iter() {
-            let obstacle_quad = Quad::new(obstacle.pos, obstacle.size);
+            let mut obstacle_quad: Quad = sprite_atlas::PIPE.quad();
+            obstacle_quad.pos += obstacle.pos;
+
             let color = if collision::quad_quad_collision(player_quad, obstacle_quad) {
                 render::RED
             } else {
-                render::GREEN
+                render::WHITE
             };
-            self.sprite_renderer.draw_quad(obstacle_quad, color);
+            self.sprite_renderer.draw_sprite_with_tint(
+                obstacle_quad,
+                sprite_atlas::PIPE.quad(),
+                color,
+            );
         }
 
-        // self.sprite_renderer.draw_quad(player_quad, render::BLUE);
-        //
-        // self.sprite_renderer.draw_quad(player_quad, render::BLUE);
-
-        self.sprite_renderer.draw_sprite(
-            player_quad,
-            sprite_atlas::BIRD_FLAP_0.into(),
-            render::WHITE,
-        );
+        self.sprite_renderer
+            .draw_sprite(player_quad, sprite_atlas::BIRD_FLAP_0.quad());
 
         self.sprite_renderer
             .render(ctx, screen_view, &self.camera_buffer, &self.sprite_atlas);
 
-        // self.atlas_renderer
-        //     .render(ctx, self.sprite_atlas.view(), screen_view);
+        // debug
+        if input::key_pressed(ctx, KeyCode::F1) {
+            render::TextureRenderer::new(ctx, render::surface_config(ctx).format).render(
+                ctx,
+                self.sprite_atlas.view(),
+                screen_view,
+            );
+        }
 
         false
     }

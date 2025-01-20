@@ -65,12 +65,9 @@ pub struct GUIRenderer {
     camera_buffer: render::UniformBuffer<render::CameraUniform>,
 }
 
+// TODO: working?
 fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> render::Camera {
-    render::Camera::new(CameraProjection::orthographic(
-        screen_size.width as f32,
-        screen_size.height as f32,
-    ))
-    .pos(vec3(
+    render::Camera::new(CameraProjection::orthographic(screen_size.height as f32)).pos(vec3(
         screen_size.width as f32 / 2.0,
         -(screen_size.height as f32 / 2.0),
         1.0,

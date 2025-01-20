@@ -6,7 +6,7 @@ use gbase::{
     render::{self, CameraUniform, VertexTrait},
     wgpu, Context,
 };
-use glam::vec2;
+use glam::{vec2, Vec2};
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -141,8 +141,12 @@ impl SpriteRenderer {
         self.indices.push(offset + 3); // br
     }
 
+    pub fn draw_sprite(&mut self, quad: Quad, uv: Quad) {
+        self.draw_sprite_with_tint(quad, uv, Vec4::ONE);
+    }
+
     #[rustfmt::skip]
-    pub fn draw_sprite(&mut self, quad: Quad, uv: Quad, tint: Vec4) {
+    pub fn draw_sprite_with_tint(&mut self, quad: Quad, uv: Quad, tint: Vec4) {
         let (x, y) = (quad.pos.x ,quad.pos.y);
         let (sx, sy) = (quad.size.x, quad.size.y);
         let (ux, uy) = (uv.pos.x, uv.pos.y);
@@ -194,17 +198,20 @@ impl VertexTrait for VertexSprite {
     }
 }
 
-impl From<AtlasSprite> for Quad {
-    fn from(val: AtlasSprite) -> Self {
-        Quad::new(
-            vec2(
-                val.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                val.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
-            vec2(
-                val.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                val.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
+impl AtlasSprite {
+    pub fn pos(&self) -> Vec2 {
+        vec2(
+            self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+            self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
         )
+    }
+    pub fn size(&self) -> Vec2 {
+        vec2(
+            self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+            self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
+        )
+    }
+    pub fn quad(&self) -> Quad {
+        Quad::new(self.pos(), self.size())
     }
 }

@@ -46,8 +46,7 @@ struct VertexOutput {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color = in.color;
     if in.uses_texture > 0.5 {
-        return textureSample(atlas, samp, in.uv);
-    } else {
-        return color;
+        color *= textureSample(atlas, samp, in.uv);
     }
+    return color;
 }
