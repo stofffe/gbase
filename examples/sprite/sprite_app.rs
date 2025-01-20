@@ -1,24 +1,25 @@
 use gbase::glam::{vec2, Vec2};
+use gbase::render::{surface_config, Transform};
 use gbase::{
     collision::{self, Quad},
     input::{self, KeyCode},
     render::{self, CameraUniform},
     time, wgpu, Callbacks,
 };
+use glam::{vec3, Vec3};
 
+use crate::sprite_atlas::{BACKGROUND, BIRD_FLAP_0, PIPE};
 use crate::{sprite_atlas, sprite_renderer};
 
 const MAX_SPRITES: u64 = 1000;
 
 struct Player {
     pos: Vec2,
-    size: Vec2,
-    _velocity: Vec2,
+    velocity: Vec2,
 }
 
 struct Obstacle {
     pos: Vec2,
-    size: Vec2,
 }
 
 pub struct App {
@@ -33,22 +34,25 @@ pub struct App {
     sprite_atlas: render::TextureWithView,
 }
 
+// TODO: add transform to sprite renderer
+// scale to flip, rotate
+
+// TODO: look into grid size of 16x16 = 1m?
+// now 1px = 1m?
+
 impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
         let player = Player {
             pos: vec2(0.0, 0.0),
-            size: vec2(0.1, 0.1),
-            _velocity: vec2(0.1, 0.0),
+            velocity: vec2(0.0, 0.0),
         };
         let obstacles = vec![
             Obstacle {
-                pos: vec2(0.3, 0.3),
-                size: vec2(0.3, 0.1),
+                pos: vec2(0.0, -128.0),
             },
             Obstacle {
-                pos: vec2(0.5, 0.5),
-                size: vec2(0.2, 0.1),
+                pos: vec2(0.0, 128.0),
             },
         ];
 
@@ -58,7 +62,8 @@ impl Callbacks for App {
             render::surface_config(ctx).format,
         );
 
-        let mut camera = render::Camera::new(render::CameraProjection::orthographic(1.0));
+        let mut camera =
+            render::Camera::new(render::CameraProjection::orthographic(BACKGROUND.size().y));
         camera.pos.z = 1.0;
 
         let camera_buffer =
@@ -94,23 +99,11 @@ impl Callbacks for App {
 
         // hot restart
         let dt = time::delta_time(ctx);
+        self.player.velocity.y -= 9.82 * dt * 80.0;
+        self.player.pos += self.player.velocity * dt;
 
-        let mut dir = Vec2::ZERO;
-        if input::key_pressed(ctx, KeyCode::ArrowUp) {
-            dir.y -= 1.0;
-        }
-        if input::key_pressed(ctx, KeyCode::ArrowDown) {
-            dir.y += 1.0;
-        }
-        if input::key_pressed(ctx, KeyCode::ArrowLeft) {
-            dir.x -= 1.0;
-        }
-        if input::key_pressed(ctx, KeyCode::ArrowRight) {
-            dir.x += 1.0;
-        }
-
-        if dir != Vec2::ZERO {
-            self.player.pos += dir.normalize() * dt;
+        if input::key_just_pressed(ctx, KeyCode::Space) {
+            self.player.velocity.y = 200.0;
         }
 
         false
@@ -118,16 +111,22 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
+        self.sprite_renderer.draw_sprite(
+            Quad::new(-BACKGROUND.size() / 2.0, BACKGROUND.size()),
+            BACKGROUND.uv(),
+        );
+
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         // player
-        let mut player_quad: Quad = sprite_atlas::BIRD_FLAP_0.quad();
-        player_quad.pos += self.player.pos;
+        let player_quad = Quad::new(
+            self.player.pos - BIRD_FLAP_0.size() / 2.0,
+            BIRD_FLAP_0.size(),
+        );
 
         // obstacles
         for obstacle in self.obstacles.iter() {
-            let mut obstacle_quad: Quad = sprite_atlas::PIPE.quad();
-            obstacle_quad.pos += obstacle.pos;
+            let obstacle_quad = Quad::new(obstacle.pos - PIPE.size() / 2.0, PIPE.size());
 
             let color = if collision::quad_quad_collision(player_quad, obstacle_quad) {
                 render::RED
@@ -136,24 +135,28 @@ impl Callbacks for App {
             };
             self.sprite_renderer.draw_sprite_with_tint(
                 obstacle_quad,
-                sprite_atlas::PIPE.quad(),
+                sprite_atlas::PIPE.uv(),
                 color,
             );
         }
 
         self.sprite_renderer
-            .draw_sprite(player_quad, sprite_atlas::BIRD_FLAP_0.quad());
+            .draw_sprite(player_quad, sprite_atlas::BIRD_FLAP_0.uv());
 
         self.sprite_renderer
             .render(ctx, screen_view, &self.camera_buffer, &self.sprite_atlas);
 
         // debug
         if input::key_pressed(ctx, KeyCode::F1) {
-            render::TextureRenderer::new(ctx, render::surface_config(ctx).format).render(
-                ctx,
-                self.sprite_atlas.view(),
-                screen_view,
-            );
+            // render::TextureRenderer::new(ctx, render::surface_config(ctx).format).render(
+            //     ctx,
+            //     self.sprite_atlas.view(),
+            //     screen_view,
+            // );
+            let mut gr =
+                render::GizmoRenderer::new(ctx, surface_config(ctx).format, &self.camera_buffer);
+            gr.draw_cube(&Transform::from_scale(Vec3::ONE * 5.0), Vec3::ONE);
+            gr.render(ctx, screen_view);
         }
 
         false

@@ -129,10 +129,10 @@ impl SpriteRenderer {
         let color = color.to_array();
 
         let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], uv: [1.0, 0.0], color, uses_texture: 0.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], uv: [0.0, 1.0], color, uses_texture: 0.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], uv: [1.0, 1.0], color, uses_texture: 0.0 }); // br
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      0.5 - y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, 0.5 - y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tr
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      0.5 - y - sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // bl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, 0.5 - y - sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // br
         self.indices.push(offset);     // tl
         self.indices.push(offset + 1); // bl
         self.indices.push(offset + 2); // tr
@@ -154,10 +154,10 @@ impl SpriteRenderer {
         let color = tint.to_array();
 
         let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0,            1.0 - y * 2.0,            0.0], uv: [ux,      uy     ], color, uses_texture: 1.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0,            0.0], uv: [ux + uw, uy     ], color, uses_texture: 1.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0,            1.0 - y * 2.0 - sy * 2.0, 0.0], uv: [ux,      uy + uh], color, uses_texture: 1.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-1.0 + x * 2.0 + sx * 2.0, 1.0 - y * 2.0 - sy * 2.0, 0.0], uv: [ux + uw, uy + uh], color, uses_texture: 1.0 }); // br
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy,      0.0], uv: [ux,      uy     ], color, uses_texture: 1.0 }); // tl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy,      0.0], uv: [ux + uw, uy     ], color, uses_texture: 1.0 }); // tr
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y, 0.0], uv: [ux,      uy + uh], color, uses_texture: 1.0 }); // bl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y, 0.0], uv: [ux + uw, uy + uh], color, uses_texture: 1.0 }); // br
         self.indices.push(offset);     // tl
         self.indices.push(offset + 1); // bl
         self.indices.push(offset + 2); // tr
@@ -199,19 +199,19 @@ impl VertexTrait for VertexSprite {
 }
 
 impl AtlasSprite {
-    pub fn pos(&self) -> Vec2 {
-        vec2(
-            self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-            self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-        )
-    }
     pub fn size(&self) -> Vec2 {
-        vec2(
-            self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-            self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-        )
+        vec2(self.w as f32, self.h as f32)
     }
-    pub fn quad(&self) -> Quad {
-        Quad::new(self.pos(), self.size())
+    pub fn uv(&self) -> Quad {
+        Quad::new(
+            vec2(
+                self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+                self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
+            ),
+            vec2(
+                self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+                self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
+            ),
+        )
     }
 }
