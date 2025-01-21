@@ -194,8 +194,8 @@ impl RenderPipelineBuilder {
 
         ArcRenderPipeline::new(pipeline)
     }
-    pub fn build(&self, ctx: &mut Context) -> ArcRenderPipeline {
-        if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(self) {
+    pub fn build(self, ctx: &mut Context) -> ArcRenderPipeline {
+        if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(&self) {
             log::info!("Fetch cached render pipeline");
             return render_pipeline.clone();
         }

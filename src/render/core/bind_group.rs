@@ -38,8 +38,8 @@ impl BindGroupLayoutBuilder {
         ArcBindGroupLayout::new(layout)
     }
 
-    pub fn build(&self, ctx: &mut Context) -> ArcBindGroupLayout {
-        if let Some(bindgroup_layout) = ctx.render.cache.bindgroup_layouts.get(self) {
+    pub fn build(self, ctx: &mut Context) -> ArcBindGroupLayout {
+        if let Some(bindgroup_layout) = ctx.render.cache.bindgroup_layouts.get(&self) {
             log::info!("Fetch cached bindgroup layout");
             return bindgroup_layout.clone();
         }
@@ -227,8 +227,8 @@ impl BindGroupBuilder {
         ArcBindGroup::new(bindgroup)
     }
 
-    pub fn build(&self, ctx: &mut Context) -> ArcBindGroup {
-        if let Some(bindgroup) = ctx.render.cache.bindgroups.get(self) {
+    pub fn build(self, ctx: &mut Context) -> ArcBindGroup {
+        if let Some(bindgroup) = ctx.render.cache.bindgroups.get(&self) {
             log::info!("Fetch cached bindgroup");
             return bindgroup.clone();
         }
@@ -333,7 +333,7 @@ impl BindGroupCombinedBuilder {
             ArcBindGroup::new(bindgroup),
         )
     }
-    pub fn build(&self, ctx: &mut Context) -> (ArcBindGroupLayout, ArcBindGroup) {
+    pub fn build(self, ctx: &mut Context) -> (ArcBindGroupLayout, ArcBindGroup) {
         let mut bindgroup_layout = BindGroupLayoutBuilder::new();
         bindgroup_layout.entries = self
             .entries

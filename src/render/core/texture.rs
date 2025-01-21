@@ -61,8 +61,8 @@ impl SamplerBuilder {
 
         ArcSampler::new(sampler)
     }
-    pub fn build(&self, ctx: &mut Context) -> ArcSampler {
-        if let Some(sampler) = ctx.render.cache.samplers.get(self) {
+    pub fn build(self, ctx: &mut Context) -> ArcSampler {
+        if let Some(sampler) = ctx.render.cache.samplers.get(&self) {
             log::info!("Fetch cached sampler");
             return sampler.clone();
         }
@@ -256,8 +256,8 @@ impl TextureBuilder {
             }
         }
     }
-    pub fn build(&self, ctx: &mut Context) -> render::ArcTexture {
-        if let Some(texture) = ctx.render.cache.textures.get(self) {
+    pub fn build(self, ctx: &mut Context) -> render::ArcTexture {
+        if let Some(texture) = ctx.render.cache.textures.get(&self) {
             log::info!("Fetch cached texture");
             return texture.clone();
         }
@@ -351,8 +351,8 @@ impl TextureViewBuilder {
         render::ArcTextureView::new(view)
     }
 
-    pub fn build(&self, ctx: &mut Context) -> render::ArcTextureView {
-        if let Some(view) = ctx.render.cache.texture_views.get(self) {
+    pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {
+        if let Some(view) = ctx.render.cache.texture_views.get(&self) {
             log::info!("Fetched cached texture view");
             return view.clone();
         }

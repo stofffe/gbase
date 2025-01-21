@@ -78,8 +78,8 @@ impl ShaderBuilder {
     /// Checks cache before creating new
     ///
     /// panics if source is invalid
-    pub fn build(&self, ctx: &mut Context) -> ArcShaderModule {
-        if let Some(shader) = ctx.render.cache.shaders.get(self) {
+    pub fn build(self, ctx: &mut Context) -> ArcShaderModule {
+        if let Some(shader) = ctx.render.cache.shaders.get(&self) {
             log::info!("Fetch cached shader");
             return shader.clone();
         }
