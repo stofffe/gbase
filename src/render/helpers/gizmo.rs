@@ -267,30 +267,28 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.push(vertex_start + 7);
     }
 
-    pub fn draw_quad(&mut self, dimensions: Vec2, transform: &Transform, color: Vec3) {
+    pub fn draw_quad(&mut self, transform: &Transform, color: Vec3) {
         let vertex_start = self.dynamic_vertex_buffer.len() as u32;
-        let d = dimensions;
         let t = transform.matrix();
 
-        let bl = vec3(-d.x * 0.5, -d.y * 0.5, 0.0);
-        let br = vec3(d.x * 0.5, -d.y * 0.5, 0.0);
-        let tr = vec3(d.x * 0.5, d.y * 0.5, 0.0);
-        let tl = vec3(-d.x * 0.5, d.y * 0.5, 0.0);
-
+        // tl
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * bl.extend(1.0)).xyz().to_array(),
+            position: (t * vec4(-0.5, -0.5, 0.0, 0.0)).xyz().to_array(),
             color: color.to_array(),
         });
+        // tr
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * br.extend(1.0)).xyz().to_array(),
+            position: (t * vec4(0.5, -0.5, 0.0, 0.0)).xyz().to_array(),
             color: color.to_array(),
         });
+        // br
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * tr.extend(1.0)).xyz().to_array(),
+            position: (t * vec4(0.5, 0.5, 0.0, 0.0)).xyz().to_array(),
             color: color.to_array(),
         });
+        // bl
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * tl.extend(1.0)).xyz().to_array(),
+            position: (t * vec4(-0.5, 0.5, 0.0, 0.0)).xyz().to_array(),
             color: color.to_array(),
         });
 

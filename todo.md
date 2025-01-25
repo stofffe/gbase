@@ -11,23 +11,42 @@ Engine
     [] bindgroups
     [] pipelines
     ...
-[] fix logging not working in dlls
-    - initliaze again in dll?
+[/] fix logging not working in dlls
+    - have to call init logging in hot reload callback
 [] combine full screen post processing into one with uniform args
 [] explore drop on commandencoder to not miss submitting
 [] hot_reload callback?
 [] look into scale factor dpi
+[] convert all builder to use lifetimes?
+[] feature based derives? #\[cfg_attr = "serde", derive(...)\]
+
+[] 2d sphere collision
+[] sprite transforms
+[] random wrapper (hash/rand)
+
+Post processing
+[] bloom
+[] tonemapping
+
+Flappy bird
+[] highscore
+[] rotate bird
+[] sound
 
 Clouds
 [x] ray box intersection
 [x] light march
 [x] add colored clouds / light
-[] powder effect
-[] octave scattering
-[] blue noise
+[x] octave scattering
+[x] blue noise
+[x] animate with time
+[x] write screen pixels to png
+[x] change resolution
+[x] blur 
+[/] powder effect
+    - adding it instead of multiplying
+[] directional light instead of point light
 [] temporal? (no) 
-[] ambient light
-[] animate with time
 
 Links
     
@@ -62,4 +81,3 @@ Links:
 
 Hot reload command:
     nmap <c-p> <cmd>silent exec "! cd examples/hot_reload && make compile"<cr
-

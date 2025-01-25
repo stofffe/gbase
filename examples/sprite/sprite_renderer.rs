@@ -1,12 +1,12 @@
 use crate::sprite_atlas::{self, AtlasSprite};
 use gbase::glam::Vec4;
+use gbase::glam::{vec2, Vec2};
 use gbase::{
     collision::Quad,
     filesystem,
     render::{self, CameraUniform, VertexTrait},
     wgpu, Context,
 };
-use glam::{vec2, Vec2};
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -88,6 +88,7 @@ impl SpriteRenderer {
     ) {
         // update buffers
         self.vertex_buffer.write(ctx, &self.vertices);
+
         self.index_buffer.write(ctx, &self.indices);
 
         // create bindgroup
@@ -129,10 +130,10 @@ impl SpriteRenderer {
         let color = color.to_array();
 
         let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      0.5 - y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, 0.5 - y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      0.5 - y - sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, 0.5 - y - sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // br
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tr
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // bl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // br
         self.indices.push(offset);     // tl
         self.indices.push(offset + 1); // bl
         self.indices.push(offset + 2); // tr
@@ -154,10 +155,10 @@ impl SpriteRenderer {
         let color = tint.to_array();
 
         let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy,      0.0], uv: [ux,      uy     ], color, uses_texture: 1.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy,      0.0], uv: [ux + uw, uy     ], color, uses_texture: 1.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y, 0.0], uv: [ux,      uy + uh], color, uses_texture: 1.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y, 0.0], uv: [ux + uw, uy + uh], color, uses_texture: 1.0 }); // br
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy, 0.0], uv: [ux,      uy     ], color, uses_texture: 1.0 }); // tl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy, 0.0], uv: [ux + uw, uy     ], color, uses_texture: 1.0 }); // tr
+        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y,      0.0], uv: [ux,      uy + uh], color, uses_texture: 1.0 }); // bl
+        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y,      0.0], uv: [ux + uw, uy + uh], color, uses_texture: 1.0 }); // br
         self.indices.push(offset);     // tl
         self.indices.push(offset + 1); // bl
         self.indices.push(offset + 2); // tr
@@ -195,23 +196,5 @@ impl VertexSprite {
 impl VertexTrait for VertexSprite {
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         Self::desc()
-    }
-}
-
-impl AtlasSprite {
-    pub fn size(&self) -> Vec2 {
-        vec2(self.w as f32, self.h as f32)
-    }
-    pub fn uv(&self) -> Quad {
-        Quad::new(
-            vec2(
-                self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
-            vec2(
-                self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
-        )
     }
 }
