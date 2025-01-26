@@ -1,5 +1,5 @@
 use gbase::glam::Vec4;
-use gbase::{collision::Quad, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, CameraUniform, VertexTrait}, wgpu, Context};
+use gbase::{collision::AABB, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, CameraUniform, VertexTrait}, wgpu, Context};
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -116,12 +116,12 @@ impl SpriteRenderer {
         self.indices.clear();
     }
 
-    pub fn draw_sprite(&mut self, transform: &render::Transform, uv: Quad) {
+    pub fn draw_sprite(&mut self, transform: &render::Transform, uv: AABB) {
         self.draw_sprite_tint(transform, uv, render::WHITE);
     }
 
     #[rustfmt::skip]
-    pub fn draw_sprite_tint(&mut self, transform: &render::Transform, uv: Quad, tint: Vec4) {
+    pub fn draw_sprite_tint(&mut self, transform: &render::Transform, uv: AABB, tint: Vec4) {
         let (ux, uy) = (uv.pos.x, uv.pos.y);
         let (uw, uh) = (uv.size.x, uv.size.y);
         let color = tint.to_array();

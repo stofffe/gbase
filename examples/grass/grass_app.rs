@@ -271,7 +271,7 @@ impl Callbacks for App {
         if self.paused {
             self.gui_renderer.text(
                 "pause (esc)",
-                collision::Quad::new(vec2(0.0, 0.0), vec2(0.5, 0.5)),
+                collision::AABB::new(vec2(0.0, 0.0), vec2(0.5, 0.5)),
                 0.05,
                 vec4(1.0, 1.0, 1.0, 1.0),
                 false,
@@ -300,7 +300,7 @@ impl Callbacks for App {
             for (i, text) in strings.iter().enumerate() {
                 self.gui_renderer.text(
                     text,
-                    collision::Quad::new(vec2(0.0, DEBUG_HEIGH * i as f32), vec2(0.5, 0.5)),
+                    collision::AABB::new(vec2(0.0, DEBUG_HEIGH * i as f32), vec2(0.5, 0.5)),
                     DEBUG_HEIGH,
                     DEBUG_COLOR,
                     false,

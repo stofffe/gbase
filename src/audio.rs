@@ -2,7 +2,7 @@ use crate::Context;
 use rodio::{source::Buffered, Decoder, Source};
 use std::io::Cursor;
 
-pub type AudioHandle = usize;
+// pub type AudioHandle = usize;
 pub type SoundSource = Buffered<Decoder<Cursor<Vec<u8>>>>;
 
 pub(crate) struct AudioContext {

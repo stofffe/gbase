@@ -6,7 +6,7 @@ use crate::{
     },
     Context,
 };
-use glam::{vec3, vec4, Quat, Vec2, Vec3, Vec4Swizzles};
+use glam::{vec3, vec4, Quat, Vec3, Vec4Swizzles};
 use std::f32::consts::PI;
 
 use super::CameraUniform;
@@ -273,22 +273,22 @@ impl GizmoRenderer {
 
         // tl
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(-0.5, -0.5, 0.0, 0.0)).xyz().to_array(),
+            position: (t * vec4(-0.5, -0.5, 0.0, 1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         // tr
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(0.5, -0.5, 0.0, 0.0)).xyz().to_array(),
+            position: (t * vec4(0.5, -0.5, 0.0, 1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         // br
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(0.5, 0.5, 0.0, 0.0)).xyz().to_array(),
+            position: (t * vec4(0.5, 0.5, 0.0, 1.0)).xyz().to_array(),
             color: color.to_array(),
         });
         // bl
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(-0.5, 0.5, 0.0, 0.0)).xyz().to_array(),
+            position: (t * vec4(-0.5, 0.5, 0.0, 1.0)).xyz().to_array(),
             color: color.to_array(),
         });
 

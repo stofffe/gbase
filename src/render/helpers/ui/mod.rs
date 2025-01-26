@@ -4,7 +4,7 @@ mod shapes;
 mod widget;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use crate::collision::Quad;
+use crate::collision::AABB;
 use crate::render::{ArcBindGroup, ArcRenderPipeline};
 use crate::{filesystem, input, render, time, Context};
 pub use fonts::*;
@@ -328,28 +328,28 @@ impl GUIRenderer {
 
         self.text(
             &format!("fps: {}", time::fps(ctx)),
-            Quad::new(vec2(0.0, 0.0), vec2(0.5, font_size)),
+            AABB::new(vec2(0.0, 0.0), vec2(0.5, font_size)),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("hot: {}", self.hot_this_frame),
-            Quad::new(vec2(0.0, font_size), vec2(0.5, font_size)),
+            AABB::new(vec2(0.0, font_size), vec2(0.5, font_size)),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("hot last: {}", self.hot_last_frame),
-            Quad::new(vec2(0.0, font_size * 2.0), vec2(0.5, font_size)),
+            AABB::new(vec2(0.0, font_size * 2.0), vec2(0.5, font_size)),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("active: {}", self.active),
-            Quad::new(vec2(0.0, font_size * 3.0), vec2(0.5, font_size)),
+            AABB::new(vec2(0.0, font_size * 3.0), vec2(0.5, font_size)),
             font_size,
             font_color,
             false,

@@ -1,5 +1,5 @@
 use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
-use crate::collision::Quad;
+use crate::collision::AABB;
 use glam::{vec2, Vec2, Vec4};
 
 impl GUIRenderer {
@@ -31,7 +31,7 @@ impl GUIRenderer {
     // currently size.y does nothing
     /// pos \[0,1\]
     /// scale \[0,1\]
-    pub fn text(&mut self, text: &str, quad: Quad, line_height: f32, color: Vec4, wrap: bool) {
+    pub fn text(&mut self, text: &str, quad: AABB, line_height: f32, color: Vec4, wrap: bool) {
         let mut global_offset = vec2(0.0, 0.0); // [0,1]
         for letter in text.chars() {
             let info = self.font_atlas.get_info(letter);

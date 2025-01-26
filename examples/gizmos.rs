@@ -58,8 +58,7 @@ impl Callbacks for App {
             .draw_cube(&Transform::from_scale(vec3(0.5, 1.0, 0.5)), GREEN);
 
         self.gizmo_renderer.draw_quad(
-            vec2(2.0, 1.0),
-            &Transform::new(Vec3::ZERO, Quat::from_rotation_y(t), Vec3::ONE),
+            &Transform::new(Vec3::ZERO, Quat::from_rotation_y(t), vec3(2.0, 1.0, 0.0)),
             WHITE,
         );
         self.gizmo_renderer.draw_circle(

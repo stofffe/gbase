@@ -1,6 +1,6 @@
 use super::{GUIRenderer, BLACK};
 use crate::{
-    collision::{self, Quad},
+    collision::{self, AABB},
     input,
     render::{self},
     Context,
@@ -158,7 +158,7 @@ impl Widget {
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_quad_collision(mouse_pos, bounds);
+            let inside = collision::point_aabb_collision(mouse_pos, bounds);
 
             if inside {
                 renderer.set_hot_this_frame(id.clone());
@@ -211,7 +211,7 @@ impl Widget {
             let bounds = last_widget.computed_bounds_margin();
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_quad_collision(mouse_pos, bounds);
+            let inside = collision::point_aabb_collision(mouse_pos, bounds);
 
             if inside {
                 renderer.set_hot_this_frame(id.clone());
@@ -287,10 +287,10 @@ impl Widget {
     pub(crate) fn computed_inner_size(&self) -> Vec2 {
         self.computed_size - self.margin * 2.0 - self.padding * 2.0
     }
-    pub(crate) fn computed_bounds_margin(&self) -> Quad {
+    pub(crate) fn computed_bounds_margin(&self) -> AABB {
         let pos = self.computed_pos + self.margin;
         let size = self.computed_size - self.margin * 2.0;
-        Quad::new(pos, size)
+        AABB::new(pos, size)
     }
 }
 

@@ -1,25 +1,28 @@
+use crate::{
+    sprite_atlas::{self, AtlasSprite, BACKGROUND, BASE, BIRD_FLAP_0, PIPE},
+    sprite_renderer,
+};
 use core::f32;
-use gbase::filesystem;
-use gbase::glam::vec3;
 use gbase::{
-    collision::{self, Quad},
-    glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
+    audio,
+    collision::{self, Circle, AABB},
+    filesystem,
+    glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    render::{self, surface_config, CameraUniform, Transform, Widget, WHITE},
+    load_b,
+    render::{self, surface_config, CameraUniform, Transform, Widget, GREEN, RED, WHITE},
     time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks,
 };
 use std::f32::consts::PI;
 
-use crate::sprite_atlas::{AtlasSprite, BACKGROUND, BASE, BIRD_FLAP_0, PIPE};
-use crate::{sprite_atlas, sprite_renderer};
-
 const MAX_SPRITES: u64 = 1000;
 
 struct Player {
     pos: Vec2,
     velocity: Vec2,
+    collision_radius: f32,
 }
 
 impl Player {
@@ -27,13 +30,14 @@ impl Player {
         Self {
             pos: vec2(-BIRD_FLAP_0.size().x, 0.0),
             velocity: vec2(0.0, 0.0),
+            collision_radius: BIRD_FLAP_0.size().y / 2.0,
         }
     }
 }
 
 impl Player {
-    fn quad(&self) -> Quad {
-        Quad::new(self.pos - BIRD_FLAP_0.size() / 2.0, BIRD_FLAP_0.size())
+    fn collision(&self) -> Circle {
+        Circle::new(self.pos, self.collision_radius)
     }
 }
 
@@ -57,18 +61,6 @@ impl PipePair {
         self.mid = rand_range(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET) + PIPE_BASE_OFFSET;
     }
 
-    fn check_gap_collision(&mut self, player: Quad) -> bool {
-        if collision::quad_quad_collision(player, self.gap_quad()) && !self.collided {
-            self.collided = true;
-            return true;
-        }
-        false
-    }
-    fn check_top_bottom_collision(&mut self, player: Quad) -> bool {
-        collision::quad_quad_collision(player, self.top_quad())
-            || collision::quad_quad_collision(player, self.bottom_quad())
-    }
-
     fn top_pos(&self) -> Vec2 {
         vec2(self.x, PIPE.size().y / 2.0 + self.gap / 2.0 + self.mid)
     }
@@ -79,17 +71,28 @@ impl PipePair {
         vec2(self.x, self.mid)
     }
 
-    fn top_quad(&self) -> Quad {
-        Quad::new(self.top_pos() - PIPE.size() / 2.0, PIPE.size())
+    fn top_collision(&self) -> AABB {
+        AABB::new(self.top_pos() - PIPE.size() / 2.0, PIPE.size())
     }
-    fn bottom_quad(&self) -> Quad {
-        Quad::new(self.bottom_pos() - PIPE.size() / 2.0, PIPE.size())
+    fn bottom_collision(&self) -> AABB {
+        AABB::new(self.bottom_pos() - PIPE.size() / 2.0, PIPE.size())
     }
-    fn gap_quad(&self) -> Quad {
-        Quad::new(
-            self.gap_pos() - vec2(PIPE.size().x / 2.0, 0.0),
-            vec2(PIPE.size().x, self.gap),
+    fn gap_collision(&self) -> AABB {
+        AABB::new(
+            self.gap_pos() - vec2(PIPE.size().x / 4.0, 0.0),
+            vec2(PIPE.size().x / 2.0, self.gap),
         )
+    }
+    fn check_gap_collision(&mut self, player: Circle) -> bool {
+        if collision::circle_aabb_collision(player, self.gap_collision()) && !self.collided {
+            self.collided = true;
+            return true;
+        }
+        false
+    }
+    fn check_top_bottom_collision(&mut self, player: Circle) -> bool {
+        collision::circle_aabb_collision(player, self.top_collision())
+            || collision::circle_aabb_collision(player, self.bottom_collision())
     }
 }
 
@@ -98,8 +101,8 @@ struct Base {
 }
 
 impl Base {
-    fn quad(&self) -> Quad {
-        Quad::new(self.pos, BASE.size())
+    fn collision(&self) -> AABB {
+        AABB::new(self.pos - BASE.size() / 2.0, BASE.size())
     }
 }
 
@@ -125,6 +128,11 @@ pub struct App {
     sprite_atlas: render::TextureWithView,
 
     ui_renderer: render::GUIRenderer,
+
+    flap_sound: audio::SoundSource,
+    die_sound: audio::SoundSource,
+    hit_sound: audio::SoundSource,
+    point_sound: audio::SoundSource,
 }
 
 // TODO: add transform to sprite renderer
@@ -199,6 +207,11 @@ impl Callbacks for App {
             render::DEFAULT_SUPPORTED_CHARS,
         );
 
+        let flap_sound = audio::load_audio_source(ctx, load_b!("sounds/flap.mp3").unwrap());
+        let die_sound = audio::load_audio_source(ctx, load_b!("sounds/die.mp3").unwrap());
+        let hit_sound = audio::load_audio_source(ctx, load_b!("sounds/hit.mp3").unwrap());
+        let point_sound = audio::load_audio_source(ctx, load_b!("sounds/point.mp3").unwrap());
+
         Self {
             state: GameState::StartMenu,
             score: 0,
@@ -214,6 +227,10 @@ impl Callbacks for App {
 
             sprite_atlas,
             ui_renderer,
+            flap_sound,
+            die_sound,
+            hit_sound,
+            point_sound,
         }
     }
 
@@ -251,6 +268,7 @@ impl Callbacks for App {
                     self.score = 0;
                     self.state = GameState::Game;
                     self.player.velocity.y = PLAYER_JUMP_VELOCITY;
+                    audio::play_audio_source(ctx, &self.flap_sound);
                 }
             }
             GameState::Game => {
@@ -271,6 +289,7 @@ impl Callbacks for App {
                 self.player.velocity.y -= 9.82 * dt * PLAYER_FALL_SPEED;
                 if input::key_just_pressed(ctx, KeyCode::Space) {
                     self.player.velocity.y = PLAYER_JUMP_VELOCITY;
+                    audio::play_audio_source(ctx, &self.flap_sound);
                 }
                 self.player.pos += self.player.velocity * dt;
                 self.player.pos.y = self.player.pos.y.clamp(
@@ -287,10 +306,25 @@ impl Callbacks for App {
                 }
 
                 // collisions
-                if self.pipes.check_top_bottom_collision(self.player.quad()) {
+                let mut collided = false;
+                if self
+                    .pipes
+                    .check_top_bottom_collision(self.player.collision())
+                {
+                    collided = true;
+                }
+                for base in self.bases.iter() {
+                    if collision::circle_aabb_collision(self.player.collision(), base.collision()) {
+                        collided = true;
+                    }
+                }
+                if collided {
+                    audio::play_audio_source(ctx, &self.hit_sound);
                     self.state = GameState::GameOver;
                 }
-                if self.pipes.check_gap_collision(self.player.quad()) {
+
+                if self.pipes.check_gap_collision(self.player.collision()) {
+                    audio::play_audio_source(ctx, &self.point_sound);
                     self.score += 1;
                 }
 
@@ -388,14 +422,14 @@ impl Callbacks for App {
                     .clamp(-PI / 2.0, PI / 4.0)
             }
         };
-        // player
-        self.sprite_renderer.draw_sprite(
-            &Transform::default()
-                .with_pos(self.player.pos.extend(0.0))
-                .with_scale(BIRD_FLAP_0.size().extend(1.0))
-                .with_rot(Quat::from_rotation_z(player_rot)),
-            sprite_atlas::BIRD_FLAP_0.uv(),
+        let player_transform = Transform::new(
+            self.player.pos.extend(0.0),
+            Quat::from_rotation_z(player_rot),
+            BIRD_FLAP_0.size().extend(1.0),
         );
+        // player
+        self.sprite_renderer
+            .draw_sprite(&player_transform, sprite_atlas::BIRD_FLAP_0.uv());
 
         // render to screen
         self.sprite_renderer
@@ -408,14 +442,43 @@ impl Callbacks for App {
             // use entities to display outlines
             let mut gr =
                 render::GizmoRenderer::new(ctx, surface_config(ctx).format, &self.camera_buffer);
+
+            // player
+            gr.draw_circle(
+                self.player.collision_radius,
+                &Transform::new(self.player.pos.extend(0.0), Quat::IDENTITY, Vec3::ONE),
+                RED.xyz(),
+            );
+            // pipes
             gr.draw_quad(
                 &Transform::from_pos_scale(
-                    self.player.pos.extend(0.0),
-                    BIRD_FLAP_0.size().extend(0.0),
+                    self.pipes.top_pos().extend(0.0),
+                    self.pipes.top_collision().size.extend(1.0),
                 ),
-                render::RED.xyz(),
+                RED.xyz(),
             );
-            gr.draw_cube(&Transform::from_scale(Vec3::ONE * 5.0), Vec3::ONE);
+            gr.draw_quad(
+                &Transform::from_pos_scale(
+                    self.pipes.bottom_pos().extend(0.0),
+                    self.pipes.bottom_collision().size.extend(1.0),
+                ),
+                RED.xyz(),
+            );
+            gr.draw_quad(
+                &Transform::from_pos_scale(
+                    self.pipes.gap_pos().extend(1.0),
+                    self.pipes.gap_collision().size.extend(1.0),
+                ),
+                GREEN.xyz(),
+            );
+
+            // base
+            for base in self.bases.iter() {
+                gr.draw_quad(
+                    &Transform::from_pos_scale(base.pos.extend(0.0), BASE.size().extend(1.0)),
+                    RED.xyz(),
+                );
+            }
             gr.render(ctx, screen_view);
         }
 
@@ -432,8 +495,8 @@ impl AtlasSprite {
     pub fn size(&self) -> Vec2 {
         vec2(self.w as f32, self.h as f32)
     }
-    pub fn uv(&self) -> Quad {
-        Quad::new(
+    pub fn uv(&self) -> AABB {
+        AABB::new(
             vec2(
                 self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
                 self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
