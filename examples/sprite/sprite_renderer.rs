@@ -1,12 +1,5 @@
-use crate::sprite_atlas::{self, AtlasSprite};
 use gbase::glam::Vec4;
-use gbase::glam::{vec2, Vec2};
-use gbase::{
-    collision::Quad,
-    filesystem,
-    render::{self, CameraUniform, VertexTrait},
-    wgpu, Context,
-};
+use gbase::{collision::Quad, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, CameraUniform, VertexTrait}, wgpu, Context};
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -123,42 +116,42 @@ impl SpriteRenderer {
         self.indices.clear();
     }
 
-    #[rustfmt::skip]
-    pub fn draw_quad(&mut self, quad: Quad, color: Vec4) {
-        let (x, y) = (quad.pos.x ,quad.pos.y);
-        let (sx, sy) = (quad.size.x, quad.size.y);
-        let color = color.to_array();
-
-        let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy, 0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y,      0.0], uv: [0.0, 0.0], color, uses_texture: 0.0 }); // br
-        self.indices.push(offset);     // tl
-        self.indices.push(offset + 1); // bl
-        self.indices.push(offset + 2); // tr
-        self.indices.push(offset + 2); // tr
-        self.indices.push(offset + 1); // bl
-        self.indices.push(offset + 3); // br
-    }
-
-    pub fn draw_sprite(&mut self, quad: Quad, uv: Quad) {
-        self.draw_sprite_with_tint(quad, uv, Vec4::ONE);
+    pub fn draw_sprite(&mut self, transform: &render::Transform, uv: Quad) {
+        self.draw_sprite_tint(transform, uv, render::WHITE);
     }
 
     #[rustfmt::skip]
-    pub fn draw_sprite_with_tint(&mut self, quad: Quad, uv: Quad, tint: Vec4) {
-        let (x, y) = (quad.pos.x ,quad.pos.y);
-        let (sx, sy) = (quad.size.x, quad.size.y);
+    pub fn draw_sprite_tint(&mut self, transform: &render::Transform, uv: Quad, tint: Vec4) {
         let (ux, uy) = (uv.pos.x, uv.pos.y);
         let (uw, uh) = (uv.size.x, uv.size.y);
         let color = tint.to_array();
 
+        let t = transform.matrix();
         let offset = self.vertices.len() as u32; // save before pushing verts
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y + sy, 0.0], uv: [ux,      uy     ], color, uses_texture: 1.0 }); // tl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y + sy, 0.0], uv: [ux + uw, uy     ], color, uses_texture: 1.0 }); // tr
-        self.vertices.push(VertexSprite { position: [-0.5 + x,      -0.5 + y,      0.0], uv: [ux,      uy + uh], color, uses_texture: 1.0 }); // bl
-        self.vertices.push(VertexSprite { position: [-0.5 + x + sx, -0.5 + y,      0.0], uv: [ux + uw, uy + uh], color, uses_texture: 1.0 }); // br
+        self.vertices.push(VertexSprite { 
+            position: (t * vec4( -0.5, 0.5, 0.0, 1.0 )).xyz().to_array(),
+            uv: [ux, uy], 
+            color, 
+            uses_texture: 1.0 
+        }); // tl
+        self.vertices.push(VertexSprite { 
+            position: (t * vec4( -0.5, -0.5, 0.0, 1.0 )).xyz().to_array(),
+            uv: [ux,uy + uh], 
+            color, 
+            uses_texture: 1.0 
+        }); // bl
+        self.vertices.push(VertexSprite { 
+            position: (t * vec4( 0.5, 0.5, 0.0, 1.0 )).xyz().to_array(),
+            uv: [ux + uw, uy], 
+            color, 
+            uses_texture: 1.0 
+        }); // tr
+        self.vertices.push(VertexSprite { 
+            position: (t * vec4( 0.5, -0.5, 0.0, 1.0 )).xyz().to_array(),
+            uv: [ux + uw, uy + uh], 
+            color, 
+            uses_texture: 1.0 
+        }); // br
         self.indices.push(offset);     // tl
         self.indices.push(offset + 1); // bl
         self.indices.push(offset + 2); // tr

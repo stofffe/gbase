@@ -1,14 +1,16 @@
 use core::f32;
 use gbase::filesystem;
-use gbase::glam::{vec2, Vec2, Vec3, Vec4Swizzles};
-use gbase::render::{surface_config, Transform, Widget, WHITE};
-use gbase::winit::{dpi::PhysicalSize, window::WindowBuilder};
+use gbase::glam::vec3;
 use gbase::{
     collision::{self, Quad},
+    glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    render::{self, CameraUniform},
-    time, wgpu, Callbacks,
+    render::{self, surface_config, CameraUniform, Transform, Widget, WHITE},
+    time, wgpu,
+    winit::{dpi::PhysicalSize, window::WindowBuilder},
+    Callbacks,
 };
+use std::f32::consts::PI;
 
 use crate::sprite_atlas::{AtlasSprite, BACKGROUND, BASE, BIRD_FLAP_0, PIPE};
 use crate::{sprite_atlas, sprite_renderer};
@@ -23,7 +25,7 @@ struct Player {
 impl Player {
     fn new() -> Self {
         Self {
-            pos: -BIRD_FLAP_0.size() / 2.0,
+            pos: vec2(-BIRD_FLAP_0.size().x, 0.0),
             velocity: vec2(0.0, 0.0),
         }
     }
@@ -31,7 +33,7 @@ impl Player {
 
 impl Player {
     fn quad(&self) -> Quad {
-        Quad::new(self.pos, BIRD_FLAP_0.size())
+        Quad::new(self.pos - BIRD_FLAP_0.size() / 2.0, BIRD_FLAP_0.size())
     }
 }
 
@@ -62,25 +64,30 @@ impl PipePair {
         }
         false
     }
-
     fn check_top_bottom_collision(&mut self, player: Quad) -> bool {
         collision::quad_quad_collision(player, self.top_quad())
             || collision::quad_quad_collision(player, self.bottom_quad())
     }
 
-    fn bottom_quad(&self) -> Quad {
-        Quad::new(
-            vec2(self.x, -PIPE.size().y + self.mid - self.gap / 2.0),
-            PIPE.size(),
-        )
+    fn top_pos(&self) -> Vec2 {
+        vec2(self.x, PIPE.size().y / 2.0 + self.gap / 2.0 + self.mid)
     }
-    fn top_quad(&self) -> Quad {
-        Quad::new(vec2(self.x, self.mid + self.gap / 2.0), PIPE.size())
+    fn bottom_pos(&self) -> Vec2 {
+        vec2(self.x, -PIPE.size().y / 2.0 - self.gap / 2.0 + self.mid)
+    }
+    fn gap_pos(&self) -> Vec2 {
+        vec2(self.x, self.mid)
     }
 
+    fn top_quad(&self) -> Quad {
+        Quad::new(self.top_pos() - PIPE.size() / 2.0, PIPE.size())
+    }
+    fn bottom_quad(&self) -> Quad {
+        Quad::new(self.bottom_pos() - PIPE.size() / 2.0, PIPE.size())
+    }
     fn gap_quad(&self) -> Quad {
         Quad::new(
-            vec2(self.x, self.mid - self.gap / 2.0),
+            self.gap_pos() - vec2(PIPE.size().x / 2.0, 0.0),
             vec2(PIPE.size().x, self.gap),
         )
     }
@@ -136,6 +143,9 @@ const PIPE_BASE_OFFSET: f32 = 10.0;
 fn rand_range(min: f32, max: f32) -> f32 {
     min + (rand::random::<f32>()) * (max - min)
 }
+fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
+    to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
+}
 
 impl Callbacks for App {
     #[no_mangle]
@@ -152,15 +162,12 @@ impl Callbacks for App {
         let pipes = PipePair::new();
         let bases = vec![
             Base {
-                pos: vec2(
-                    -BASE.size().x / 2.0,
-                    -BACKGROUND.size().y / 2.0 - BASE.size().y / 2.0,
-                ),
+                pos: vec2(-BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
             },
             Base {
                 pos: vec2(
                     -BASE.size().x / 2.0 + BASE.size().x,
-                    -BACKGROUND.size().y / 2.0 - BASE.size().y / 2.0,
+                    -BACKGROUND.size().y / 2.0,
                 ),
             },
         ];
@@ -273,7 +280,7 @@ impl Callbacks for App {
 
                 // move obstacles
                 self.pipes.x -= dt * SCROLL_SPEED;
-                if self.pipes.x <= -(BACKGROUND.size().x / 2.0 + PIPE.size().x) {
+                if self.pipes.x <= -(BACKGROUND.size().x / 2.0 + PIPE.size().x / 2.0) {
                     self.pipes.x += BACKGROUND.size().x + PIPE.size().x;
                     self.pipes.randomize_mid();
                     self.pipes.collided = false;
@@ -290,7 +297,7 @@ impl Callbacks for App {
                 // move ground
                 for base in self.bases.iter_mut() {
                     base.pos.x -= dt * SCROLL_SPEED;
-                    if base.pos.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x) {
+                    if base.pos.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
                         base.pos.x += BACKGROUND.size().x + BASE.size().x;
                     }
                 }
@@ -346,25 +353,49 @@ impl Callbacks for App {
 
         // background
         self.sprite_renderer.draw_sprite(
-            Quad::new(-BACKGROUND.size() / 2.0, BACKGROUND.size()),
+            &Transform::default().with_scale(BACKGROUND.size().extend(1.0)),
             BACKGROUND.uv(),
         );
 
         // pipes
-        self.sprite_renderer
-            .draw_sprite(self.pipes.top_quad(), sprite_atlas::PIPE.uv());
-        self.sprite_renderer
-            .draw_sprite(self.pipes.bottom_quad(), sprite_atlas::PIPE.uv());
-        // self.sprite_renderer.draw_quad(self.pipes.gap_quad(), RED);
+        self.sprite_renderer.draw_sprite(
+            &render::Transform::default()
+                .with_pos(self.pipes.top_pos().extend(0.0))
+                .with_scale(PIPE.size().extend(1.0) * vec3(1.0, -1.0, 1.0)),
+            sprite_atlas::PIPE.uv(),
+        );
+        self.sprite_renderer.draw_sprite(
+            &render::Transform::default()
+                .with_pos(self.pipes.bottom_pos().extend(0.0))
+                .with_scale(PIPE.size().extend(1.0)),
+            sprite_atlas::PIPE.uv(),
+        );
 
         // bases
         for base in self.bases.iter() {
-            self.sprite_renderer.draw_sprite(base.quad(), BASE.uv());
+            self.sprite_renderer.draw_sprite(
+                &render::Transform::default()
+                    .with_pos(base.pos.extend(0.0))
+                    .with_scale(BASE.size().extend(1.0)),
+                BASE.uv(),
+            );
         }
 
-        // bird
-        self.sprite_renderer
-            .draw_sprite(self.player.quad(), sprite_atlas::BIRD_FLAP_0.uv());
+        let player_rot = match self.state {
+            GameState::StartMenu => 0.0,
+            GameState::Game | GameState::GameOver => {
+                remap(self.player.velocity.y, -400.0, 100.0, -PI / 2.0, PI / 4.0)
+                    .clamp(-PI / 2.0, PI / 4.0)
+            }
+        };
+        // player
+        self.sprite_renderer.draw_sprite(
+            &Transform::default()
+                .with_pos(self.player.pos.extend(0.0))
+                .with_scale(BIRD_FLAP_0.size().extend(1.0))
+                .with_rot(Quat::from_rotation_z(player_rot)),
+            sprite_atlas::BIRD_FLAP_0.uv(),
+        );
 
         // render to screen
         self.sprite_renderer
@@ -389,6 +420,11 @@ impl Callbacks for App {
         }
 
         false
+    }
+
+    #[no_mangle]
+    fn resize(&mut self, ctx: &mut gbase::Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+        self.ui_renderer.resize(ctx, new_size);
     }
 }
 
