@@ -1,4 +1,4 @@
-use crate::{audio, filesystem, input, render, time, window, Context};
+use crate::{audio, filesystem, input, random, render, time, window, Context};
 
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
@@ -231,6 +231,7 @@ pub async fn run<C: Callbacks + 'static>() {
     let filesystem = filesystem::FileSystemContext::new();
     let audio = audio::AudioContext::new();
     let render = render::RenderContext::new(window, builder.vsync, builder.device_features).await;
+    let random = random::RandomContext::new();
 
     let mut ctx = Context {
         input,
@@ -238,6 +239,7 @@ pub async fn run<C: Callbacks + 'static>() {
         filesystem,
         audio,
         render,
+        random,
 
         #[cfg(feature = "hot_reload")]
         hot_reload: hot_reload::HotReloadContext::new(),

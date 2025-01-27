@@ -9,11 +9,11 @@ use gbase::{
     filesystem,
     glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b,
+    load_b, random,
     render::{self, surface_config, CameraUniform, Transform, Widget, GREEN, RED, WHITE},
     time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
-    Callbacks,
+    Callbacks, Context,
 };
 use std::f32::consts::PI;
 
@@ -49,16 +49,17 @@ struct PipePair {
 }
 
 impl PipePair {
-    fn new() -> Self {
+    fn new(ctx: &mut Context) -> Self {
         Self {
             x: BACKGROUND.w as f32 * 1.5,
-            mid: rand_range(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET),
+            mid: random::rand(ctx).range_f32(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET) + PIPE_BASE_OFFSET,
             gap: PIPE_GAP,
             collided: false,
         }
     }
-    fn randomize_mid(&mut self) {
-        self.mid = rand_range(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET) + PIPE_BASE_OFFSET;
+    fn randomize_mid(&mut self, ctx: &mut Context) {
+        self.mid =
+            random::rand(ctx).range_f32(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET) + PIPE_BASE_OFFSET;
     }
 
     fn top_pos(&self) -> Vec2 {
@@ -148,9 +149,6 @@ const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 
-fn rand_range(min: f32, max: f32) -> f32 {
-    min + (rand::random::<f32>()) * (max - min)
-}
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
 }
@@ -166,8 +164,10 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
+        random::seed_with_time(ctx);
+
         let player = Player::new();
-        let pipes = PipePair::new();
+        let pipes = PipePair::new(ctx);
         let bases = vec![
             Base {
                 pos: vec2(-BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
@@ -301,7 +301,7 @@ impl Callbacks for App {
                 self.pipes.x -= dt * SCROLL_SPEED;
                 if self.pipes.x <= -(BACKGROUND.size().x / 2.0 + PIPE.size().x / 2.0) {
                     self.pipes.x += BACKGROUND.size().x + PIPE.size().x;
-                    self.pipes.randomize_mid();
+                    self.pipes.randomize_mid(ctx);
                     self.pipes.collided = false;
                 }
 
@@ -372,7 +372,7 @@ impl Callbacks for App {
 
                 if input::key_just_pressed(ctx, KeyCode::KeyR) {
                     self.state = GameState::StartMenu;
-                    self.pipes = PipePair::new();
+                    self.pipes = PipePair::new(ctx);
                     self.player = Player::new();
                 }
             }

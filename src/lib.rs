@@ -6,6 +6,7 @@ pub mod audio;
 pub mod collision;
 pub mod filesystem;
 pub mod input;
+pub mod random;
 pub mod render;
 pub mod time;
 pub mod window;
@@ -42,6 +43,7 @@ pub struct Context {
     pub(crate) filesystem: filesystem::FileSystemContext,
     pub(crate) audio: audio::AudioContext,
     pub(crate) render: render::RenderContext,
+    pub(crate) random: random::RandomContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,
