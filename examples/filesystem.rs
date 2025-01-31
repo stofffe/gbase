@@ -1,14 +1,10 @@
+use gbase::log;
 use gbase::{
     filesystem,
     input::{self, KeyCode},
     Callbacks, Context,
 };
-use gbase::{log, run_sync};
 
-// #[wasm_bindgen::prelude::wasm_bindgen]
-// pub async fn main() {
-//     gbase::run::<App>().await;
-// }
 pub fn main() {
     gbase::run_sync::<App>();
 }
@@ -28,7 +24,7 @@ impl Callbacks for App {
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
             println!("load string");
-            filesystem::store_str(ctx, str_path, "hello");
+            filesystem::store_str(ctx, str_path, "hello").unwrap();
         }
 
         let bytes_path = "tmp/bytes";
@@ -38,7 +34,7 @@ impl Callbacks for App {
         }
         if input::key_just_pressed(ctx, KeyCode::Digit4) {
             println!("load bytes");
-            filesystem::store_bytes(ctx, bytes_path, &[1, 2, 3]);
+            filesystem::store_bytes(ctx, bytes_path, &[1, 2, 3]).unwrap();
         }
 
         false

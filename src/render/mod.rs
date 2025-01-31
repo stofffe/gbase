@@ -1,9 +1,6 @@
 pub mod core;
 pub use core::*;
 
-pub mod helpers;
-pub use helpers::*;
-
 use crate::Context;
 use std::sync::Arc;
 use winit::dpi::PhysicalSize;
@@ -132,13 +129,16 @@ impl RenderContext {
     //     self.window_size
     // }
 
-    pub(crate) fn aspect_ratio(&self) -> f32 {
+    fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32
     }
 }
 
 // Getter functions for render and window operations
 
+pub fn aspect_ratio(ctx: &Context) -> f32 {
+    ctx.render.aspect_ratio()
+}
 pub fn create_encoder(ctx: &Context, label: Option<&str>) -> wgpu::CommandEncoder {
     ctx.render
         .device

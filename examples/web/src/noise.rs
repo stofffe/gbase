@@ -1,1 +1,0 @@
-../../clouds/noise.rs
