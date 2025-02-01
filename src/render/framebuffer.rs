@@ -129,9 +129,6 @@ impl FrameBuffer {
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
         *self = self.builder.clone().size(width, height).build(ctx);
     }
-    pub fn resize_screen(&mut self, ctx: &Context) {
-        *self = self.builder.clone().screen_size(ctx).build(ctx);
-    }
     pub fn format(&self) -> wgpu::TextureFormat {
         self.texture().format()
     }
@@ -242,9 +239,6 @@ impl DepthBuffer {
     }
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
         self.framebuffer.resize(ctx, width, height);
-    }
-    pub fn resize_screen(&mut self, ctx: &Context) {
-        self.framebuffer.resize_screen(ctx);
     }
     pub fn clear(&mut self, ctx: &Context) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);

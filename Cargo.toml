@@ -13,14 +13,14 @@ encase = { version = "0.6.1", features = ["glam"] }
 anyhow = "1.0.95"
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }     # cpal?
 
+# hot reloading
+dlopen = { version = "0.1.8", optional = true, features = [] }
+notify = { version = "7.0.0", optional = true }                # replaced
+
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
 env_logger = "0.10.1"
-
-# hot reloading
-dlopen = { version = "0.1.8", optional = true, features = [] }
-notify = { version = "7.0.0", optional = true }                # replaced
 
 # wasm
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -36,10 +36,6 @@ web-sys = { version = "0.3.64", features = [
     "GpuCanvasContext",
     "Storage",
 ] }
-
-[dev-dependencies]
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.134"
 
 [features]
 default = []

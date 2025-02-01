@@ -228,11 +228,11 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, _new_size: PhysicalSize<u32>) {
-        log::info!("resize");
-        self.gizmo_renderer.resize_screen(ctx);
-        self.deferred_buffers.resize_screen(ctx);
-        self.framebuffer.resize_screen(ctx);
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
+        let (w, h) = (new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, w, h);
+        self.deferred_buffers.resize(ctx, w, h);
+        self.framebuffer.resize(ctx, w, h);
         self.deferred_renderer.rebuild_bindgroup(
             ctx,
             &self.deferred_buffers,

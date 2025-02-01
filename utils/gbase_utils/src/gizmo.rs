@@ -1,14 +1,12 @@
+use super::CameraUniform;
 use gbase::{
     glam::{vec3, vec4, Quat, Vec3, Vec4Swizzles},
     render::{
-        self, ArcBindGroup, ArcRenderPipeline, EncoderBuilder, RenderPipelineBuilder,
-        ShaderBuilder, VertexColor,
+        self, ArcBindGroup, ArcRenderPipeline, RenderPipelineBuilder, ShaderBuilder, VertexColor,
     },
     wgpu, Context,
 };
 use std::f32::consts::PI;
-
-use super::CameraUniform;
 
 pub struct GizmoRenderer {
     dynamic_vertex_buffer: Vec<VertexColor>,
@@ -101,9 +99,6 @@ impl GizmoRenderer {
 
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
         self.depth_buffer.resize(ctx, width, height);
-    }
-    pub fn resize_screen(&mut self, ctx: &Context) {
-        self.depth_buffer.resize_screen(ctx);
     }
 }
 

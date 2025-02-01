@@ -5,7 +5,7 @@ use gbase::{
     winit::dpi::PhysicalSize,
     Callbacks, Context,
 };
-use gbase_utils::{Transform3D, BLACK, WHITE};
+use gbase_utils::{image::load_from_memory_with_format, Transform3D, BLACK, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -198,10 +198,11 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, _new_size: PhysicalSize<u32>) {
-        self.gizmo_renderer.resize_screen(ctx);
-        self.framebuffer.resize_screen(ctx);
-        self.deferred_buffers.resize_screen(ctx);
+    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
+        let (w, h) = (new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, w, h);
+        self.framebuffer.resize(ctx, w, h);
+        self.deferred_buffers.resize(ctx, w, h);
         self.deferred_renderer.rebuild_bindgroup(
             ctx,
             &self.deferred_buffers,
