@@ -197,14 +197,14 @@ impl TextureBuilder {
                     view_formats: &self.view_formats,
                 });
                 queue.write_texture(
-                    wgpu::ImageCopyTexture {
+                    wgpu::TexelCopyTextureInfo {
                         texture: &texture,
                         mip_level: 0,
                         origin: wgpu::Origin3d::ZERO,
                         aspect: wgpu::TextureAspect::All,
                     },
                     bytes,
-                    wgpu::ImageDataLayout {
+                    wgpu::TexelCopyBufferLayout {
                         offset: 0,
                         bytes_per_row: self // TODO check if correct
                             .format
@@ -263,11 +263,12 @@ pub struct TextureViewBuilder {
     label: Option<String>,
     format: Option<wgpu::TextureFormat>,
     dimension: Option<wgpu::TextureViewDimension>,
-    apspect: wgpu::TextureAspect,
+    aspect: wgpu::TextureAspect,
     base_mip_level: u32,
     mip_level_count: Option<u32>,
     base_array_layer: u32,
     array_layer_count: Option<u32>,
+    usage: Option<wgpu::TextureUsages>,
 }
 
 impl TextureViewBuilder {
@@ -277,11 +278,12 @@ impl TextureViewBuilder {
             label: None,
             format: None,
             dimension: None,
-            apspect: wgpu::TextureAspect::All,
+            aspect: wgpu::TextureAspect::All,
             base_mip_level: 0,
             mip_level_count: None,
             base_array_layer: 0,
             array_layer_count: None,
+            usage: None,
         }
     }
 
@@ -290,11 +292,12 @@ impl TextureViewBuilder {
             label: self.label.as_deref(),
             format: self.format,
             dimension: self.dimension,
-            aspect: self.apspect,
+            aspect: self.aspect,
             base_mip_level: self.base_mip_level,
             mip_level_count: self.mip_level_count,
             base_array_layer: self.base_array_layer,
             array_layer_count: self.array_layer_count,
+            usage: self.usage,
         });
 
         render::ArcTextureView::new(view)
@@ -316,6 +319,45 @@ impl TextureViewBuilder {
     }
 }
 
+impl TextureViewBuilder {
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
+        self
+    }
+    pub fn format(mut self, value: wgpu::TextureFormat) -> Self {
+        self.format = Some(value);
+        self
+    }
+    pub fn dimension(mut self, value: wgpu::TextureViewDimension) -> Self {
+        self.dimension = Some(value);
+        self
+    }
+    pub fn aspect(mut self, value: wgpu::TextureAspect) -> Self {
+        self.aspect = value;
+        self
+    }
+    pub fn base_mip_level(mut self, value: u32) -> Self {
+        self.base_mip_level = value;
+        self
+    }
+    pub fn mip_level_count(mut self, value: u32) -> Self {
+        self.mip_level_count = Some(value);
+        self
+    }
+    pub fn base_array_layer(mut self, value: u32) -> Self {
+        self.base_array_layer = value;
+        self
+    }
+    pub fn array_layer_count(mut self, value: u32) -> Self {
+        self.array_layer_count = Some(value);
+        self
+    }
+    pub fn usage(mut self, value: wgpu::TextureUsages) -> Self {
+        self.usage = Some(value);
+        self
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct TextureWithView {
     texture: ArcTexture,
@@ -330,18 +372,15 @@ impl TextureWithView {
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
         Self { texture, view }
     }
-
     pub fn texture(&self) -> ArcTexture {
         self.texture.clone()
     }
-
     pub fn view(&self) -> ArcTextureView {
         self.view.clone()
     }
     pub fn texture_ref(&self) -> &wgpu::Texture {
         &self.texture
     }
-
     pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
     }

@@ -30,11 +30,20 @@ Engine
     [] new glb loader
     [] use mega entity instead?
 [] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
-[] return framebuffer from main and automatically apply gamma correction if needed
+[] modify framebuffer from main and automatically apply gamma correction if needed (only necessary if format does not support srgb)
+[] double frambuffer for post processing
+[] make format of frambuffer a generic thing
+[] make format and or dimension of texture a generic thing
+[/] upgrade to wgpu 24
+    [] diagnotics support
+    [] clone on everything, no arc?
+    [] TextureBlitter
+    [] device.create texture with data?
 
 Post processing
 [] bloom
 [] tonemapping
+[] gaussian blur is most up to date, copy to all other
 
 Flappy bird
 [x] rotate bird

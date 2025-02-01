@@ -751,15 +751,15 @@ fn texture_to_buffer_sync(
 
     let mut encoder = render::EncoderBuilder::new().build(ctx);
     encoder.copy_texture_to_buffer(
-        wgpu::ImageCopyTextureBase {
+        wgpu::TexelCopyTextureInfo {
             texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
         },
-        wgpu::ImageCopyBufferBase {
+        wgpu::TexelCopyBufferInfo {
             buffer: &read_back_buffer.buffer(),
-            layout: wgpu::ImageDataLayout {
+            layout: wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(width * pixel_size),
                 rows_per_image: Some(height),

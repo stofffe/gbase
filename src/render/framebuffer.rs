@@ -46,6 +46,7 @@ impl FrameBufferBuilder {
             array_layer_count: None,
             base_mip_level: 0,
             base_array_layer: 0,
+            usage: None,
         });
         FrameBuffer {
             texture: render::ArcTexture::new(texture),

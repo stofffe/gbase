@@ -44,11 +44,13 @@ impl RenderContext {
     ) -> Self {
         let window = Arc::new(window);
 
-        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::all(),
-            dx12_shader_compiler: wgpu::Dx12Compiler::default(),
-            gles_minor_version: wgpu::Gles3MinorVersion::default(),
             flags: wgpu::InstanceFlags::default(),
+            backend_options: wgpu::BackendOptions {
+                gl: wgpu::GlBackendOptions::default(),
+                dx12: wgpu::Dx12BackendOptions::default(),
+            },
         });
 
         let surface = instance

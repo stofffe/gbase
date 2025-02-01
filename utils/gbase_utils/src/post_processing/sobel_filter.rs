@@ -89,13 +89,13 @@ impl SobelFilter {
 
         // Copy current texture to copy texture
         encoder.copy_texture_to_texture(
-            wgpu::ImageCopyTextureBase {
+            wgpu::TexelCopyTextureInfo {
                 texture: &texture.texture(),
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
-            wgpu::ImageCopyTextureBase {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.copy_texture.texture(),
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
