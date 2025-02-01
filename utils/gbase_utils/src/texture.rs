@@ -1,12 +1,30 @@
-//
-// Texture Atlas
-//
-
 use gbase::{
     glam::UVec2,
     render::{self},
     wgpu, Context,
 };
+
+/// Creates a texture builder from the bytes
+///
+/// Uses ```image``` crate for decoding
+///
+/// Does not account for gamma correction
+pub fn texture_builder_from_image_bytes(
+    bytes: &[u8],
+) -> Result<render::TextureBuilder, image::ImageError> {
+    let img = image::load_from_memory(bytes)?.to_rgba8();
+    let builder = render::TextureBuilder::new(render::TextureSource::Data(
+        img.width(),
+        img.height(),
+        img.to_vec(),
+    ))
+    .format(gbase::wgpu::TextureFormat::Rgba8Unorm);
+    Ok(builder)
+}
+
+//
+// Atlas
+//
 
 pub struct TextureAtlasBuilder {}
 
@@ -16,6 +34,12 @@ impl TextureAtlasBuilder {
     }
     pub fn build(self, texture: render::TextureWithView) -> TextureAtlas {
         TextureAtlas { texture }
+    }
+}
+
+impl Default for TextureAtlasBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

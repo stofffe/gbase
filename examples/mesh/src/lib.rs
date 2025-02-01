@@ -1,11 +1,11 @@
 use gbase::{
     filesystem,
-    glam::{vec3, Quat, Vec3},
+    glam::{vec3, Vec3, Vec4Swizzles},
     input, render, wgpu,
     winit::dpi::PhysicalSize,
     Callbacks, Context,
 };
-use gbase_utils::Transform;
+use gbase_utils::{Transform3D, BLACK, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -30,6 +30,7 @@ struct App {
 }
 
 impl Callbacks for App {
+    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
         let mut camera = gbase_utils::PerspectiveCamera::new();
@@ -94,6 +95,7 @@ impl Callbacks for App {
     // fn new(&mut self, _ctx: &mut Context) {
     //     self.camera.pos = vec3(0.5, 0.0, 1.0);
     // }
+    #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
@@ -161,6 +163,7 @@ impl Callbacks for App {
         false
     }
 
+    #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // eprintln!("FPS {}", time::fps(ctx));
         // let t = gbase::time::time_since_start(ctx);
@@ -170,16 +173,21 @@ impl Callbacks for App {
         self.debug_input.update_buffer(ctx);
 
         // Render into gbuffer
+        self.framebuffer.clear(ctx, wgpu::Color::BLACK);
         self.deferred_buffers.clear(ctx);
         let meshes = &[&self.model1, &self.model2];
         self.mesh_renderer
             .render_models(ctx, &self.deferred_buffers, meshes);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
-        self.gizmo_renderer.draw_sphere(
-            0.1,
-            &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
-            vec3(1.0, 0.0, 0.0),
+        // self.gizmo_renderer.draw_sphere(
+        //     0.1,
+        //     &Transform3D::new(self.light, Quat::IDENTITY, Vec3::ONE),
+        //     vec3(1.0, 0.0, 0.0),
+        // );
+        self.gizmo_renderer.draw_cube(
+            &Transform3D::from_pos_scale(vec3(0.0, 0.0, 0.0), vec3(5.0, 5.0, 5.0)),
+            WHITE.xyz(),
         );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
 
@@ -189,6 +197,7 @@ impl Callbacks for App {
         false
     }
 
+    #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, _new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize_screen(ctx);
         self.framebuffer.resize_screen(ctx);
@@ -199,5 +208,12 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.light_buffer,
         );
+    }
+}
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, _ctx: &mut Context) {
+        Self::init_ctx().init_logging();
     }
 }

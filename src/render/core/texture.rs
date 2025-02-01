@@ -124,9 +124,10 @@ impl SamplerBuilder {
 // TODO use struct notation?
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum TextureSource {
+    /// (width, height, bytes)
+    Data(u32, u32, Vec<u8>),
+    /// (width, height)
     Empty(u32, u32),
-    Filled(u32, u32, Vec<u8>),
-    Bytes(Vec<u8>),
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
@@ -158,7 +159,7 @@ impl TextureBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> render::ArcTexture {
+    pub fn build(&self, ctx: &Context) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         match &self.source {
@@ -180,7 +181,7 @@ impl TextureBuilder {
 
                 ArcTexture::new(texture)
             }
-            TextureSource::Filled(width, height, bytes) => {
+            TextureSource::Data(width, height, bytes) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: self.label.as_deref(),
                     size: wgpu::Extent3d {
@@ -216,59 +217,7 @@ impl TextureBuilder {
 
                 ArcTexture::new(texture)
             }
-            TextureSource::Bytes(bytes) => {
-                let img = image::load_from_memory(bytes)
-                    .expect("could not load texture from bytes")
-                    .to_rgba8();
-
-                // TODO: use util instead?
-                let texture = device.create_texture(&wgpu::TextureDescriptor {
-                    label: self.label.as_deref(),
-                    size: wgpu::Extent3d {
-                        width: img.width(),
-                        height: img.height(),
-                        depth_or_array_layers: self.depth_or_array_layers,
-                    },
-                    mip_level_count: self.mip_level_count,
-                    sample_count: self.sample_count,
-                    dimension: self.dimension,
-                    format: self.format,
-                    usage: self.usage,
-                    view_formats: &self.view_formats,
-                });
-                queue.write_texture(
-                    wgpu::ImageCopyTexture {
-                        texture: &texture,
-                        mip_level: 0,
-                        origin: wgpu::Origin3d::ZERO,
-                        aspect: wgpu::TextureAspect::All,
-                    },
-                    &img,
-                    wgpu::ImageDataLayout {
-                        offset: 0,
-                        bytes_per_row: Some(4 * img.width()),
-                        rows_per_image: Some(img.height()),
-                    },
-                    texture.size(),
-                );
-
-                ArcTexture::new(texture)
-            }
         }
-    }
-    pub fn build(self, ctx: &mut Context) -> render::ArcTexture {
-        if let Some(texture) = ctx.render.cache.textures.get(&self) {
-            log::info!("Fetch cached texture");
-            return texture.clone();
-        }
-
-        log::info!("Create cached texture");
-        let texture = self.build_uncached(ctx);
-        ctx.render
-            .cache
-            .textures
-            .insert(self.clone(), texture.clone());
-        texture
     }
 }
 
@@ -369,8 +318,8 @@ impl TextureViewBuilder {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct TextureWithView {
-    pub(crate) texture: ArcTexture,
-    pub(crate) view: ArcTextureView,
+    texture: ArcTexture,
+    view: ArcTextureView,
 }
 
 impl TextureWithView {

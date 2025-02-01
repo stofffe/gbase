@@ -6,7 +6,7 @@ use gbase::render::UniformBufferBuilder;
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use gbase_utils::{
-    gamma_correction, gaussian_filter, Alignment, Direction, SizeKind, Transform, Widget, BLUE,
+    gamma_correction, gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE,
     GRAY, GREEN, RED,
 };
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
@@ -322,13 +322,14 @@ impl gbase::Callbacks for App {
 
 impl App {
     fn gizmos(&mut self, _ctx: &Context) {
-        let bb = Transform::from_scale(self.cloud_params.bounds_max - self.cloud_params.bounds_min);
+        let bb =
+            Transform3D::from_scale(self.cloud_params.bounds_max - self.cloud_params.bounds_min);
         self.gizmo_renderer.draw_cube(
-            &Transform::new(bb.pos, Quat::IDENTITY, bb.scale),
+            &Transform3D::new(bb.pos, Quat::IDENTITY, bb.scale),
             gbase_utils::RED.xyz(),
         );
         self.gizmo_renderer.draw_cube(
-            &Transform::from_pos(self.cloud_params.light_pos).with_scale(Vec3::ONE * 5.0),
+            &Transform3D::from_pos(self.cloud_params.light_pos).with_scale(Vec3::ONE * 5.0),
             gbase_utils::RED.xyz(),
         );
     }
@@ -705,12 +706,13 @@ impl App {
             CLOUD_BASE_RESOLUTION.x,
             CLOUD_BASE_RESOLUTION.y,
         );
-        let image_buffer = gbase::image::ImageBuffer::<gbase::image::Rgba<u8>, _>::from_raw(
-            CLOUD_BASE_RESOLUTION.x,
-            CLOUD_BASE_RESOLUTION.y,
-            image_bytes,
-        )
-        .expect("could not create image buffer");
+        let image_buffer =
+            gbase_utils::image::ImageBuffer::<gbase_utils::image::Rgba<u8>, _>::from_raw(
+                CLOUD_BASE_RESOLUTION.x,
+                CLOUD_BASE_RESOLUTION.y,
+                image_bytes,
+            )
+            .expect("could not create image buffer");
         image_buffer
             .save(format!(
                 "assets/temporary/image_{}_{}.png",

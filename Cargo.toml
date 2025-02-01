@@ -9,7 +9,6 @@ wgpu = { version = "23.0.0", features = [] }
 glam = { version = "0.24.2", features = ["serde"] }
 log = "0.4.20"
 bytemuck = { version = "1.14.0", features = ["derive"] }
-image = "0.24.7"
 encase = { version = "0.6.1", features = ["glam"] }
 anyhow = "1.0.95"
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }     # cpal?
@@ -61,4 +60,5 @@ members = [
     "examples/mesh",
     "examples/camera",
     "examples/transform",
+    "examples/texture",
 ]

@@ -7,7 +7,7 @@ use gbase::winit;
 use gbase::{collision, filesystem, input, render, time, Callbacks, Context};
 use gbase_utils::gamma_correction;
 use gbase_utils::sobel_filter;
-use gbase_utils::Transform;
+use gbase_utils::Transform3D;
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass_renderer::GrassRenderer;
 use std::f32::consts::PI;
@@ -43,7 +43,7 @@ pub struct App {
     paused: bool,
 
     plane: gbase_utils::GpuDrawCall,
-    plane_transform: gbase_utils::Transform,
+    plane_transform: gbase_utils::Transform3D,
     plane_transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
 
     framebuffer: render::FrameBuffer,
@@ -111,7 +111,7 @@ impl Callbacks for App {
             gbase_utils::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
 
         // Plane mesh
-        let plane_transform = gbase_utils::Transform::new(
+        let plane_transform = gbase_utils::Transform3D::new(
             // vec3(-10.0, 8.0, -10.0),
             vec3(0.0, 0.0, 0.0),
             Quat::from_rotation_x(-PI / 2.0),
@@ -202,7 +202,7 @@ impl Callbacks for App {
         self.gui_renderer.render(ctx, self.framebuffer.view_ref());
         self.gizmo_renderer.draw_sphere(
             1.0,
-            &Transform::new(self.light, Quat::IDENTITY, Vec3::ONE),
+            &Transform3D::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
         self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());

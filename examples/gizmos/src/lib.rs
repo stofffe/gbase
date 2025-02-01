@@ -8,7 +8,7 @@ use gbase::{
     winit::dpi::PhysicalSize,
     Callbacks, Context,
 };
-use gbase_utils::Transform;
+use gbase_utils::Transform3D;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -54,22 +54,22 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
         self.gizmo_renderer
-            .draw_sphere(0.01, &Transform::default(), WHITE);
+            .draw_sphere(0.01, &Transform3D::default(), WHITE);
         self.gizmo_renderer.draw_sphere(
             0.5,
-            &Transform::new(vec3(t.sin(), 0.0, 0.0), Quat::from_rotation_x(t), Vec3::ONE),
+            &Transform3D::new(vec3(t.sin(), 0.0, 0.0), Quat::from_rotation_x(t), Vec3::ONE),
             BLUE,
         );
         self.gizmo_renderer
-            .draw_cube(&Transform::from_scale(vec3(0.5, 1.0, 0.5)), GREEN);
+            .draw_cube(&Transform3D::from_scale(vec3(0.5, 1.0, 0.5)), GREEN);
 
         self.gizmo_renderer.draw_quad(
-            &Transform::new(Vec3::ZERO, Quat::from_rotation_y(t), vec3(2.0, 1.0, 0.0)),
+            &Transform3D::new(Vec3::ZERO, Quat::from_rotation_y(t), vec3(2.0, 1.0, 0.0)),
             WHITE,
         );
         self.gizmo_renderer.draw_circle(
             1.0,
-            &Transform::new(Vec3::ZERO, Quat::default(), Vec3::ONE),
+            &Transform3D::new(Vec3::ZERO, Quat::default(), Vec3::ONE),
             WHITE,
         );
 

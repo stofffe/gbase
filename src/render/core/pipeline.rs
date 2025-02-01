@@ -110,12 +110,12 @@ impl ColorTargetState {
     }
 }
 
-impl Into<wgpu::ColorTargetState> for ColorTargetState {
-    fn into(self) -> wgpu::ColorTargetState {
+impl From<ColorTargetState> for wgpu::ColorTargetState {
+    fn from(val: ColorTargetState) -> Self {
         wgpu::ColorTargetState {
-            format: self.format,
-            blend: self.blend,
-            write_mask: self.write_mask,
+            format: val.format,
+            blend: val.blend,
+            write_mask: val.write_mask,
         }
     }
 }

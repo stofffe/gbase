@@ -1,11 +1,12 @@
 use gbase::{
     filesystem,
     render::{self, ArcBindGroup, ArcRenderPipeline, VertexBufferBuilder, VertexBufferSource},
-    Callbacks, Context,
+    wgpu, Callbacks, Context,
 };
 
-pub fn main() {
-    gbase::run_sync::<App>();
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
+pub async fn run() {
+    gbase::run::<App>().await;
 }
 
 struct App {
@@ -19,10 +20,12 @@ impl Callbacks for App {
         let vertex_buffer =
             VertexBufferBuilder::new(VertexBufferSource::Data(QUAD_VERTICES.to_vec())).build(ctx);
 
-        let texture_bytes = filesystem::load_b!("textures/texture.jpeg").unwrap();
-        let texture = render::TextureBuilder::new(render::TextureSource::Bytes(texture_bytes))
-            .build(ctx)
-            .with_default_view(ctx);
+        let texture = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/texture.jpeg").unwrap(),
+        )
+        .unwrap()
+        .build(ctx)
+        .with_default_view(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);
 

@@ -15,7 +15,7 @@ use gbase::{
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, SizeKind, Transform, Widget};
+use gbase_utils::{Alignment, SizeKind, Transform3D, Widget};
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -200,11 +200,10 @@ impl Callbacks for App {
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let sprite_atlas = render::TextureBuilder::new(render::TextureSource::Bytes(
-            sprite_atlas::ATLAS_BYTES.to_vec(),
-        ))
-        .build(ctx)
-        .with_default_view(ctx);
+        let sprite_atlas = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
+            .unwrap()
+            .build(ctx)
+            .with_default_view(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -394,19 +393,19 @@ impl Callbacks for App {
 
         // background
         self.sprite_renderer.draw_sprite(
-            &Transform::default().with_scale(BACKGROUND.size().extend(1.0)),
+            &Transform3D::default().with_scale(BACKGROUND.size().extend(1.0)),
             BACKGROUND.uv(),
         );
 
         // pipes
         self.sprite_renderer.draw_sprite(
-            &Transform::default()
+            &Transform3D::default()
                 .with_pos(self.pipes.top_pos().extend(0.0))
                 .with_scale(PIPE.size().extend(1.0) * vec3(1.0, -1.0, 1.0)),
             sprite_atlas::PIPE.uv(),
         );
         self.sprite_renderer.draw_sprite(
-            &Transform::default()
+            &Transform3D::default()
                 .with_pos(self.pipes.bottom_pos().extend(0.0))
                 .with_scale(PIPE.size().extend(1.0)),
             sprite_atlas::PIPE.uv(),
@@ -415,7 +414,7 @@ impl Callbacks for App {
         // bases
         for base in self.bases.iter() {
             self.sprite_renderer.draw_sprite(
-                &Transform::default()
+                &Transform3D::default()
                     .with_pos(base.pos.extend(0.0))
                     .with_scale(BASE.size().extend(1.0)),
                 BASE.uv(),
@@ -429,7 +428,7 @@ impl Callbacks for App {
                     .clamp(-PI / 2.0, PI / 4.0)
             }
         };
-        let player_transform = Transform::new(
+        let player_transform = Transform3D::new(
             self.player.pos.extend(0.0),
             Quat::from_rotation_z(player_rot),
             BIRD_FLAP_0.size().extend(1.0),
@@ -456,26 +455,26 @@ impl Callbacks for App {
             // player
             gr.draw_circle(
                 self.player.collision_radius,
-                &Transform::new(self.player.pos.extend(0.0), Quat::IDENTITY, Vec3::ONE),
+                &Transform3D::new(self.player.pos.extend(0.0), Quat::IDENTITY, Vec3::ONE),
                 gbase_utils::RED.xyz(),
             );
             // pipes
             gr.draw_quad(
-                &Transform::from_pos_scale(
+                &Transform3D::from_pos_scale(
                     self.pipes.top_pos().extend(0.0),
                     self.pipes.top_collision().size.extend(1.0),
                 ),
                 gbase_utils::RED.xyz(),
             );
             gr.draw_quad(
-                &Transform::from_pos_scale(
+                &Transform3D::from_pos_scale(
                     self.pipes.bottom_pos().extend(0.0),
                     self.pipes.bottom_collision().size.extend(1.0),
                 ),
                 gbase_utils::RED.xyz(),
             );
             gr.draw_quad(
-                &Transform::from_pos_scale(
+                &Transform3D::from_pos_scale(
                     self.pipes.gap_pos().extend(1.0),
                     self.pipes.gap_collision().size.extend(1.0),
                 ),
@@ -485,7 +484,7 @@ impl Callbacks for App {
             // base
             for base in self.bases.iter() {
                 gr.draw_quad(
-                    &Transform::from_pos_scale(base.pos.extend(0.0), BASE.size().extend(1.0)),
+                    &Transform3D::from_pos_scale(base.pos.extend(0.0), BASE.size().extend(1.0)),
                     gbase_utils::RED.xyz(),
                 );
             }

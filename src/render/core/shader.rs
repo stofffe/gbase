@@ -34,9 +34,9 @@ pub struct ShaderBuilder {
 }
 
 impl ShaderBuilder {
-    pub fn new(source: String) -> Self {
+    pub fn new(source: impl Into<String>) -> Self {
         Self {
-            source,
+            source: source.into(),
             label: None,
             diagnostic_derivative_uniformity: None,
             diagnostic_subgroup_uniformity: None,

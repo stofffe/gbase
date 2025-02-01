@@ -1,5 +1,6 @@
 use encase::ShaderType;
 use gbase::{filesystem, load_b, render, wgpu, Context};
+use gbase_utils::image::GenericImageView;
 
 #[derive(ShaderType)]
 struct NoiseGeneratorUniforms {
@@ -76,21 +77,19 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::TextureWithView
 }
 
 pub fn generate_weather_map(ctx: &mut Context) -> render::TextureWithView {
-    render::TextureBuilder::new(render::TextureSource::Bytes(
-        load_b!("textures/clouds_weather_map.png").unwrap(),
-    ))
-    .format(wgpu::TextureFormat::Rgba8Unorm)
+    gbase_utils::texture_builder_from_image_bytes(
+        &load_b!("textures/clouds_weather_map.png").unwrap(),
+    )
+    .unwrap()
     .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST)
     .build(ctx)
     .with_default_view(ctx)
 }
 
 pub fn generate_blue_noise(ctx: &mut Context) -> render::TextureWithView {
-    render::TextureBuilder::new(render::TextureSource::Bytes(
-        load_b!("textures/blue_noise.png").unwrap(),
-    ))
-    .format(wgpu::TextureFormat::Rgba8Unorm)
-    .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST)
-    .build(ctx)
-    .with_default_view(ctx)
+    gbase_utils::texture_builder_from_image_bytes(&load_b!("textures/blue_noise.png").unwrap())
+        .unwrap()
+        .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST)
+        .build(ctx)
+        .with_default_view(ctx)
 }

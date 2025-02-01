@@ -23,7 +23,6 @@ pub use bytemuck;
 pub use encase;
 
 pub use glam;
-pub use image;
 pub use log;
 pub use wgpu;
 pub use winit;

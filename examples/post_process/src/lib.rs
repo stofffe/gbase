@@ -1,4 +1,5 @@
 use gbase::{
+    filesystem,
     input::{self, KeyCode},
     render::{self, ArcTextureView},
     wgpu, winit, Callbacks, Context,
@@ -54,34 +55,39 @@ impl Callbacks for App {
             gbase_utils::TextureRenderer::new(ctx, render::surface_config(ctx).format);
 
         // textures
-        let texture1 = render::TextureBuilder::new(render::TextureSource::Bytes(
-            include_bytes!("../assets/textures/nature.jpg").to_vec(),
-        ))
+        let texture1 = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/nature.jpg").unwrap(),
+        )
+        .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
         .with_default_view(ctx);
-        let texture2 = render::TextureBuilder::new(render::TextureSource::Bytes(
-            include_bytes!("../assets/textures/city.jpg").to_vec(),
-        ))
+        let texture2 = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/city.jpg").unwrap(),
+        )
+        .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
         .with_default_view(ctx);
 
-        let texture3 = render::TextureBuilder::new(render::TextureSource::Bytes(
-            include_bytes!("../assets/textures/hellokitty.jpg").to_vec(),
-        ))
+        let texture3 = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/hellokitty.jpg").unwrap(),
+        )
+        .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
         .with_default_view(ctx);
-        let texture4 = render::TextureBuilder::new(render::TextureSource::Bytes(
-            include_bytes!("../assets/textures/mario.jpg").to_vec(),
-        ))
+        let texture4 = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/mario.jpg").unwrap(),
+        )
+        .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
         .with_default_view(ctx);
-        let texture5 = render::TextureBuilder::new(render::TextureSource::Bytes(
-            include_bytes!("../assets/textures/antialiasing.png").to_vec(),
-        ))
+        let texture5 = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/antialiasing.png").unwrap(),
+        )
+        .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
         .with_default_view(ctx);

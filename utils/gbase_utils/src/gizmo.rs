@@ -84,20 +84,16 @@ impl GizmoRenderer {
         self.vertex_buffer.write(ctx, &self.dynamic_vertex_buffer);
         self.index_buffer.write(ctx, &self.dynamic_index_buffer);
 
-        let mut encoder = EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
-            .build_run(&mut encoder, |mut pass| {
+            .build_run_new_encoder(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
                 pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
                 pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
             });
-
-        let queue = render::queue(ctx);
-        queue.submit(Some(encoder.finish()));
 
         self.dynamic_vertex_buffer.clear();
         self.dynamic_index_buffer.clear();
@@ -126,7 +122,7 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.push(vertex_start as u32 + 1);
     }
 
-    pub fn draw_sphere(&mut self, radius: f32, transform: &crate::Transform, color: Vec3) {
+    pub fn draw_sphere(&mut self, radius: f32, transform: &crate::Transform3D, color: Vec3) {
         let n = GIZMO_RESOLUTION;
         let vertex_start = self.vertex_buffer.len();
         let transform = transform.matrix();
@@ -174,7 +170,7 @@ impl GizmoRenderer {
     }
 
     /// Draw unit cube
-    pub fn draw_cube(&mut self, transform: &crate::Transform, color: Vec3) {
+    pub fn draw_cube(&mut self, transform: &crate::Transform3D, color: Vec3) {
         let t = transform.matrix();
         let vertex_start = self.dynamic_vertex_buffer.len() as u32;
 
@@ -265,7 +261,7 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.push(vertex_start + 7);
     }
 
-    pub fn draw_quad(&mut self, transform: &crate::Transform, color: Vec3) {
+    pub fn draw_quad(&mut self, transform: &crate::Transform3D, color: Vec3) {
         let vertex_start = self.dynamic_vertex_buffer.len() as u32;
         let t = transform.matrix();
 
@@ -302,7 +298,7 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.push(vertex_start + 3);
         self.dynamic_index_buffer.push(vertex_start);
     }
-    pub fn draw_circle(&mut self, radius: f32, transform: &crate::Transform, color: Vec3) {
+    pub fn draw_circle(&mut self, radius: f32, transform: &crate::Transform3D, color: Vec3) {
         let n = GIZMO_RESOLUTION;
         let t = transform.matrix();
 

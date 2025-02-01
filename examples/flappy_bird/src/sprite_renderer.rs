@@ -1,6 +1,6 @@
 use gbase::glam::Vec4;
 use gbase::{collision::AABB, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, VertexTrait}, wgpu, Context};
-use gbase_utils::Transform;
+use gbase_utils::Transform3D;
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -118,12 +118,12 @@ impl SpriteRenderer {
         self.indices.clear();
     }
 
-    pub fn draw_sprite(&mut self, transform: &Transform, uv: AABB) {
+    pub fn draw_sprite(&mut self, transform: &Transform3D, uv: AABB) {
         self.draw_sprite_tint(transform, uv, gbase_utils::WHITE);
     }
 
     #[rustfmt::skip]
-    pub fn draw_sprite_tint(&mut self, transform: &Transform, uv: AABB, tint: Vec4) {
+    pub fn draw_sprite_tint(&mut self, transform: &Transform3D, uv: AABB, tint: Vec4) {
         let (ux, uy) = (uv.pos.x, uv.pos.y);
         let (uw, uh) = (uv.size.x, uv.size.y);
         let color = tint.to_array();

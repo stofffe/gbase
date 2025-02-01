@@ -4,7 +4,7 @@ use gbase::{
     render::{self, ArcBindGroup, ArcRenderPipeline, Vertex},
     wgpu, Callbacks, Context,
 };
-use gbase_utils::Transform;
+use gbase_utils::Transform3D;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -15,7 +15,7 @@ struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: ArcRenderPipeline,
 
-    transform: Transform,
+    transform: Transform3D,
     transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
     transform_bindgroup: ArcBindGroup,
 }
@@ -33,7 +33,7 @@ impl Callbacks for App {
         .build(ctx);
 
         // Transform
-        let transform = Transform::default();
+        let transform = Transform3D::default();
         let transform_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
                 .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)

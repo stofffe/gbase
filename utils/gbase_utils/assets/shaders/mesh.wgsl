@@ -9,7 +9,18 @@
 @group(0) @binding(5) var<uniform> camera: Camera;
 @group(0) @binding(6) var<uniform> debug_input: DebugInput;
 
-struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+struct DebugInput {
+    btn1: u32,
+    btn2: u32,
+    btn3: u32,
+    btn4: u32,
+    btn5: u32,
+    btn6: u32,
+    btn7: u32,
+    btn8: u32,
+    btn9: u32,
+}
+;
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
 fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
@@ -20,7 +31,8 @@ fn btn6_pressed() -> bool { return debug_input.btn6 == 1u; }
 struct Camera {
     view_proj: mat4x4<f32>,
     position: vec3<f32>,
-};
+}
+;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -28,7 +40,8 @@ struct VertexInput {
     @location(2) normal: vec3<f32>,
     @location(3) uv: vec2<f32>,
     @location(4) tangent: vec4<f32>,
-};
+}
+;
 
 @vertex
 fn vs_main(
@@ -67,14 +80,16 @@ struct VertexOutput {
     @location(5) B: vec3<f32>,
 
     @location(6) normal: vec3<f32>,
-};
+}
+;
 
 struct FragmentOutput {
     @location(0) position: vec4<f32>,
     @location(1) albedo: vec4<f32>,
     @location(2) normal: vec4<f32>,
     @location(3) roughness: vec4<f32>,
-};
+}
+;
 
 @fragment
 fn fs_main(in: VertexOutput) -> FragmentOutput {
@@ -93,6 +108,7 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 
     var out: FragmentOutput;
     out.position = vec4<f32>(in.position, 1.0);
+    // out.albedo = vec4f(1.0, 0.0, 0.0, 1.0);
     out.albedo = albedo_tex;
     out.normal = vec4<f32>(normal, 1.0);
     out.roughness = roughness_tex;
@@ -117,7 +133,6 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 //let roughness_tex = textureSample(roughness_tex, samp, in.uv);
 //let ambient_occ = roughness_tex.r;
 
-
 //out.albedo = albedo * vec4<f32>(light, light, light, 1.0);
 //return vec4<f32>(light, light, light, 1.0);
 //return vec4<f32>(normal, 1.0);
@@ -126,4 +141,5 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 //return vec4<f32>(light, light, light, 1.0);
 //out.roughness = vec4<f32>(metalness, metalness, metalness, 1.0);
 //out.roughness = vec4<f32>(ambient_occ, ambient_occ, ambient_occ, 1.0);
-    //return vec4<f32>(in.tangent.xyz, 1.0);
+//return vec4<f32>(in.tangent.xyz, 1.0);
+const SAVE_COMMENTS = 0;

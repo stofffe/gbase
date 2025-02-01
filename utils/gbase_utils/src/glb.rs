@@ -18,8 +18,8 @@ pub struct GpuGltfModel {
 
 pub struct GpuGltfModelNode {
     pub parent: usize,
-    pub local_transform: crate::Transform,
-    pub global_transform: crate::Transform,
+    pub local_transform: crate::Transform3D,
+    pub global_transform: crate::Transform3D,
 
     pub mesh: Option<GpuDrawCall>,
 }
@@ -80,31 +80,34 @@ impl GpuMaterial {
         } = material;
 
         let albedo_texture = if let Some(bytes) = albedo {
-            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
+            crate::texture_builder_from_image_bytes(&bytes)
+                .unwrap()
                 .usage(texture_usage)
                 .build(ctx)
                 .with_default_view(ctx)
         } else {
-            let default_color = color_factor.map(|a| (a * 255.0) as u8).to_vec();
-            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_color.to_vec()))
+            let default_albedo = color_factor.map(|a| (a * 255.0) as u8).to_vec();
+            render::TextureBuilder::new(render::TextureSource::Data(1, 1, default_albedo.to_vec()))
                 .usage(texture_usage)
                 .build(ctx)
                 .with_default_view(ctx)
         };
         let normal_texture = if let Some(bytes) = normal {
-            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
+            crate::texture_builder_from_image_bytes(&bytes)
+                .unwrap()
                 .usage(texture_usage)
                 .build(ctx)
                 .with_default_view(ctx)
         } else {
             let default_normal = [128, 128, 255, 128].to_vec();
-            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_normal))
+            render::TextureBuilder::new(render::TextureSource::Data(1, 1, default_normal.to_vec()))
                 .usage(texture_usage)
                 .build(ctx)
                 .with_default_view(ctx)
         };
         let roughness_texture = if let Some(bytes) = roughness {
-            render::TextureBuilder::new(render::TextureSource::Bytes(bytes))
+            crate::texture_builder_from_image_bytes(&bytes)
+                .unwrap()
                 .usage(texture_usage)
                 .build(ctx)
                 .with_default_view(ctx)
@@ -114,12 +117,15 @@ impl GpuMaterial {
                 (roughness_factor * 255.0) as u8,
                 (metalness_factor * 255.0) as u8,
                 0,
-            ]
-            .to_vec();
-            render::TextureBuilder::new(render::TextureSource::Filled(1, 1, default_roughness))
-                .usage(texture_usage)
-                .build(ctx)
-                .with_default_view(ctx)
+            ];
+            render::TextureBuilder::new(render::TextureSource::Data(
+                1,
+                1,
+                default_roughness.to_vec(),
+            ))
+            .usage(texture_usage)
+            .build(ctx)
+            .with_default_view(ctx)
         };
         Self {
             albedo_texture,
@@ -227,8 +233,8 @@ impl GltfModel {
 #[derive(Debug)]
 pub struct GltfModelNode {
     pub mesh: Option<(Mesh, Material)>,
-    pub local_transform: crate::Transform,
-    pub global_transform: crate::Transform,
+    pub local_transform: crate::Transform3D,
+    pub global_transform: crate::Transform3D,
     pub parent: usize,
 }
 
@@ -279,7 +285,7 @@ fn parse_glb(bytes: &[u8]) -> GltfModel {
     let mut meshes = Vec::new();
     for scene in info.scenes() {
         for node in scene.nodes() {
-            parse_scene(node, &buffer, &mut meshes, crate::Transform::default(), 0);
+            parse_scene(node, &buffer, &mut meshes, crate::Transform3D::default(), 0);
         }
     }
 
@@ -290,13 +296,13 @@ fn parse_scene(
     node: gltf::Node<'_>,
     buffer: &[u8],
     nodes: &mut Vec<GltfModelNode>,
-    parent_transform: crate::Transform,
+    parent_transform: crate::Transform3D,
     parent: usize,
 ) {
     let index = nodes.len();
     let local_transform = parse_transform(node.transform());
     let global_transform =
-        crate::Transform::from_matrix(parent_transform.matrix() * local_transform.matrix());
+        crate::Transform3D::from_matrix(parent_transform.matrix() * local_transform.matrix());
 
     eprintln!("Transform {:?}", global_transform);
 
@@ -532,18 +538,18 @@ fn parse_material(buffer: &[u8], primitive: &gltf::Primitive<'_>) -> Material {
     material
 }
 
-fn parse_transform(transform: gltf::scene::Transform) -> crate::Transform {
+fn parse_transform(transform: gltf::scene::Transform) -> crate::Transform3D {
     match transform {
         gltf::scene::Transform::Matrix { matrix } => {
             let a = Mat4::from_cols_array_2d(&matrix);
             let (scale, rot, pos) = a.to_scale_rotation_translation();
-            crate::Transform::new(pos, rot, scale)
+            crate::Transform3D::new(pos, rot, scale)
         }
         gltf::scene::Transform::Decomposed {
             translation,
             rotation,
             scale,
-        } => crate::Transform::new(
+        } => crate::Transform3D::new(
             Vec3::from_array(translation),
             Quat::from_array(rotation),
             Vec3::from_array(scale),
@@ -640,6 +646,7 @@ impl MeshRenderer {
                 mesh_pass.set_pipeline(&self.pipeline);
 
                 for &draw in draws.iter() {
+                    log::info!("DRAW {}", draw.mesh.vertex_buffer.len());
                     let mesh = &draw.mesh;
                     mesh_pass.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
                     mesh_pass
@@ -648,7 +655,6 @@ impl MeshRenderer {
                     mesh_pass.draw_indexed(0..mesh.index_buffer.len(), 0, 0..1);
                 }
             });
-
         queue.submit(Some(encoder.finish()));
     }
 }

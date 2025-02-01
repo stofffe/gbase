@@ -144,11 +144,12 @@ impl GrassRenderer {
                 .build(ctx),
         ];
 
-        let perlin_noise_bytes = filesystem::load_b!("textures/perlin_noise.png").unwrap();
-        let perlin_noise_texture =
-            render::TextureBuilder::new(render::TextureSource::Bytes(perlin_noise_bytes))
-                .build(ctx)
-                .with_default_view(ctx);
+        let perlin_noise_texture = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/perlin_noise.png").unwrap(),
+        )
+        .unwrap()
+        .build(ctx)
+        .with_default_view(ctx);
         let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
 
         let tile_buffer =
