@@ -30,10 +30,9 @@ impl SpriteRenderer {
         let shader = render::ShaderBuilder::new(
             filesystem::load_s!("shaders/sprite_renderer.wgsl")
                 .expect("could not load sprite renderer shader"),
-        );
-        #[cfg(target_arch = "wasm32")]
-        let shader = shader.diagnostic_derivative_uniformity(render::ShaderDiagnosticLevel::Off);
-        let shader = shader.build(ctx);
+        )
+
+        .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

@@ -271,7 +271,6 @@ impl Callbacks for App {
                     self.state = GameState::Game;
                     self.player.velocity.y = PLAYER_JUMP_VELOCITY;
                     audio::play_audio_source(ctx, &self.flap_sound);
-                    audio::play_audio_source(ctx, &self.die_sound);
                 }
             }
             GameState::Game => {

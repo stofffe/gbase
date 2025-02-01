@@ -39,11 +39,6 @@ impl CloudRenderer {
         let shader =
             render::ShaderBuilder::new(filesystem::load_s!("shaders/clouds.wgsl").unwrap());
 
-        #[cfg(target_arch = "wasm32")]
-        let shader = shader
-            .diagnostic_derivative_uniformity(render::ShaderDiagnosticLevel::Off)
-            .build(ctx);
-
         #[cfg(not(target_arch = "wasm32"))]
         let shader = shader.build_err(ctx)?;
 
