@@ -73,7 +73,7 @@ impl Callbacks for App {
             .screen_size(ctx)
             .build(ctx);
         let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, wgpu::TextureFormat::Bgra8UnormSrgb);
+            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
         Self {
             mesh_renderer,

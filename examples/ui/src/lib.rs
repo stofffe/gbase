@@ -1,4 +1,4 @@
-use gbase::{filesystem, wgpu, winit::dpi::PhysicalSize, Callbacks, Context};
+use gbase::{filesystem, render, wgpu, winit::dpi::PhysicalSize, Callbacks, Context};
 use gbase_utils::{Alignment, Direction, SizeKind, Widget, BLUE, GRAY, GREEN, RED, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -21,9 +21,8 @@ impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
+            render::surface_format(ctx),
             1000,
-            // &filesystem::load_b!("fonts/times.ttf").unwrap(),
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );

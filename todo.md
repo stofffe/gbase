@@ -5,8 +5,13 @@ Engine
 [x] change all helper/core filesystem loads to load_b/s?
 [x] add view, proj, view_proj + all inverse to camera uniform
 [x] pass new size in resize callback /  remove it completely and only use render::resized(ctx) kinda thing
+[x] remove texture caching
+[x] 2d sphere collision
+[x] sprite transforms
+[x] random wrapper (hash/rand)
+[x] add gamma correction by default?
 [] use glam in core, input, window...
-[] catch wgpu panics
+[/] catch wgpu panics
     [x] shaders
     [] bindgroups
     [] pipelines
@@ -19,19 +24,23 @@ Engine
 [] look into scale factor dpi
 [] convert all builder to use lifetimes?
 [] feature based derives? #\[cfg_attr = "serde", derive(...)\]
-
-[] 2d sphere collision
-[] sprite transforms
-[] random wrapper (hash/rand)
+[] move collisions to utils?
+[] helper crate with re exported macros
+[] fix mesh example
+    [] new glb loader
+    [] use mega entity instead?
+[] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
+[] return framebuffer from main and automatically apply gamma correction if needed
 
 Post processing
 [] bloom
 [] tonemapping
 
 Flappy bird
+[x] rotate bird
+[x] sound
+[x] circle collisions
 [] highscore
-[] rotate bird
-[] sound
 
 Clouds
 [x] ray box intersection
@@ -76,8 +85,13 @@ UI
 [] min/max size for elements?
 [] rounded corners
 [] (){} weird sizes
-Links:
-    Clay https://youtu.be/DYWTw19_8r4?si=BgJYoPEBPdVntybD
+Clay: https://youtu.be/DYWTw19_8r4?si=BgJYoPEBPdVntybD
+
+Example template
+[] toml
+[] soft link assets
+[] index
+[] makefile
 
 Hot reload command:
     nmap <c-p> <cmd>silent exec "! cd examples/hot_reload && make compile"<cr

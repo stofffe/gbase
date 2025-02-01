@@ -52,7 +52,7 @@ impl Callbacks for App {
         let texture_renderer_base =
             gbase_utils::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm);
         let texture_renderer_final =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_config(ctx).format);
+            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
         // textures
         let texture1 = gbase_utils::texture_builder_from_image_bytes(

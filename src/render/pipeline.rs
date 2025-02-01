@@ -91,7 +91,7 @@ impl ColorTargetState {
     }
     pub fn from_current_screen(ctx: &Context) -> Self {
         Self {
-            format: render::surface_config(ctx).format,
+            format: render::surface_format(ctx),
             blend: None,
             write_mask: wgpu::ColorWrites::ALL,
         }
@@ -211,8 +211,8 @@ impl RenderPipelineBuilder {
 }
 
 impl RenderPipelineBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn buffers(mut self, value: Vec<wgpu::VertexBufferLayout<'static>>) -> Self {
@@ -255,9 +255,8 @@ impl RenderPipelineBuilder {
 
     // TODO if targets empty use this instead
     pub fn default_target(ctx: &Context) -> Option<wgpu::ColorTargetState> {
-        let surface_config = render::surface_config(ctx);
         Some(wgpu::ColorTargetState {
-            format: surface_config.format,
+            format: render::surface_format(ctx),
             blend: None,
             write_mask: wgpu::ColorWrites::ALL,
         })

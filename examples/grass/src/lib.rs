@@ -49,7 +49,6 @@ pub struct App {
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: gbase_utils::TextureRenderer,
     sobel_filter: sobel_filter::SobelFilter,
-    gamma_correction: gamma_correction::GammaCorrection,
 }
 
 impl Callbacks for App {
@@ -74,7 +73,7 @@ impl Callbacks for App {
             )
             .build(ctx);
         let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_config(ctx).format);
+            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
         // Camera
         let mut camera = gbase_utils::PerspectiveCamera::new();
@@ -148,7 +147,6 @@ impl Callbacks for App {
         );
 
         let sobel_filter = sobel_filter::SobelFilter::new(ctx);
-        let gamma_correction = gamma_correction::GammaCorrection::new(ctx);
 
         Self {
             camera,
@@ -171,7 +169,6 @@ impl Callbacks for App {
             framebuffer,
             framebuffer_renderer,
             sobel_filter,
-            gamma_correction,
         }
     }
 
@@ -213,12 +210,6 @@ impl Callbacks for App {
                 &self.framebuffer,
                 &sobel_filter::SobelFilterParams::new(1),
             );
-        }
-
-        // not super efficient but its fine :))
-        let surface_conf = render::surface_config(ctx).format;
-        if !surface_conf.is_srgb() {
-            self.gamma_correction.apply(ctx, &self.framebuffer);
         }
 
         self.framebuffer_renderer

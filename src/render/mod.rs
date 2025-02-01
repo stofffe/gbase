@@ -98,7 +98,10 @@ impl RenderContext {
                 wgpu::PresentMode::AutoNoVsync
             },
             alpha_mode: surface_capabilities.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: vec![
+                surface_format.remove_srgb_suffix(),
+                surface_format.add_srgb_suffix(),
+            ],
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &surface_config);
@@ -143,10 +146,6 @@ impl RenderContext {
         &self.window
     }
 
-    // pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
-    //     self.window_size
-    // }
-
     fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32
     }
@@ -179,6 +178,9 @@ pub fn window(ctx: &Context) -> &winit::window::Window {
 }
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
+}
+pub fn surface_format(ctx: &Context) -> wgpu::TextureFormat {
+    ctx.render.surface_config.format.add_srgb_suffix()
 }
 pub fn surface_size(ctx: &Context) -> winit::dpi::PhysicalSize<u32> {
     ctx.render.window_size

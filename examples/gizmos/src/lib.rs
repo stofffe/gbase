@@ -36,11 +36,8 @@ impl Callbacks for App {
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let gizmo_renderer = gbase_utils::GizmoRenderer::new(
-            ctx,
-            wgpu::TextureFormat::Bgra8UnormSrgb,
-            &camera_buffer,
-        );
+        let gizmo_renderer =
+            gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
 
         Self {
             camera,

@@ -1,6 +1,6 @@
 use gbase::glam::Vec4;
 use gbase::{collision::AABB, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, VertexTrait}, wgpu, Context};
-use gbase_utils::Transform3D;
+use gbase_utils::{gamma_correction, Transform3D};
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -30,9 +30,10 @@ impl SpriteRenderer {
         let shader = render::ShaderBuilder::new(
             filesystem::load_s!("shaders/sprite_renderer.wgsl")
                 .expect("could not load sprite renderer shader"),
-        )
-        .diagnostic_derivative_uniformity(render::ShaderDiagnosticLevel::Off)
-        .build(ctx);
+        );
+        #[cfg(target_arch = "wasm32")]
+        let shader = shader.diagnostic_derivative_uniformity(render::ShaderDiagnosticLevel::Off);
+        let shader = shader.build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -53,6 +54,7 @@ impl SpriteRenderer {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+            .label("sprite renderer")
             .buffers(vec![vertex_buffer.desc()])
             .single_target(
                 render::ColorTargetState::new()

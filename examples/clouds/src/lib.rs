@@ -90,7 +90,6 @@ pub struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     cloud_renderer: cloud_renderer::CloudRenderer,
     gaussian_blur: gaussian_filter::GaussianFilter,
-    gamma_correction: gamma_correction::GammaCorrection,
 
     cloud_parameters_buffer: render::UniformBuffer<CloudParameters>,
     cloud_params: CloudParameters,
@@ -134,7 +133,7 @@ impl gbase::Callbacks for App {
             .screen_size(ctx)
             .build(ctx);
         let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_config(ctx).format);
+            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
         let mut camera = gbase_utils::PerspectiveCamera::new();
         camera.pos = vec3(-68.0, -68.0, -67.0);
@@ -166,7 +165,6 @@ impl gbase::Callbacks for App {
         .expect("could not create cloud renderer");
 
         let gaussian_blur = gaussian_filter::GaussianFilter::new(ctx);
-        let gamma_correction = gamma_correction::GammaCorrection::new(ctx);
 
         Self {
             framebuffer,
@@ -176,7 +174,6 @@ impl gbase::Callbacks for App {
             gizmo_renderer,
             cloud_renderer,
             gaussian_blur,
-            gamma_correction,
 
             camera,
             camera_buffer,
@@ -296,10 +293,6 @@ impl gbase::Callbacks for App {
             self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
         }
         self.ui_renderer.render(ctx, self.framebuffer.view_ref());
-
-        if !render::surface_config(ctx).format.is_srgb() {
-            self.gamma_correction.apply(ctx, &self.framebuffer);
-        }
 
         self.texture_to_screen
             .render(ctx, self.framebuffer.view(), screen_view);

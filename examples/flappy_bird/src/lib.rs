@@ -9,13 +9,11 @@ use gbase::{
     filesystem,
     glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random,
-    render::{self, surface_config},
-    time, wgpu,
+    load_b, random, render, time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, SizeKind, Transform3D, Widget};
+use gbase_utils::{Alignment, GammaCorrection, SizeKind, Transform3D, Widget};
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -186,11 +184,8 @@ impl Callbacks for App {
             },
         ];
 
-        let sprite_renderer = sprite_renderer::SpriteRenderer::new(
-            ctx,
-            MAX_SPRITES,
-            render::surface_config(ctx).format,
-        );
+        let sprite_renderer =
+            sprite_renderer::SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_format(ctx));
 
         let mut camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::Orthographic {
             height: BACKGROUND.size().y,
@@ -202,12 +197,13 @@ impl Callbacks for App {
 
         let sprite_atlas = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
             .unwrap()
+            .format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .build(ctx)
             .with_default_view(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            surface_config(ctx).format,
+            render::surface_format(ctx),
             1000,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
@@ -275,6 +271,7 @@ impl Callbacks for App {
                     self.state = GameState::Game;
                     self.player.velocity.y = PLAYER_JUMP_VELOCITY;
                     audio::play_audio_source(ctx, &self.flap_sound);
+                    audio::play_audio_source(ctx, &self.die_sound);
                 }
             }
             GameState::Game => {
@@ -448,7 +445,7 @@ impl Callbacks for App {
             // use entities to display outlines
             let mut gr = gbase_utils::GizmoRenderer::new(
                 ctx,
-                surface_config(ctx).format,
+                render::surface_format(ctx),
                 &self.camera_buffer,
             );
 
