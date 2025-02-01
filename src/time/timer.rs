@@ -3,6 +3,7 @@ use super::Instant;
 pub struct Timer {
     duration: std::time::Duration,
     start: Instant,
+    ticked: bool,
 }
 
 impl Timer {
@@ -10,15 +11,27 @@ impl Timer {
         Self {
             duration,
             start: Instant::now(),
+            ticked: false,
         }
     }
 
     pub fn ticked(&mut self) -> bool {
-        let now = Instant::now();
-        if now.duration_since(self.start) > self.duration {
-            self.start = now;
+        if Instant::now().duration_since(self.start) > self.duration {
+            self.ticked = true;
             return true;
         }
         false
+    }
+    pub fn just_ticked(&mut self) -> bool {
+        if Instant::now().duration_since(self.start) > self.duration && !self.ticked {
+            self.ticked = true;
+            return true;
+        }
+        false
+    }
+
+    pub fn reset(&mut self) {
+        self.start = Instant::now();
+        self.ticked = false;
     }
 }

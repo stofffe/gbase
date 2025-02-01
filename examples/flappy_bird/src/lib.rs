@@ -102,12 +102,22 @@ impl PipePair {
 }
 
 struct Base {
-    pos: Vec2,
+    base1: Vec2,
+    base2: Vec2,
 }
 
 impl Base {
+    fn new() -> Self {
+        Self {
+            base1: vec2(-BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
+            base2: vec2(BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
+        }
+    }
     fn collision(&self) -> AABB {
-        AABB::new(self.pos - BASE.size() / 2.0, BASE.size())
+        AABB::new(
+            (self.base1 - BASE.size() / 2.0) * 0.5 + (self.base2 - BASE.size() / 2.0) * 0.5,
+            vec2(BASE.size().x * 2.0, BASE.size().y),
+        )
     }
 }
 
@@ -123,7 +133,7 @@ pub struct App {
 
     player: Player,
     pipes: PipePair,
-    bases: Vec<Base>,
+    bases: Base,
 
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
@@ -138,6 +148,8 @@ pub struct App {
     die_sound: audio::SoundSource,
     hit_sound: audio::SoundSource,
     point_sound: audio::SoundSource,
+
+    die_timer: time::Timer,
 }
 
 // TODO: add transform to sprite renderer
@@ -152,6 +164,7 @@ const SCROLL_SPEED: f32 = 80.0;
 const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
+const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
@@ -172,17 +185,7 @@ impl Callbacks for App {
 
         let player = Player::new();
         let pipes = PipePair::new(ctx);
-        let bases = vec![
-            Base {
-                pos: vec2(-BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
-            },
-            Base {
-                pos: vec2(
-                    -BASE.size().x / 2.0 + BASE.size().x,
-                    -BACKGROUND.size().y / 2.0,
-                ),
-            },
-        ];
+        let bases = Base::new();
 
         let sprite_renderer =
             sprite_renderer::SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_format(ctx));
@@ -214,6 +217,8 @@ impl Callbacks for App {
         let hit_sound = audio::load_audio_source(ctx, load_b!("sounds/hit.mp3").unwrap());
         let point_sound = audio::load_audio_source(ctx, load_b!("sounds/point.mp3").unwrap());
 
+        let die_timer = time::Timer::new(DIE_TIMER_DURATION);
+
         Self {
             state: GameState::StartMenu,
             score: 0,
@@ -233,6 +238,8 @@ impl Callbacks for App {
             die_sound,
             hit_sound,
             point_sound,
+
+            die_timer,
         }
     }
 
@@ -307,35 +314,36 @@ impl Callbacks for App {
                     self.pipes.collided = false;
                 }
 
-                // collisions
-                let mut collided = false;
-                if self
-                    .pipes
-                    .check_top_bottom_collision(self.player.collision())
-                {
-                    collided = true;
+                // move ground
+                self.bases.base1.x -= dt * SCROLL_SPEED;
+                self.bases.base2.x -= dt * SCROLL_SPEED;
+                if self.bases.base1.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
+                    self.bases.base1.x += BACKGROUND.size().x + BASE.size().x;
                 }
-                for base in self.bases.iter() {
-                    if collision::circle_aabb_collision(self.player.collision(), base.collision()) {
-                        collided = true;
-                    }
-                }
-                if collided {
-                    audio::play_audio_source(ctx, &self.hit_sound);
-                    self.state = GameState::GameOver;
+                if self.bases.base2.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
+                    self.bases.base2.x += BACKGROUND.size().x + BASE.size().x;
                 }
 
+                // score check
                 if self.pipes.check_gap_collision(self.player.collision()) {
                     audio::play_audio_source(ctx, &self.point_sound);
                     self.score += 1;
                 }
 
-                // move ground
-                for base in self.bases.iter_mut() {
-                    base.pos.x -= dt * SCROLL_SPEED;
-                    if base.pos.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
-                        base.pos.x += BACKGROUND.size().x + BASE.size().x;
-                    }
+                // game over check
+                let mut collided = false;
+                collided |= self
+                    .pipes
+                    .check_top_bottom_collision(self.player.collision());
+
+                if collision::circle_aabb_collision(self.player.collision(), self.bases.collision())
+                {
+                    collided = true;
+                }
+                if collided {
+                    audio::play_audio_source(ctx, &self.hit_sound);
+                    self.state = GameState::GameOver;
+                    self.die_timer.reset();
                 }
             }
             GameState::GameOver => {
@@ -377,6 +385,14 @@ impl Callbacks for App {
                     self.pipes = PipePair::new(ctx);
                     self.player = Player::new();
                 }
+
+                let in_air = !collision::circle_aabb_collision(
+                    self.player.collision(),
+                    self.bases.collision(),
+                );
+                if self.die_timer.just_ticked() && in_air {
+                    audio::play_audio_source(ctx, &self.die_sound);
+                }
             }
         }
 
@@ -408,14 +424,18 @@ impl Callbacks for App {
         );
 
         // bases
-        for base in self.bases.iter() {
-            self.sprite_renderer.draw_sprite(
-                &Transform3D::default()
-                    .with_pos(base.pos.extend(0.0))
-                    .with_scale(BASE.size().extend(1.0)),
-                BASE.uv(),
-            );
-        }
+        self.sprite_renderer.draw_sprite(
+            &Transform3D::default()
+                .with_pos(self.bases.base1.extend(0.0))
+                .with_scale(BASE.size().extend(1.0)),
+            BASE.uv(),
+        );
+        self.sprite_renderer.draw_sprite(
+            &Transform3D::default()
+                .with_pos(self.bases.base2.extend(0.0))
+                .with_scale(BASE.size().extend(1.0)),
+            BASE.uv(),
+        );
 
         let player_rot = match self.state {
             GameState::StartMenu => 0.0,
@@ -478,12 +498,14 @@ impl Callbacks for App {
             );
 
             // base
-            for base in self.bases.iter() {
-                gr.draw_quad(
-                    &Transform3D::from_pos_scale(base.pos.extend(0.0), BASE.size().extend(1.0)),
-                    gbase_utils::RED.xyz(),
-                );
-            }
+            gr.draw_quad(
+                &Transform3D::from_pos_scale(self.bases.base1.extend(0.0), BASE.size().extend(1.0)),
+                gbase_utils::RED.xyz(),
+            );
+            gr.draw_quad(
+                &Transform3D::from_pos_scale(self.bases.base2.extend(0.0), BASE.size().extend(1.0)),
+                gbase_utils::RED.xyz(),
+            );
             gr.render(ctx, screen_view);
         }
 
