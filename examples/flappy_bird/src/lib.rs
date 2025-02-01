@@ -9,11 +9,11 @@ use gbase::{
     filesystem,
     glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random, render, time, wgpu,
+    load_b, log, random, render, time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, GammaCorrection, SizeKind, Transform3D, Widget};
+use gbase_utils::{Alignment, GammaCorrection, SizeKind, Transform3D, Widget, WHITE};
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -150,6 +150,8 @@ pub struct App {
     point_sound: audio::SoundSource,
 
     die_timer: time::Timer,
+
+    highscore: u32,
 }
 
 // TODO: add transform to sprite renderer
@@ -165,6 +167,7 @@ const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
+const HIGHSCORE_PATH: &str = "highscore";
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
@@ -219,6 +222,12 @@ impl Callbacks for App {
 
         let die_timer = time::Timer::new(DIE_TIMER_DURATION);
 
+        let highscore = if let Ok(data) = filesystem::load_str(ctx, HIGHSCORE_PATH) {
+            data.trim().parse::<u32>().unwrap()
+        } else {
+            0
+        };
+
         Self {
             state: GameState::StartMenu,
             score: 0,
@@ -240,6 +249,7 @@ impl Callbacks for App {
             point_sound,
 
             die_timer,
+            highscore,
         }
     }
 
@@ -344,17 +354,34 @@ impl Callbacks for App {
                     audio::play_audio_source(ctx, &self.hit_sound);
                     self.state = GameState::GameOver;
                     self.die_timer.reset();
+                    // set highscore
+                    if self.score > self.highscore {
+                        self.highscore = self.score;
+                        filesystem::store_str(ctx, HIGHSCORE_PATH, &self.score.to_string())
+                            .unwrap();
+                    }
                 }
             }
             GameState::GameOver => {
                 gui_root
+                    .main_axis_alignment(Alignment::Start)
                     .gap(10.0)
                     .layout(&mut self.ui_renderer, |renderer| {
+                        Widget::new()
+                            .height(SizeKind::PercentOfParent(0.3))
+                            .render(renderer);
                         Widget::new()
                             .text("Game over")
                             .width(SizeKind::TextSize)
                             .height(SizeKind::TextSize)
                             .text_font_size(100.0)
+                            .text_color(gbase_utils::WHITE)
+                            .render(renderer);
+                        Widget::new()
+                            .text(format!("Highscore: {}", self.highscore))
+                            .width(SizeKind::TextSize)
+                            .height(SizeKind::TextSize)
+                            .text_font_size(50.0)
                             .text_color(gbase_utils::WHITE)
                             .render(renderer);
                         Widget::new()

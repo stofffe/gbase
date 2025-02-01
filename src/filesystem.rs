@@ -14,7 +14,7 @@ impl FileSystemContext {
 //
 
 pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
-    let path = asset_prefix(path);
+    let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -31,7 +31,7 @@ pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()>
 }
 
 pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
-    let path = asset_prefix(path);
+    let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -50,7 +50,7 @@ pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
 }
 
 pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
-    let path = asset_prefix(path);
+    let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -67,7 +67,7 @@ pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
 }
 
 pub fn load_str(ctx: &Context, path: &str) -> anyhow::Result<String> {
-    let path = asset_prefix(path);
+    let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -93,8 +93,13 @@ fn get_local_storage() -> web_sys::Storage {
     storage
 }
 
-fn asset_prefix(path: &str) -> String {
-    format!("assets/{path}")
+/// Path to temporary storage folder
+pub fn tmp_path() -> &'static str {
+    "assets/tmp"
+}
+
+fn tmp_path_format(path: &str) -> String {
+    format!("{}/{}", tmp_path(), path)
 }
 
 /// Load bytes from assets folder
