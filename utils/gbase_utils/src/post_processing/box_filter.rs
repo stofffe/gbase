@@ -50,7 +50,11 @@ impl BoxFilter {
             .entry_point("vertical")
             .build(ctx);
 
-        let copy_texture = FrameBufferBuilder::new().size(1, 1).build(ctx);
+        let copy_texture = FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .build(ctx);
 
         let params_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -73,6 +77,11 @@ impl BoxFilter {
         framebuffer: &render::FrameBuffer,
         params: &BoxFilterParams,
     ) {
+        assert!(
+            self.copy_texture.format() == framebuffer.format(),
+            "frambuffer sent to box filter must be RGBA8UNORM"
+        );
+
         let width = framebuffer.texture().width();
         let height = framebuffer.texture().height();
 
@@ -81,14 +90,9 @@ impl BoxFilter {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         // Recreate copy buffer if necessary
-        let diff_size = framebuffer.texture().size() != self.copy_texture.texture().size();
-        let diff_format = framebuffer.format() != self.copy_texture.format();
-        if diff_size || diff_format {
+        if framebuffer.texture().size() != self.copy_texture.texture().size() {
             log::warn!("in and out texture of gaussian blur must have same size and format");
-            self.copy_texture = FrameBufferBuilder::new()
-                .size(width, height)
-                .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
-                .build(ctx);
+            self.copy_texture.resize(ctx, width, height);
         }
 
         // Create bindgroups
