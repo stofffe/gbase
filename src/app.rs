@@ -99,7 +99,10 @@ impl<C: Callbacks + 'static> App<C> {
         };
         let view = output // TODO: make this ARC?
             .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+            .create_view(&wgpu::TextureViewDescriptor {
+                format: Some(render::surface_format(ctx)), // TODO: add option to avoid gamma correction
+                ..Default::default()
+            });
 
         if self.callbacks.render(ctx, &view) {
             return true;

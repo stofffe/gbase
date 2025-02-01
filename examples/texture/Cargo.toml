@@ -1,0 +1,19 @@
+[package]
+name = "texture"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+hot_reload = ["gbase/hot_reload"]
+
+[dependencies]
+gbase = { path = "../.." }
+gbase_utils = { path = "../../utils/gbase_utils" }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2.88"
+wasm-bindgen-futures = "0.4.38"
+
+[lib]
+crate-type = ["rlib", "cdylib"]

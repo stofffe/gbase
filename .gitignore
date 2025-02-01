@@ -2,7 +2,17 @@
 **/Cargo.lock
 **/.DS_Store
 **/*.dylib
+**/pkg
 
-assets/models/kenney*
-assets/models/blue_flower
-assets/models/nissan
+**/*.glb
+**/*.mp3
+**/*.obj
+**/*.otf
+**/*.ttf
+**/*.png
+**/*.fbx
+**/*.mtl
+**/*.blend*
+**/kenney*
+**/blue_flower
+**/nissan

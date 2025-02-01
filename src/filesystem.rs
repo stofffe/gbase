@@ -1,5 +1,5 @@
-#[cfg(target_arch = "wasm32")]
-use anyhow::anyhow;
+use crate::Context;
+use std::fs;
 
 pub(crate) struct FileSystemContext {}
 
@@ -38,8 +38,8 @@ pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
         let storage = get_local_storage();
         let data = storage
             .get_item(&path)
-            .map_err(|e| anyhow!("could not get item"))?
-            .ok_or(anyhow!("empty"))?;
+            .map_err(|e| anyhow::anyhow!("could not get item"))?
+            .ok_or(anyhow::anyhow!("empty"))?;
         use base64::Engine;
         let decoded = base64::engine::general_purpose::STANDARD.decode(data)?;
         return Ok(decoded.to_vec());
@@ -57,7 +57,7 @@ pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
         let storage = get_local_storage();
         storage
             .set_item(&path, data)
-            .map_err(|err| anyhow!("could not set item"))?;
+            .map_err(|err| anyhow::anyhow!("could not set item"))?;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -74,8 +74,8 @@ pub fn load_str(ctx: &Context, path: &str) -> anyhow::Result<String> {
         let storage = get_local_storage();
         let data = storage
             .get_item(&path)
-            .map_err(|err| anyhow!("could not get item"))?
-            .ok_or(anyhow!("empty"));
+            .map_err(|err| anyhow::anyhow!("could not get item"))?
+            .ok_or(anyhow::anyhow!("empty"));
         return data;
     }
 
@@ -159,9 +159,6 @@ macro_rules! load_s {
 
 pub use load_b;
 pub use load_s;
-
-use crate::Context;
-use std::{fs, path::Path};
 
 // /// Loads bytes from file in assets folder
 // pub(crate) async fn load_bytes(&self, path: &Path) -> anyhow::Result<Vec<u8>> {

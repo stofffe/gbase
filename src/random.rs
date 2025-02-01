@@ -153,13 +153,20 @@ pub fn seed(ctx: &mut Context, seed: u32) {
 
 /// seed the random state with time since UNIX_EPOCH
 pub fn seed_with_time(ctx: &mut Context) {
-    seed(
-        ctx,
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos() as u32,
-    );
+    #[cfg(target_arch = "wasm32")]
+    let nanos = (web_sys::window()
+        .expect("could not get window")
+        .performance()
+        .expect("could not get performance")
+        .now()
+        * 1000000.0) as u32;
+    #[cfg(not(target_arch = "wasm32"))]
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u32;
+
+    seed(ctx, nanos);
 }
 
 /// resets the random state

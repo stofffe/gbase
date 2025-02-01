@@ -1,8 +1,23 @@
-pub mod core;
-pub use core::*;
-
-pub mod helpers;
-pub use helpers::*;
+mod arc;
+mod bind_group;
+mod buffer;
+mod cache;
+mod framebuffer;
+mod pipeline;
+mod render_pass;
+mod shader;
+mod texture;
+mod vertex;
+pub use arc::*;
+pub use bind_group::*;
+pub use buffer::*;
+pub use cache::*;
+pub use framebuffer::*;
+pub use pipeline::*;
+pub use render_pass::*;
+pub use shader::*;
+pub use texture::*;
+pub use vertex::*;
 
 use crate::Context;
 use std::sync::Arc;
@@ -83,7 +98,10 @@ impl RenderContext {
                 wgpu::PresentMode::AutoNoVsync
             },
             alpha_mode: surface_capabilities.alpha_modes[0],
-            view_formats: vec![],
+            view_formats: vec![
+                surface_format.remove_srgb_suffix(),
+                surface_format.add_srgb_suffix(),
+            ],
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&device, &surface_config);
@@ -128,17 +146,16 @@ impl RenderContext {
         &self.window
     }
 
-    // pub(crate) fn window_size(&self) -> PhysicalSize<u32> {
-    //     self.window_size
-    // }
-
-    pub(crate) fn aspect_ratio(&self) -> f32 {
+    fn aspect_ratio(&self) -> f32 {
         self.window_size.width as f32 / self.window_size.height as f32
     }
 }
 
 // Getter functions for render and window operations
 
+pub fn aspect_ratio(ctx: &Context) -> f32 {
+    ctx.render.aspect_ratio()
+}
 pub fn create_encoder(ctx: &Context, label: Option<&str>) -> wgpu::CommandEncoder {
     ctx.render
         .device
@@ -161,6 +178,9 @@ pub fn window(ctx: &Context) -> &winit::window::Window {
 }
 pub fn surface_config(ctx: &Context) -> &wgpu::SurfaceConfiguration {
     &ctx.render.surface_config
+}
+pub fn surface_format(ctx: &Context) -> wgpu::TextureFormat {
+    ctx.render.surface_config.format.add_srgb_suffix()
 }
 pub fn surface_size(ctx: &Context) -> winit::dpi::PhysicalSize<u32> {
     ctx.render.window_size

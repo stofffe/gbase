@@ -12,6 +12,7 @@ impl Callbacks for App {
     }
     fn update(&mut self, ctx: &mut Context) -> bool {
         log::info!("time since start {}", time::time_since_start(ctx));
+        log::info!("current time {:?}", time::current_time(ctx));
         log::info!("delta time {}", time::delta_time(ctx));
         log::info!("frame time {}", time::frame_time(ctx));
         log::info!("fps {}", time::fps(ctx));
