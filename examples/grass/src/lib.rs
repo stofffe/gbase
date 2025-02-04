@@ -5,7 +5,6 @@ use gbase::log;
 use gbase::wgpu;
 use gbase::winit;
 use gbase::{collision, filesystem, input, render, time, Callbacks, Context};
-use gbase_utils::gamma_correction;
 use gbase_utils::sobel_filter;
 use gbase_utils::Transform3D;
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
@@ -28,7 +27,7 @@ const PLANE_SIZE: f32 = 500.0;
 const PLANE_COLOR: [f32; 4] = [0.0, 0.4, 0.0, 1.0];
 
 pub struct App {
-    camera: gbase_utils::PerspectiveCamera,
+    camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     light: Vec3,
     light_buffer: render::UniformBuffer<Vec3>,
@@ -76,9 +75,9 @@ impl Callbacks for App {
             gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
         // Camera
-        let mut camera = gbase_utils::PerspectiveCamera::new();
-        camera.pos = vec3(-1.0, 8.0, -1.0);
-        camera.yaw = PI / 4.0;
+        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
+            .pos(vec3(-1.0, 8.0, -1.0))
+            .yaw(PI / 4.0);
 
         let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .label("camera buf".to_string())

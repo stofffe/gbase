@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use gbase::{
     filesystem,
     glam::{vec3, Vec3, Vec4Swizzles},
@@ -16,7 +18,7 @@ struct App {
     mesh_renderer: gbase_utils::MeshRenderer,
     deferred_buffers: gbase_utils::DeferredBuffers,
     deferred_renderer: gbase_utils::DeferredRenderer,
-    camera: gbase_utils::PerspectiveCamera,
+    camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     light: Vec3,
     light_buffer: render::UniformBuffer<Vec3>,
@@ -33,8 +35,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        let mut camera = gbase_utils::PerspectiveCamera::new();
-        camera.pos = vec3(0.5, 0.0, 1.0);
+        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
+            .pos(vec3(0.5, 0.0, 1.0));
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
         let light = Vec3::ZERO;
@@ -157,8 +159,7 @@ impl Callbacks for App {
         }
 
         // Camera zoom
-        let (_, scroll_y) = input::scroll_delta(ctx);
-        self.camera.fov += scroll_y * dt;
+        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
 
         false
     }

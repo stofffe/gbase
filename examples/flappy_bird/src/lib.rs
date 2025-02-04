@@ -9,11 +9,11 @@ use gbase::{
     filesystem,
     glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, log, random, render, time, wgpu,
+    load_b, random, render, time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, GammaCorrection, SizeKind, Transform3D, Widget, WHITE};
+use gbase_utils::{Alignment, SizeKind, Transform3D, Widget};
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]

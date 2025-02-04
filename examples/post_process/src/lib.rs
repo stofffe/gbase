@@ -1,7 +1,7 @@
 use gbase::{
     filesystem,
     input::{self, KeyCode},
-    render::{self, ArcTextureView},
+    render::{self, surface_format, ArcTextureView},
     wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
@@ -246,6 +246,7 @@ impl Callbacks for App {
                 &gaussian_filter::GaussianFilterParams::new(3, 2.0),
             );
         }
+
         // final
         self.texture_renderer_final
             .render(ctx, self.framebuffer.view(), screen_view);

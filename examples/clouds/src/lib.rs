@@ -10,6 +10,7 @@ use gbase_utils::{
     GRAY, GREEN, RED,
 };
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
+use std::f32::consts::PI;
 use std::fs;
 use std::io::Write;
 use std::sync::mpsc;
@@ -83,7 +84,7 @@ pub struct App {
     texture_to_screen: gbase_utils::TextureRenderer,
     depth_buffer: render::DepthBuffer,
 
-    camera: gbase_utils::PerspectiveCamera,
+    camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
 
     ui_renderer: gbase_utils::GUIRenderer,
@@ -135,10 +136,11 @@ impl gbase::Callbacks for App {
         let framebuffer_renderer =
             gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
 
-        let mut camera = gbase_utils::PerspectiveCamera::new();
-        camera.pos = vec3(-68.0, -68.0, -67.0);
-        camera.yaw = 3.43;
-        camera.pitch = 0.35;
+        // TODO: check if it works
+        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
+            .pos(vec3(-68.0, -68.0, -67.0))
+            .yaw(3.43)
+            .pitch(0.35);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 

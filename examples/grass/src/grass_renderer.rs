@@ -37,7 +37,7 @@ impl GrassRenderer {
     pub fn render(
         &mut self,
         ctx: &Context,
-        camera: &gbase_utils::PerspectiveCamera,
+        camera: &gbase_utils::Camera,
         deferred_buffers: &gbase_utils::DeferredBuffers,
     ) {
         let queue = render::queue(ctx);

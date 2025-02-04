@@ -52,7 +52,7 @@ impl TextureAtlas {
         let queue = render::queue(ctx);
 
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &self.texture.texture(),
                 mip_level: 0,
                 origin: wgpu::Origin3d {
@@ -63,7 +63,7 @@ impl TextureAtlas {
                 aspect: wgpu::TextureAspect::All,
             },
             bytes,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(dimensions.x), // TODO * 4? * block size
                 rows_per_image: Some(dimensions.y),

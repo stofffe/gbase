@@ -1,5 +1,7 @@
 #![allow(dead_code)]
 
+use std::f32::consts::PI;
+
 use gbase::{
     glam::{vec3, Quat, Vec3},
     input::{self, KeyCode},
@@ -16,7 +18,7 @@ pub async fn run() {
 }
 
 struct App {
-    camera: gbase_utils::PerspectiveCamera,
+    camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     gizmo_renderer: gbase_utils::GizmoRenderer,
 }
@@ -31,8 +33,8 @@ const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
-        let mut camera = gbase_utils::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, 0.0, 1.0);
+        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
+            .pos(vec3(0.0, 0.0, 1.0));
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -109,8 +111,8 @@ impl Callbacks for App {
         }
 
         // Camera zoom
-        let (_, scroll_y) = input::scroll_delta(ctx);
-        self.camera.fov += scroll_y * dt;
+        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
+
         false
     }
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {

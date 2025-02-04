@@ -1,3 +1,5 @@
+use std::f32::consts::PI;
+
 use gbase::{
     filesystem,
     glam::{vec3, Vec3},
@@ -16,7 +18,7 @@ pub async fn run() {
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: render::ArcRenderPipeline,
-    camera: gbase_utils::PerspectiveCamera,
+    camera: gbase_utils::Camera,
     camera_bindgroup: render::ArcBindGroup,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
 }
@@ -35,8 +37,8 @@ impl Callbacks for App {
         .build(ctx);
 
         // Camera
-        let mut camera = gbase_utils::PerspectiveCamera::new();
-        camera.pos = vec3(0.0, 0.0, 2.0);
+        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
+            .pos(vec3(0.0, 0.0, 2.0));
 
         let buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -123,8 +125,7 @@ impl Callbacks for App {
         }
 
         // Camera zoom
-        let (_, scroll_y) = input::scroll_delta(ctx);
-        self.camera.fov += scroll_y * dt;
+        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
 
         false
     }
