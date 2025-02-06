@@ -9,7 +9,7 @@ use gbase::{
     filesystem,
     glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random, render, time, wgpu,
+    load_b, log, random, render, time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
@@ -40,7 +40,7 @@ impl Player {
 }
 
 impl Player {
-    fn collision(&self) -> Circle {
+    fn collider(&self) -> Circle {
         Circle::new(self.pos, self.collision_radius)
     }
 }
@@ -76,28 +76,26 @@ impl PipePair {
         vec2(self.x, self.mid)
     }
 
-    fn top_collision(&self) -> AABB {
-        AABB::new(self.top_pos() - PIPE.size() / 2.0, PIPE.size())
+    fn top_collider(&self) -> AABB {
+        AABB::new(self.top_pos(), PIPE.size())
     }
-    fn bottom_collision(&self) -> AABB {
-        AABB::new(self.bottom_pos() - PIPE.size() / 2.0, PIPE.size())
+    fn bottom_collider(&self) -> AABB {
+        AABB::new(self.bottom_pos(), PIPE.size())
     }
-    fn gap_collision(&self) -> AABB {
-        AABB::new(
-            self.gap_pos() - vec2(PIPE.size().x / 4.0, 0.0),
-            vec2(PIPE.size().x / 2.0, self.gap),
-        )
+    fn gap_collider(&self) -> AABB {
+        AABB::new(self.gap_pos(), vec2(PIPE.size().x / 2.0, self.gap))
     }
+
     fn check_gap_collision(&mut self, player: Circle) -> bool {
-        if collision::circle_aabb_collision(player, self.gap_collision()) && !self.collided {
+        if collision::circle_aabb_collision(player, self.gap_collider()) && !self.collided {
             self.collided = true;
             return true;
         }
         false
     }
     fn check_top_bottom_collision(&mut self, player: Circle) -> bool {
-        collision::circle_aabb_collision(player, self.top_collision())
-            || collision::circle_aabb_collision(player, self.bottom_collision())
+        collision::circle_aabb_collision(player, self.top_collider())
+            || collision::circle_aabb_collision(player, self.bottom_collider())
     }
 }
 
@@ -113,11 +111,15 @@ impl Base {
             base2: vec2(BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
         }
     }
-    fn collision(&self) -> AABB {
-        AABB::new(
-            (self.base1 - BASE.size() / 2.0) * 0.5 + (self.base2 - BASE.size() / 2.0) * 0.5,
-            vec2(BASE.size().x * 2.0, BASE.size().y),
-        )
+    fn base1_collider(&self) -> AABB {
+        AABB::new(self.base1, BASE.size())
+    }
+    fn base2_collider(&self) -> AABB {
+        AABB::new(self.base2, BASE.size())
+    }
+    fn check_collision(&self, player: collision::Circle) -> bool {
+        collision::circle_aabb_collision(player, self.base1_collider())
+            || collision::circle_aabb_collision(player, self.base2_collider())
     }
 }
 
@@ -167,6 +169,7 @@ const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
+const DIE_SOUND_VELOCITY_LIMIT: f32 = 300.0;
 const HIGHSCORE_PATH: &str = "highscore";
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
@@ -176,10 +179,12 @@ fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> 
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().window_builder(
-            WindowBuilder::new()
-                .with_inner_size(PhysicalSize::new(BACKGROUND.w * 4, BACKGROUND.h * 4)),
-        )
+        gbase::ContextBuilder::new()
+            .window_builder(
+                WindowBuilder::new()
+                    .with_inner_size(PhysicalSize::new(BACKGROUND.w * 4, BACKGROUND.h * 4)),
+            )
+            .log_level(gbase::LogLevel::Error)
     }
 
     #[no_mangle]
@@ -335,25 +340,29 @@ impl Callbacks for App {
                 }
 
                 // score check
-                if self.pipes.check_gap_collision(self.player.collision()) {
+                if self.pipes.check_gap_collision(self.player.collider()) {
                     audio::play_audio_source(ctx, &self.point_sound);
                     self.score += 1;
                 }
 
                 // game over check
                 let mut collided = false;
-                collided |= self
+                if self
                     .pipes
-                    .check_top_bottom_collision(self.player.collision());
-
-                if collision::circle_aabb_collision(self.player.collision(), self.bases.collision())
+                    .check_top_bottom_collision(self.player.collider())
                 {
+                    self.player.velocity = vec2(50.0, 50.0);
                     collided = true;
                 }
+
+                if self.bases.check_collision(self.player.collider()) {
+                    collided = true;
+                }
+
                 if collided {
                     audio::play_audio_source(ctx, &self.hit_sound);
-                    self.state = GameState::GameOver;
                     self.die_timer.reset();
+                    self.state = GameState::GameOver;
                     // set highscore
                     if self.score > self.highscore {
                         self.highscore = self.score;
@@ -407,18 +416,19 @@ impl Callbacks for App {
                     BACKGROUND.size().y / 2.0,
                 );
 
+                if self.bases.check_collision(self.player.collider()) {
+                    self.player.velocity.x = 0.0;
+                }
+                if !self.bases.check_collision(self.player.collider())
+                    && self.die_timer.just_ticked()
+                {
+                    audio::play_audio_source(ctx, &self.die_sound);
+                }
+
                 if input::key_just_pressed(ctx, KeyCode::KeyR) {
                     self.state = GameState::StartMenu;
                     self.pipes = PipePair::new(ctx);
                     self.player = Player::new();
-                }
-
-                let in_air = !collision::circle_aabb_collision(
-                    self.player.collision(),
-                    self.bases.collision(),
-                );
-                if self.die_timer.just_ticked() && in_air {
-                    audio::play_audio_source(ctx, &self.die_sound);
                 }
             }
         }
@@ -432,7 +442,7 @@ impl Callbacks for App {
 
         // background
         self.sprite_renderer.draw_sprite(
-            &Transform3D::default().with_scale(BACKGROUND.size().extend(1.0)),
+            &Transform3D::from_scale(BACKGROUND.size().extend(1.0)),
             BACKGROUND.uv(),
         );
 
@@ -504,22 +514,22 @@ impl Callbacks for App {
             // pipes
             gr.draw_quad(
                 &Transform3D::from_pos_scale(
-                    self.pipes.top_pos().extend(0.0),
-                    self.pipes.top_collision().size.extend(1.0),
+                    self.pipes.top_collider().pos.extend(0.0),
+                    self.pipes.top_collider().size.extend(0.0),
                 ),
                 gbase_utils::RED.xyz(),
             );
             gr.draw_quad(
                 &Transform3D::from_pos_scale(
-                    self.pipes.bottom_pos().extend(0.0),
-                    self.pipes.bottom_collision().size.extend(1.0),
+                    self.pipes.bottom_collider().pos.extend(0.0),
+                    self.pipes.bottom_collider().size.extend(0.0),
                 ),
                 gbase_utils::RED.xyz(),
             );
             gr.draw_quad(
                 &Transform3D::from_pos_scale(
-                    self.pipes.gap_pos().extend(1.0),
-                    self.pipes.gap_collision().size.extend(1.0),
+                    self.pipes.gap_collider().pos.extend(0.0),
+                    self.pipes.gap_collider().size.extend(0.0),
                 ),
                 gbase_utils::GREEN.xyz(),
             );
@@ -550,15 +560,18 @@ impl AtlasSprite {
         vec2(self.w as f32, self.h as f32)
     }
     pub fn uv(&self) -> AABB {
-        AABB::new(
-            vec2(
-                self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
-            vec2(
-                self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
-                self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
-            ),
-        )
+        let (x, y, w, h) = (self.x as f32, self.y as f32, self.w as f32, self.h as f32);
+        let (aw, ah) = (
+            sprite_atlas::ATLAS_WIDTH as f32,
+            sprite_atlas::ATLAS_HEIGHT as f32,
+        );
+        AABB::new(vec2(x / aw, y / ah), vec2(w / aw, h / ah))
+    }
+}
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, _ctx: &mut Context) {
+        Self::init_ctx().init_logging();
     }
 }

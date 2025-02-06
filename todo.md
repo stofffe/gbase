@@ -10,6 +10,7 @@ Engine
 [x] sprite transforms
 [x] random wrapper (hash/rand)
 [x] add gamma correction by default?
+[x] upgrade to wgpu 24
 [] use glam in core, input, window...
 [/] catch wgpu panics
     [x] shaders
@@ -34,11 +35,6 @@ Engine
 [] double frambuffer for post processing
 [] make format of frambuffer a generic thing
 [] make format and or dimension of texture a generic thing
-[/] upgrade to wgpu 24
-    [] diagnotics support
-    [] clone on everything, no arc?
-    [] TextureBlitter
-    [] device.create texture with data?
 
 Post processing
 [] bloom

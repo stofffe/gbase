@@ -20,16 +20,16 @@ impl AABB {
         }
     }
     pub fn left(&self) -> f32 {
-        self.pos.x
+        self.pos.x - self.size.x * 0.5
     }
     pub fn right(&self) -> f32 {
-        self.pos.x + self.size.x
+        self.pos.x + self.size.x * 0.5
     }
     pub fn top(&self) -> f32 {
-        self.pos.y
+        self.pos.y - self.size.y * 0.5
     }
     pub fn bottom(&self) -> f32 {
-        self.pos.y + self.size.y
+        self.pos.y + self.size.y * 0.5
     }
 }
 
@@ -125,7 +125,7 @@ mod test {
     #[test]
     fn aabb_tangent_aabb() {
         let q1 = AABB::new(vec2(-1.0, 0.0), vec2(2.0, 1.0));
-        let q2 = AABB::new(vec2(1.0, 0.0), vec2(1.0, 3.0));
+        let q2 = AABB::new(vec2(1.0, 0.0), vec2(2.0, 3.0));
         assert!(aabb_aabb_collision(q1, q2));
     }
 
