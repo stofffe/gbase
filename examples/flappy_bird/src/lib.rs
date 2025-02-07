@@ -7,13 +7,13 @@ use gbase::{
     audio,
     collision::{self, Circle, AABB},
     filesystem,
-    glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
+    glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, log, random, render, time, wgpu,
+    load_b, random, render, time, wgpu,
     winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, SizeKind, Transform3D, Widget};
+use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -26,22 +26,19 @@ const MAX_SPRITES: u64 = 1000;
 struct Player {
     pos: Vec2,
     velocity: Vec2,
-    collision_radius: f32,
+    collision_diameter: f32,
 }
 
 impl Player {
     fn new() -> Self {
         Self {
-            pos: vec2(-BIRD_FLAP_0.size().x, 0.0),
-            velocity: vec2(0.0, 0.0),
-            collision_radius: BIRD_FLAP_0.size().y / 2.0,
+            pos: vec2(-BIRD_FLAP_0.pixel_size().x, 0.0),
+            velocity: Vec2::ZERO,
+            collision_diameter: BIRD_FLAP_0.pixel_size().y,
         }
     }
-}
-
-impl Player {
     fn collider(&self) -> Circle {
-        Circle::new(self.pos, self.collision_radius)
+        Circle::new(self.pos, self.collision_diameter / 2.0)
     }
 }
 
@@ -67,23 +64,29 @@ impl PipePair {
     }
 
     fn top_pos(&self) -> Vec2 {
-        vec2(self.x, PIPE.size().y / 2.0 + self.gap / 2.0 + self.mid)
+        vec2(
+            self.x,
+            PIPE.pixel_size().y / 2.0 + self.gap / 2.0 + self.mid,
+        )
     }
     fn bottom_pos(&self) -> Vec2 {
-        vec2(self.x, -PIPE.size().y / 2.0 - self.gap / 2.0 + self.mid)
+        vec2(
+            self.x,
+            -PIPE.pixel_size().y / 2.0 - self.gap / 2.0 + self.mid,
+        )
     }
     fn gap_pos(&self) -> Vec2 {
         vec2(self.x, self.mid)
     }
 
     fn top_collider(&self) -> AABB {
-        AABB::new(self.top_pos(), PIPE.size())
+        AABB::new(self.top_pos(), PIPE.pixel_size())
     }
     fn bottom_collider(&self) -> AABB {
-        AABB::new(self.bottom_pos(), PIPE.size())
+        AABB::new(self.bottom_pos(), PIPE.pixel_size())
     }
     fn gap_collider(&self) -> AABB {
-        AABB::new(self.gap_pos(), vec2(PIPE.size().x / 2.0, self.gap))
+        AABB::new(self.gap_pos(), vec2(PIPE.pixel_size().x / 2.0, self.gap))
     }
 
     fn check_gap_collision(&mut self, player: Circle) -> bool {
@@ -107,15 +110,15 @@ struct Base {
 impl Base {
     fn new() -> Self {
         Self {
-            base1: vec2(-BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
-            base2: vec2(BASE.size().x / 2.0, -BACKGROUND.size().y / 2.0),
+            base1: vec2(-BASE.pixel_size().x / 2.0, -BACKGROUND.pixel_size().y / 2.0),
+            base2: vec2(BASE.pixel_size().x / 2.0, -BACKGROUND.pixel_size().y / 2.0),
         }
     }
     fn base1_collider(&self) -> AABB {
-        AABB::new(self.base1, BASE.size())
+        AABB::new(self.base1, BASE.pixel_size())
     }
     fn base2_collider(&self) -> AABB {
-        AABB::new(self.base2, BASE.size())
+        AABB::new(self.base2, BASE.pixel_size())
     }
     fn check_collision(&self, player: collision::Circle) -> bool {
         collision::circle_aabb_collision(player, self.base1_collider())
@@ -169,7 +172,6 @@ const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
-const DIE_SOUND_VELOCITY_LIMIT: f32 = 300.0;
 const HIGHSCORE_PATH: &str = "highscore";
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
@@ -199,7 +201,7 @@ impl Callbacks for App {
             sprite_renderer::SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_format(ctx));
 
         let mut camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::Orthographic {
-            height: BACKGROUND.size().y,
+            height: BACKGROUND.pixel_size().y,
         });
         camera.pos.z = 1.0;
 
@@ -317,14 +319,14 @@ impl Callbacks for App {
                 }
                 self.player.pos += self.player.velocity * dt;
                 self.player.pos.y = self.player.pos.y.clamp(
-                    -BACKGROUND.size().y / 2.0 + BASE.size().y / 2.0,
-                    BACKGROUND.size().y / 2.0,
+                    -BACKGROUND.pixel_size().y / 2.0 + BASE.pixel_size().y / 2.0,
+                    BACKGROUND.pixel_size().y / 2.0,
                 );
 
                 // move obstacles
                 self.pipes.x -= dt * SCROLL_SPEED;
-                if self.pipes.x <= -(BACKGROUND.size().x / 2.0 + PIPE.size().x / 2.0) {
-                    self.pipes.x += BACKGROUND.size().x + PIPE.size().x;
+                if self.pipes.x <= -(BACKGROUND.pixel_size().x / 2.0 + PIPE.pixel_size().x / 2.0) {
+                    self.pipes.x += BACKGROUND.pixel_size().x + PIPE.pixel_size().x;
                     self.pipes.randomize_mid(ctx);
                     self.pipes.collided = false;
                 }
@@ -332,11 +334,15 @@ impl Callbacks for App {
                 // move ground
                 self.bases.base1.x -= dt * SCROLL_SPEED;
                 self.bases.base2.x -= dt * SCROLL_SPEED;
-                if self.bases.base1.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
-                    self.bases.base1.x += BACKGROUND.size().x + BASE.size().x;
+                if self.bases.base1.x
+                    <= -(BACKGROUND.pixel_size().x / 2.0 + BASE.pixel_size().x / 2.0)
+                {
+                    self.bases.base1.x += BACKGROUND.pixel_size().x + BASE.pixel_size().x;
                 }
-                if self.bases.base2.x <= -(BACKGROUND.size().x / 2.0 + BASE.size().x / 2.0) {
-                    self.bases.base2.x += BACKGROUND.size().x + BASE.size().x;
+                if self.bases.base2.x
+                    <= -(BACKGROUND.pixel_size().x / 2.0 + BASE.pixel_size().x / 2.0)
+                {
+                    self.bases.base2.x += BACKGROUND.pixel_size().x + BASE.pixel_size().x;
                 }
 
                 // score check
@@ -412,8 +418,8 @@ impl Callbacks for App {
                 self.player.velocity.y -= 9.82 * dt * PLAYER_FALL_SPEED;
                 self.player.pos += self.player.velocity * dt;
                 self.player.pos.y = self.player.pos.y.clamp(
-                    -BACKGROUND.size().y / 2.0 + BASE.size().y / 2.0,
-                    BACKGROUND.size().y / 2.0,
+                    -BACKGROUND.pixel_size().y / 2.0 + BASE.pixel_size().y / 2.0,
+                    BACKGROUND.pixel_size().y / 2.0,
                 );
 
                 if self.bases.check_collision(self.player.collider()) {
@@ -442,36 +448,33 @@ impl Callbacks for App {
 
         // background
         self.sprite_renderer.draw_sprite(
-            &Transform3D::from_scale(BACKGROUND.size().extend(1.0)),
-            BACKGROUND.uv(),
+            &Transform2D::from_scale(BACKGROUND.pixel_size()),
+            BACKGROUND.atlas_pos(),
+            BACKGROUND.atlas_size(),
         );
 
         // pipes
         self.sprite_renderer.draw_sprite(
-            &Transform3D::default()
-                .with_pos(self.pipes.top_pos().extend(0.0))
-                .with_scale(PIPE.size().extend(1.0) * vec3(1.0, -1.0, 1.0)),
-            sprite_atlas::PIPE.uv(),
+            &Transform2D::from_pos_scale(self.pipes.top_pos(), PIPE.pixel_size() * vec2(1.0, -1.0)),
+            PIPE.atlas_pos(),
+            PIPE.atlas_size(),
         );
         self.sprite_renderer.draw_sprite(
-            &Transform3D::default()
-                .with_pos(self.pipes.bottom_pos().extend(0.0))
-                .with_scale(PIPE.size().extend(1.0)),
-            sprite_atlas::PIPE.uv(),
+            &Transform2D::from_pos_scale(self.pipes.bottom_pos(), PIPE.pixel_size()),
+            PIPE.atlas_pos(),
+            PIPE.atlas_size(),
         );
 
         // bases
         self.sprite_renderer.draw_sprite(
-            &Transform3D::default()
-                .with_pos(self.bases.base1.extend(0.0))
-                .with_scale(BASE.size().extend(1.0)),
-            BASE.uv(),
+            &Transform2D::from_pos_scale(self.bases.base1, BASE.pixel_size()),
+            BASE.atlas_pos(),
+            BASE.atlas_size(),
         );
         self.sprite_renderer.draw_sprite(
-            &Transform3D::default()
-                .with_pos(self.bases.base2.extend(0.0))
-                .with_scale(BASE.size().extend(1.0)),
-            BASE.uv(),
+            &Transform2D::from_pos_scale(self.bases.base2, BASE.pixel_size()),
+            BASE.atlas_pos(),
+            BASE.atlas_size(),
         );
 
         let player_rot = match self.state {
@@ -481,19 +484,18 @@ impl Callbacks for App {
                     .clamp(-PI / 2.0, PI / 4.0)
             }
         };
-        let player_transform = Transform3D::new(
-            self.player.pos.extend(0.0),
-            Quat::from_rotation_z(player_rot),
-            BIRD_FLAP_0.size().extend(1.0),
-        );
+        let player_transform =
+            Transform2D::new(self.player.pos, player_rot, BIRD_FLAP_0.pixel_size());
         // player
-        self.sprite_renderer
-            .draw_sprite(&player_transform, sprite_atlas::BIRD_FLAP_0.uv());
+        self.sprite_renderer.draw_sprite(
+            &player_transform,
+            BIRD_FLAP_0.atlas_pos(),
+            BIRD_FLAP_0.atlas_size(),
+        );
 
         // render to screen
         self.sprite_renderer
             .render(ctx, screen_view, &self.camera_buffer, &self.sprite_atlas);
-
         self.ui_renderer.render(ctx, screen_view);
 
         // debug
@@ -507,10 +509,14 @@ impl Callbacks for App {
 
             // player
             gr.draw_circle(
-                self.player.collision_radius,
-                &Transform3D::new(self.player.pos.extend(0.0), Quat::IDENTITY, Vec3::ONE),
+                &Transform3D::new(
+                    self.player.pos.extend(0.0),
+                    Quat::IDENTITY,
+                    Vec3::ONE * self.player.collision_diameter,
+                ),
                 gbase_utils::RED.xyz(),
             );
+
             // pipes
             gr.draw_quad(
                 &Transform3D::from_pos_scale(
@@ -536,11 +542,17 @@ impl Callbacks for App {
 
             // base
             gr.draw_quad(
-                &Transform3D::from_pos_scale(self.bases.base1.extend(0.0), BASE.size().extend(1.0)),
+                &Transform3D::from_pos_scale(
+                    self.bases.base1.extend(0.0),
+                    BASE.pixel_size().extend(1.0),
+                ),
                 gbase_utils::RED.xyz(),
             );
             gr.draw_quad(
-                &Transform3D::from_pos_scale(self.bases.base2.extend(0.0), BASE.size().extend(1.0)),
+                &Transform3D::from_pos_scale(
+                    self.bases.base2.extend(0.0),
+                    BASE.pixel_size().extend(1.0),
+                ),
                 gbase_utils::RED.xyz(),
             );
             gr.render(ctx, screen_view);
@@ -556,16 +568,20 @@ impl Callbacks for App {
 }
 
 impl AtlasSprite {
-    pub fn size(&self) -> Vec2 {
+    pub fn pixel_size(&self) -> Vec2 {
         vec2(self.w as f32, self.h as f32)
     }
-    pub fn uv(&self) -> AABB {
-        let (x, y, w, h) = (self.x as f32, self.y as f32, self.w as f32, self.h as f32);
-        let (aw, ah) = (
-            sprite_atlas::ATLAS_WIDTH as f32,
-            sprite_atlas::ATLAS_HEIGHT as f32,
-        );
-        AABB::new(vec2(x / aw, y / ah), vec2(w / aw, h / ah))
+    pub fn atlas_pos(&self) -> Vec2 {
+        vec2(
+            self.x as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+            self.y as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
+        )
+    }
+    pub fn atlas_size(&self) -> Vec2 {
+        vec2(
+            self.w as f32 / sprite_atlas::ATLAS_WIDTH as f32,
+            self.h as f32 / sprite_atlas::ATLAS_HEIGHT as f32,
+        )
     }
 }
 

@@ -103,216 +103,109 @@ impl GizmoRenderer {
 }
 
 impl GizmoRenderer {
-    pub fn draw_line(&mut self, start: Vec3, end: Vec3, color: Vec3) {
+    /// Draw line
+    pub fn draw_line(&mut self, from: Vec3, to: Vec3, color: Vec3) {
         let vertex_start = self.dynamic_vertex_buffer.len();
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: start.to_array(),
+            position: from.to_array(),
             color: color.to_array(),
         });
         self.dynamic_vertex_buffer.push(VertexColor {
-            position: end.to_array(),
+            position: to.to_array(),
             color: color.to_array(),
         });
         self.dynamic_index_buffer.push(vertex_start as u32);
         self.dynamic_index_buffer.push(vertex_start as u32 + 1);
     }
 
-    pub fn draw_sphere(&mut self, radius: f32, transform: &crate::Transform3D, color: Vec3) {
+    /// Draw quad with side 1
+    pub fn draw_quad(&mut self, transform: &crate::Transform3D, color: Vec3) {
+        let t = transform.matrix();
+
+        let tl = (t * vec4(-0.5, -0.5, 0.0, 1.0)).xyz();
+        let tr = (t * vec4(0.5, -0.5, 0.0, 1.0)).xyz();
+        let br = (t * vec4(0.5, 0.5, 0.0, 1.0)).xyz();
+        let bl = (t * vec4(-0.5, 0.5, 0.0, 1.0)).xyz();
+
+        self.draw_line(tl, tr, color);
+        self.draw_line(tr, br, color);
+        self.draw_line(br, bl, color);
+        self.draw_line(bl, tl, color);
+    }
+
+    /// Draw circle with diameter 1
+    pub fn draw_circle(&mut self, transform: &crate::Transform3D, color: Vec3) {
         let n = GIZMO_RESOLUTION;
-        let vertex_start = self.vertex_buffer.len();
-        let transform = transform.matrix();
+        let t = transform.matrix();
 
         for i in 0..n {
-            let p = i as f32 / n as f32;
-            let angle = p * 2.0 * PI;
-            let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
-            let pos = (transform * pos.extend(1.0)).xyz();
-            self.dynamic_vertex_buffer.push(VertexColor {
-                position: pos.to_array(),
-                color: color.to_array(),
-            });
-            self.dynamic_index_buffer.push(vertex_start + i);
-            self.dynamic_index_buffer.push(vertex_start + (i + 1) % n);
-        }
-        for i in 0..n {
-            let p = i as f32 / n as f32;
-            let angle = p * 2.0 * PI;
-            let pos = Quat::from_rotation_x(PI / 2.0)
-                * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
-            let pos = (transform * pos.extend(1.0)).xyz();
-            self.dynamic_vertex_buffer.push(VertexColor {
-                position: pos.to_array(),
-                color: color.to_array(),
-            });
-            self.dynamic_index_buffer.push(vertex_start + n + i);
-            self.dynamic_index_buffer
-                .push(vertex_start + n + (i + 1) % n);
-        }
-        for i in 0..n {
-            let p = i as f32 / n as f32;
-            let angle = p * 2.0 * PI;
-            let pos = Quat::from_rotation_y(PI / 2.0)
-                * vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
-            let pos = (transform * pos.extend(1.0)).xyz();
-            self.dynamic_vertex_buffer.push(VertexColor {
-                position: pos.to_array(),
-                color: color.to_array(),
-            });
-            self.dynamic_index_buffer.push(vertex_start + 2 * n + i);
-            self.dynamic_index_buffer
-                .push(vertex_start + 2 * n + (i + 1) % n);
+            let angle1 = (i as f32 / n as f32) * 2.0 * PI;
+            let angle2 = ((i + 1) as f32 / n as f32) * 2.0 * PI;
+            let p1 = (t * vec4(0.5 * angle1.cos(), 0.5 * angle1.sin(), 0.0, 1.0)).xyz();
+            let p2 = (t * vec4(0.5 * angle2.cos(), 0.5 * angle2.sin(), 0.0, 1.0)).xyz();
+            self.draw_line(p1, p2, color);
         }
     }
 
-    /// Draw unit cube
+    /// Draw cube with side 1
     pub fn draw_cube(&mut self, transform: &crate::Transform3D, color: Vec3) {
         let t = transform.matrix();
-        let vertex_start = self.dynamic_vertex_buffer.len() as u32;
 
-        // Create unit cube
-        let lbl = vec4(-0.5, -0.5, -0.5, 1.0); // lower bottom left
-        let lbr = vec4(0.5, -0.5, -0.5, 1.0); // lower bottom right
-        let ltr = vec4(0.5, -0.5, 0.5, 1.0); // lower top right
-        let ltl = vec4(-0.5, -0.5, 0.5, 1.0); // lower top left
+        let lbl = (t * vec4(-0.5, -0.5, -0.5, 1.0)).xyz(); // lower bottom left
+        let lbr = (t * vec4(0.5, -0.5, -0.5, 1.0)).xyz(); // lower bottom right
+        let ltr = (t * vec4(0.5, -0.5, 0.5, 1.0)).xyz(); // lower top right
+        let ltl = (t * vec4(-0.5, -0.5, 0.5, 1.0)).xyz(); // lower top left
 
-        let ubl = vec4(-0.5, 0.5, -0.5, 1.0); // upper bottom left
-        let ubr = vec4(0.5, 0.5, -0.5, 1.0); // upper bottom right
-        let utr = vec4(0.5, 0.5, 0.5, 1.0); // upper top right
-        let utl = vec4(-0.5, 0.5, 0.5, 1.0); // upper top left
+        let ubl = (t * vec4(-0.5, 0.5, -0.5, 1.0)).xyz(); // upper bottom left
+        let ubr = (t * vec4(0.5, 0.5, -0.5, 1.0)).xyz(); // upper bottom right
+        let utr = (t * vec4(0.5, 0.5, 0.5, 1.0)).xyz(); // upper top right
+        let utl = (t * vec4(-0.5, 0.5, 0.5, 1.0)).xyz(); // upper top left
 
-        // Bottom
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * lbl).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * lbr).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ltr).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ltl).xyz().to_array(),
-            color: color.to_array(),
-        });
+        self.draw_line(lbl, lbr, color);
+        self.draw_line(lbr, ltr, color);
+        self.draw_line(ltr, ltl, color);
+        self.draw_line(ltl, lbl, color);
 
-        // Top
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ubl).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * ubr).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * utr).xyz().to_array(),
-            color: color.to_array(),
-        });
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * utl).xyz().to_array(),
-            color: color.to_array(),
-        });
+        self.draw_line(ubl, ubr, color);
+        self.draw_line(ubr, utr, color);
+        self.draw_line(utr, utl, color);
+        self.draw_line(utl, ubl, color);
 
-        // Bottom
-        self.dynamic_index_buffer.push(vertex_start);
-        self.dynamic_index_buffer.push(vertex_start + 1);
-
-        self.dynamic_index_buffer.push(vertex_start + 1);
-        self.dynamic_index_buffer.push(vertex_start + 2);
-
-        self.dynamic_index_buffer.push(vertex_start + 2);
-        self.dynamic_index_buffer.push(vertex_start + 3);
-
-        self.dynamic_index_buffer.push(vertex_start + 3);
-        self.dynamic_index_buffer.push(vertex_start);
-
-        // Top
-        self.dynamic_index_buffer.push(vertex_start + 4);
-        self.dynamic_index_buffer.push(vertex_start + 5);
-
-        self.dynamic_index_buffer.push(vertex_start + 5);
-        self.dynamic_index_buffer.push(vertex_start + 6);
-
-        self.dynamic_index_buffer.push(vertex_start + 6);
-        self.dynamic_index_buffer.push(vertex_start + 7);
-
-        self.dynamic_index_buffer.push(vertex_start + 7);
-        self.dynamic_index_buffer.push(vertex_start + 4);
-
-        // Connections
-        self.dynamic_index_buffer.push(vertex_start);
-        self.dynamic_index_buffer.push(vertex_start + 4);
-
-        self.dynamic_index_buffer.push(vertex_start + 1);
-        self.dynamic_index_buffer.push(vertex_start + 5);
-
-        self.dynamic_index_buffer.push(vertex_start + 2);
-        self.dynamic_index_buffer.push(vertex_start + 6);
-
-        self.dynamic_index_buffer.push(vertex_start + 3);
-        self.dynamic_index_buffer.push(vertex_start + 7);
+        self.draw_line(lbl, ubl, color);
+        self.draw_line(lbr, ubr, color);
+        self.draw_line(ltr, utr, color);
+        self.draw_line(ltl, utl, color);
     }
-
-    pub fn draw_quad(&mut self, transform: &crate::Transform3D, color: Vec3) {
-        let vertex_start = self.dynamic_vertex_buffer.len() as u32;
-        let t = transform.matrix();
-
-        // tl
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(-0.5, -0.5, 0.0, 1.0)).xyz().to_array(),
-            color: color.to_array(),
-        });
-        // tr
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(0.5, -0.5, 0.0, 1.0)).xyz().to_array(),
-            color: color.to_array(),
-        });
-        // br
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(0.5, 0.5, 0.0, 1.0)).xyz().to_array(),
-            color: color.to_array(),
-        });
-        // bl
-        self.dynamic_vertex_buffer.push(VertexColor {
-            position: (t * vec4(-0.5, 0.5, 0.0, 1.0)).xyz().to_array(),
-            color: color.to_array(),
-        });
-
-        self.dynamic_index_buffer.push(vertex_start);
-        self.dynamic_index_buffer.push(vertex_start + 1);
-
-        self.dynamic_index_buffer.push(vertex_start + 1);
-        self.dynamic_index_buffer.push(vertex_start + 2);
-
-        self.dynamic_index_buffer.push(vertex_start + 2);
-        self.dynamic_index_buffer.push(vertex_start + 3);
-
-        self.dynamic_index_buffer.push(vertex_start + 3);
-        self.dynamic_index_buffer.push(vertex_start);
-    }
-    pub fn draw_circle(&mut self, radius: f32, transform: &crate::Transform3D, color: Vec3) {
+    /// Draw sphere with diameter 1
+    pub fn draw_sphere(&mut self, transform: &crate::Transform3D, color: Vec3) {
         let n = GIZMO_RESOLUTION;
         let t = transform.matrix();
 
-        let vertex_start = self.dynamic_vertex_buffer.len();
-
+        // xy
         for i in 0..n {
-            let p = i as f32 / n as f32;
-            let angle = p * 2.0 * PI;
-            let pos = vec3(radius * angle.cos(), radius * angle.sin(), 0.0);
-            self.dynamic_vertex_buffer.push(VertexColor {
-                position: (t * pos.extend(1.0)).xyz().to_array(),
-                color: color.to_array(),
-            });
+            let angle1 = (i as f32 / n as f32) * 2.0 * PI;
+            let angle2 = ((i + 1) as f32 / n as f32) * 2.0 * PI;
+            let p1 = (t * vec4(0.5 * angle1.cos(), 0.5 * angle1.sin(), 0.0, 1.0)).xyz();
+            let p2 = (t * vec4(0.5 * angle2.cos(), 0.5 * angle2.sin(), 0.0, 1.0)).xyz();
+            self.draw_line(p1, p2, color);
         }
 
+        // yz
         for i in 0..n {
-            self.dynamic_index_buffer.push(vertex_start as u32 + i);
-            self.dynamic_index_buffer
-                .push(vertex_start as u32 + (i + 1) % n);
+            let angle1 = (i as f32 / n as f32) * 2.0 * PI;
+            let angle2 = ((i + 1) as f32 / n as f32) * 2.0 * PI;
+            let p1 = (t * vec4(0.0, 0.5 * angle1.sin(), 0.5 * angle1.cos(), 1.0)).xyz();
+            let p2 = (t * vec4(0.0, 0.5 * angle2.sin(), 0.5 * angle2.cos(), 1.0)).xyz();
+            self.draw_line(p1, p2, color);
+        }
+
+        // xz
+        for i in 0..n {
+            let angle1 = (i as f32 / n as f32) * 2.0 * PI;
+            let angle2 = ((i + 1) as f32 / n as f32) * 2.0 * PI;
+            let p1 = (t * vec4(0.5 * angle1.cos(), 0.0, 0.5 * angle1.sin(), 1.0)).xyz();
+            let p2 = (t * vec4(0.5 * angle2.cos(), 0.0, 0.5 * angle2.sin(), 1.0)).xyz();
+            self.draw_line(p1, p2, color);
         }
     }
 }

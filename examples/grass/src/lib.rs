@@ -197,7 +197,6 @@ impl Callbacks for App {
             .render(ctx, self.framebuffer.view_ref());
         self.gui_renderer.render(ctx, self.framebuffer.view_ref());
         self.gizmo_renderer.draw_sphere(
-            1.0,
             &Transform3D::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );

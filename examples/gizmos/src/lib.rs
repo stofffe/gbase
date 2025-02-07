@@ -32,6 +32,7 @@ const YELLOW: Vec3 = vec3(1.0, 1.0, 0.0);
 const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
+    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
             .pos(vec3(0.0, 0.0, 1.0));
@@ -48,26 +49,33 @@ impl Callbacks for App {
         }
     }
 
+    #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let t = time::time_since_start(ctx);
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        self.gizmo_renderer
-            .draw_sphere(0.01, &Transform3D::default(), WHITE);
+        // let t: f32 = 10.5;
+        // self.gizmo_renderer
+        //     .draw_sphere(&Transform3D::from_scale(Vec3::ONE * 0.01), WHITE);
         self.gizmo_renderer.draw_sphere(
-            0.5,
-            &Transform3D::new(vec3(t.sin(), 0.0, 0.0), Quat::from_rotation_x(t), Vec3::ONE),
+            &Transform3D::new(
+                vec3(t.sin(), 0.0, 0.0),
+                Quat::from_rotation_x(t),
+                Vec3::ONE * 0.5,
+            ),
             BLUE,
         );
         self.gizmo_renderer
             .draw_cube(&Transform3D::from_scale(vec3(0.5, 1.0, 0.5)), GREEN);
-
         self.gizmo_renderer.draw_quad(
             &Transform3D::new(Vec3::ZERO, Quat::from_rotation_y(t), vec3(2.0, 1.0, 0.0)),
             WHITE,
         );
-        self.gizmo_renderer.draw_circle(
-            1.0,
+        // self.gizmo_renderer.draw_circle(
+        //     &Transform3D::new(Vec3::ZERO, Quat::default(), Vec3::ONE),
+        //     WHITE,
+        // );
+        self.gizmo_renderer.draw_sphere(
             &Transform3D::new(Vec3::ZERO, Quat::default(), Vec3::ONE),
             WHITE,
         );
@@ -76,6 +84,7 @@ impl Callbacks for App {
         false
     }
 
+    #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
@@ -115,6 +124,7 @@ impl Callbacks for App {
 
         false
     }
+    #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer
             .resize(ctx, new_size.width, new_size.height);

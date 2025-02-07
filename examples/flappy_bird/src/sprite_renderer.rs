@@ -1,6 +1,6 @@
-use gbase::glam::Vec4;
-use gbase::{collision::AABB, filesystem, glam::{vec4, Vec4Swizzles}, render::{self, VertexTrait}, wgpu, Context};
-use gbase_utils::{gamma_correction, Transform3D};
+use gbase::glam::{Vec2, Vec4};
+use gbase::{filesystem, glam::{vec4, Vec4Swizzles}, render::{self, VertexTrait}, wgpu, Context};
+use gbase_utils::Transform2D;
 
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
@@ -119,14 +119,14 @@ impl SpriteRenderer {
         self.indices.clear();
     }
 
-    pub fn draw_sprite(&mut self, transform: &Transform3D, uv: AABB) {
-        self.draw_sprite_tint(transform, uv, gbase_utils::WHITE);
+    pub fn draw_sprite(&mut self, transform: &Transform2D, atlas_pos: Vec2, atlas_size: Vec2) {
+        self.draw_sprite_tint(transform, atlas_pos, atlas_size, gbase_utils::WHITE);
     }
 
     #[rustfmt::skip]
-    pub fn draw_sprite_tint(&mut self, transform: &Transform3D, uv: AABB, tint: Vec4) {
-        let (ux, uy) = (uv.pos.x, uv.pos.y);
-        let (uw, uh) = (uv.size.x, uv.size.y);
+    pub fn draw_sprite_tint(&mut self, transform: &Transform2D, atlas_pos: Vec2, atlas_size: Vec2, tint: Vec4) { 
+        let (ux, uy) = (atlas_pos.x, atlas_pos.y);
+        let (uw, uh) = (atlas_size.x, atlas_size.y);
         let color = tint.to_array();
 
         let t = transform.matrix();
