@@ -18,6 +18,8 @@ pub struct GizmoRenderer {
     pipeline: ArcRenderPipeline,
 
     depth_buffer: render::DepthBuffer,
+
+    resolution: u32,
 }
 
 const GIZMO_MAX_VERTICES: usize = 10000;
@@ -76,6 +78,7 @@ impl GizmoRenderer {
             pipeline,
             depth_buffer,
             bindgroup,
+            resolution: GIZMO_RESOLUTION,
         }
     }
     pub fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
@@ -99,6 +102,11 @@ impl GizmoRenderer {
 
     pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
         self.depth_buffer.resize(ctx, width, height);
+    }
+
+    // TODO: builder instead?
+    pub fn set_resolution(&mut self, resolution: u32) {
+        self.resolution = resolution;
     }
 }
 
@@ -135,7 +143,7 @@ impl GizmoRenderer {
 
     /// Draw circle with diameter 1
     pub fn draw_circle(&mut self, transform: &crate::Transform3D, color: Vec3) {
-        let n = GIZMO_RESOLUTION;
+        let n = self.resolution;
         let t = transform.matrix();
 
         for i in 0..n {
@@ -176,9 +184,10 @@ impl GizmoRenderer {
         self.draw_line(ltr, utr, color);
         self.draw_line(ltl, utl, color);
     }
+
     /// Draw sphere with diameter 1
     pub fn draw_sphere(&mut self, transform: &crate::Transform3D, color: Vec3) {
-        let n = GIZMO_RESOLUTION;
+        let n = self.resolution;
         let t = transform.matrix();
 
         // xy
