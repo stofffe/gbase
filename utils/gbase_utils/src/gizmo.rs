@@ -1,6 +1,6 @@
 use super::CameraUniform;
 use gbase::{
-    glam::{vec3, vec4, Quat, Vec3, Vec4Swizzles},
+    glam::{vec4, Vec3, Vec4Swizzles},
     render::{
         self, ArcBindGroup, ArcRenderPipeline, RenderPipelineBuilder, ShaderBuilder, VertexColor,
     },

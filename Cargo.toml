@@ -52,6 +52,7 @@ members = [
     "examples/grass",
     "examples/ui",
     "examples/flappy_bird",
+    "examples/flappy_bird_entity",
     "examples/gizmos",
     "examples/mesh",
     "examples/camera",

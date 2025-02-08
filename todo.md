@@ -45,7 +45,8 @@ Flappy bird
 [x] rotate bird
 [x] sound
 [x] circle collisions
-[] highscore
+[x] highscore
+[] use entites
 
 Clouds
 [x] ray box intersection

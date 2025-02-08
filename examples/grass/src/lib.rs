@@ -54,7 +54,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
+            .log_level(gbase::LogLevel::Info)
             .window_builder(WindowBuilder::new().with_maximized(true))
             .vsync(false)
     }
