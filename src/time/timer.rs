@@ -1,5 +1,8 @@
+use std::time::Duration;
+
 use super::Instant;
 
+#[derive(Debug)]
 pub struct Timer {
     duration: std::time::Duration,
     start: Instant,
@@ -33,5 +36,15 @@ impl Timer {
     pub fn reset(&mut self) {
         self.start = Instant::now();
         self.ticked = false;
+    }
+}
+
+impl Default for Timer {
+    fn default() -> Self {
+        Self {
+            duration: Duration::ZERO,
+            start: Instant::now(),
+            ticked: false,
+        }
     }
 }

@@ -13,12 +13,12 @@ pub struct AtlasSprite {
 pub const BACKGROUND: AtlasSprite = AtlasSprite { x: 0, y: 0, w: 144, h: 256, };
 pub const PIPE: AtlasSprite = AtlasSprite { x: 144, y: 0, w: 26, h: 160, };
 pub const BASE: AtlasSprite = AtlasSprite { x: 170, y: 0, w: 168, h: 56, };
-pub const BIRD_FLAP_1: AtlasSprite = AtlasSprite { x: 338, y: 0, w: 17, h: 12, };
 pub const BIRD_FLAP_0: AtlasSprite = AtlasSprite { x: 355, y: 0, w: 17, h: 12, };
-pub const BIRD_BLINK_3: AtlasSprite = AtlasSprite { x: 372, y: 0, w: 17, h: 12, };
-pub const BIRD_BLINK_2: AtlasSprite = AtlasSprite { x: 389, y: 0, w: 17, h: 12, };
+pub const BIRD_FLAP_1: AtlasSprite = AtlasSprite { x: 338, y: 0, w: 17, h: 12, };
 pub const BIRD_BLINK_0: AtlasSprite = AtlasSprite { x: 406, y: 0, w: 17, h: 12, };
 pub const BIRD_BLINK_1: AtlasSprite = AtlasSprite { x: 423, y: 0, w: 17, h: 12, };
+pub const BIRD_BLINK_2: AtlasSprite = AtlasSprite { x: 389, y: 0, w: 17, h: 12, };
+pub const BIRD_BLINK_3: AtlasSprite = AtlasSprite { x: 372, y: 0, w: 17, h: 12, };
 
 pub const ATLAS_BYTES: &[u8] = &[
     0x89, 0x50, 0x4E, 0x47, 0xD, 0xA, 0x1A, 0xA, 0x0, 0x0, 0x0, 0xD, 0x49, 0x48, 0x44, 0x52, 0x0,

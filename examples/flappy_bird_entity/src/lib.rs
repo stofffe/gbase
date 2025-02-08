@@ -5,60 +5,22 @@ use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
     audio, collision, filesystem,
-    glam::{vec2, vec3, Quat, Vec2, Vec3, Vec4Swizzles},
+    glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, log, random,
-    render::{self, surface_config, surface_size},
+    load_b, random,
+    render::{self},
     time, wgpu,
-    winit::{
-        dpi::PhysicalSize,
-        window::{CursorIcon, WindowBuilder},
-    },
+    winit::{dpi::PhysicalSize, window::WindowBuilder},
     Callbacks, Context,
 };
 use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
-use sprite_atlas::{BASE, BIRD_FLAP_0, PIPE};
-use std::f32::consts::PI;
+use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
+use std::{f32::consts::PI, time::Duration};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
     gbase::run::<App>().await;
 }
-
-const MAX_SPRITES: u64 = 1000;
-
-enum GameState {
-    StartMenu,
-    Game,
-    GameOver,
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-enum Collision {
-    #[default]
-    None,
-    Circle {
-        radius: f32,
-    },
-    Quad {
-        size: Vec2,
-    },
-}
-
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
 
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]
 struct EntityHandle(usize);
@@ -81,29 +43,85 @@ impl EntityHandle {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+enum Collision {
+    #[default]
+    None,
+    Circle {
+        radius: f32,
+    },
+    Quad {
+        size: Vec2,
+    },
+}
+
+#[derive(Debug, Default)]
+enum Renderable {
+    #[default]
+    None,
+    Sprite,
+    Animation,
+}
+
+#[derive(Debug, Default)]
+struct Animation {
+    timer: time::Timer,
+    current: usize,
+    sprites: Vec<Sprite>,
+}
+
+impl Animation {
+    fn new(sprites: Vec<Sprite>, speed: Duration) -> Self {
+        Self {
+            timer: time::Timer::new(speed),
+            sprites,
+            current: 0,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct Sprite {
+    atlas_pos: Vec2,
+    atlas_size: Vec2,
+}
+
+impl Sprite {
+    fn new(atlas_pos: Vec2, atlas_size: Vec2) -> Self {
+        Self {
+            atlas_pos,
+            atlas_size,
+        }
+    }
+}
+
 #[derive(Default)]
 struct Entity {
     handle: EntityHandle,
     parent: EntityHandle,
 
-    pos: Vec2,
-    scale: Vec2,
-    rotation: f32,
+    local_pos: Vec2,
+    local_scale: Vec2,
+    local_rotation: f32,
+
+    renderable: Renderable,
+    sprite: Sprite,
+    animation: Animation,
 
     velocity: Vec2,
 
-    uv_pos: Vec2,
-    uv_size: Vec2,
-
-    renderable: bool,
-
     collision: Collision,
     obstacle: bool,
-
     score_child: EntityHandle,
     score_area: bool,
-
     is_pipe: bool,
+}
+
+impl Entity {
+    /// Calculate global pos
+    fn pos(&self, handler: &EntityHandler) -> Vec2 {
+        handler.calc_pos(self)
+    }
 }
 
 struct EntityHandler {
@@ -111,10 +129,10 @@ struct EntityHandler {
 }
 
 impl EntityHandler {
-    fn new(ctx: &Context) -> Self {
+    fn new() -> Self {
         let root = Entity {
             parent: EntityHandle(0),
-            pos: Vec2::ZERO,
+            local_pos: Vec2::ZERO,
             ..Default::default()
         };
         let entities = vec![root];
@@ -125,6 +143,12 @@ impl EntityHandler {
         entity.handle = handle;
         self.entities.push(entity);
         handle
+    }
+    fn get_entity(&self, entity: EntityHandle) -> &Entity {
+        &self.entities[entity.index()]
+    }
+    fn get_entity_mut(&mut self, entity: EntityHandle) -> &mut Entity {
+        &mut self.entities[entity.index()]
     }
 
     fn get_handles(&self) -> Vec<EntityHandle> {
@@ -137,19 +161,13 @@ impl EntityHandler {
             .map(|e| e.handle)
             .collect()
     }
-    fn get_entity(&self, entity: EntityHandle) -> &Entity {
-        &self.entities[entity.index()]
-    }
-    fn get_entity_mut(&mut self, entity: EntityHandle) -> &mut Entity {
-        &mut self.entities[entity.index()]
-    }
 
     fn calc_pos(&self, entity: &Entity) -> Vec2 {
         let mut e = entity;
-        let mut pos = e.pos;
+        let mut pos = e.local_pos;
         while e.parent != EntityHandle::ROOT {
             e = self.get_entity(e.parent);
-            pos += e.pos;
+            pos += e.local_pos;
         }
         pos
     }
@@ -190,19 +208,11 @@ impl EntityHandler {
     }
 }
 
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
+enum GameState {
+    StartMenu,
+    Game,
+    GameOver,
+}
 
 pub struct App {
     entities: EntityHandler,
@@ -228,6 +238,7 @@ pub struct App {
     point_sound: audio::SoundSource,
 }
 
+const MAX_SPRITES: u64 = 1000;
 const PLAYER_FALL_SPEED: f32 = 80.0;
 const PLAYER_JUMP_VELOCITY: f32 = 200.0;
 const SCROLL_SPEED: f32 = 80.0;
@@ -236,6 +247,7 @@ const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
 const HIGHSCORE_PATH: &str = "highscore";
+const BIRD_ANIMATION_SPEED: Duration = Duration::from_millis(70);
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {
     to_min + (to_max - to_min) * ((value - from_min) / (from_max - from_min))
@@ -256,15 +268,21 @@ impl Callbacks for App {
     fn new(ctx: &mut gbase::Context) -> Self {
         random::seed_with_time(ctx);
 
-        let mut entities = EntityHandler::new(ctx);
+        let mut entities = EntityHandler::new();
 
         // entities
         let player = entities.create_entity(Entity {
-            pos: vec2(-BIRD_FLAP_0.pixel_size().x, 0.0),
-            scale: BIRD_FLAP_0.pixel_size(),
-            uv_pos: BIRD_FLAP_0.atlas_pos(),
-            uv_size: BIRD_FLAP_0.atlas_size(),
-            renderable: true,
+            local_pos: vec2(-BIRD_FLAP_0.pixel_size().x, 0.0),
+            local_scale: BIRD_FLAP_0.pixel_size(),
+            renderable: Renderable::Sprite,
+            sprite: Sprite::new(BIRD_FLAP_0.atlas_pos(), BIRD_FLAP_0.atlas_size()),
+            animation: Animation::new(
+                vec![
+                    Sprite::new(BIRD_FLAP_0.atlas_pos(), BIRD_FLAP_0.atlas_size()),
+                    Sprite::new(BIRD_FLAP_1.atlas_pos(), BIRD_FLAP_1.atlas_size()),
+                ],
+                BIRD_ANIMATION_SPEED,
+            ),
             collision: Collision::Circle {
                 radius: BIRD_FLAP_0.pixel_size().y / 2.0,
             },
@@ -272,16 +290,15 @@ impl Callbacks for App {
         });
         // pipes
         let pipe_middle = entities.create_entity(Entity {
-            pos: vec2(BACKGROUND.w as f32, 0.0),
+            local_pos: vec2(BACKGROUND.w as f32, 0.0),
             ..Default::default()
         });
         let _top_pipe = entities.create_entity(Entity {
             parent: pipe_middle,
-            pos: vec2(0.0, PIPE.pixel_size().y / 2.0 + PIPE_GAP / 2.0),
-            scale: PIPE.pixel_size() * vec2(1.0, -1.0),
-            uv_pos: PIPE.atlas_pos(),
-            uv_size: PIPE.atlas_size(),
-            renderable: true,
+            local_pos: vec2(0.0, PIPE.pixel_size().y / 2.0 + PIPE_GAP / 2.0),
+            local_scale: PIPE.pixel_size() * vec2(1.0, -1.0),
+            sprite: Sprite::new(PIPE.atlas_pos(), PIPE.atlas_size()),
+            renderable: Renderable::Sprite,
             collision: Collision::Quad {
                 size: PIPE.pixel_size(),
             },
@@ -291,11 +308,10 @@ impl Callbacks for App {
         });
         let _bottom_pipe = entities.create_entity(Entity {
             parent: pipe_middle,
-            pos: vec2(0.0, -(PIPE.pixel_size().y / 2.0 + PIPE_GAP / 2.0)),
-            scale: PIPE.pixel_size(),
-            uv_pos: PIPE.atlas_pos(),
-            uv_size: PIPE.atlas_size(),
-            renderable: true,
+            local_pos: vec2(0.0, -(PIPE.pixel_size().y / 2.0 + PIPE_GAP / 2.0)),
+            local_scale: PIPE.pixel_size(),
+            sprite: Sprite::new(PIPE.atlas_pos(), PIPE.atlas_size()),
+            renderable: Renderable::Sprite,
             collision: Collision::Quad {
                 size: PIPE.pixel_size(),
             },
@@ -305,7 +321,7 @@ impl Callbacks for App {
         });
         let score_area = entities.create_entity(Entity {
             parent: pipe_middle,
-            scale: vec2(PIPE.pixel_size().x / 2.0, PIPE_GAP),
+            local_scale: vec2(PIPE.pixel_size().x / 2.0, PIPE_GAP),
             collision: Collision::Quad {
                 size: vec2(PIPE.pixel_size().x / 2.0, PIPE_GAP),
             },
@@ -316,7 +332,7 @@ impl Callbacks for App {
 
         // bases
         let base_middle = entities.create_entity(Entity {
-            pos: vec2(0.0, -BACKGROUND.pixel_size().y / 2.0),
+            local_pos: vec2(0.0, -BACKGROUND.pixel_size().y / 2.0),
             collision: Collision::Quad {
                 size: vec2(BASE.pixel_size().x * 3.0, BASE.pixel_size().y),
             },
@@ -325,29 +341,26 @@ impl Callbacks for App {
         });
         let _base_1 = entities.create_entity(Entity {
             parent: base_middle,
-            pos: vec2(-BASE.pixel_size().x, 0.0),
-            scale: BASE.pixel_size(),
-            uv_pos: BASE.atlas_pos(),
-            uv_size: BASE.atlas_size(),
-            renderable: true,
+            local_pos: vec2(-BASE.pixel_size().x, 0.0),
+            local_scale: BASE.pixel_size(),
+            sprite: Sprite::new(BASE.atlas_pos(), BASE.atlas_size()),
+            renderable: Renderable::Sprite,
             ..Default::default()
         });
         let _base_2 = entities.create_entity(Entity {
             parent: base_middle,
-            pos: vec2(0.0, 0.0),
-            scale: BASE.pixel_size(),
-            uv_pos: BASE.atlas_pos(),
-            uv_size: BASE.atlas_size(),
-            renderable: true,
+            local_pos: vec2(0.0, 0.0),
+            local_scale: BASE.pixel_size(),
+            sprite: Sprite::new(BASE.atlas_pos(), BASE.atlas_size()),
+            renderable: Renderable::Sprite,
             ..Default::default()
         });
         let _base_3 = entities.create_entity(Entity {
             parent: base_middle,
-            pos: vec2(BASE.pixel_size().x, 0.0),
-            scale: BASE.pixel_size(),
-            uv_pos: BASE.atlas_pos(),
-            uv_size: BASE.atlas_size(),
-            renderable: true,
+            local_pos: vec2(BASE.pixel_size().x, 0.0),
+            local_scale: BASE.pixel_size(),
+            sprite: Sprite::new(BASE.atlas_pos(), BASE.atlas_size()),
+            renderable: Renderable::Sprite,
             ..Default::default()
         });
 
@@ -457,6 +470,7 @@ impl Callbacks for App {
 
                     self.entities.get_entity_mut(self.player).velocity.y = PLAYER_JUMP_VELOCITY;
                     audio::play_audio_source(ctx, &self.flap_sound);
+                    self.player.get_mut(&mut self.entities).renderable = Renderable::Animation;
                 }
             }
             GameState::Game => {
@@ -474,17 +488,19 @@ impl Callbacks for App {
                 });
                 // scroll pipes
                 let mid = self.entities.get_entity_mut(self.pipe_middle);
-                mid.pos.x -= dt * SCROLL_SPEED;
-                if mid.pos.x <= -(BACKGROUND.pixel_size().x / 2.0 + PIPE.pixel_size().x / 2.0) {
-                    mid.pos.x += BACKGROUND.pixel_size().x + PIPE.pixel_size().x;
-                    mid.pos.y = random::rand(ctx).range_f32(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET);
-                    mid.pos.y += PIPE_BASE_OFFSET;
+                mid.local_pos.x -= dt * SCROLL_SPEED;
+                if mid.local_pos.x <= -(BACKGROUND.pixel_size().x / 2.0 + PIPE.pixel_size().x / 2.0)
+                {
+                    mid.local_pos.x += BACKGROUND.pixel_size().x + PIPE.pixel_size().x;
+                    mid.local_pos.y =
+                        random::rand(ctx).range_f32(-PIPE_MAX_OFFSET, PIPE_MAX_OFFSET);
+                    mid.local_pos.y += PIPE_BASE_OFFSET;
 
                     // reset score area
                     mid.score_child.get_mut(&mut self.entities).score_area = true;
                 }
                 // scroll bases
-                let mid = &mut self.base_middle.get_mut(&mut self.entities).pos;
+                let mid = &mut self.base_middle.get_mut(&mut self.entities).local_pos;
                 mid.x -= dt * SCROLL_SPEED;
                 if mid.x <= -(BACKGROUND.pixel_size().x / 2.0) {
                     mid.x += BACKGROUND.pixel_size().x;
@@ -496,8 +512,8 @@ impl Callbacks for App {
                     player.velocity.y = PLAYER_JUMP_VELOCITY;
                     audio::play_audio_source(ctx, &self.flap_sound);
                 }
-                player.pos += player.velocity * dt;
-                player.pos.y = player.pos.y.clamp(
+                player.local_pos += player.velocity * dt;
+                player.local_pos.y = player.local_pos.y.clamp(
                     -BACKGROUND.pixel_size().y / 2.0 + BASE.pixel_size().y / 2.0,
                     BACKGROUND.pixel_size().y / 2.0,
                 );
@@ -535,6 +551,7 @@ impl Callbacks for App {
                         filesystem::store_str(ctx, HIGHSCORE_PATH, &self.score.to_string())
                             .unwrap();
                     }
+                    self.player.get_mut(&mut self.entities).renderable = Renderable::Sprite;
                 }
             }
             GameState::GameOver => {
@@ -581,8 +598,8 @@ impl Callbacks for App {
 
                 let player = self.player.get_mut(&mut self.entities);
                 player.velocity.y -= 9.82 * dt * PLAYER_FALL_SPEED;
-                player.pos += player.velocity * dt;
-                player.pos.y = player.pos.y.clamp(
+                player.local_pos += player.velocity * dt;
+                player.local_pos.y = player.local_pos.y.clamp(
                     -BACKGROUND.pixel_size().y / 2.0 + BASE.pixel_size().y / 2.0,
                     BACKGROUND.pixel_size().y / 2.0,
                 );
@@ -598,16 +615,16 @@ impl Callbacks for App {
                     self.state = GameState::StartMenu;
                     let player = self.entities.get_entity_mut(self.player);
                     player.velocity = Vec2::ZERO;
-                    player.pos = vec2(-BIRD_FLAP_0.pixel_size().x, 0.0);
+                    player.local_pos = vec2(-BIRD_FLAP_0.pixel_size().x, 0.0);
 
                     let pipe_mid = self.entities.get_entity_mut(self.pipe_middle);
-                    pipe_mid.pos = vec2(BACKGROUND.w as f32, 0.0);
+                    pipe_mid.local_pos = vec2(BACKGROUND.w as f32, 0.0);
                 }
             }
         }
 
         let player = self.player.get_mut(&mut self.entities);
-        player.rotation = match self.state {
+        player.local_rotation = match self.state {
             GameState::StartMenu => 0.0,
             GameState::Game | GameState::GameOver => {
                 remap(player.velocity.y, -400.0, 100.0, -PI / 2.0, PI / 4.0)
@@ -630,12 +647,33 @@ impl Callbacks for App {
         );
 
         // draw entities
-        for e in self.entities.entities.iter().filter(|&a| a.renderable) {
-            self.sprite_renderer.draw_sprite(
-                &Transform2D::new(self.entities.calc_pos(e), e.rotation, e.scale),
-                e.uv_pos,
-                e.uv_size,
-            );
+        for eh in self.entities.get_handles() {
+            match eh.get(&self.entities).renderable {
+                Renderable::None => {}
+                Renderable::Sprite => {
+                    let pos = eh.get(&self.entities).pos(&self.entities);
+                    let e = eh.get(&self.entities);
+                    self.sprite_renderer.draw_sprite(
+                        &Transform2D::new(pos, e.local_rotation, e.local_scale),
+                        e.sprite.atlas_pos,
+                        e.sprite.atlas_size,
+                    );
+                }
+                Renderable::Animation => {
+                    let pos = eh.get(&self.entities).pos(&self.entities);
+                    let e = eh.get_mut(&mut self.entities);
+                    if e.animation.timer.just_ticked() {
+                        e.animation.current += 1;
+                        e.animation.current %= e.animation.sprites.len();
+                        e.animation.timer.reset();
+                    }
+                    self.sprite_renderer.draw_sprite(
+                        &Transform2D::new(pos, e.local_rotation, e.local_scale),
+                        e.animation.sprites[e.animation.current].atlas_pos,
+                        e.animation.sprites[e.animation.current].atlas_size,
+                    );
+                }
+            }
         }
 
         // draw debug views
@@ -646,7 +684,7 @@ impl Callbacks for App {
                     Collision::Circle { radius } => {
                         self.gizmo_renderer.draw_circle(
                             &Transform3D::new(
-                                self.entities.calc_pos(e).extend(0.0),
+                                e.pos(&self.entities).extend(0.0),
                                 Quat::IDENTITY,
                                 Vec3::ONE * radius * 2.0,
                             ),
@@ -660,7 +698,7 @@ impl Callbacks for App {
                     Collision::Quad { size } => {
                         self.gizmo_renderer.draw_quad(
                             &Transform3D::new(
-                                self.entities.calc_pos(e).extend(0.0),
+                                e.pos(&self.entities).extend(0.0),
                                 Quat::IDENTITY,
                                 size.extend(0.0),
                             ),
