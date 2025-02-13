@@ -44,7 +44,7 @@ impl Callbacks for App {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLUE),
             )])
-            .build_run_new_encoder(ctx, |mut render_pass| {
+            .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 render_pass.draw(0..self.vertex_buffer.len(), 0..1);

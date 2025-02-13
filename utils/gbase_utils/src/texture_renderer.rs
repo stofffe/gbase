@@ -70,22 +70,17 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let queue = render::queue(ctx);
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
             )])
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
-
-        queue.submit(Some(encoder.finish()));
     }
 }
 
@@ -106,14 +101,3 @@ const CENTERED_QUAD_INDICES: &[u32] = &[
     0, 1, 2,
     3, 4, 5
 ];
-
-// pub fn set_texture(&mut self, ctx: &mut Context, texture: ArcTextureView) {
-//     self.bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-//         .entries(vec![
-//             // texture
-//             render::BindGroupEntry::Texture(texture),
-//             // sampler
-//             render::BindGroupEntry::Sampler(self.sampler.clone()),
-//         ])
-//         .build(ctx);
-// }

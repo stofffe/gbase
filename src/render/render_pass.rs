@@ -120,7 +120,7 @@ impl<'a> RenderPassBuilder<'a> {
     /// Builds render pass and immediately run ```run-func```
     ///
     /// Creates and submits a new encoder
-    pub fn build_run_new_encoder(self, ctx: &Context, run_func: impl FnOnce(wgpu::RenderPass<'_>)) {
+    pub fn build_run_submit(self, ctx: &Context, run_func: impl FnOnce(wgpu::RenderPass<'_>)) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,

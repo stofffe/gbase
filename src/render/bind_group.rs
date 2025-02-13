@@ -244,8 +244,8 @@ impl BindGroupBuilder {
 }
 
 impl BindGroupBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn entries(mut self, value: Vec<BindGroupEntry>) -> Self {

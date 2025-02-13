@@ -88,7 +88,7 @@ impl GizmoRenderer {
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
-            .build_run_new_encoder(ctx, |mut pass| {
+            .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());

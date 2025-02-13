@@ -1,7 +1,9 @@
+name = flappy_bird
+
 # dll debug
 hot_reload_compile:
 	cargo build --target-dir target --features "hot_reload"
-	mv target/debug/libflappy_bird.dylib libflappy_bird.dylib
+	mv target/debug/lib$(name).dylib lib$(name).dylib
 
 hot_reload_compile_run:
 	make hot_reload_compile
@@ -9,7 +11,7 @@ hot_reload_compile_run:
 
 hot_reload_compile_release:
 	cargo build --target-dir target --features "hot_reload" --release
-	mv target/release/libflappy_bird.dylib libflappy_bird.dylib
+	mv target/release/lib$(name).dylib lib$(name).dylib
 
 hot_reload_compile_run_release:
 	make hot_reload_compile_release
@@ -27,7 +29,7 @@ web_open:
 
 # static
 debug:
-	cargo run -- --debug
+	cargo run --debug
 
 release:
-	cargo run -- --release
+	cargo run --release

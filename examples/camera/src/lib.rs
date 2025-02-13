@@ -82,7 +82,7 @@ impl Callbacks for App {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
             )])
-            .build_run_new_encoder(ctx, |mut pass| {
+            .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.buf_ref().slice(..));
                 pass.set_bind_group(0, Some(self.camera_bindgroup.as_ref()), &[]);
