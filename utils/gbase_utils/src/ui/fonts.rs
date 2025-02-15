@@ -7,7 +7,6 @@ use std::collections::HashMap;
 pub struct FontAtlas {
     pub(crate) texture_atlas: crate::TextureAtlas,
     pub(crate) letter_info: HashMap<char, LetterInfo>,
-
     pub(crate) font_info: FontInfo,
 }
 
@@ -41,11 +40,12 @@ impl FontAtlas {
         // chars.sort_by(|a, b| a.0.height.partial_cmp(&b.0.height).unwrap());
         let texture_dim = FONT_ATLAS_SIZE;
 
-        let max_height = chars
-            .iter()
-            .map(|(metrics, _, _)| metrics.height)
-            .max()
-            .unwrap() as u32;
+        let max_neg_yoffset = chars.iter().map(|(m, _, _)| -m.ymin).max().unwrap() as u32;
+        let max_height = chars.iter().map(|(m, _, _)| m.height).max().unwrap() as u32;
+
+        let font_info = FontInfo {
+            base_offset: max_neg_yoffset as f32 / max_height as f32,
+        };
 
         let texture =
             render::TextureBuilder::new(render::TextureSource::Empty(texture_dim.x, texture_dim.y))
@@ -72,7 +72,6 @@ impl FontAtlas {
             letter_info.insert(
                 letter,
                 LetterInfo {
-                    // uv
                     atlas_offset: offset.as_vec2() / texture_dim.as_vec2(),
                     atlas_dimensions: dimensions.as_vec2() / texture_dim.as_vec2(),
                     size_unorm: vec2(metrics.width as f32, metrics.height as f32) / max_height as f32,
@@ -81,18 +80,9 @@ impl FontAtlas {
                 },
             );
 
-            // println!("{:?}", dimensions);
             texture_atlas.write_texture(ctx, offset, dimensions, &bitmap);
             offset.x += dimensions.x + padding.x;
         }
-
-        let font_info = FontInfo {
-            // height: max_height as f32,
-            // height_unorm: max_height as f32 / FONT_RASTER_SIZE,
-            // // TODO: temp
-            // padding: FONT_ATLAS_PADDING.x as f32,
-            // padding_unorm: FONT_ATLAS_PADDING.x as f32 / FONT_RASTER_SIZE,
-        };
 
         Self {
             texture_atlas,
@@ -145,18 +135,19 @@ impl FontAtlas {
 
 #[derive(Debug, Clone)]
 pub struct LetterInfo {
+    /// offset into atlas \[0,1\]
     pub(crate) atlas_offset: Vec2,
+    /// size in atlas \[0,1\]
     pub(crate) atlas_dimensions: Vec2,
+    /// size based of font size \[0,1\]
     pub(crate) size_unorm: Vec2,
+    /// offset based of font size \[0,1\]    
     pub(crate) local_offset: Vec2,
-
+    /// distance to advance by based of font size \[0,1\]    
     pub(crate) advance: Vec2,
 }
 
 #[derive(Debug, Clone)]
 pub struct FontInfo {
-    // pub(crate) height_unorm: f32,
-    // pub(crate) height: f32,
-    // pub(crate) padding_unorm: f32,
-    // pub(crate) padding: f32,
+    pub(crate) base_offset: f32,
 }

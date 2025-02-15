@@ -258,7 +258,7 @@ impl Widget {
     /// Top left position
     ///
     /// Including margin and padding
-    pub(crate) fn computed_pos_maring_padding(&self) -> Vec2 {
+    pub(crate) fn computed_pos_margin_padding(&self) -> Vec2 {
         self.computed_pos + self.margin + self.padding
     }
 

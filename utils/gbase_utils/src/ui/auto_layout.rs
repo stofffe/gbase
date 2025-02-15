@@ -179,7 +179,7 @@ impl GUIRenderer {
     fn auto_layout_final(&mut self, index: usize) {
         let this = self.get_widget(index);
         let cross_axis_alignment = this.cross_axis_alignment;
-        let inner_pos = this.computed_pos_maring_padding();
+        let inner_pos = this.computed_pos_margin_padding();
         let inner_size = this.computed_size_margin_padding();
         let main_axis = this.direction.main_axis();
         let cross_axis = this.direction.cross_axis();

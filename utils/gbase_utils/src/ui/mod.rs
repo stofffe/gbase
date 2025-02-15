@@ -149,8 +149,8 @@ impl GUIRenderer {
         for widget in self.widgets.clone().iter() {
             if let Some(color) = widget.color {
                 self.quad(
-                    widget.computed_pos_maring_padding(),
-                    widget.computed_size_margin_padding(),
+                    widget.computed_pos_margin(),
+                    widget.computed_size_margin(),
                     color,
                 );
             }
@@ -158,8 +158,10 @@ impl GUIRenderer {
             if !widget.text.is_empty() {
                 self.text(
                     &widget.text,
-                    widget.computed_pos_maring_padding(),
+                    widget.computed_pos_margin_padding(),
                     widget.computed_size_margin_padding(),
+                    // widget.computed_pos_margin(),
+                    // widget.computed_size_margin(),
                     widget.font_size,
                     widget.text_color,
                     widget.text_wrap,
@@ -167,7 +169,7 @@ impl GUIRenderer {
             }
         }
 
-        self.debug(ctx);
+        // self.debug(ctx);
 
         //
         // Rendering
@@ -253,6 +255,9 @@ impl GUIRenderer {
         &self.widgets[self.widgets[index].parent]
     }
 
+    /// Size of children
+    ///
+    /// Includes gap
     fn get_children_size(&self, index: usize, axis: usize) -> f32 {
         let children = &self.widgets[index].children;
         if children.is_empty() {

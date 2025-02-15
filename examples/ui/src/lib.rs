@@ -1,4 +1,4 @@
-use gbase::{filesystem, render, wgpu, winit::dpi::PhysicalSize, Callbacks, Context};
+use gbase::{filesystem, input, render, wgpu, winit::dpi::PhysicalSize, Callbacks, Context};
 use gbase_utils::{Alignment, Direction, SizeKind, Widget, BLUE, GRAY, GREEN, RED, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -31,6 +31,14 @@ impl Callbacks for App {
             gui_renderer,
             health: 0.4,
         }
+    }
+
+    #[no_mangle]
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
+            *self = Self::new(ctx);
+        }
+        false
     }
 
     #[no_mangle]
@@ -88,8 +96,8 @@ impl Callbacks for App {
                 Widget::new()
                     .text(format!("{:.3}", self.health))
                     .text_color(WHITE)
-                    .width(SizeKind::Pixels(200.0))
                     .color(RED)
+                    .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)
                     .text_font_size(60.0)
                     .render(renderer);
@@ -113,8 +121,6 @@ impl Callbacks for App {
                 if Widget::new()
                     .label("btn")
                     .color(BLUE)
-                    .margin(10.0)
-                    .padding(10.0)
                     .button(ctx, renderer)
                     .clicked
                 {
@@ -125,13 +131,15 @@ impl Callbacks for App {
             let mut txt_row = Widget::new()
                 .height(SizeKind::ChildrenSum)
                 .width(SizeKind::PercentOfParent(1.0))
+                .padding(40.0)
+                .color(RED)
                 .direction(Direction::Row);
             txt_row.layout(renderer, |renderer| {
                 Widget::new()
                     .text(
-                        "Love is a song that never ends Life may be swift and fleeting Hope may die Yet love's beautiful music Comes each day like the dawn Love is a song that never ends One simple theme repeating Like the voice of a heavenly choir Love's sweet music flows on Like the voice of a heavenly choir Love's sweet music flows on Wake up. - What now? - Wake up, Friend Owl. What's going on around here? - Wake up. - lt's happened."
+                        "(Love is a song that never f(1+1) ends Life may be swift and fleeting Hope may die Yet love's beautiful music Comes each day like the dawn Love is a song that never ends One simple theme repeating Like the voice of a heavenly choir Love's sweet music flows on Like the voice of a heavenly choir Love's sweet music flows on Wake up. - What now? - Wake up, Friend Owl. What's going on around here? - Wake up. - lt's happened.)"
                     )
-                    .color(RED)
+                    .color(BLUE)
                     .text_color(WHITE)
                     .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)
@@ -366,4 +374,9 @@ impl Callbacks for App {
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         self.gui_renderer.resize(ctx, new_size);
     }
+}
+
+#[no_mangle]
+fn hot_reload() {
+    App::init_ctx().init_logging();
 }
