@@ -1,5 +1,4 @@
 use gbase::glam::{Vec2, Vec4};
-use gbase::log;
 use gbase::winit::dpi::PhysicalSize;
 use gbase::{
     filesystem,
@@ -21,7 +20,7 @@ pub struct SpriteRenderer {
     // TODO: pass from user code?
     sampler: render::ArcSampler,
 
-    pub stencil_buffer: render::FrameBuffer,
+    stencil_buffer: render::FrameBuffer,
     stencil_bindgroup_layout: render::ArcBindGroupLayout,
     stencil_pipeline: render::ArcRenderPipeline,
 }

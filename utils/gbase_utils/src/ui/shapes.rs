@@ -1,8 +1,5 @@
 use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
-use gbase::{
-    collision::AABB,
-    glam::{vec2, Vec2, Vec4},
-};
+use gbase::glam::{vec2, Vec2, Vec4};
 
 impl GUIRenderer {
     /// Draw a quad
@@ -33,7 +30,15 @@ impl GUIRenderer {
     // currently size.y does nothing
     /// pos \[0,1\]
     /// scale \[0,1\]
-    pub fn text(&mut self, text: &str, quad: AABB, line_height: f32, color: Vec4, wrap: bool) {
+    pub fn text(
+        &mut self,
+        text: &str,
+        top_left: Vec2,
+        bounds_size: Vec2,
+        line_height: f32,
+        color: Vec4,
+        wrap: bool,
+    ) {
         let mut global_offset = vec2(0.0, 0.0); // [0,1]
         for letter in text.chars() {
             let info = self.font_atlas.get_info(letter);
@@ -43,12 +48,12 @@ impl GUIRenderer {
             let adv = info.advance * line_height;
 
             // word wrapping
-            if wrap && (global_offset.x + size.x) > quad.size.x {
+            if wrap && (global_offset.x + size.x) > bounds_size.x {
                 global_offset.x = 0.0;
                 global_offset.y += line_height;
             }
 
-            let offset = quad.pos
+            let offset = top_left
                 + global_offset
                 + vec2(loc_offset.x, -loc_offset.y)
                 + vec2(0.0, line_height - size.y);
@@ -80,7 +85,7 @@ impl GUIRenderer {
         self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], ty, color, uv: [tox + tdx, toy      ] }); // tr
         self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
         self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
-        self.dynamic_indices.push(vertex_offset); // tl
+        self.dynamic_indices.push(vertex_offset);     // tl
         self.dynamic_indices.push(vertex_offset + 1); // bl
         self.dynamic_indices.push(vertex_offset + 2); // tr
         self.dynamic_indices.push(vertex_offset + 2); // tr

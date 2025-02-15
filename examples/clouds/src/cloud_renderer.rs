@@ -42,6 +42,9 @@ impl CloudRenderer {
         #[cfg(not(target_arch = "wasm32"))]
         let shader = shader.build_err(ctx)?;
 
+        #[cfg(target_arch = "wasm32")]
+        let shader = shader.build(ctx);
+
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // App info

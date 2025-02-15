@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-winit = { version = "0.29.3", features = ["rwh_05", "rwh_06"] }
+winit = { version = "0.30.9", features = ["rwh_05", "rwh_06"] }
 wgpu = { version = "24.0.0", features = [] }
 glam = { version = "0.24.2", features = ["serde"] }
 log = "0.4.20"
@@ -38,6 +38,7 @@ web-sys = { version = "0.3.64", features = [
 ] }
 
 [features]
+# default = ["hot_reload"]
 default = []
 hot_reload = ["dep:dlopen", "dep:notify"]
 
@@ -51,10 +52,11 @@ members = [
     "examples/clouds",
     "examples/grass",
     "examples/ui",
-    "examples/flappy_bird",
     "examples/gizmos",
     "examples/mesh",
     "examples/camera",
     "examples/transform",
     "examples/texture",
+    "examples/flappy_bird",
+    "examples/angry_birds",
 ]

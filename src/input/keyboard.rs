@@ -69,7 +69,7 @@ impl KeyboardContext {
         self.pressed.remove(&keycode);
     }
 
-    pub(crate) fn modifiers_changed(&mut self, state: &winit::event::Modifiers) {
+    pub(crate) fn modifiers_changed(&mut self, state: winit::event::Modifiers) {
         self.pressed_modifiers.clear();
         if let ModifiersKeyState::Pressed = state.lshift_state() {
             self.pressed_modifiers.insert(KeyModifier::LShift);

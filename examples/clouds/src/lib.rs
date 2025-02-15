@@ -3,6 +3,7 @@ mod noise;
 
 use gbase::log;
 use gbase::render::UniformBufferBuilder;
+use gbase::winit::window::Window;
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use gbase_utils::{
@@ -15,7 +16,6 @@ use std::fs;
 use std::io::Write;
 use std::sync::mpsc;
 use winit::dpi::PhysicalSize;
-use winit::window::WindowBuilder;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -115,7 +115,7 @@ impl gbase::Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Warn)
-            .window_builder(WindowBuilder::new().with_maximized(true))
+            .window_attributes(Window::default_attributes().with_maximized(true))
             .vsync(false)
     }
 

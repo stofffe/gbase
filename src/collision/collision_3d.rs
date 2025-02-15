@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use glam::Vec3;
 
-use crate::render::Transform;
+// use crate::render::Transform;
 
 #[derive(Debug, Clone, Copy, ShaderType)]
 pub struct Box3D {
@@ -19,13 +19,13 @@ impl Box3D {
         }
     }
 
-    pub fn to_transform(&self) -> Transform {
-        Transform {
-            pos: (self.min + self.max) * 0.5,
-            rot: glam::Quat::IDENTITY,
-            scale: self.max - self.min,
-        }
-    }
+    // pub fn to_transform(&self) -> Transform {
+    //     Transform {
+    //         pos: (self.min + self.max) * 0.5,
+    //         rot: glam::Quat::IDENTITY,
+    //         scale: self.max - self.min,
+    //     }
+    // }
 }
 
 pub fn point_box3d_collision(point: Vec3, box_3d: Box3D) -> bool {

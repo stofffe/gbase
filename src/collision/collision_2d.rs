@@ -8,28 +8,34 @@ pub type Point = Vec2;
 
 #[derive(Clone, Copy, Debug)]
 pub struct AABB {
-    pub pos: Vec2,
+    pub center: Vec2,
     pub size: Vec2,
 }
 
 impl AABB {
-    pub fn new(origin: Vec2, dimension: Vec2) -> Self {
+    pub fn from_top_left(top_left: Vec2, size: Vec2) -> Self {
         Self {
-            pos: origin,
+            center: top_left + size * 0.5,
+            size,
+        }
+    }
+    pub fn from_center(origin: Vec2, dimension: Vec2) -> Self {
+        Self {
+            center: origin,
             size: dimension,
         }
     }
     pub fn left(&self) -> f32 {
-        self.pos.x - self.size.x * 0.5
+        self.center.x - self.size.x * 0.5
     }
     pub fn right(&self) -> f32 {
-        self.pos.x + self.size.x * 0.5
+        self.center.x + self.size.x * 0.5
     }
     pub fn top(&self) -> f32 {
-        self.pos.y - self.size.y * 0.5
+        self.center.y - self.size.y * 0.5
     }
     pub fn bottom(&self) -> f32 {
-        self.pos.y + self.size.y * 0.5
+        self.center.y + self.size.y * 0.5
     }
 }
 
@@ -114,7 +120,7 @@ mod test {
 
     #[test]
     fn aabb_self_intersect() {
-        let q1 = AABB::new(vec2(0.0, 0.0), vec2(1.0, 1.0));
+        let q1 = AABB::from_center(vec2(0.0, 0.0), vec2(1.0, 1.0));
         assert!(aabb_aabb_collision(q1, q1));
     }
 
@@ -124,8 +130,8 @@ mod test {
 
     #[test]
     fn aabb_tangent_aabb() {
-        let q1 = AABB::new(vec2(-1.0, 0.0), vec2(2.0, 1.0));
-        let q2 = AABB::new(vec2(1.0, 0.0), vec2(2.0, 3.0));
+        let q1 = AABB::from_center(vec2(-1.0, 0.0), vec2(2.0, 1.0));
+        let q2 = AABB::from_center(vec2(1.0, 0.0), vec2(2.0, 3.0));
         assert!(aabb_aabb_collision(q1, q2));
     }
 
@@ -138,7 +144,7 @@ mod test {
 
     #[test]
     fn circle_tangent_aabb() {
-        let q = AABB::new(vec2(0.0, 0.0), vec2(2.0, 2.0));
+        let q = AABB::from_center(vec2(0.0, 0.0), vec2(2.0, 2.0));
         let c = Circle::new(vec2(2.0, 0.0), 1.0);
         assert!(circle_aabb_collision(c, q));
     }
@@ -149,7 +155,7 @@ mod test {
 
     #[test]
     fn circle_inside_aabb() {
-        let q = AABB::new(vec2(0.0, 0.0), vec2(10.0, 10.0));
+        let q = AABB::from_center(vec2(0.0, 0.0), vec2(10.0, 10.0));
         let c = Circle::new(vec2(1.0, -1.0), 2.0);
         assert!(circle_aabb_collision(c, q));
     }
@@ -164,7 +170,7 @@ mod test {
     #[test]
     fn circle_outside_aabb() {
         let c = Circle::new(vec2(3.0, 2.0), 1.0);
-        let q = AABB::new(vec2(0.0, 0.0), vec2(2.0, 1.0));
+        let q = AABB::from_center(vec2(0.0, 0.0), vec2(2.0, 1.0));
         assert!(!circle_aabb_collision(c, q));
     }
 }

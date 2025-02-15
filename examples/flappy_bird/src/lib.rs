@@ -8,7 +8,7 @@ use gbase::{
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
     load_b, random, render, time, wgpu,
-    winit::{dpi::PhysicalSize, window::WindowBuilder},
+    winit::{dpi::PhysicalSize, window::Window},
     Callbacks, Context,
 };
 use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
@@ -196,18 +196,18 @@ impl EntityHandler {
                 ),
                 Collision::Quad { size: s2 } => collision::circle_aabb_collision(
                     collision::Circle { origin: self.calc_pos(e1), radius: r1, },
-                    collision::AABB { pos: self.calc_pos(e2), size: s2, },
+                    collision::AABB { center: self.calc_pos(e2), size: s2, },
                 ),
             },
             Collision::Quad { size: s1 } => match e2.collision {
                 Collision::None => false,
                 Collision::Circle { radius: r2 } => collision::circle_aabb_collision(
                     collision::Circle { origin: self.calc_pos(e2), radius: r2, },
-                    collision::AABB { pos: self.calc_pos(e1), size: s1, },
+                    collision::AABB { center: self.calc_pos(e1), size: s1, },
                 ),
                 Collision::Quad { size: s2 } => collision::aabb_aabb_collision(
-                    collision::AABB { pos: self.calc_pos(e1), size: s1, },
-                    collision::AABB { pos: self.calc_pos(e2), size: s2, },
+                    collision::AABB { center: self.calc_pos(e1), size: s1, },
+                    collision::AABB { center: self.calc_pos(e2), size: s2, },
                 ),
             },
         }
@@ -267,8 +267,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .window_builder(
-                WindowBuilder::new()
+            .window_attributes(
+                Window::default_attributes()
                     .with_inner_size(PhysicalSize::new(BACKGROUND.w * 4, BACKGROUND.h * 4)),
             )
             .log_level(gbase::LogLevel::Warn)

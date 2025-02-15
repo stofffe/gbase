@@ -4,14 +4,14 @@ type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
 type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
 type ResizeFunc<T> =
     fn(callbacks: &mut T, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>);
-type ReloadFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
+type ReloadFunc = fn();
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
     update_callback: Option<UpdateFunc<T>>,
     render_callback: Option<RenderFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
-    reload_callback: Option<ReloadFunc<T>>,
+    reload_callback: Option<ReloadFunc>,
 }
 
 /// Wrapper for callbacks + dll
@@ -30,11 +30,12 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
 
     fn new(ctx: &mut crate::Context) -> Self {
         let dll = load_dll();
-        let mut callbacks = (dll.new_callback)(ctx);
 
         if let Some(hot_reload) = dll.reload_callback {
-            hot_reload(&mut callbacks, ctx);
+            hot_reload();
         }
+
+        let callbacks = (dll.new_callback)(ctx);
 
         Self { callbacks, dll }
     }
@@ -66,11 +67,11 @@ impl<T> DllCallbacks<T> {
     /// reload dll file
     ///
     /// keep game state
-    pub fn hot_reload(&mut self, ctx: &mut crate::Context) {
+    pub fn hot_reload(&mut self, _ctx: &mut crate::Context) {
         self.dll = load_dll();
 
         if let Some(hot_reload) = self.dll.reload_callback {
-            hot_reload(&mut self.callbacks, ctx);
+            hot_reload();
         }
     }
 
@@ -117,7 +118,7 @@ fn load_dll<T>() -> DllApi<T> {
             None
         }
     };
-    let reload_callback = match unsafe { lib.symbol::<ReloadFunc<T>>("hot_reload") } {
+    let reload_callback = match unsafe { lib.symbol::<ReloadFunc>("hot_reload") } {
         Ok(f) => Some(*f),
         Err(err) => {
             log::warn!("could not find function hot_reload: {}", err);

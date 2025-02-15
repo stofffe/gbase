@@ -4,48 +4,21 @@ mod shapes;
 mod widget;
 
 pub use fonts::*;
+pub use widget::*;
 
 use crate::CameraProjection;
 use gbase::{
-    collision::AABB,
     glam::{vec2, vec3},
     input,
     render::{self, ArcBindGroup, ArcRenderPipeline},
     time, wgpu, winit, Context,
 };
 use render::VertexTrait;
-use std::hash::{DefaultHasher, Hash, Hasher};
-pub use widget::*;
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct UiID {
-    id: u64,
-}
-
-impl UiID {
-    pub const fn cleared() -> Self {
-        let id = 0;
-        Self { id }
-    }
-    pub fn new(label: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        label.hash(&mut hasher);
-        let id = hasher.finish();
-        Self { id }
-    }
-    pub(crate) fn new_child(parent: u64, label: &str) -> Self {
-        let mut hasher = DefaultHasher::new();
-        label.hash(&mut hasher);
-        parent.hash(&mut hasher);
-        let id = hasher.finish();
-        Self { id }
-    }
-}
 
 pub struct GUIRenderer {
     // logic
-    w_now: Vec<Widget>,
-    widgets_last: Vec<Widget>,
+    widgets: Vec<Widget>,
+    widgets_cache: Vec<Widget>,
 
     layout_stack: Vec<usize>,
 
@@ -66,7 +39,6 @@ pub struct GUIRenderer {
     camera_buffer: render::UniformBuffer<crate::CameraUniform>,
 }
 
-// TODO: working?
 fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> crate::Camera {
     crate::Camera::new(CameraProjection::orthographic(screen_size.height as f32)).pos(vec3(
         screen_size.width as f32 / 2.0,
@@ -107,8 +79,7 @@ impl GUIRenderer {
         .build(ctx);
 
         let shader =
-            render::ShaderBuilder::new(include_str!("../../assets/shaders/ui.wgsl").to_string())
-                .build(ctx);
+            render::ShaderBuilder::new(include_str!("../../assets/shaders/ui.wgsl")).build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -158,8 +129,8 @@ impl GUIRenderer {
             camera,
             camera_buffer,
 
-            w_now: vec![widget::root_widget(ctx)],
-            widgets_last: vec![],
+            widgets: vec![widget::root_widget(ctx)],
+            widgets_cache: vec![],
             layout_stack: vec![widget::root_index()],
 
             hot_this_frame: String::new(),
@@ -170,15 +141,33 @@ impl GUIRenderer {
 
     // TODO use existing render pass instead?
     pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
-        // NOTE: widgets_now should be constructed from user calls
-
-        // run auto layout algorithm on widgets this frame
+        //
+        // Layout widgets
+        //
         self.auto_layout(widget::root_index());
 
-        // render widgets after layout
-        for widget in self.w_now.clone().iter() {
-            widget.inner_render(self);
+        for widget in self.widgets.clone().iter() {
+            if let Some(color) = widget.color {
+                self.quad(
+                    widget.computed_pos_maring_padding(),
+                    widget.computed_size_margin_padding(),
+                    color,
+                );
+            }
+
+            if !widget.text.is_empty() {
+                self.text(
+                    &widget.text,
+                    widget.computed_pos_maring_padding(),
+                    widget.computed_size_margin_padding(),
+                    widget.font_size,
+                    widget.text_color,
+                    widget.text_wrap,
+                );
+            }
         }
+
+        self.debug(ctx);
 
         //
         // Rendering
@@ -186,21 +175,15 @@ impl GUIRenderer {
 
         self.vertices.write(ctx, &self.dynamic_vertices);
         self.indices.write(ctx, &self.dynamic_indices);
-
-        let queue = render::queue(ctx);
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
                 render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
-
-        queue.submit(Some(encoder.finish()));
 
         //
         // Clear for next frame
@@ -210,10 +193,10 @@ impl GUIRenderer {
         }
         self.hot_last_frame = self.hot_this_frame.clone();
         self.hot_this_frame = String::new();
-        self.widgets_last = self.w_now.clone();
+        self.widgets_cache = self.widgets.clone();
         self.dynamic_vertices.clear();
         self.dynamic_indices.clear();
-        self.w_now = vec![widget::root_widget(ctx)];
+        self.widgets = vec![widget::root_widget(ctx)];
         self.layout_stack = vec![widget::root_index()];
     }
 
@@ -222,15 +205,18 @@ impl GUIRenderer {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
     }
 
-    // widgets
-    fn create_widget(&mut self, widget: Widget) -> usize {
-        let index = self.w_now.len();
+    /// Insert a widget into the widget tree
+    fn insert_widget(&mut self, mut widget: Widget) -> usize {
+        let index = self.widgets.len();
 
-        // add to parent's children
+        // widget -> parent pointer
+        widget.parent = self.get_layout();
+
+        // parent -> widget pointer
         self.get_widget_mut(widget.parent).children.push(index);
 
         // add to render tree
-        self.w_now.push(widget);
+        self.widgets.push(widget);
 
         index
     }
@@ -243,53 +229,53 @@ impl GUIRenderer {
             .pop()
             .expect("trying to pop layout when empty");
     }
-    pub(crate) fn get_layout(&mut self) -> usize {
+    pub(crate) fn get_layout(&self) -> usize {
         *self
             .layout_stack
             .last()
             .expect("trying to get layout when empty")
     }
 
-    pub(crate) fn get_widget_last_frame(&self, id: &str) -> Option<Widget> {
-        self.widgets_last.iter().find(|w| w.label == id).cloned()
+    pub(crate) fn get_widget_cached(&self, id: &str) -> Option<Widget> {
+        self.widgets_cache.iter().find(|w| w.label == id).cloned()
     }
 
     #[inline]
     pub(crate) fn get_widget(&self, index: usize) -> &Widget {
-        &self.w_now[index]
+        &self.widgets[index]
     }
     #[inline]
     pub(crate) fn get_widget_mut(&mut self, index: usize) -> &mut Widget {
-        &mut self.w_now[index]
+        &mut self.widgets[index]
     }
     #[inline]
     fn get_widget_parent(&self, index: usize) -> &Widget {
-        &self.w_now[self.w_now[index].parent]
+        &self.widgets[self.widgets[index].parent]
     }
 
-    fn children_size(&self, index: usize, axis: usize) -> f32 {
-        let children = &self.w_now[index].children;
+    fn get_children_size(&self, index: usize, axis: usize) -> f32 {
+        let children = &self.widgets[index].children;
         if children.is_empty() {
             return 0.0;
         }
 
         let mut children_sum = 0.0;
         for &child_i in children {
-            let child = &self.w_now[child_i];
+            let child = &self.widgets[child_i];
             children_sum += child.computed_size[axis];
         }
 
-        let gap_sum = (children.len() - 1) as f32 * self.w_now[index].gap;
+        let gap_sum = (children.len() - 1) as f32 * self.widgets[index].gap;
 
         children_sum + gap_sum
     }
 
-    fn children_max(&self, index: usize, axis: usize) -> f32 {
-        let children = &self.w_now[index].children;
+    fn get_children_max(&self, index: usize, axis: usize) -> f32 {
+        let children = &self.widgets[index].children;
 
         let mut children_max = 0.0f32;
         for &child_i in children {
-            let child = &self.w_now[child_i];
+            let child = &self.widgets[child_i];
             children_max = children_max.max(child.computed_size[axis]);
         }
 
@@ -330,28 +316,32 @@ impl GUIRenderer {
 
         self.text(
             &format!("fps: {}", time::fps(ctx)),
-            AABB::new(vec2(0.0, 0.0), vec2(0.5, font_size)),
+            vec2(0.0, 0.0),
+            vec2(0.5, font_size),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("hot: {}", self.hot_this_frame),
-            AABB::new(vec2(0.0, font_size), vec2(0.5, font_size)),
+            vec2(0.0, font_size),
+            vec2(0.5, font_size),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("hot last: {}", self.hot_last_frame),
-            AABB::new(vec2(0.0, font_size * 2.0), vec2(0.5, font_size)),
+            vec2(0.0, font_size * 2.0),
+            vec2(0.5, font_size),
             font_size,
             font_color,
             false,
         );
         self.text(
             &format!("active: {}", self.active),
-            AABB::new(vec2(0.0, font_size * 3.0), vec2(0.5, font_size)),
+            vec2(0.0, font_size * 3.0),
+            vec2(0.5, font_size),
             font_size,
             font_color,
             false,
@@ -392,3 +382,29 @@ impl VertexTrait for VertexUI {
         Self::desc()
     }
 }
+
+// use std::hash::{DefaultHasher, Hash, Hasher};
+// #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+// pub struct UiID {
+//     id: u64,
+// }
+//
+// impl UiID {
+//     pub const fn cleared() -> Self {
+//         let id = 0;
+//         Self { id }
+//     }
+//     pub fn new(label: &str) -> Self {
+//         let mut hasher = DefaultHasher::new();
+//         label.hash(&mut hasher);
+//         let id = hasher.finish();
+//         Self { id }
+//     }
+//     pub(crate) fn new_child(parent: u64, label: &str) -> Self {
+//         let mut hasher = DefaultHasher::new();
+//         label.hash(&mut hasher);
+//         parent.hash(&mut hasher);
+//         let id = hasher.finish();
+//         Self { id }
+//     }
+// }

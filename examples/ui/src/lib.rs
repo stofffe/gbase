@@ -15,7 +15,7 @@ pub struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(false)
+        gbase::ContextBuilder::new().vsync(true)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
@@ -113,6 +113,8 @@ impl Callbacks for App {
                 if Widget::new()
                     .label("btn")
                     .color(BLUE)
+                    .margin(10.0)
+                    .padding(10.0)
                     .button(ctx, renderer)
                     .clicked
                 {

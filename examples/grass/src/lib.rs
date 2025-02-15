@@ -4,6 +4,8 @@ use gbase::glam;
 use gbase::log;
 use gbase::wgpu;
 use gbase::winit;
+use gbase::winit::window::Window;
+use gbase::winit::window::WindowAttributes;
 use gbase::{collision, filesystem, input, render, time, Callbacks, Context};
 use gbase_utils::sobel_filter;
 use gbase_utils::Transform3D;
@@ -11,10 +13,7 @@ use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass_renderer::GrassRenderer;
 use std::f32::consts::PI;
 use winit::dpi::PhysicalSize;
-use winit::{
-    keyboard::KeyCode,
-    window::{CursorGrabMode, WindowBuilder},
-};
+use winit::{keyboard::KeyCode, window::CursorGrabMode};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -55,7 +54,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            .window_builder(WindowBuilder::new().with_maximized(true))
+            .window_attributes(Window::default_attributes().with_maximized(true))
             .vsync(false)
     }
     #[no_mangle]
@@ -267,7 +266,8 @@ impl Callbacks for App {
         if self.paused {
             self.gui_renderer.text(
                 "pause (esc)",
-                collision::AABB::new(vec2(0.0, 0.0), vec2(0.5, 0.5)),
+                vec2(0.0, 0.0),
+                vec2(0.5, 0.5),
                 0.05,
                 vec4(1.0, 1.0, 1.0, 1.0),
                 false,
@@ -296,7 +296,8 @@ impl Callbacks for App {
             for (i, text) in strings.iter().enumerate() {
                 self.gui_renderer.text(
                     text,
-                    collision::AABB::new(vec2(0.0, DEBUG_HEIGH * i as f32), vec2(0.5, 0.5)),
+                    vec2(0.0, DEBUG_HEIGH * i as f32),
+                    vec2(0.5, 0.5),
                     DEBUG_HEIGH,
                     DEBUG_COLOR,
                     false,

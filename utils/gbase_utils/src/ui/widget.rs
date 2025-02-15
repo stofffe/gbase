@@ -113,6 +113,12 @@ impl Widget {
     }
 }
 
+impl Default for Widget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 //
 // Interaction types
 //
@@ -120,45 +126,26 @@ impl Widget {
 impl Widget {
     // public api
     pub fn render(&mut self, renderer: &mut GUIRenderer) -> LayoutResult {
-        self.parent = renderer.get_layout();
-
-        let index = renderer.create_widget(self.clone());
-        LayoutResult { index }
-    }
-
-    pub fn layout(
-        &mut self,
-        renderer: &mut GUIRenderer,
-        children: impl FnOnce(&mut GUIRenderer),
-    ) -> LayoutResult {
-        self.parent = renderer.get_layout();
-
-        let index = renderer.create_widget(self.clone());
-
-        renderer.push_layout(index);
-        children(renderer);
-        renderer.pop_layout();
-
+        let index = renderer.insert_widget(self.clone());
         LayoutResult { index }
     }
 
     pub fn button(&mut self, ctx: &Context, renderer: &mut GUIRenderer) -> ButtonResult {
         debug_assert!(!self.label.is_empty(), "ui button must have a label");
 
-        self.parent = renderer.get_layout();
-
         let id = self.label.clone();
-
-        let widget_last_frame = renderer.get_widget_last_frame(&id);
-
         let mut clicked = false;
-        if let Some(last_widget) = widget_last_frame {
-            let bounds = last_widget.computed_bounds_margin();
-
+        if let Some(last_widget) = renderer.get_widget_cached(&id) {
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_up = input::mouse_button_released(ctx, input::MouseButton::Left);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
-            let inside = collision::point_aabb_collision(mouse_pos, bounds);
+            let inside = collision::point_aabb_collision(
+                mouse_pos,
+                AABB::from_top_left(
+                    last_widget.computed_pos_margin(),
+                    last_widget.computed_size_margin(),
+                ),
+            );
 
             if inside {
                 renderer.set_hot_this_frame(id.clone());
@@ -171,24 +158,9 @@ impl Widget {
                 }
             }
         };
-        let index = renderer.create_widget(self.clone());
+        let index = renderer.insert_widget(self.clone());
 
         ButtonResult { index, clicked }
-    }
-
-    pub fn button_layout(
-        &mut self,
-        ctx: &Context,
-        renderer: &mut GUIRenderer,
-        children: impl FnOnce(&mut GUIRenderer, ButtonResult),
-    ) -> ButtonResult {
-        let result = self.button(ctx, renderer);
-
-        renderer.push_layout(result.index);
-        children(renderer, result);
-        renderer.pop_layout();
-
-        result
     }
 
     pub fn slider(
@@ -201,14 +173,13 @@ impl Widget {
     ) -> SliderResult {
         debug_assert!(!self.label.is_empty(), "ui slider must have a label");
 
-        self.parent = renderer.get_layout();
-
         let id = self.label.clone();
+        if let Some(last_widget) = renderer.get_widget_cached(&id) {
+            let bounds = AABB::from_top_left(
+                last_widget.computed_pos + last_widget.margin,
+                last_widget.computed_size - last_widget.margin * 2.0,
+            );
 
-        let widget_last_frame = renderer.get_widget_last_frame(&id);
-
-        if let Some(last_widget) = widget_last_frame {
-            let bounds = last_widget.computed_bounds_margin();
             let mouse_pos = input::mouse_pos(ctx);
             let mouse_down = input::mouse_button_just_pressed(ctx, input::MouseButton::Left);
             let inside = collision::point_aabb_collision(mouse_pos, bounds);
@@ -229,12 +200,41 @@ impl Widget {
 
         let slider_pos = ((*value - min) / (max - min)).clamp(0.0, 1.0);
 
-        let index = renderer.create_widget(self.clone());
+        let index = renderer.insert_widget(self.clone());
 
         SliderResult {
             index,
             pos: slider_pos,
         }
+    }
+
+    pub fn layout(
+        &mut self,
+        renderer: &mut GUIRenderer,
+        children: impl FnOnce(&mut GUIRenderer),
+    ) -> LayoutResult {
+        let index = renderer.insert_widget(self.clone());
+
+        renderer.push_layout(index);
+        children(renderer);
+        renderer.pop_layout();
+
+        LayoutResult { index }
+    }
+
+    pub fn button_layout(
+        &mut self,
+        ctx: &Context,
+        renderer: &mut GUIRenderer,
+        children: impl FnOnce(&mut GUIRenderer, ButtonResult),
+    ) -> ButtonResult {
+        let result = self.button(ctx, renderer);
+
+        renderer.push_layout(result.index);
+        children(renderer, result);
+        renderer.pop_layout();
+
+        result
     }
 
     pub fn slider_layout(
@@ -255,46 +255,50 @@ impl Widget {
         result
     }
 
-    //
-    // private api
-    //
-    pub(crate) fn inner_render(&self, renderer: &mut GUIRenderer) {
-        let bounds = self.computed_bounds_margin();
-
-        // TODO: chaos
-        // let font_info = renderer.font_atlas.font_info.clone();
-        // bounds.size.y *= 2.0;
-        // bounds.size.y += font_info.padding_unorm * self.font_size;
-
-        if let Some(color) = self.color {
-            renderer.quad(bounds.pos, bounds.size, color);
-        }
-
-        if !self.text.is_empty() {
-            renderer.text(
-                &self.text,
-                bounds,
-                self.font_size,
-                self.text_color,
-                self.text_wrap,
-            );
-        }
-    }
-
-    pub(crate) fn computed_inner_pos(&self) -> Vec2 {
+    /// Top left position
+    ///
+    /// Including margin and padding
+    pub(crate) fn computed_pos_maring_padding(&self) -> Vec2 {
         self.computed_pos + self.margin + self.padding
     }
-    pub(crate) fn computed_inner_size(&self) -> Vec2 {
+
+    /// Size
+    ///
+    /// Including margin and padding
+    pub(crate) fn computed_size_margin_padding(&self) -> Vec2 {
         self.computed_size - self.margin * 2.0 - self.padding * 2.0
     }
-    pub(crate) fn computed_bounds_margin(&self) -> AABB {
-        let pos = self.computed_pos + self.margin;
-        let size = self.computed_size - self.margin * 2.0;
-        AABB::new(pos, size)
+
+    /// Top left position
+    ///
+    /// Including margin
+    pub(crate) fn computed_pos_margin(&self) -> Vec2 {
+        self.computed_pos + self.margin
+    }
+
+    /// Size
+    ///
+    /// Including margin
+    pub(crate) fn computed_size_margin(&self) -> Vec2 {
+        self.computed_size - self.margin * 2.0
+    }
+
+    /// Top left position
+    ///
+    /// Including padding
+    pub(crate) fn computed_pos_padding(&self) -> Vec2 {
+        self.computed_pos + self.padding
+    }
+
+    /// Size
+    ///
+    /// Including padding
+    pub(crate) fn computed_size_padding(&self) -> Vec2 {
+        self.computed_size - self.padding * 2.0
     }
 }
 
-// builder methods
+// Builder methods
 impl Widget {
     /// add label to identify widget for interactions
     pub fn label(mut self, value: impl Into<String>) -> Self {
