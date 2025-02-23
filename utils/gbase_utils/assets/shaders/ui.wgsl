@@ -12,7 +12,7 @@ struct VertexInput {
     @location(5) atlas_scale: vec2f,
     @location(6) color: vec4f,
     @location(7) @interpolate(flat) ty: u32,
-    @location(8) border_radius: f32,
+    @location(8) border_radius: vec4f,
 }
 
 const TYPE_SHAPE = 0u;
@@ -74,7 +74,7 @@ struct VertexOutput {
     @location(4) atlas_uv: vec2f,
     @location(5) color: vec4f,
     @location(6) @interpolate(flat) ty: u32,
-    @location(7) border_radius: f32,
+    @location(7) border_radius: vec4f,
 }
 
 @fragment
@@ -104,11 +104,30 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 // Utils
 //
 
-fn sdf_box_rounded(point: vec2f, extents: vec2f, radius: f32) -> f32 {
-    let q = abs(point) - extents + radius;
-    return min(max(q.x, q.y), 0.0) + length(max(q, vec2f(0.0))) - radius;
-}
-
 fn sdf_circle(point: vec2f, radius: f32) -> f32 {
     return length(point) - radius;
+}
+
+// x: tr
+// y: br
+// z: tl
+// w: bl
+
+// x: tr
+// z: tl
+// y: br
+// w: bl
+
+// fn sdf_box_rounded(point: vec2f, extents: vec2f, radius: vec4f) -> f32 {
+//     var r = select(radius.zw, radius.xy, point.x > 0.0); // Choose between left/right radii based on x
+//     r.x = select(r.y, r.x, point.y > 0.0); // Choose between top/bottom based on y
+//     let q = abs(point) - extents + r.x;
+//     return min(max(q.x, q.y), 0.0) + length(max(q, vec2f(0.0))) - r.x;
+// }
+
+fn sdf_box_rounded(point: vec2f, extents: vec2f, radius: vec4f) -> f32 {
+    var r = select(radius.xw, radius.yz, point.x > 0.0); // Choose between left/right radii based on x
+    r.x = select(r.y, r.x, point.y > 0.0); // Choose between top/bottom based on y
+    let q = abs(point) - extents + r.x;
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2f(0.0))) - r.x;
 }

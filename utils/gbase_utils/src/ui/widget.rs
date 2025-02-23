@@ -1,7 +1,7 @@
 use super::{GUIRenderer, BLACK};
 use gbase::{
     collision::{self, AABB},
-    glam::{vec2, Vec2, Vec4},
+    glam::{vec2, vec4, Vec2, Vec4},
     input,
     render::{self},
     Context,
@@ -51,27 +51,27 @@ pub enum Alignment {
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
-    pub label: String,
+    pub(crate) label: String,
     pub(crate) parent: usize,
 
-    pub width: SizeKind,
-    pub height: SizeKind,
+    pub(crate) width: SizeKind,
+    pub(crate) height: SizeKind,
 
-    pub direction: Direction,
-    pub padding: Vec2,
-    pub margin: Vec2,
-    pub border_radius: f32,
+    pub(crate) direction: Direction,
+    pub(crate) padding: Vec2,
+    pub(crate) margin: Vec2,
+    pub(crate) border_radius: Vec4, // (tr, br, tl, bl)
 
-    pub gap: f32,
+    pub(crate) gap: f32,
 
-    pub main_axis_alignment: Alignment,
-    pub cross_axis_alignment: Alignment,
+    pub(crate) main_axis_alignment: Alignment,
+    pub(crate) cross_axis_alignment: Alignment,
 
-    pub color: Option<Vec4>,
-    pub text: String,
-    pub text_color: Vec4,
-    pub font_size: f32,
-    pub text_wrap: bool,
+    pub(crate) color: Option<Vec4>,
+    pub(crate) text: String,
+    pub(crate) text_color: Vec4,
+    pub(crate) font_size: f32,
+    pub(crate) text_wrap: bool,
 
     // computed
     pub(crate) computed_pos: Vec2,
@@ -94,7 +94,7 @@ impl Widget {
             direction: Direction::Column,
             padding: Vec2::ZERO,
             margin: Vec2::ZERO,
-            border_radius: 0.0,
+            border_radius: Vec4::ZERO,
 
             gap: 0.0,
 
@@ -308,6 +308,7 @@ impl Widget {
         self.label = value.into();
         self
     }
+
     /// set sizing rules for main axis
     pub fn width(mut self, value: SizeKind) -> Self {
         self.width = value;
@@ -318,19 +319,16 @@ impl Widget {
         self.height = value;
         self
     }
+
     /// set layout direction of child elements
     pub fn direction(mut self, value: Direction) -> Self {
         self.direction = value;
         self
     }
+
     /// set uniform padding
     pub fn padding(mut self, value: f32) -> Self {
         self.padding = vec2(value, value);
-        self
-    }
-    /// set uniform margin
-    pub fn margin(mut self, value: f32) -> Self {
-        self.margin = vec2(value, value);
         self
     }
     /// set horizontal / vertical padding
@@ -338,21 +336,59 @@ impl Widget {
         self.padding = value;
         self
     }
+
+    /// set uniform margin
+    pub fn margin(mut self, value: f32) -> Self {
+        self.margin = vec2(value, value);
+        self
+    }
     /// set horizontal / vertical margin
     pub fn margin_hv(mut self, value: Vec2) -> Self {
         self.margin = value;
         self
     }
-    /// set border radius
+
+    /// set uniform border radius
     pub fn border_radius(mut self, value: f32) -> Self {
-        self.border_radius = value;
+        self.border_radius = vec4(value, value, value, value);
         self
     }
+    /// set uniform border radius for top corners
+    pub fn border_radius_top(mut self, value: f32) -> Self {
+        self.border_radius.x = value;
+        self.border_radius.y = value;
+        self
+    }
+    /// set uniform border radius for bottom corners
+    pub fn border_radius_bottom(mut self, value: f32) -> Self {
+        self.border_radius.z = value;
+        self.border_radius.w = value;
+        self
+    }
+    /// set uniform border radius for left corners
+    pub fn border_radius_left(mut self, value: f32) -> Self {
+        self.border_radius.x = value;
+        self.border_radius.w = value;
+        self
+    }
+    /// set uniform border radius for right corners
+    pub fn border_radius_right(mut self, value: f32) -> Self {
+        self.border_radius.y = value;
+        self.border_radius.z = value;
+        self
+    }
+    /// set uniform border radius for all corners
+    pub fn border_radius_all(mut self, tl: f32, tr: f32, br: f32, bl: f32) -> Self {
+        self.border_radius = vec4(tl, tr, br, bl);
+        self
+    }
+
     /// set gap between child elements on main axis
     pub fn gap(mut self, value: f32) -> Self {
         self.gap = value;
         self
     }
+
     /// set child alignment on main axis
     pub fn main_axis_alignment(mut self, value: Alignment) -> Self {
         self.main_axis_alignment = value;
@@ -363,11 +399,13 @@ impl Widget {
         self.cross_axis_alignment = value;
         self
     }
+
     /// set color of background
     pub fn color(mut self, value: Vec4) -> Self {
         self.color = Some(value);
         self
     }
+
     /// set text content
     pub fn text(mut self, value: impl Into<String>) -> Self {
         self.text = value.into();
@@ -434,7 +472,7 @@ pub fn root_widget(ctx: &Context) -> Widget {
         direction: Direction::Column,
         padding: Vec2::ZERO,
         margin: Vec2::ZERO,
-        border_radius: 0.0,
+        border_radius: Vec4::ZERO,
 
         gap: 0.0,
 

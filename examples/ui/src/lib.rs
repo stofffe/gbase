@@ -74,6 +74,7 @@ impl Callbacks for App {
                 let slider = Widget::new()
                     .label("slider")
                     .color(GRAY)
+                    .border_radius(10.0)
                     .height(SizeKind::Pixels(100.0))
                     .width(SizeKind::Pixels(500.0))
                     .direction(Direction::Row);
@@ -91,6 +92,7 @@ impl Callbacks for App {
                             .width(SizeKind::Pixels(10.0))
                             .height(SizeKind::Grow)
                             .color(BLUE)
+                            .border_radius(5.0)
                             .render(renderer);
                     },
                 );

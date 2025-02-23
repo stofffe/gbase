@@ -368,7 +368,7 @@ struct WidgetInstance {
     atlas_scale: [f32; 2],
     color: [f32; 4],
     ty: u32,
-    border_radius: f32,
+    border_radius: [f32; 4],
 }
 
 impl WidgetInstance {
@@ -380,7 +380,7 @@ impl WidgetInstance {
         5=>Float32x2,
         6=>Float32x4,
         7=>Uint32,
-        8=>Float32,
+        8=>Float32x4,
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {

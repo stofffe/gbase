@@ -6,7 +6,7 @@ impl GUIRenderer {
     ///
     /// Internal
     #[rustfmt::skip]
-    pub fn quad(&mut self, pos: Vec2, size: Vec2, color: Vec4, border_radius: f32) {
+    pub fn quad(&mut self, pos: Vec2, size: Vec2, color: Vec4, border_radius: Vec4) {
         self.instances.push(WidgetInstance {
             position: pos.into(),
             scale: size.into(),
@@ -14,7 +14,7 @@ impl GUIRenderer {
             atlas_scale: Vec2::ZERO.into(),
             color: color.into(),
             ty: 0,
-            border_radius,
+            border_radius: border_radius.into(),
         });
     }
 
@@ -83,7 +83,7 @@ impl GUIRenderer {
             atlas_scale: vec2(tdx, tdy).into(),
             color,
             ty: 1,
-            border_radius: 0.0,
+            border_radius: Vec4::ZERO.into(),
         });
 
         // let ty = VERTEX_TYPE_TEXT;
