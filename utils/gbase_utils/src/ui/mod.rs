@@ -3,17 +3,20 @@ mod fonts;
 mod shapes;
 mod widget;
 
+use std::{io::Empty, mem};
+
 pub use fonts::*;
 pub use widget::*;
 
-use crate::CameraProjection;
+use crate::{app_info, camera, AppInfoUniform, CameraProjection};
 use gbase::{
-    glam::{vec2, vec3},
+    glam::{vec2, vec3, Vec2},
     input,
-    render::{self, ArcBindGroup, ArcRenderPipeline},
-    time, wgpu, winit, Context,
+    render::{self, ArcBindGroup, ArcRenderPipeline, VertexUV},
+    time,
+    wgpu::{self, util::RenderEncoder},
+    winit, Context,
 };
-use render::VertexTrait;
 
 pub struct GUIRenderer {
     // logic
@@ -27,24 +30,19 @@ pub struct GUIRenderer {
     active: String,
 
     // render
-    dynamic_vertices: Vec<VertexUI>,
-    dynamic_indices: Vec<u32>,
-    vertices: render::VertexBuffer<VertexUI>,
+    vertices: render::VertexBuffer<VertexUV>,
     indices: render::IndexBuffer,
+    instances: Vec<WidgetInstance>,
+    instance_buffer: render::RawBuffer<WidgetInstance>,
+
     pipeline: ArcRenderPipeline,
-    font_atlas: FontAtlas,
     bindgroup: ArcBindGroup,
+    font_atlas: FontAtlas,
 
-    camera: crate::Camera,
-    camera_buffer: render::UniformBuffer<crate::CameraUniform>,
-}
+    camera: camera::Camera,
+    camera_buffer: render::UniformBuffer<camera::CameraUniform>,
 
-fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> crate::Camera {
-    crate::Camera::new(CameraProjection::orthographic(screen_size.height as f32)).pos(vec3(
-        screen_size.width as f32 / 2.0,
-        -(screen_size.height as f32 / 2.0),
-        1.0,
-    ))
+    app_info_buffer: render::UniformBuffer<app_info::AppInfoUniform>,
 }
 
 impl GUIRenderer {
@@ -55,19 +53,17 @@ impl GUIRenderer {
         font_bytes: &[u8],
         supported_chars: &str,
     ) -> Self {
-        let max_vertices = max_quads * 4;
-        let max_indices = max_quads * 6;
-
-        let dynamic_vertices = Vec::with_capacity(max_vertices);
-        let dynamic_indices = Vec::with_capacity(max_indices);
-
-        let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Empty(
-            max_vertices as u64,
+        let vertices =
+            render::VertexBufferBuilder::new(render::VertexBufferSource::Data(VERTICES.to_vec()))
+                .build(ctx);
+        let indices =
+            render::IndexBufferBuilder::new(render::IndexBufferSource::Data(INDICES.to_vec()))
+                .build(ctx);
+        let instances = Vec::new();
+        let instance_buffer = render::RawBufferBuilder::new(render::RawBufferSource::Size(
+            (max_quads * mem::size_of::<WidgetInstance>()) as u64,
         ))
         .build(ctx);
-        let indices =
-            render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_indices as u64))
-                .build(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
@@ -77,6 +73,9 @@ impl GUIRenderer {
             camera.uniform(ctx),
         ))
         .build(ctx);
+
+        let app_info_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         let shader =
             render::ShaderBuilder::new(include_str!("../../assets/shaders/ui.wgsl")).build(ctx);
@@ -93,6 +92,8 @@ impl GUIRenderer {
                     .fragment(),
                 // camera
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
+                // app info
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
             ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
@@ -103,6 +104,8 @@ impl GUIRenderer {
                 render::BindGroupEntry::Sampler(sampler),
                 // camera
                 render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                // app info
+                render::BindGroupEntry::Buffer(app_info_buffer.buffer()),
             ])
             .build(ctx);
 
@@ -110,7 +113,7 @@ impl GUIRenderer {
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(vec![vertices.desc()])
+            .buffers(vec![vertices.desc(), WidgetInstance::desc()])
             .single_target(
                 render::ColorTargetState::new()
                     .format(output_format)
@@ -119,10 +122,10 @@ impl GUIRenderer {
             .build(ctx);
 
         Self {
-            dynamic_vertices,
-            dynamic_indices,
             vertices,
             indices,
+            instances,
+            instance_buffer,
             pipeline,
             font_atlas,
             bindgroup,
@@ -136,6 +139,8 @@ impl GUIRenderer {
             hot_this_frame: String::new(),
             hot_last_frame: String::new(),
             active: String::new(),
+
+            app_info_buffer,
         }
     }
 
@@ -152,16 +157,15 @@ impl GUIRenderer {
                     widget.computed_pos_margin(),
                     widget.computed_size_margin(),
                     color,
+                    widget.border_radius,
                 );
             }
 
             if !widget.text.is_empty() {
                 self.text(
                     &widget.text,
-                    widget.computed_pos_margin_padding(),
-                    widget.computed_size_margin_padding(),
-                    // widget.computed_pos_margin(),
-                    // widget.computed_size_margin(),
+                    widget.computed_pos,
+                    widget.computed_size,
                     widget.font_size,
                     widget.text_color,
                     widget.text_wrap,
@@ -169,22 +173,23 @@ impl GUIRenderer {
             }
         }
 
-        // self.debug(ctx);
+        self.debug(ctx);
 
         //
         // Rendering
         //
 
-        self.vertices.write(ctx, &self.dynamic_vertices);
-        self.indices.write(ctx, &self.dynamic_indices);
+        self.instance_buffer.write(ctx, &self.instances);
+        self.app_info_buffer.write(ctx, &AppInfoUniform::new(ctx));
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
             .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
+                render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
                 render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
-                render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+                render_pass.draw_indexed(0..self.indices.len(), 0, 0..self.instances.len() as u32);
             });
 
         //
@@ -196,10 +201,10 @@ impl GUIRenderer {
         self.hot_last_frame = self.hot_this_frame.clone();
         self.hot_this_frame = String::new();
         self.widgets_cache = self.widgets.clone();
-        self.dynamic_vertices.clear();
-        self.dynamic_indices.clear();
         self.widgets = vec![widget::root_widget(ctx)];
         self.layout_stack = vec![widget::root_index()];
+
+        self.instances.clear();
     }
 
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -354,39 +359,59 @@ impl GUIRenderer {
     }
 }
 
-const VERTEX_TYPE_SHAPE: u32 = 0;
-const VERTEX_TYPE_TEXT: u32 = 1;
-
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct VertexUI {
-    pub position: [f32; 3],
-    pub ty: u32, // 0 shape, 1 text
-    pub color: [f32; 4],
-    pub uv: [f32; 2],
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct WidgetInstance {
+    position: [f32; 2], // uv coordinate system, (0,0) top left and y+ is down
+    scale: [f32; 2],
+    atlas_offset: [f32; 2],
+    atlas_scale: [f32; 2],
+    color: [f32; 4],
+    ty: u32,
+    border_radius: f32,
 }
 
-impl VertexUI {
+impl WidgetInstance {
+    // TODO: make this adapt to whats placed before
     const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,   // pos
-        1=>Uint32,      // ty
-        2=>Float32x4,   // color
-        3=>Float32x2,   // uv
+        2=>Float32x2,
+        3=>Float32x2,
+        4=>Float32x2,
+        5=>Float32x2,
+        6=>Float32x4,
+        7=>Uint32,
+        8=>Float32,
     ];
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
-            step_mode: wgpu::VertexStepMode::Vertex,
+            step_mode: wgpu::VertexStepMode::Instance,
             attributes: Self::ATTRIBUTES,
         }
     }
 }
 
-impl VertexTrait for VertexUI {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
-    }
+fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> crate::Camera {
+    crate::Camera::new(CameraProjection::orthographic(screen_size.height as f32)).pos(vec3(
+        screen_size.width as f32 / 2.0,
+        -(screen_size.height as f32 / 2.0),
+        1.0,
+    ))
 }
+
+#[rustfmt::skip]
+const VERTICES: &[render::VertexUV] = &[
+    render::VertexUV { position: [0.0,  0.0, 0.0], uv: [0.0, 0.0] }, // top left
+    render::VertexUV { position: [0.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [1.0,  0.0, 0.0], uv: [1.0, 0.0] }, // top right
+    render::VertexUV { position: [1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
+];
+
+#[rustfmt::skip]
+const INDICES: &[u32] = &[
+    0, 1, 2,
+    2, 1, 3
+];
 
 // use std::hash::{DefaultHasher, Hash, Hasher};
 // #[derive(Clone, Copy, Debug, Eq, PartialEq)]

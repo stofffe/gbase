@@ -1,4 +1,4 @@
-use super::{GUIRenderer, VertexUI, VERTEX_TYPE_SHAPE, VERTEX_TYPE_TEXT};
+use super::{GUIRenderer, WidgetInstance};
 use gbase::glam::{vec2, Vec2, Vec4};
 
 impl GUIRenderer {
@@ -6,24 +6,16 @@ impl GUIRenderer {
     ///
     /// Internal
     #[rustfmt::skip]
-    pub fn quad(&mut self, pos: Vec2, size: Vec2, color: Vec4) {
-        let (x, y) = (pos.x ,pos.y);
-        let (sx, sy) = (size.x, size.y);
-        let color = color.to_array();
-        let uv = [0.0,0.0];
-        let ty = VERTEX_TYPE_SHAPE;
-
-        let offset = self.dynamic_vertices.len() as u32;
-        self.dynamic_vertices.push(VertexUI { position: [x,      -y,        0.0], color, ty, uv }); // tl
-        self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], color, ty, uv }); // tr
-        self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], color, ty, uv }); // bl
-        self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], color, ty, uv }); // br
-        self.dynamic_indices.push(offset); // tl
-        self.dynamic_indices.push(offset + 1); // bl
-        self.dynamic_indices.push(offset + 2); // tr
-        self.dynamic_indices.push(offset + 2); // tr
-        self.dynamic_indices.push(offset + 1); // bl
-        self.dynamic_indices.push(offset + 3); // br
+    pub fn quad(&mut self, pos: Vec2, size: Vec2, color: Vec4, border_radius: f32) {
+        self.instances.push(WidgetInstance {
+            position: pos.into(),
+            scale: size.into(),
+            atlas_offset: Vec2::ZERO.into(),
+            atlas_scale: Vec2::ZERO.into(),
+            color: color.into(),
+            ty: 0,
+            border_radius,
+        });
     }
 
     // TODO scaling a bit weird
@@ -40,6 +32,7 @@ impl GUIRenderer {
         wrap: bool,
     ) {
         let base_offset = self.font_atlas.font_info.base_offset * font_size;
+        // let base_offset = 0;
 
         let mut global_offset = Vec2::ZERO;
         for letter in text.chars() {
@@ -67,7 +60,6 @@ impl GUIRenderer {
         }
     }
 
-    #[rustfmt::skip]
     /// pos \[0,1\]
     /// line height \[0,1\]
     pub fn letter(&mut self, pos: Vec2, font_size: f32, letter: char, color: Vec4) {
@@ -79,22 +71,33 @@ impl GUIRenderer {
         let scaled_dim = info.size_unorm * font_size;
 
         let (x, y) = (pos.x, pos.y);
-        let (sx, sy)= (scaled_dim.x, scaled_dim.y);
+        let (sx, sy) = (scaled_dim.x, scaled_dim.y);
         let (tox, toy) = (atlas_offset.x, atlas_offset.y);
-        let (tdx, tdy) =(atlas_dim.x, atlas_dim.y);
+        let (tdx, tdy) = (atlas_dim.x, atlas_dim.y);
         let color = color.to_array();
-        let ty = VERTEX_TYPE_TEXT;
 
-        let vertex_offset = self.dynamic_vertices.len() as u32;
-        self.dynamic_vertices.push(VertexUI { position: [x,      -y,        0.0], ty, color, uv: [tox,       toy      ] }); // tl
-        self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], ty, color, uv: [tox + tdx, toy      ] }); // tr
-        self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
-        self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
-        self.dynamic_indices.push(vertex_offset);     // tl
-        self.dynamic_indices.push(vertex_offset + 1); // bl
-        self.dynamic_indices.push(vertex_offset + 2); // tr
-        self.dynamic_indices.push(vertex_offset + 2); // tr
-        self.dynamic_indices.push(vertex_offset + 1); // bl
-        self.dynamic_indices.push(vertex_offset + 3); // br
+        self.instances.push(WidgetInstance {
+            position: vec2(x, y).into(),
+            scale: vec2(sx, sy).into(),
+            atlas_offset: vec2(tox, toy).into(),
+            atlas_scale: vec2(tdx, tdy).into(),
+            color,
+            ty: 1,
+            border_radius: 0.0,
+        });
+
+        // let ty = VERTEX_TYPE_TEXT;
+        //
+        // let vertex_offset = self.dynamic_vertices.len() as u32;
+        // self.dynamic_vertices.push(VertexUI { position: [x,      -y,        0.0], ty, color, uv: [tox,       toy      ] }); // tl
+        // self.dynamic_vertices.push(VertexUI { position: [x + sx, -y,        0.0], ty, color, uv: [tox + tdx, toy      ] }); // tr
+        // self.dynamic_vertices.push(VertexUI { position: [x,      -(y + sy), 0.0], ty, color, uv: [tox,       toy + tdy] }); // bl
+        // self.dynamic_vertices.push(VertexUI { position: [x + sx, -(y + sy), 0.0], ty, color, uv: [tox + tdx, toy + tdy] }); // br
+        // self.dynamic_indices.push(vertex_offset);     // tl
+        // self.dynamic_indices.push(vertex_offset + 1); // bl
+        // self.dynamic_indices.push(vertex_offset + 2); // tr
+        // self.dynamic_indices.push(vertex_offset + 2); // tr
+        // self.dynamic_indices.push(vertex_offset + 1); // bl
+        // self.dynamic_indices.push(vertex_offset + 3); // br
     }
 }

@@ -408,7 +408,7 @@ impl Callbacks for App {
             0
         };
 
-        let flap_sound = audio::load_audio_source(ctx, load_b!("sounds/flap.mp3").unwrap());
+        let flap_sound = audio::load_audio_source(ctx, load_b!("sounds/boom.mp3").unwrap());
         let die_sound = audio::load_audio_source(ctx, load_b!("sounds/die.mp3").unwrap());
         let hit_sound = audio::load_audio_source(ctx, load_b!("sounds/hit.mp3").unwrap());
         let point_sound = audio::load_audio_source(ctx, load_b!("sounds/point.mp3").unwrap());
@@ -451,7 +451,7 @@ impl Callbacks for App {
             println!("hot restart");
         }
 
-        let mut gui_root = Widget::new()
+        let gui_root = Widget::new()
             .width(SizeKind::PercentOfParent(1.0))
             .height(SizeKind::PercentOfParent(1.0))
             .main_axis_alignment(Alignment::Center)

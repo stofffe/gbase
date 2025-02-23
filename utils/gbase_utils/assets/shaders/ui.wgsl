@@ -1,17 +1,28 @@
+diagnostic (off, derivative_uniformity);
+
 struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) @interpolate(flat) ty: u32, // 0 shape 1 text
-    @location(2) color: vec4<f32>,
-    @location(3) uv: vec2<f32>,
+    // vertex attr
+    @location(0) position: vec3f,
+    @location(1) uv: vec2f,
+
+    // instance attr
+    @location(2) top_left_pos: vec2f,
+    @location(3) scale: vec2f,
+    @location(4) atlas_offset: vec2f,
+    @location(5) atlas_scale: vec2f,
+    @location(6) color: vec4f,
+    @location(7) @interpolate(flat) ty: u32,
+    @location(8) border_radius: f32,
 }
-;
 
 const TYPE_SHAPE = 0u;
 const TYPE_TEXT = 1u;
+const EDGE_SOFTNESS = 1.5;
 
-@group(0) @binding(0) var letter_tex: texture_2d<f32>;
-@group(0) @binding(1) var letter_sampler: sampler;
+@group(0) @binding(0) var font_tex: texture_2d<f32>;
+@group(0) @binding(1) var font_sampler: sampler;
 @group(0) @binding(2) var<uniform> camera: CameraUniform;
+@group(0) @binding(3) var<uniform> app_info: AppInfo;
 
 struct CameraUniform {
     pos: vec3<f32>,
@@ -25,17 +36,29 @@ struct CameraUniform {
     inv_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>,
 }
-;
+
+struct AppInfo {
+    t: f32,
+    screen_width: u32,
+    screen_height: u32,
+}
 
 @vertex
 fn vs_main(
     in: VertexInput,
 ) -> VertexOutput {
     var out: VertexOutput;
-    out.clip_position = camera.view_proj * vec4<f32>(in.position, 1.0);
-    out.color = in.color;
+
+    let world_pos = (in.scale * in.position.xy) + in.top_left_pos * vec2f(1.0, -1.0);
+    out.world_pos = world_pos;
+    out.scale = in.scale;
+    out.center = (in.top_left_pos + in.scale * 0.5) * vec2f(1.0, -1.0);
     out.uv = in.uv;
+    out.atlas_uv = in.uv * in.atlas_scale + in.atlas_offset;
+    out.color = in.color;
     out.ty = in.ty;
+    out.border_radius = in.border_radius;
+    out.clip_position = camera.view_proj * vec4<f32>(world_pos, 0.0, 1.0);
 
     return out;
 }
@@ -43,20 +66,49 @@ fn vs_main(
 // Fragment shader
 
 struct VertexOutput {
-    @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4<f32>,
-    @location(1) @interpolate(flat) ty: u32,
-    @location(2) uv: vec2<f32>,
+    @builtin(position) clip_position: vec4f,
+    @location(0) world_pos: vec2f,
+    @location(1) scale: vec2f,
+    @location(2) center: vec2f,
+    @location(3) uv: vec2f,
+    @location(4) atlas_uv: vec2f,
+    @location(5) color: vec4f,
+    @location(6) @interpolate(flat) ty: u32,
+    @location(7) border_radius: f32,
 }
-;
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    // Have to sample outside
-    let alpha = textureSample(letter_tex, letter_sampler, in.uv).x;
+    var alpha = 1.0;
 
     if in.ty == TYPE_TEXT {
-        return vec4<f32>(in.color.xyz, alpha);
+        // font lookup
+        alpha = min(alpha, textureSample(font_tex, font_sampler, in.atlas_uv).x);
     }
-    return in.color;
+
+    if in.ty == TYPE_SHAPE {
+        // rounded borders
+        let dist = sdf_box_rounded(in.world_pos - in.center, in.scale / 2.0, in.border_radius);
+        let edge_alpha = 1.0 - smoothstep(0.0, EDGE_SOFTNESS, dist);
+        alpha = min(alpha, edge_alpha);
+
+        if alpha <= 0.0 {
+            discard;
+        }
+    }
+
+    return vec4f(in.color.xyz, alpha);
+}
+
+//
+// Utils
+//
+
+fn sdf_box_rounded(point: vec2f, extents: vec2f, radius: f32) -> f32 {
+    let q = abs(point) - extents + radius;
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2f(0.0))) - radius;
+}
+
+fn sdf_circle(point: vec2f, radius: f32) -> f32 {
+    return length(point) - radius;
 }

@@ -33,7 +33,7 @@ impl GizmoRenderer {
     ) -> Self {
         let dynamic_vertex_buffer = Vec::with_capacity(GIZMO_MAX_VERTICES);
         let dynamic_index_buffer = Vec::with_capacity(GIZMO_MAX_INDICES);
-        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Empty(
+        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Size(
             GIZMO_MAX_VERTICES as u64,
         ))
         .build(ctx);

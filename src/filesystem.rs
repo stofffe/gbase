@@ -13,7 +13,7 @@ impl FileSystemContext {
 // Commands
 //
 
-pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
+pub fn store_bytes(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -30,7 +30,7 @@ pub fn store_bytes(ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()>
     Ok(())
 }
 
-pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
+pub fn load_bytes(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -49,7 +49,7 @@ pub fn load_bytes(ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     Ok(fs::read(path)?)
 }
 
-pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
+pub fn store_str(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -66,7 +66,7 @@ pub fn store_str(ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn load_str(ctx: &Context, path: &str) -> anyhow::Result<String> {
+pub fn load_str(_ctx: &Context, path: &str) -> anyhow::Result<String> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]

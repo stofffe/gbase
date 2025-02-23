@@ -51,26 +51,27 @@ pub enum Alignment {
 #[derive(Debug, Clone)]
 pub struct Widget {
     // data
-    pub(crate) label: String,
+    pub label: String,
     pub(crate) parent: usize,
 
-    pub(crate) width: SizeKind,
-    pub(crate) height: SizeKind,
+    pub width: SizeKind,
+    pub height: SizeKind,
 
-    pub(crate) direction: Direction,
-    pub(crate) padding: Vec2,
-    pub(crate) margin: Vec2,
+    pub direction: Direction,
+    pub padding: Vec2,
+    pub margin: Vec2,
+    pub border_radius: f32,
 
-    pub(crate) gap: f32,
+    pub gap: f32,
 
-    pub(crate) main_axis_alignment: Alignment,
-    pub(crate) cross_axis_alignment: Alignment,
+    pub main_axis_alignment: Alignment,
+    pub cross_axis_alignment: Alignment,
 
-    pub(crate) color: Option<Vec4>,
-    pub(crate) text: String,
-    pub(crate) text_color: Vec4,
-    pub(crate) font_size: f32,
-    pub(crate) text_wrap: bool,
+    pub color: Option<Vec4>,
+    pub text: String,
+    pub text_color: Vec4,
+    pub font_size: f32,
+    pub text_wrap: bool,
 
     // computed
     pub(crate) computed_pos: Vec2,
@@ -93,6 +94,8 @@ impl Widget {
             direction: Direction::Column,
             padding: Vec2::ZERO,
             margin: Vec2::ZERO,
+            border_radius: 0.0,
+
             gap: 0.0,
 
             main_axis_alignment: Alignment::Start,
@@ -125,12 +128,12 @@ impl Default for Widget {
 
 impl Widget {
     // public api
-    pub fn render(&mut self, renderer: &mut GUIRenderer) -> LayoutResult {
-        let index = renderer.insert_widget(self.clone());
+    pub fn render(self, renderer: &mut GUIRenderer) -> LayoutResult {
+        let index = renderer.insert_widget(self);
         LayoutResult { index }
     }
 
-    pub fn button(&mut self, ctx: &Context, renderer: &mut GUIRenderer) -> ButtonResult {
+    pub fn button(self, ctx: &Context, renderer: &mut GUIRenderer) -> ButtonResult {
         debug_assert!(!self.label.is_empty(), "ui button must have a label");
 
         let id = self.label.clone();
@@ -158,13 +161,13 @@ impl Widget {
                 }
             }
         };
-        let index = renderer.insert_widget(self.clone());
+        let index = renderer.insert_widget(self);
 
         ButtonResult { index, clicked }
     }
 
     pub fn slider(
-        &mut self,
+        self,
         ctx: &Context,
         renderer: &mut GUIRenderer,
         min: f32,
@@ -200,7 +203,7 @@ impl Widget {
 
         let slider_pos = ((*value - min) / (max - min)).clamp(0.0, 1.0);
 
-        let index = renderer.insert_widget(self.clone());
+        let index = renderer.insert_widget(self);
 
         SliderResult {
             index,
@@ -209,11 +212,11 @@ impl Widget {
     }
 
     pub fn layout(
-        &mut self,
+        self,
         renderer: &mut GUIRenderer,
         children: impl FnOnce(&mut GUIRenderer),
     ) -> LayoutResult {
-        let index = renderer.insert_widget(self.clone());
+        let index = renderer.insert_widget(self);
 
         renderer.push_layout(index);
         children(renderer);
@@ -223,7 +226,7 @@ impl Widget {
     }
 
     pub fn button_layout(
-        &mut self,
+        self,
         ctx: &Context,
         renderer: &mut GUIRenderer,
         children: impl FnOnce(&mut GUIRenderer, ButtonResult),
@@ -238,7 +241,7 @@ impl Widget {
     }
 
     pub fn slider_layout(
-        &mut self,
+        self,
         ctx: &Context,
         renderer: &mut GUIRenderer,
         min: f32,
@@ -340,6 +343,11 @@ impl Widget {
         self.margin = value;
         self
     }
+    /// set border radius
+    pub fn border_radius(mut self, value: f32) -> Self {
+        self.border_radius = value;
+        self
+    }
     /// set gap between child elements on main axis
     pub fn gap(mut self, value: f32) -> Self {
         self.gap = value;
@@ -426,6 +434,8 @@ pub fn root_widget(ctx: &Context) -> Widget {
         direction: Direction::Column,
         padding: Vec2::ZERO,
         margin: Vec2::ZERO,
+        border_radius: 0.0,
+
         gap: 0.0,
 
         main_axis_alignment: Alignment::Start,

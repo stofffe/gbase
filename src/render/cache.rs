@@ -1,8 +1,11 @@
-use crate::render::{
-    self, ArcBindGroup, ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout,
-    ArcRenderPipeline, ArcSampler, ArcShaderModule, ArcTexture, BindGroupBuilder,
-    BindGroupLayoutBuilder, ComputePipelineBuilder, PipelineLayoutBuilder, RenderPipelineBuilder,
-    SamplerBuilder, ShaderBuilder, TextureBuilder, TextureViewBuilder,
+use crate::{
+    render::{
+        self, ArcBindGroup, ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout,
+        ArcRenderPipeline, ArcSampler, ArcShaderModule, ArcTexture, BindGroupBuilder,
+        BindGroupLayoutBuilder, ComputePipelineBuilder, PipelineLayoutBuilder,
+        RenderPipelineBuilder, SamplerBuilder, ShaderBuilder, TextureBuilder, TextureViewBuilder,
+    },
+    Context,
 };
 use std::collections::HashMap;
 
@@ -32,4 +35,9 @@ impl RenderCache {
             texture_views: HashMap::new(),
         }
     }
+}
+
+/// Clear all caches
+pub fn clear_cache(ctx: &mut Context) {
+    ctx.render.cache = RenderCache::empty();
 }

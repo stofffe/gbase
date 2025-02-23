@@ -7,8 +7,7 @@ use gbase::winit::window::Window;
 use gbase::Context;
 use gbase::{filesystem, glam, input, render, time, wgpu, winit};
 use gbase_utils::{
-    gamma_correction, gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE,
-    GRAY, GREEN, RED,
+    gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,
 };
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::f32::consts::PI;
@@ -410,7 +409,7 @@ impl App {
         let params_old = self.cloud_params.clone();
 
         let renderer = &mut self.ui_renderer;
-        let mut outer = Widget::new()
+        let outer = Widget::new()
             .direction(Direction::Column)
             .width(SizeKind::PercentOfParent(1.0))
             .height(SizeKind::PercentOfParent(1.0))
@@ -438,7 +437,7 @@ impl App {
                 .height(SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
-            let mut params = Widget::new()
+            let params = Widget::new()
                 .width(SizeKind::ChildrenSum)
                 .height(SizeKind::ChildrenSum)
                 .direction(Direction::Row)
@@ -498,7 +497,7 @@ impl App {
                 .height(SizeKind::TextSize)
                 .text_font_size(FONT_SIZE)
                 .render(renderer);
-            let mut resolution = Widget::new()
+            let resolution = Widget::new()
                 .width(SizeKind::ChildrenSum)
                 .height(SizeKind::ChildrenSum)
                 .direction(Direction::Row)
@@ -551,7 +550,7 @@ impl App {
                 }
             });
 
-            let mut store_layout = Widget::new()
+            let store_layout = Widget::new()
                 .width(SizeKind::ChildrenSum)
                 .height(SizeKind::ChildrenSum)
                 .direction(Direction::Row)

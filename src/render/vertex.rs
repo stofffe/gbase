@@ -15,7 +15,7 @@ pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
 
 pub enum VertexBufferSource<T: VertexTrait> {
     Data(Vec<T>),
-    Empty(u64),
+    Size(u64),
 }
 
 pub struct VertexBufferBuilder<T: VertexTrait> {
@@ -49,7 +49,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
                     ty: PhantomData::<T>,
                 }
             }
-            VertexBufferSource::Empty(capacity) => {
+            VertexBufferSource::Size(capacity) => {
                 let buffer = device.create_buffer(&wgpu::BufferDescriptor {
                     label: self.label.as_deref(),
                     size: capacity * std::mem::size_of::<T>() as u64,

@@ -1,6 +1,6 @@
 use gbase::{
     input::{self, KeyCode},
-    log, render, Callbacks, Context,
+    log, Callbacks, Context,
 };
 
 pub fn main() {

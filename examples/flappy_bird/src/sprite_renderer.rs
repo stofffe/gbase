@@ -31,7 +31,7 @@ impl SpriteRenderer {
         let indices = Vec::new();
 
         let vertex_buffer =
-            render::VertexBufferBuilder::new(render::VertexBufferSource::Empty(max_sprites * 4))
+            render::VertexBufferBuilder::new(render::VertexBufferSource::Size(max_sprites * 4))
                 .build(ctx);
         let index_buffer =
             render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_sprites * 6))

@@ -1,6 +1,5 @@
 use encase::ShaderType;
 use gbase::{filesystem, load_b, render, wgpu, Context};
-use gbase_utils::image::GenericImageView;
 
 #[derive(ShaderType)]
 struct NoiseGeneratorUniforms {

@@ -16,7 +16,7 @@ pub struct App {
 
 impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(false)
+        gbase::ContextBuilder::new().vsync(true)
     }
 
     fn new(ctx: &mut Context) -> Self {

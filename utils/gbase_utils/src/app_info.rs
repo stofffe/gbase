@@ -66,3 +66,13 @@ pub struct AppInfoUniform {
     screen_width: u32,
     screen_height: u32,
 }
+
+impl AppInfoUniform {
+    pub fn new(ctx: &Context) -> Self {
+        Self {
+            time_passed: time::time_since_start(ctx),
+            screen_width: render::surface_size(ctx).width,
+            screen_height: render::surface_size(ctx).height,
+        }
+    }
+}

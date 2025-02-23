@@ -7,7 +7,7 @@ use gbase::{
     winit::dpi::PhysicalSize,
     Callbacks, Context,
 };
-use gbase_utils::{image::load_from_memory_with_format, Transform3D, BLACK, WHITE};
+use gbase_utils::{Transform3D, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {

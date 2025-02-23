@@ -1,4 +1,5 @@
 use super::{Alignment, Direction, GUIRenderer, SizeKind};
+use gbase::log;
 
 impl GUIRenderer {
     // PRE
@@ -49,11 +50,13 @@ impl GUIRenderer {
         let height = this.height;
         let text_wrap = this.text_wrap;
 
+        let wrap_width = parent_width;
+
         if let SizeKind::TextSize = width {
             let (text_size, _) = self.font_atlas.text_size(
                 &self.get_widget(index).text,
                 font_size,
-                if text_wrap { Some(parent_width) } else { None },
+                if text_wrap { Some(wrap_width) } else { None },
             );
 
             self.get_widget_mut(index).computed_size[0] = text_size[0];
@@ -62,8 +65,9 @@ impl GUIRenderer {
             let (text_size, _) = self.font_atlas.text_size(
                 &self.get_widget(index).text,
                 font_size,
-                if text_wrap { Some(parent_width) } else { None },
+                if text_wrap { Some(wrap_width) } else { None },
             );
+            // log::warn!("SIZE: {:?}", text_size);
 
             self.get_widget_mut(index).computed_size[1] = text_size[1];
         }

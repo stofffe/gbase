@@ -1,7 +1,7 @@
 use gbase::{
     filesystem,
     input::{self, KeyCode},
-    render::{self, surface_format, ArcTextureView},
+    render::{self, ArcTextureView},
     wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
