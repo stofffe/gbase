@@ -1,7 +1,7 @@
 use gbase::{
     glam::{Mat4, Quat, Vec3},
     log,
-    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
+    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline, VertexTrait as _},
     wgpu, Context,
 };
 

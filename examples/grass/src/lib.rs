@@ -250,17 +250,17 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
 
-            #[cfg(not(target_arch = "wasm32"))]
-            {
-                render::window(ctx)
-                    .set_cursor_grab(if self.paused {
-                        CursorGrabMode::None
-                    } else {
-                        CursorGrabMode::Locked
-                    })
-                    .expect("could not set grab mode");
-                render::window(ctx).set_cursor_visible(self.paused);
-            }
+            // #[cfg(not(target_arch = "wasm32"))]
+            // {
+            //     render::window(ctx)
+            //         .set_cursor_grab(if self.paused {
+            //             CursorGrabMode::None
+            //         } else {
+            //             CursorGrabMode::Locked
+            //         })
+            //         .expect("could not set grab mode");
+            //     render::window(ctx).set_cursor_visible(self.paused);
+            // }
         }
         if self.paused {
             self.gui_renderer.text(
@@ -277,7 +277,7 @@ impl Callbacks for App {
         self.plane_transform.pos.x = self.camera.pos.x;
         self.plane_transform.pos.z = self.camera.pos.z;
 
-        self.camera_movement(ctx);
+        self.camera.flying_controls(ctx);
 
         // debug camera pos
         if input::key_pressed(ctx, KeyCode::KeyC) {
@@ -305,46 +305,6 @@ impl Callbacks for App {
         }
 
         false
-    }
-}
-
-impl App {
-    fn camera_movement(&mut self, ctx: &mut Context) {
-        let dt = gbase::time::delta_time(ctx);
-
-        // Camera rotation
-        let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-        self.camera.yaw -= 1.0 * dt * mouse_dx;
-        self.camera.pitch -= 1.0 * dt * mouse_dy;
-
-        // Camera movement
-        let mut camera_movement_dir = Vec3::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
-            camera_movement_dir += self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyS) {
-            camera_movement_dir -= self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
-            camera_movement_dir -= self.camera.right();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
-            camera_movement_dir += self.camera.right();
-        }
-        camera_movement_dir.y = 0.0;
-        if input::key_pressed(ctx, KeyCode::Space) {
-            camera_movement_dir += self.camera.world_up();
-        }
-        if input::key_pressed(ctx, KeyCode::ShiftLeft) {
-            camera_movement_dir -= self.camera.world_up();
-        }
-        if camera_movement_dir != Vec3::ZERO {
-            if input::key_pressed(ctx, KeyCode::KeyM) {
-                self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED / 10.0;
-            } else {
-                self.camera.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED;
-            }
-        }
     }
 }
 

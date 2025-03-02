@@ -99,6 +99,7 @@ impl FontAtlas {
             None => panic!("trying to get unsupported letter \"{}\"", letter), // TODO default
         }
     }
+    /// Return size of text and amount of lines
     pub fn text_size(&self, text: &str, font_size: f32, wrap_width: Option<f32>) -> (Vec2, u32) {
         let mut size = Vec2::ZERO;
         let mut lines = 1;

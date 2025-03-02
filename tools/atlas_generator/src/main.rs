@@ -1,6 +1,6 @@
 use clap::Parser;
-use image::{GenericImage, GenericImageView, ImageEncoder, Rgba};
-use std::{cmp, fs, io::Read};
+use image::{GenericImage, ImageEncoder, Rgba};
+use std::{cmp, fs};
 
 #[derive(clap::Parser)]
 struct Cli {

@@ -1,7 +1,7 @@
 use gbase::{
     filesystem,
     glam::{Quat, Vec3},
-    render::{self, ArcBindGroup, ArcRenderPipeline, Vertex},
+    render::{self, ArcBindGroup, ArcRenderPipeline, Vertex, VertexTrait as _},
     wgpu, Callbacks, Context,
 };
 use gbase_utils::Transform3D;

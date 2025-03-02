@@ -366,22 +366,22 @@ struct GrassInstanceGPU {
 
 impl GrassInstanceGPU {
     const SIZE: u64 = std::mem::size_of::<Self>() as u64;
-    const ATTRIBUTES: [wgpu::VertexAttribute; 9] = wgpu::vertex_attr_array![
-        1=>Float32x3,   // pos
-        2=>Uint32,      // hash
-        3=>Float32x2,   // facing
-        4=>Float32,     // wind
-        5=>Float32,     // pad
-        6=>Float32,     // height
-        7=>Float32,     // tilt
-        8=>Float32,     // bend
-        9=>Float32,     // width
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+    pub fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: Self::SIZE,
             step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                1=>Float32x3,   // pos
+                2=>Uint32,      // hash
+                3=>Float32x2,   // facing
+                4=>Float32,     // wind
+                5=>Float32,     // pad
+                6=>Float32,     // height
+                7=>Float32,     // tilt
+                8=>Float32,     // bend
+                9=>Float32,     // width
+            ]
+            .to_vec(),
         }
     }
 }

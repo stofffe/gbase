@@ -1,5 +1,4 @@
 use super::{Alignment, Direction, GUIRenderer, SizeKind};
-use gbase::log;
 
 impl GUIRenderer {
     // PRE

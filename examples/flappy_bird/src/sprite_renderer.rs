@@ -315,24 +315,18 @@ pub struct VertexSprite {
     pub uses_texture: f32,
 }
 
-impl VertexSprite {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,  // pos
-        1=>Float32x4,  // color
-        2=>Float32x2,  // uv
-        3=>Float32,    // uses texture
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexSprite {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,  // pos
+                1=>Float32x4,  // color
+                2=>Float32x2,  // uv
+                3=>Float32,    // uses texture
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexSprite {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }

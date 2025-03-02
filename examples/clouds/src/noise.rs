@@ -42,16 +42,12 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::TextureWithView
     #[cfg(not(feature = "hot_reload"))]
     let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
-    let (bindgroup_layout, bindgroup) = render::BindGroupCombinedBuilder::new()
+    let bindgroup_layout = render::BindGroupLayoutBuilder::new()
         .entries(vec![
             // app info
-            render::BindGroupCombinedEntry::new(render::BindGroupEntry::Buffer(
-                noise_generator_info.buffer(),
-            ))
-            .uniform()
-            .compute(),
+            render::BindGroupLayoutEntry::new().uniform().compute(),
             // output texture
-            render::BindGroupCombinedEntry::new(render::BindGroupEntry::Texture(texture.view()))
+            render::BindGroupLayoutEntry::new()
                 .ty(wgpu::BindingType::StorageTexture {
                     access: wgpu::StorageTextureAccess::WriteOnly,
                     format: wgpu::TextureFormat::Rgba8Unorm,
@@ -60,6 +56,16 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::TextureWithView
                 .compute(),
         ])
         .build(ctx);
+
+    let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+        .entries(vec![
+            // app info
+            render::BindGroupEntry::Buffer(noise_generator_info.buffer()),
+            // output texture
+            render::BindGroupEntry::Texture(texture.view()),
+        ])
+        .build(ctx);
+
     let compute_pipeline_layoyt = render::PipelineLayoutBuilder::new()
         .bind_groups(vec![bindgroup_layout])
         .build(ctx);

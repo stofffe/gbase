@@ -113,7 +113,7 @@ fn tmp_path_format(path: &str) -> String {
 /// Debug:      Load using `std::fs::read`
 /// Release:    Load using `load_bytes!`
 ///
-/// WASM: Always use `load_bytes!`
+/// WASM: Always uses `load_bytes!`
 ///
 /// # Examples
 /// ```
@@ -143,7 +143,7 @@ macro_rules! load_b {
 /// Debug:      Load using `std::fs::read_to_string`
 /// Release:    Load using `load_str!`
 ///
-/// WASM: Always use `load_str!`
+/// WASM: Always uses `load_str!`
 ///
 /// # Examples
 /// ```

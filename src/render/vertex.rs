@@ -6,7 +6,7 @@ use std::{marker::PhantomData, ops::RangeBounds};
 use wgpu::util::DeviceExt;
 
 pub trait VertexTrait: bytemuck::Pod + bytemuck::Zeroable {
-    fn desc() -> wgpu::VertexBufferLayout<'static>;
+    fn desc() -> render::VertexBufferLayout;
 }
 
 //
@@ -102,7 +102,7 @@ impl<T: VertexTrait> VertexBuffer<T> {
         self.len = data.len() as u32;
     }
 
-    pub fn desc(&self) -> wgpu::VertexBufferLayout<'static> {
+    pub fn desc(&self) -> render::VertexBufferLayout {
         T::desc()
     }
 
@@ -240,22 +240,16 @@ pub struct Vertex {
     pub position: [f32; 3],
 }
 
-impl Vertex {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for Vertex {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for Vertex {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }
 
@@ -266,23 +260,17 @@ pub struct VertexUV {
     pub uv: [f32; 2],
 }
 
-impl VertexUV {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Float32x2,
-    ];
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexUV {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,
+                1=>Float32x2,
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexUV {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }
 
@@ -293,23 +281,17 @@ pub struct VertexColor {
     pub color: [f32; 3],
 }
 
-impl VertexColor {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Float32x3,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexColor {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,
+                1=>Float32x3,
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexColor {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }
 
@@ -321,24 +303,18 @@ pub struct VertexColorUV {
     pub uv: [f32; 2],
 }
 
-impl VertexColorUV {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Float32x3,
-        2=>Float32x2,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexColorUV {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,
+                1=>Float32x3,
+                2=>Float32x2,
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexColorUV {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }
 
@@ -349,23 +325,17 @@ pub struct VertexNormal {
     pub normal: [f32; 3],
 }
 
-impl VertexNormal {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3,
-        1=>Float32x3
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexNormal {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3,
+                1=>Float32x3
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexNormal {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }
 
@@ -379,25 +349,19 @@ pub struct VertexFull {
     pub tangent: [f32; 4],
 }
 
-impl VertexFull {
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        0=>Float32x3, // pos
-        1=>Float32x4, // color
-        2=>Float32x3, // normal
-        3=>Float32x2, // uv
-        4=>Float32x4, // tangent
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
+impl VertexTrait for VertexFull {
+    fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: Self::ATTRIBUTES,
+            attributes: wgpu::vertex_attr_array![
+                0=>Float32x3, // pos
+                1=>Float32x4, // color
+                2=>Float32x3, // normal
+                3=>Float32x2, // uv
+                4=>Float32x4, // tangent
+            ]
+            .to_vec(),
         }
-    }
-}
-
-impl VertexTrait for VertexFull {
-    fn desc() -> wgpu::VertexBufferLayout<'static> {
-        Self::desc()
     }
 }

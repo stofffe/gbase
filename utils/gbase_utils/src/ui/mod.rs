@@ -3,20 +3,19 @@ mod fonts;
 mod shapes;
 mod widget;
 
-use std::{io::Empty, mem};
-
 pub use fonts::*;
 pub use widget::*;
 
 use crate::{app_info, camera, AppInfoUniform, CameraProjection};
 use gbase::{
-    glam::{vec2, vec3, Vec2},
+    glam::{vec2, vec3},
     input,
     render::{self, ArcBindGroup, ArcRenderPipeline, VertexUV},
     time,
-    wgpu::{self, util::RenderEncoder},
+    wgpu::{self},
     winit, Context,
 };
+use std::mem;
 
 pub struct GUIRenderer {
     // logic
@@ -372,22 +371,19 @@ struct WidgetInstance {
 }
 
 impl WidgetInstance {
-    // TODO: make this adapt to whats placed before
-    const ATTRIBUTES: &'static [wgpu::VertexAttribute] = &wgpu::vertex_attr_array![
-        2=>Float32x2,
-        3=>Float32x2,
-        4=>Float32x2,
-        5=>Float32x2,
-        6=>Float32x4,
-        7=>Uint32,
-        8=>Float32x4,
-    ];
-    pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as u64,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: Self::ATTRIBUTES,
-        }
+    pub fn desc() -> render::VertexBufferLayout {
+        render::VertexBufferLayout::from_vertex_formats(
+            wgpu::VertexStepMode::Instance,
+            vec![
+                wgpu::VertexFormat::Float32x2, // pos
+                wgpu::VertexFormat::Float32x2, // scale
+                wgpu::VertexFormat::Float32x2, // atlas offset
+                wgpu::VertexFormat::Float32x2, // atlas scale
+                wgpu::VertexFormat::Float32x4, // color
+                wgpu::VertexFormat::Uint32,    // ty
+                wgpu::VertexFormat::Float32x4, // border radius
+            ],
+        )
     }
 }
 

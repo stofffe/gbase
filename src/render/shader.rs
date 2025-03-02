@@ -49,10 +49,7 @@ impl ShaderBuilder {
 
         log::info!("Create cached shader");
         let shader = self.build_uncached(ctx);
-        ctx.render
-            .cache
-            .shaders
-            .insert(self.clone(), shader.clone());
+        ctx.render.cache.shaders.insert(self, shader.clone());
         shader
     }
 

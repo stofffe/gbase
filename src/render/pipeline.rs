@@ -2,6 +2,7 @@ use crate::{render, Context};
 use render::{
     ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule,
 };
+use wgpu::VertexAttribute;
 
 //
 // Pipeline layout builder
@@ -74,6 +75,37 @@ impl PipelineLayoutBuilder {
 // Render Pipeline Builder
 //
 
+#[derive(Clone, Eq, PartialEq, Hash)]
+pub struct VertexBufferLayout {
+    pub array_stride: wgpu::BufferAddress,
+    pub step_mode: wgpu::VertexStepMode,
+    pub attributes: Vec<wgpu::VertexAttribute>,
+}
+
+impl VertexBufferLayout {
+    /// Create densly packed layout from vertex formats
+    pub fn from_vertex_formats(
+        step_mode: wgpu::VertexStepMode,
+        formats: Vec<wgpu::VertexFormat>,
+    ) -> Self {
+        let mut offset = 0;
+        let mut attributes = Vec::new();
+        for (i, format) in formats.into_iter().enumerate() {
+            attributes.push(wgpu::VertexAttribute {
+                format,
+                offset,
+                shader_location: i as u32,
+            });
+            offset += format.size();
+        }
+        Self {
+            array_stride: offset,
+            step_mode,
+            attributes,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ColorTargetState {
     format: wgpu::TextureFormat,
@@ -85,6 +117,13 @@ impl ColorTargetState {
     pub fn new() -> Self {
         Self {
             format: wgpu::TextureFormat::Rgba8Unorm,
+            blend: None,
+            write_mask: wgpu::ColorWrites::ALL,
+        }
+    }
+    pub fn from_framebuffer(framebuffer: render::FrameBuffer) -> Self {
+        Self {
+            format: framebuffer.format(),
             blend: None,
             write_mask: wgpu::ColorWrites::ALL,
         }
@@ -110,22 +149,12 @@ impl ColorTargetState {
     }
 }
 
-impl From<ColorTargetState> for wgpu::ColorTargetState {
-    fn from(val: ColorTargetState) -> Self {
-        wgpu::ColorTargetState {
-            format: val.format,
-            blend: val.blend,
-            write_mask: val.write_mask,
-        }
-    }
-}
-
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct RenderPipelineBuilder {
     layout: ArcPipelineLayout,
     label: Option<String>,
     shader: ArcShaderModule,
-    buffers: Vec<wgpu::VertexBufferLayout<'static>>,
+    buffers: Vec<VertexBufferLayout>,
     targets: Vec<Option<ColorTargetState>>,
     topology: wgpu::PrimitiveTopology,
     polygon_mode: wgpu::PolygonMode,
@@ -154,13 +183,40 @@ impl RenderPipelineBuilder {
 
     pub fn build_uncached(&self, ctx: &Context) -> ArcRenderPipeline {
         let device = render::device(ctx);
+
+        let mut location = 0;
+        let mut buffers = Vec::with_capacity(self.buffers.len());
+        for buf in self.buffers.iter() {
+            buffers.push(VertexBufferLayout {
+                array_stride: buf.array_stride,
+                step_mode: buf.step_mode,
+                attributes: buf
+                    .attributes
+                    .iter()
+                    .map(|attr| VertexAttribute {
+                        format: attr.format,
+                        offset: attr.offset,
+                        shader_location: attr.shader_location + location,
+                    })
+                    .collect(),
+            });
+            location += buf.attributes.len() as u32;
+        }
+
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: self.label.as_deref(),
             layout: Some(&self.layout),
             vertex: wgpu::VertexState {
                 module: &self.shader,
                 entry_point: self.vertex_entry_point.as_deref(),
-                buffers: &self.buffers,
+                buffers: &buffers
+                    .iter()
+                    .map(|layout| wgpu::VertexBufferLayout {
+                        array_stride: layout.array_stride,
+                        step_mode: layout.step_mode,
+                        attributes: &layout.attributes,
+                    })
+                    .collect::<Vec<_>>(),
                 compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             },
             fragment: Some(wgpu::FragmentState {
@@ -169,7 +225,13 @@ impl RenderPipelineBuilder {
                 targets: &self
                     .targets
                     .iter()
-                    .map(|state| state.clone().map(|a| a.into()))
+                    .map(|state| {
+                        state.clone().map(|state| wgpu::ColorTargetState {
+                            format: state.format,
+                            blend: state.blend,
+                            write_mask: state.write_mask,
+                        })
+                    })
                     .collect::<Vec<_>>(),
                 compilation_options: wgpu::PipelineCompilationOptions::default(), // TODO look into these options
             }),
@@ -205,7 +267,7 @@ impl RenderPipelineBuilder {
         ctx.render
             .cache
             .render_pipelines
-            .insert(self.clone(), render_pipeline.clone());
+            .insert(self, render_pipeline.clone());
         render_pipeline
     }
 }
@@ -215,7 +277,7 @@ impl RenderPipelineBuilder {
         self.label = Some(value.into());
         self
     }
-    pub fn buffers(mut self, value: Vec<wgpu::VertexBufferLayout<'static>>) -> Self {
+    pub fn buffers(mut self, value: Vec<VertexBufferLayout>) -> Self {
         self.buffers = value;
         self
     }

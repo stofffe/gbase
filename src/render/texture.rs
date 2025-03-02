@@ -69,10 +69,7 @@ impl SamplerBuilder {
 
         log::info!("Create cached sampler");
         let sampler = self.build_uncached(ctx);
-        ctx.render
-            .cache
-            .samplers
-            .insert(self.clone(), sampler.clone());
+        ctx.render.cache.samplers.insert(self, sampler.clone());
         sampler
     }
 }
@@ -311,10 +308,7 @@ impl TextureViewBuilder {
 
         log::info!("Create cached texture view");
         let view = self.build_uncached(ctx);
-        ctx.render
-            .cache
-            .texture_views
-            .insert(self.clone(), view.clone());
+        ctx.render.cache.texture_views.insert(self, view.clone());
         view
     }
 }

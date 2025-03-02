@@ -1,7 +1,9 @@
+use std::f32::consts::PI;
+
 use encase::ShaderType;
 use gbase::{
     glam::{vec3, Mat4, Vec3},
-    input, render, time, winit, Context,
+    input, log, render, time, winit, Context,
 };
 
 #[derive(ShaderType)]
@@ -140,6 +142,7 @@ impl Camera {
         let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
         self.yaw -= 1.0 * dt * mouse_dx;
         self.pitch -= 1.0 * dt * mouse_dy;
+        self.pitch = self.pitch.clamp(-PI / 2.0, PI / 2.0);
 
         // Camera movement
         let mut camera_movement_dir = Vec3::ZERO;
