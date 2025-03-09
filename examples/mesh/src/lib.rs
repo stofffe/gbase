@@ -18,7 +18,7 @@ pub async fn run() {
 struct App {
     mesh_renderer: gbase_utils::MeshRenderer<render::VertexFull>,
 
-    mesh: gbase_utils::Mesh<render::VertexFull>,
+    meshes: Vec<gbase_utils::Mesh<render::VertexFull>>,
     transform: gbase_utils::Transform3D,
     transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
     albedo: render::TextureWithView,
@@ -26,6 +26,8 @@ struct App {
 
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+
+    depth_buffer: render::DepthBuffer,
 }
 
 impl Callbacks for App {
@@ -35,7 +37,10 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let mesh = gbase_utils::MeshBuilder::new().cube().build(ctx);
+        let mut meshes =
+            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
+        meshes.push(gbase_utils::MeshBuilder::new().cube().build(ctx));
+
         let transform = gbase_utils::Transform3D::default();
         let transform_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -46,8 +51,11 @@ impl Callbacks for App {
         .build(ctx)
         .with_default_view(ctx);
         let albedo_sampler = render::SamplerBuilder::new().build(ctx);
+        let depth_buffer = render::DepthBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
 
-        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx);
+        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &depth_buffer);
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
@@ -58,7 +66,7 @@ impl Callbacks for App {
         .build(ctx);
 
         Self {
-            mesh,
+            meshes,
             transform,
             transform_buffer,
             albedo,
@@ -67,6 +75,8 @@ impl Callbacks for App {
             mesh_renderer,
             camera,
             camera_buffer,
+
+            depth_buffer,
         }
     }
 
@@ -87,20 +97,31 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        self.depth_buffer.clear(ctx);
+
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.transform_buffer.write(ctx, &self.transform.uniform());
 
-        self.mesh_renderer.render(
-            ctx,
-            screen_view,
-            &self.camera_buffer,
-            &self.mesh,
-            &self.transform_buffer,
-            &self.albedo,
-            &self.albedo_sampler,
-        );
+        for mesh in self.meshes.iter() {
+            self.mesh_renderer.render(
+                ctx,
+                screen_view,
+                &self.camera_buffer,
+                mesh,
+                &self.transform_buffer,
+                &self.albedo,
+                &self.albedo_sampler,
+                &self.depth_buffer,
+            );
+        }
 
         false
+    }
+
+    #[no_mangle]
+    fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+        self.depth_buffer
+            .resize(ctx, new_size.width, new_size.height);
     }
 }
 

@@ -1,13 +1,219 @@
-use std::{f32::consts::PI, marker::PhantomData};
-
 use crate::{CameraUniform, TransformUniform};
 use gbase::{
-    render::{self, Vertex, VertexFull, VertexTrait},
+    glam::Mat4,
+    log,
+    render::{self, VertexFull, VertexTrait},
     wgpu, Context,
 };
+use std::marker::PhantomData;
+
+pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull>> {
+    let mut meshes = Vec::new();
+
+    let glb = gltf::Glb::from_slice(glb_bytes).expect("could not import glb from slice");
+    let info = gltf::Gltf::from_slice(glb_bytes).expect("could not import info from slice");
+    let buffer = glb.bin.expect("could not get glb buffer");
+
+    let mut scenes = info.scenes();
+    if scenes.len() > 1 {
+        panic!("glb files with multiple scenes not supported");
+    }
+
+    let scene = scenes.next().expect("no scenes found");
+
+    // root nodes
+    let mut node_stack = Vec::new();
+    for root in scene.nodes() {
+        node_stack.push((root, Mat4::IDENTITY));
+    }
+
+    while let Some((node, transform)) = node_stack.pop() {
+        log::info!("visiting {}", node.name().unwrap_or("---"));
+        if node.camera().is_some() {
+            log::error!("camera decoding not supported");
+        }
+
+        let new_transform = transform * Mat4::from_cols_array_2d(&node.transform().matrix());
+
+        if let Some(mesh) = node.mesh() {
+            // each primitive has its own material
+            // so its basically out Mesh
+            for primitive in mesh.primitives() {
+                if !matches!(primitive.mode(), gltf::mesh::Mode::Triangles) {
+                    panic!("glb loader doesnt support {:?}", primitive.mode());
+                }
+
+                for a in primitive.attributes() {
+                    log::warn!("{:?}", a.0)
+                }
+
+                fn must_parse_attr<'a>(
+                    p: &'a gltf::Primitive<'a>,
+                    semantic: gltf::Semantic,
+                    assert_type: gltf::accessor::DataType,
+                    assert_dimensions: gltf::accessor::Dimensions,
+                    buffer: &[u8],
+                ) -> Vec<u8> {
+                    let attr = p
+                        .attributes()
+                        .find(|(sem, _)| *sem == semantic)
+                        .map(|(_, acc)| acc)
+                        .unwrap_or_else(|| panic!("attribute not found {:?}", semantic));
+
+                    let view = attr.view().expect("buffer view not found");
+
+                    assert!(
+                        attr.data_type() == assert_type,
+                        "attribute expected {:?} got {:?}",
+                        assert_type,
+                        attr.data_type()
+                    );
+                    assert!(
+                        attr.dimensions() == assert_dimensions,
+                        "attribute expected {:?} got {:?}",
+                        assert_dimensions,
+                        attr.dimensions()
+                    );
+                    assert!(
+                        matches!(view.buffer().source(), gltf::buffer::Source::Bin),
+                        "buffer source URI not supported"
+                    );
+                    assert!(
+                        view.stride().is_none(),
+                        "attribute data with stride not supported"
+                    );
+
+                    let offset = attr.offset() + view.offset();
+                    let length = view.length();
+
+                    buffer[offset..offset + length].to_vec()
+                }
+
+                let positions = must_parse_attr(
+                    &primitive,
+                    gltf::Semantic::Positions,
+                    gltf::accessor::DataType::F32,
+                    gltf::accessor::Dimensions::Vec3,
+                    &buffer,
+                );
+                // let colors = must_parse_attr(
+                //     &primitive,
+                //     gltf::Semantic::Colors(0),
+                //     gltf::accessor::DataType::F32,
+                //     gltf::accessor::Dimensions::Vec3,
+                //     &buffer,
+                // );
+                let uvs = must_parse_attr(
+                    &primitive,
+                    gltf::Semantic::TexCoords(0),
+                    gltf::accessor::DataType::F32,
+                    gltf::accessor::Dimensions::Vec2,
+                    &buffer,
+                );
+                let normals = must_parse_attr(
+                    &primitive,
+                    gltf::Semantic::Normals,
+                    gltf::accessor::DataType::F32,
+                    gltf::accessor::Dimensions::Vec3,
+                    &buffer,
+                );
+                let tangents = must_parse_attr(
+                    &primitive,
+                    gltf::Semantic::Tangents,
+                    gltf::accessor::DataType::F32,
+                    gltf::accessor::Dimensions::Vec4,
+                    &buffer,
+                );
+
+                let positions_f32 = bytemuck::cast_slice::<u8, f32>(&positions)
+                    .chunks(3)
+                    .collect::<Vec<_>>();
+                // let colors_f32 = bytemuck::cast_slice::<u8, f32>(&colors)
+                //     .chunks(3)
+                //     .collect::<Vec<_>>();
+                let uvs_f32 = bytemuck::cast_slice::<u8, f32>(&uvs)
+                    .chunks(2)
+                    .collect::<Vec<_>>();
+                let normals_f32 = bytemuck::cast_slice::<u8, f32>(&normals)
+                    .chunks(3)
+                    .collect::<Vec<_>>();
+                let tangents_f32 = bytemuck::cast_slice::<u8, f32>(&tangents)
+                    .chunks(4)
+                    .collect::<Vec<_>>();
+
+                let mut vertices = Vec::new();
+                for i in 0..positions_f32.len() {
+                    let vertex = render::VertexFull {
+                        position: [
+                            positions_f32[i][0],
+                            positions_f32[i][1],
+                            positions_f32[i][2],
+                        ],
+                        color: [1.0, 1.0, 1.0, 1.0],
+                        // color: [colors_f32[i][0], colors_f32[i][1], colors_f32[i][2], 1.0],
+                        normal: [normals_f32[i][0], normals_f32[i][1], normals_f32[i][2]],
+                        uv: [uvs_f32[i][0], uvs_f32[i][1]],
+                        tangent: [
+                            tangents_f32[i][0],
+                            tangents_f32[i][1],
+                            tangents_f32[i][2],
+                            tangents_f32[i][3],
+                        ],
+                    };
+                    vertices.push(vertex);
+                }
+
+                let indices_attr = primitive.indices().expect("could not get indices");
+                let view = indices_attr.view().expect("buffer view not found");
+
+                assert!(
+                    indices_attr.data_type() == gltf::accessor::DataType::U16,
+                    "attribute expected {:?} got {:?}",
+                    gltf::accessor::DataType::U32,
+                    indices_attr.data_type()
+                );
+                assert!(
+                    indices_attr.dimensions() == gltf::accessor::Dimensions::Scalar,
+                    "attribute expected {:?} got {:?}",
+                    gltf::accessor::Dimensions::Scalar,
+                    indices_attr.dimensions()
+                );
+                assert!(
+                    matches!(view.buffer().source(), gltf::buffer::Source::Bin),
+                    "buffer source URI not supported"
+                );
+                assert!(
+                    view.stride().is_none(),
+                    "attribute data with stride not supported"
+                );
+
+                let offset = indices_attr.offset() + view.offset();
+                let length = view.length();
+
+                let indices = bytemuck::cast_slice::<u8, u16>(&buffer[offset..offset + length])
+                    .to_vec()
+                    .iter()
+                    .map(|&i| i as u32)
+                    .collect::<Vec<_>>();
+
+                let mesh = MeshBuilder { vertices, indices }.build(ctx);
+
+                meshes.push(mesh);
+            }
+        }
+
+        // recursively visit children
+        for child in node.children() {
+            node_stack.push((child, new_transform));
+        }
+    }
+
+    meshes
+}
 
 //
 // Mesh builder
+//
 //
 
 pub struct MeshBuilder<T: VertexTrait> {
@@ -16,23 +222,6 @@ pub struct MeshBuilder<T: VertexTrait> {
 }
 
 impl MeshBuilder<render::VertexFull> {
-    pub fn from_glb(ctx: &Context, bytes: &[u8]) -> Self {
-        let (document, buffers, images) =
-            gltf::import_slice(bytes).expect("could not import from slice");
-
-        let mut scenes = document.scenes();
-        if scenes.len() > 1 {
-            panic!("glb files with multiple scenes not supported");
-        }
-
-        let scene = scenes.next().expect("no scenes found");
-
-        Self {
-            vertices: todo!(),
-            indices: todo!(),
-        }
-    }
-
     pub fn new() -> Self {
         Self {
             vertices: Vec::new(),
@@ -286,6 +475,7 @@ impl MeshBuilder<render::VertexFull> {
 // Mesh
 //
 
+#[derive()]
 pub struct Mesh<T: VertexTrait> {
     vertices: render::VertexBuffer<T>,
     indices: render::IndexBuffer,
@@ -312,7 +502,7 @@ pub struct MeshRenderer<T: VertexTrait> {
 }
 
 impl<T: VertexTrait> MeshRenderer<T> {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, depth_buffer: &render::DepthBuffer) -> Self {
         let shader =
             render::ShaderBuilder::new(include_str!("../assets/shaders/mesh.wgsl")).build(ctx);
 
@@ -340,6 +530,7 @@ impl<T: VertexTrait> MeshRenderer<T> {
             .buffers(vec![T::desc()])
             .single_target(render::ColorTargetState::from_current_screen(ctx))
             .cull_mode(wgpu::Face::Back)
+            .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
         Self {
@@ -359,6 +550,7 @@ impl<T: VertexTrait> MeshRenderer<T> {
         transform: &render::UniformBuffer<TransformUniform>,
         albedo: &render::TextureWithView,
         albedo_sampler: &render::ArcSampler,
+        depth_buffer: &render::DepthBuffer,
     ) {
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -375,6 +567,7 @@ impl<T: VertexTrait> MeshRenderer<T> {
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
+            .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_vertex_buffer(0, mesh.vertices().slice(..));
