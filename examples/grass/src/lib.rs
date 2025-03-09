@@ -31,7 +31,7 @@ pub struct App {
     light_buffer: render::UniformBuffer<Vec3>,
     deferred_buffers: gbase_utils::DeferredBuffers,
 
-    mesh_renderer: gbase_utils::MeshRenderer,
+    // mesh_renderer: gbase_utils::MeshRenderer,
     deferred_renderer: gbase_utils::DeferredRenderer,
     grass_renderer: GrassRenderer,
     gui_renderer: gbase_utils::GUIRenderer,
@@ -39,10 +39,9 @@ pub struct App {
 
     paused: bool,
 
-    plane: gbase_utils::GpuDrawCall,
-    plane_transform: gbase_utils::Transform3D,
-    plane_transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
-
+    // plane: gbase_utils::GpuDrawCall,
+    // plane_transform: gbase_utils::Transform3D,
+    // plane_transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: gbase_utils::TextureRenderer,
     sobel_filter: sobel_filter::SobelFilter,
@@ -87,7 +86,7 @@ impl Callbacks for App {
 
         // Renderers
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &deferred_buffers);
+        // let mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &deferred_buffers);
         let deferred_renderer = gbase_utils::DeferredRenderer::new(
             ctx,
             framebuffer.format(),
@@ -106,42 +105,42 @@ impl Callbacks for App {
         let gizmo_renderer =
             gbase_utils::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
 
-        // Plane mesh
-        let plane_transform = gbase_utils::Transform3D::new(
-            // vec3(-10.0, 8.0, -10.0),
-            vec3(0.0, 0.0, 0.0),
-            Quat::from_rotation_x(-PI / 2.0),
-            vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
-        );
-        let plane_transform_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let gpu_mesh = gbase_utils::GpuMesh::from_mesh(
-            ctx,
-            gbase_utils::Mesh::new(
-                CENTERED_QUAD_VERTICES.to_vec(),
-                CENTERED_QUAD_INDICES.to_vec(),
-            ),
-        );
-        let gpu_material = gbase_utils::GpuMaterial::from_material(
-            ctx,
-            gbase_utils::Material {
-                color_factor: PLANE_COLOR,
-                roughness_factor: 0.0,
-                metalness_factor: 0.0,
-                occlusion_strength: 1.0,
-                albedo: None,
-                normal: None,
-                roughness: None,
-            },
-        );
-        let plane = gbase_utils::GpuDrawCall::new(
-            ctx,
-            gpu_mesh,
-            gpu_material,
-            &plane_transform_buffer,
-            &camera_buffer,
-            &mesh_renderer,
-        );
+        // // Plane mesh
+        // let plane_transform = gbase_utils::Transform3D::new(
+        //     // vec3(-10.0, 8.0, -10.0),
+        //     vec3(0.0, 0.0, 0.0),
+        //     Quat::from_rotation_x(-PI / 2.0),
+        //     vec3(PLANE_SIZE, PLANE_SIZE, 1.0),
+        // );
+        // let plane_transform_buffer =
+        //     render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        // let gpu_mesh = gbase_utils::GpuMesh::from_mesh(
+        //     ctx,
+        //     gbase_utils::Mesh::new(
+        //         CENTERED_QUAD_VERTICES.to_vec(),
+        //         CENTERED_QUAD_INDICES.to_vec(),
+        //     ),
+        // );
+        // let gpu_material = gbase_utils::GpuMaterial::from_material(
+        //     ctx,
+        //     gbase_utils::Material {
+        //         color_factor: PLANE_COLOR,
+        //         roughness_factor: 0.0,
+        //         metalness_factor: 0.0,
+        //         occlusion_strength: 1.0,
+        //         albedo: None,
+        //         normal: None,
+        //         roughness: None,
+        //     },
+        // );
+        // let plane = gbase_utils::GpuDrawCall::new(
+        //     ctx,
+        //     gpu_mesh,
+        //     gpu_material,
+        //     &plane_transform_buffer,
+        //     &camera_buffer,
+        //     &mesh_renderer,
+        // );
 
         let sobel_filter = sobel_filter::SobelFilter::new(ctx);
 
@@ -151,7 +150,7 @@ impl Callbacks for App {
             light,
             light_buffer,
             deferred_buffers,
-            mesh_renderer,
+            // mesh_renderer,
             deferred_renderer,
             grass_renderer,
             gui_renderer,
@@ -159,10 +158,9 @@ impl Callbacks for App {
 
             paused: false,
 
-            plane,
-            plane_transform,
-            plane_transform_buffer,
-
+            // plane,
+            // plane_transform,
+            // plane_transform_buffer,
             framebuffer,
             framebuffer_renderer,
             sobel_filter,
@@ -179,8 +177,8 @@ impl Callbacks for App {
         let t = time::time_since_start(ctx);
         self.light = vec3(t.cos(), 1.0, t.sin()) * 10.0;
         self.light_buffer.write(ctx, &self.light);
-        self.plane_transform_buffer
-            .write(ctx, &self.plane_transform.uniform());
+        // self.plane_transform_buffer
+        //     .write(ctx, &self.plane_transform.uniform());
 
         // Render
         // let pt = time::ProfileTimer::new("GRASS");
@@ -189,8 +187,8 @@ impl Callbacks for App {
         // pt.log();
 
         //Mesh
-        self.mesh_renderer
-            .render(ctx, &self.deferred_buffers, &[&self.plane]);
+        // self.mesh_renderer
+        //     .render(ctx, &self.deferred_buffers, &[&self.plane]);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
         self.gui_renderer.render(ctx, self.framebuffer.view_ref());
@@ -242,7 +240,7 @@ impl Callbacks for App {
                 &self.camera_buffer,
                 &self.light_buffer,
             );
-            self.mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &self.deferred_buffers);
+            // self.mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &self.deferred_buffers);
             println!("reload");
         }
 
@@ -274,8 +272,8 @@ impl Callbacks for App {
             return false;
         }
 
-        self.plane_transform.pos.x = self.camera.pos.x;
-        self.plane_transform.pos.z = self.camera.pos.z;
+        // self.plane_transform.pos.x = self.camera.pos.x;
+        // self.plane_transform.pos.z = self.camera.pos.z;
 
         self.camera.flying_controls(ctx);
 

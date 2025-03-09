@@ -1,3 +1,5 @@
+use wgpu::util::DeviceExt;
+
 use crate::{
     render::{self, ArcSampler, ArcTexture, ArcTextureView},
     Context,
@@ -159,13 +161,13 @@ impl TextureBuilder {
     pub fn build(&self, ctx: &Context) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
-        match &self.source {
+        match self.source {
             TextureSource::Empty(width, height) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: self.label.as_deref(),
                     size: wgpu::Extent3d {
-                        width: *width,
-                        height: *height,
+                        width,
+                        height,
                         depth_or_array_layers: self.depth_or_array_layers,
                     },
                     mip_level_count: self.mip_level_count,
@@ -178,12 +180,12 @@ impl TextureBuilder {
 
                 ArcTexture::new(texture)
             }
-            TextureSource::Data(width, height, bytes) => {
+            TextureSource::Data(width, height, ref bytes) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: self.label.as_deref(),
                     size: wgpu::Extent3d {
-                        width: *width,
-                        height: *height,
+                        width,
+                        height,
                         depth_or_array_layers: self.depth_or_array_layers,
                     },
                     mip_level_count: self.mip_level_count,
@@ -206,8 +208,8 @@ impl TextureBuilder {
                         bytes_per_row: self // TODO check if correct
                             .format
                             .block_copy_size(Some(wgpu::TextureAspect::All))
-                            .map(|n| *width * n),
-                        rows_per_image: Some(*height),
+                            .map(|n| width * n),
+                        rows_per_image: Some(height),
                     },
                     texture.size(),
                 );
@@ -252,6 +254,10 @@ impl TextureBuilder {
         self
     }
 }
+
+//
+// Texture view
+//
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct TextureViewBuilder {
@@ -351,6 +357,10 @@ impl TextureViewBuilder {
         self
     }
 }
+
+//
+// Texture with view
+//
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct TextureWithView {

@@ -8,5 +8,5 @@ gbase = { path = "../.." }
 encase = { version = "0.6.1", features = ["glam"] }
 bytemuck = { version = "1.14.0", features = ["derive"] }
 fontdue = "0.8.0"
-gltf = "1.4.0"
+gltf = "1.4.1"
 image = "0.24.7"

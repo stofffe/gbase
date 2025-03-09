@@ -142,7 +142,7 @@ impl Camera {
         let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
         self.yaw -= 1.0 * dt * mouse_dx;
         self.pitch -= 1.0 * dt * mouse_dy;
-        self.pitch = self.pitch.clamp(-PI / 2.0, PI / 2.0);
+        self.pitch = self.pitch.clamp(-PI / 2.0 + 0.01, PI / 2.0 - 0.01);
 
         // Camera movement
         let mut camera_movement_dir = Vec3::ZERO;

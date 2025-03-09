@@ -1,13 +1,14 @@
-use std::f32::consts::PI;
+use std::{f32::consts::PI, marker::PhantomData};
 
 use gbase::{
     filesystem,
-    glam::{vec3, Vec3, Vec4Swizzles},
-    input, render, wgpu,
-    winit::dpi::PhysicalSize,
+    glam::{vec3, Quat},
+    log,
+    render::{self, Vertex, VertexBuffer, VertexTrait},
+    time,
+    wgpu::{self},
     Callbacks, Context,
 };
-use gbase_utils::{Transform3D, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -15,201 +16,91 @@ pub async fn run() {
 }
 
 struct App {
-    mesh_renderer: gbase_utils::MeshRenderer,
-    deferred_buffers: gbase_utils::DeferredBuffers,
-    deferred_renderer: gbase_utils::DeferredRenderer,
+    mesh_renderer: gbase_utils::MeshRenderer<render::VertexFull>,
+
+    mesh: gbase_utils::Mesh<render::VertexFull>,
+    transform: gbase_utils::Transform3D,
+    transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
+    albedo: render::TextureWithView,
+    albedo_sampler: render::ArcSampler,
+
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
-    light: Vec3,
-    light_buffer: render::UniformBuffer<Vec3>,
-    debug_input: gbase_utils::DebugInput,
-    model1: gbase_utils::GpuGltfModel,
-    model2: gbase_utils::GpuGltfModel,
-    gizmo_renderer: gbase_utils::GizmoRenderer,
-
-    framebuffer: render::FrameBuffer,
-    framebuffer_renderer: gbase_utils::TextureRenderer,
 }
 
 impl Callbacks for App {
     #[no_mangle]
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new().log_level(gbase::LogLevel::Warn)
+    }
+    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
-            .pos(vec3(0.5, 0.0, 1.0));
-        let camera_buffer =
+        let mesh = gbase_utils::MeshBuilder::new().cube().build(ctx);
+        let transform = gbase_utils::Transform3D::default();
+        let transform_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let light = Vec3::ZERO;
-        let light_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(light)).build(ctx);
-        let deferred_renderer = gbase_utils::DeferredRenderer::new(
-            ctx,
-            wgpu::TextureFormat::Rgba8Unorm,
-            &deferred_buffers,
-            &camera_buffer,
-            &light_buffer,
-        );
-        let debug_input = gbase_utils::DebugInput::new(ctx);
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm, &camera_buffer);
+        let albedo = gbase_utils::texture_builder_from_image_bytes(
+            &filesystem::load_b!("textures/texture.jpeg").unwrap(),
+        )
+        .unwrap()
+        .build(ctx)
+        .with_default_view(ctx);
+        let albedo_sampler = render::SamplerBuilder::new().build(ctx);
 
-        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &deferred_buffers);
+        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx);
 
-        let model1_bytes = filesystem::load_b!("models/ak47.glb").unwrap();
-        let model1 = gbase_utils::GltfModel::from_glb_bytes(&model1_bytes);
-        let model1 =
-            gbase_utils::GpuGltfModel::from_model(ctx, model1, &camera_buffer, &mesh_renderer);
-
-        let model2_bytes = filesystem::load_b!("models/coord2.glb").unwrap();
-        let model2 = gbase_utils::GltfModel::from_glb_bytes(&model2_bytes);
-        let model2 =
-            gbase_utils::GpuGltfModel::from_model(ctx, model2, &camera_buffer, &mesh_renderer);
-
-        let framebuffer = render::FrameBufferBuilder::new()
-            .usage(
-                wgpu::TextureUsages::STORAGE_BINDING
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::COPY_SRC,
-            )
-            .screen_size(ctx)
-            .build(ctx);
-        let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
+        let camera =
+            gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
+                .pos(vec3(0.0, 0.0, 1.0));
+        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
+            camera.uniform(ctx),
+        ))
+        .build(ctx);
 
         Self {
+            mesh,
+            transform,
+            transform_buffer,
+            albedo,
+            albedo_sampler,
+
             mesh_renderer,
-            deferred_buffers,
-            deferred_renderer,
             camera,
             camera_buffer,
-            light,
-            light_buffer,
-            gizmo_renderer,
-            debug_input,
-            model1,
-            model2,
-
-            framebuffer,
-            framebuffer_renderer,
         }
     }
-    // fn new(&mut self, _ctx: &mut Context) {
-    //     self.camera.pos = vec3(0.5, 0.0, 1.0);
-    // }
+
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
-        let dt = gbase::time::delta_time(ctx);
+        let t = time::time_since_start(ctx);
 
-        if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-            // self.camera.yaw = 0.0;
-            // self.camera.pitch = 0.0;
-            self.mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &self.deferred_buffers);
-            self.deferred_renderer = gbase_utils::DeferredRenderer::new(
-                ctx,
-                wgpu::TextureFormat::Rgba8Unorm,
-                &self.deferred_buffers,
-                &self.camera_buffer,
-                &self.light_buffer,
-            );
+        self.camera.flying_controls(ctx);
+        self.transform = gbase_utils::Transform3D::default()
+            .with_rot(Quat::from_rotation_y(t) * Quat::from_rotation_x(t / 2.0));
 
-            let model1_bytes = filesystem::load_b!("models/ak47.glb").unwrap();
-            let model1 = gbase_utils::GltfModel::from_glb_bytes(&model1_bytes);
-            self.model1 = gbase_utils::GpuGltfModel::from_model(
-                ctx,
-                model1,
-                &self.camera_buffer,
-                &self.mesh_renderer,
-            );
-
-            let model2_bytes = filesystem::load_b!("models/coord2.glb").unwrap();
-            let model2 = gbase_utils::GltfModel::from_glb_bytes(&model2_bytes);
-            self.model2 = gbase_utils::GpuGltfModel::from_model(
-                ctx,
-                model2,
-                &self.camera_buffer,
-                &self.mesh_renderer,
-            );
+        if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
+            log::warn!("RESTART");
+            *self = Self::new(ctx);
         }
-
-        // Camera rotation
-        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw -= 1.0 * dt * mouse_dx;
-            self.camera.pitch -= 1.0 * dt * mouse_dy;
-        }
-
-        // Camera movement
-        let mut camera_movement_dir = Vec3::ZERO;
-        if input::key_pressed(ctx, input::KeyCode::KeyW) {
-            camera_movement_dir += self.camera.forward();
-        }
-
-        if input::key_pressed(ctx, input::KeyCode::KeyS) {
-            camera_movement_dir -= self.camera.forward();
-        }
-        if input::key_pressed(ctx, input::KeyCode::KeyA) {
-            camera_movement_dir -= self.camera.right();
-        }
-        if input::key_pressed(ctx, input::KeyCode::KeyD) {
-            camera_movement_dir += self.camera.right();
-        }
-        if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt;
-        }
-
-        // Camera zoom
-        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
 
         false
     }
-
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        // eprintln!("FPS {}", time::fps(ctx));
-        // let t = gbase::time::time_since_start(ctx);
-        self.light = vec3(5.0, 1.5, 5.0); // self.light = vec3(t.sin() * 5.0, 0.0, t.cos() * 5.0);
-        self.light_buffer.write(ctx, &self.light);
+    fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-        self.debug_input.update_buffer(ctx);
+        self.transform_buffer.write(ctx, &self.transform.uniform());
 
-        // Render into gbuffer
-        self.framebuffer.clear(ctx, wgpu::Color::BLACK);
-        self.deferred_buffers.clear(ctx);
-        let meshes = &[&self.model1, &self.model2];
-        self.mesh_renderer
-            .render_models(ctx, &self.deferred_buffers, meshes);
-        self.deferred_renderer
-            .render(ctx, self.framebuffer.view_ref());
-        // self.gizmo_renderer.draw_sphere(
-        //     0.1,
-        //     &Transform3D::new(self.light, Quat::IDENTITY, Vec3::ONE),
-        //     vec3(1.0, 0.0, 0.0),
-        // );
-        self.gizmo_renderer.draw_cube(
-            &Transform3D::from_pos_scale(vec3(0.0, 0.0, 0.0), vec3(5.0, 5.0, 5.0)),
-            WHITE.xyz(),
+        self.mesh_renderer.render(
+            ctx,
+            screen_view,
+            &self.camera_buffer,
+            &self.mesh,
+            &self.transform_buffer,
+            &self.albedo,
+            &self.albedo_sampler,
         );
-        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
-
-        self.framebuffer_renderer
-            .render(ctx, self.framebuffer.view(), screen_view);
 
         false
-    }
-
-    #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
-        let (w, h) = (new_size.width, new_size.height);
-        self.gizmo_renderer.resize(ctx, w, h);
-        self.framebuffer.resize(ctx, w, h);
-        self.deferred_buffers.resize(ctx, w, h);
-        self.deferred_renderer.rebuild_bindgroup(
-            ctx,
-            &self.deferred_buffers,
-            &self.camera_buffer,
-            &self.light_buffer,
-        );
     }
 }
 
