@@ -40,7 +40,7 @@ impl BindGroupLayoutBuilder {
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroupLayout {
         if let Some(bindgroup_layout) = ctx.render.cache.bindgroup_layouts.get(&self) {
-            log::info!("Fetch cached bindgroup layout");
+            // log::info!("Fetch cached bindgroup layout");
             return bindgroup_layout.clone();
         }
 
@@ -229,7 +229,7 @@ impl BindGroupBuilder {
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroup {
         if let Some(bindgroup) = ctx.render.cache.bindgroups.get(&self) {
-            log::info!("Fetch cached bindgroup");
+            // log::info!("Fetch cached bindgroup");
             return bindgroup.clone();
         }
 

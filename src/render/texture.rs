@@ -65,7 +65,7 @@ impl SamplerBuilder {
     }
     pub fn build(self, ctx: &mut Context) -> ArcSampler {
         if let Some(sampler) = ctx.render.cache.samplers.get(&self) {
-            log::info!("Fetch cached sampler");
+            // log::info!("Fetch cached sampler");
             return sampler.clone();
         }
 

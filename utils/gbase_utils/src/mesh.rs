@@ -1,13 +1,27 @@
 use crate::{CameraUniform, TransformUniform};
 use gbase::{
+    filesystem,
     glam::Mat4,
     log,
     render::{self, VertexFull, VertexTrait},
-    wgpu, Context,
+    wgpu::{self, util::DeviceExt},
+    Context,
 };
-use std::marker::PhantomData;
+use std::{collections::BTreeMap, marker::PhantomData};
 
-pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull>> {
+//
+// Mesh
+//
+
+//
+// Material
+//
+
+//
+// Glb
+//
+
+pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<(GltfPrimitive, GltfMaterial)> {
     let mut meshes = Vec::new();
 
     let glb = gltf::Glb::from_slice(glb_bytes).expect("could not import glb from slice");
@@ -33,6 +47,7 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull
             log::error!("camera decoding not supported");
         }
 
+        // TODO: not used rn
         let new_transform = transform * Mat4::from_cols_array_2d(&node.transform().matrix());
 
         if let Some(mesh) = node.mesh() {
@@ -43,126 +58,72 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull
                     panic!("glb loader doesnt support {:?}", primitive.mode());
                 }
 
-                for a in primitive.attributes() {
-                    log::warn!("{:?}", a.0)
-                }
+                let mut mesh = GltfPrimitive::new();
 
-                fn must_parse_attr<'a>(
-                    p: &'a gltf::Primitive<'a>,
-                    semantic: gltf::Semantic,
-                    assert_type: gltf::accessor::DataType,
-                    assert_dimensions: gltf::accessor::Dimensions,
-                    buffer: &[u8],
-                ) -> Vec<u8> {
-                    let attr = p
-                        .attributes()
-                        .find(|(sem, _)| *sem == semantic)
-                        .map(|(_, acc)| acc)
-                        .unwrap_or_else(|| panic!("attribute not found {:?}", semantic));
-
+                // parse vertex attributes
+                for (sem, attr) in primitive.attributes() {
                     let view = attr.view().expect("buffer view not found");
-
-                    assert!(
-                        attr.data_type() == assert_type,
-                        "attribute expected {:?} got {:?}",
-                        assert_type,
-                        attr.data_type()
-                    );
-                    assert!(
-                        attr.dimensions() == assert_dimensions,
-                        "attribute expected {:?} got {:?}",
-                        assert_dimensions,
-                        attr.dimensions()
-                    );
-                    assert!(
-                        matches!(view.buffer().source(), gltf::buffer::Source::Bin),
-                        "buffer source URI not supported"
-                    );
-                    assert!(
-                        view.stride().is_none(),
-                        "attribute data with stride not supported"
-                    );
 
                     let offset = attr.offset() + view.offset();
                     let length = view.length();
+                    let bytes = &buffer[offset..offset + length];
 
-                    buffer[offset..offset + length].to_vec()
+                    match sem {
+                        gltf::Semantic::Positions => {
+                            mesh.attributes.insert(
+                                VertexAttributeId::Position,
+                                VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            );
+                        }
+                        gltf::Semantic::Normals => {
+                            mesh.attributes.insert(
+                                VertexAttributeId::Normal,
+                                VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            );
+                        }
+                        gltf::Semantic::Tangents => {
+                            mesh.attributes.insert(
+                                VertexAttributeId::Tangent,
+                                VertexAttributeValues::Float32x4(
+                                    bytemuck::cast_slice::<u8, [f32; 4]>(bytes).to_vec(),
+                                ),
+                            );
+                        }
+                        gltf::Semantic::TexCoords(i) => {
+                            mesh.attributes.insert(
+                                VertexAttributeId::Uv(i),
+                                VertexAttributeValues::Float32x2(
+                                    bytemuck::cast_slice::<u8, [f32; 2]>(bytes).to_vec(),
+                                ),
+                            );
+                        }
+                        gltf::Semantic::Colors(i) => {
+                            mesh.attributes.insert(
+                                VertexAttributeId::Color(i),
+                                VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            );
+                        }
+                        gltf::Semantic::Joints(_) => {
+                            // TODO: gotta check u16x4 vs u32x4
+                            log::warn!("joints not supported in gltf");
+                        }
+                        gltf::Semantic::Weights(_) => {
+                            // f32x4
+                            log::warn!("weigths not supported in gltf");
+                        } // extras?
+                    }
+                }
+                if !mesh.validate() {
+                    log::error!("mesh validation failed");
                 }
 
-                let positions = must_parse_attr(
-                    &primitive,
-                    gltf::Semantic::Positions,
-                    gltf::accessor::DataType::F32,
-                    gltf::accessor::Dimensions::Vec3,
-                    &buffer,
-                );
-                // let colors = must_parse_attr(
-                //     &primitive,
-                //     gltf::Semantic::Colors(0),
-                //     gltf::accessor::DataType::F32,
-                //     gltf::accessor::Dimensions::Vec3,
-                //     &buffer,
-                // );
-                let uvs = must_parse_attr(
-                    &primitive,
-                    gltf::Semantic::TexCoords(0),
-                    gltf::accessor::DataType::F32,
-                    gltf::accessor::Dimensions::Vec2,
-                    &buffer,
-                );
-                let normals = must_parse_attr(
-                    &primitive,
-                    gltf::Semantic::Normals,
-                    gltf::accessor::DataType::F32,
-                    gltf::accessor::Dimensions::Vec3,
-                    &buffer,
-                );
-                let tangents = must_parse_attr(
-                    &primitive,
-                    gltf::Semantic::Tangents,
-                    gltf::accessor::DataType::F32,
-                    gltf::accessor::Dimensions::Vec4,
-                    &buffer,
-                );
-
-                let positions_f32 = bytemuck::cast_slice::<u8, f32>(&positions)
-                    .chunks(3)
-                    .collect::<Vec<_>>();
-                // let colors_f32 = bytemuck::cast_slice::<u8, f32>(&colors)
-                //     .chunks(3)
-                //     .collect::<Vec<_>>();
-                let uvs_f32 = bytemuck::cast_slice::<u8, f32>(&uvs)
-                    .chunks(2)
-                    .collect::<Vec<_>>();
-                let normals_f32 = bytemuck::cast_slice::<u8, f32>(&normals)
-                    .chunks(3)
-                    .collect::<Vec<_>>();
-                let tangents_f32 = bytemuck::cast_slice::<u8, f32>(&tangents)
-                    .chunks(4)
-                    .collect::<Vec<_>>();
-
-                let mut vertices = Vec::new();
-                for i in 0..positions_f32.len() {
-                    let vertex = render::VertexFull {
-                        position: [
-                            positions_f32[i][0],
-                            positions_f32[i][1],
-                            positions_f32[i][2],
-                        ],
-                        color: [1.0, 1.0, 1.0, 1.0],
-                        // color: [colors_f32[i][0], colors_f32[i][1], colors_f32[i][2], 1.0],
-                        normal: [normals_f32[i][0], normals_f32[i][1], normals_f32[i][2]],
-                        uv: [uvs_f32[i][0], uvs_f32[i][1]],
-                        tangent: [
-                            tangents_f32[i][0],
-                            tangents_f32[i][1],
-                            tangents_f32[i][2],
-                            tangents_f32[i][3],
-                        ],
-                    };
-                    vertices.push(vertex);
-                }
-
+                // parse indices
                 let indices_attr = primitive.indices().expect("could not get indices");
                 let view = indices_attr.view().expect("buffer view not found");
 
@@ -196,9 +157,91 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull
                     .map(|&i| i as u32)
                     .collect::<Vec<_>>();
 
-                let mesh = MeshBuilder { vertices, indices }.build(ctx);
+                mesh.set_indices(indices);
 
-                meshes.push(mesh);
+                // material
+
+                let material = primitive.material();
+                let pbr = material.pbr_metallic_roughness();
+
+                fn must_load_texture(
+                    texture: &gltf::texture::Texture<'_>,
+                    buffer: &[u8],
+                ) -> Vec<u8> {
+                    let image = texture.source();
+                    let gltf::image::Source::View { view, mime_type } = image.source() else {
+                        panic!("image source URI not supported");
+                    };
+
+                    log::info!("loading image with mime type {}", mime_type);
+                    assert!(
+                        mime_type == "image/jpeg" || mime_type == "image/png",
+                        "mime type must be image/jpeg or image/png got {}",
+                        mime_type
+                    );
+
+                    let offset = view.offset();
+                    let length = view.length();
+                    buffer[offset..offset + length].to_vec()
+                }
+
+                // NOTE: all textures have a corresponding TEXCOORD_{i}
+                let albedo = pbr.base_color_texture().map(|info| {
+                    assert!(
+                        info.tex_coord() == 0,
+                        "non 0 TEXCOORD not supported (albedo)"
+                    );
+                    must_load_texture(&info.texture(), &buffer)
+                });
+                let color_factor = pbr.base_color_factor(); // scaling / replacement
+
+                let mut metallic_rougness_index = -1; // used for comparing against occlusion texture
+                let metallic_roughness = pbr.metallic_roughness_texture().map(|info| {
+                    assert!(
+                        info.tex_coord() == 0,
+                        "non 0 TEXCOORD not supported (albedo)"
+                    );
+                    metallic_rougness_index = info.texture().index() as i32;
+                    must_load_texture(&info.texture(), &buffer)
+                });
+                let metallic_factor = pbr.metallic_factor(); // scaling / replacement
+                let roughness_factor = pbr.roughness_factor(); // scaling / replacement
+
+                // TODO: 0.0 or 1.0?
+                let mut normal_scale = 1.0; // scaling
+                let normal = material.normal_texture().map(|info| {
+                    assert!(
+                        info.tex_coord() == 0,
+                        "non 0 TEXCOORD not supported (albedo)"
+                    );
+                    normal_scale = info.scale();
+                    must_load_texture(&info.texture(), &buffer)
+                });
+
+                // TODO: 0.0 or 1.0?
+                let mut occlusion_strength = 1.0; // scaling
+                let occlusion = material.occlusion_texture().map(|info| {
+                    assert!(
+                        info.tex_coord() == 0,
+                        "non 0 TEXCOORD not supported (occlusion)"
+                    );
+                    occlusion_strength = info.strength();
+                    must_load_texture(&info.texture(), &buffer)
+                });
+
+                let material = GltfMaterial {
+                    albedo,
+                    color_factor,
+                    metallic_roughness,
+                    roughness_factor,
+                    occlusion,
+                    occlusion_strength,
+                    metallic_factor,
+                    normal,
+                    normal_scale,
+                };
+
+                meshes.push((mesh, material));
             }
         }
 
@@ -211,9 +254,355 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<Mesh<render::VertexFull
     meshes
 }
 
+// TODO: shoudl use handles for textures to reuse
+// TODO: emissive
+#[derive(Debug, Clone)]
+pub struct GltfMaterial {
+    albedo: Option<Vec<u8>>,
+    color_factor: [f32; 4],
+
+    metallic_roughness: Option<Vec<u8>>,
+    roughness_factor: f32, // g
+    metallic_factor: f32,  // b
+
+    occlusion: Option<Vec<u8>>,
+    occlusion_strength: f32, // r
+
+    normal: Option<Vec<u8>>,
+    normal_scale: f32,
+}
+
+impl GltfMaterial {
+    pub fn to_material(&self, ctx: &mut Context) -> Material {
+        fn load_or_default(ctx: &Context, bytes: &Option<Vec<u8>>) -> render::ArcTexture {
+            match bytes {
+                Some(bytes) => crate::texture_builder_from_image_bytes(bytes)
+                    .expect("could not create texture builder from albedo")
+                    .build(ctx),
+                None => render::TextureBuilder::new(render::TextureSource::Data(
+                    1,
+                    1,
+                    vec![255u8, 255u8, 255u8, 255u8],
+                ))
+                .format(wgpu::TextureFormat::Rgba8Unorm)
+                .build(ctx),
+            }
+        }
+
+        let albedo = load_or_default(ctx, &self.albedo).with_default_view(ctx);
+        let metallic_roughness =
+            load_or_default(ctx, &self.metallic_roughness).with_default_view(ctx);
+        let occlusion = load_or_default(ctx, &self.occlusion).with_default_view(ctx);
+        Material {
+            albedo,
+            metallic_roughness,
+            occlusion,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum VertexAttributeId {
+    Position,
+    Normal,
+    Tangent,
+    Uv(u32),
+    Color(u32),
+}
+
+#[derive(Clone, Debug)]
+pub enum VertexAttributeValues {
+    Float32(Vec<f32>),
+    Float32x2(Vec<[f32; 2]>),
+    Float32x3(Vec<[f32; 3]>),
+    Float32x4(Vec<[f32; 4]>),
+
+    Uint32(Vec<u32>),
+    Uint32x2(Vec<[u32; 2]>),
+    Uint32x3(Vec<[u32; 3]>),
+    Uint32x4(Vec<[u32; 4]>),
+
+    Sint32(Vec<i32>),
+    Sint32x2(Vec<[i32; 2]>),
+    Sint32x3(Vec<[i32; 3]>),
+    Sint32x4(Vec<[i32; 4]>),
+}
+
+impl VertexAttributeValues {
+    pub fn len(&self) -> usize {
+        match self {
+            VertexAttributeValues::Float32(vec) => vec.len(),
+            VertexAttributeValues::Float32x2(vec) => vec.len(),
+            VertexAttributeValues::Float32x3(vec) => vec.len(),
+            VertexAttributeValues::Float32x4(vec) => vec.len(),
+            VertexAttributeValues::Uint32(vec) => vec.len(),
+            VertexAttributeValues::Uint32x2(vec) => vec.len(),
+            VertexAttributeValues::Uint32x3(vec) => vec.len(),
+            VertexAttributeValues::Uint32x4(vec) => vec.len(),
+            VertexAttributeValues::Sint32(vec) => vec.len(),
+            VertexAttributeValues::Sint32x2(vec) => vec.len(),
+            VertexAttributeValues::Sint32x3(vec) => vec.len(),
+            VertexAttributeValues::Sint32x4(vec) => vec.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        match self {
+            VertexAttributeValues::Float32(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Float32x2(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Float32x3(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Float32x4(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Uint32(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Uint32x2(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Uint32x3(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Uint32x4(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Sint32(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Sint32x2(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Sint32x3(vec) => bytemuck::cast_slice(vec),
+            VertexAttributeValues::Sint32x4(vec) => bytemuck::cast_slice(vec),
+        }
+    }
+    pub fn format(&self) -> wgpu::VertexFormat {
+        match self {
+            VertexAttributeValues::Float32(_) => wgpu::VertexFormat::Float32,
+            VertexAttributeValues::Float32x2(_) => wgpu::VertexFormat::Float32x2,
+            VertexAttributeValues::Float32x3(_) => wgpu::VertexFormat::Float32x3,
+            VertexAttributeValues::Float32x4(_) => wgpu::VertexFormat::Float32x4,
+            VertexAttributeValues::Uint32(_) => wgpu::VertexFormat::Uint32,
+            VertexAttributeValues::Uint32x2(_) => wgpu::VertexFormat::Uint32x2,
+            VertexAttributeValues::Uint32x3(_) => wgpu::VertexFormat::Uint32x3,
+            VertexAttributeValues::Uint32x4(_) => wgpu::VertexFormat::Uint32x4,
+            VertexAttributeValues::Sint32(_) => wgpu::VertexFormat::Sint32,
+            VertexAttributeValues::Sint32x2(_) => wgpu::VertexFormat::Sint32x2,
+            VertexAttributeValues::Sint32x3(_) => wgpu::VertexFormat::Sint32x3,
+            VertexAttributeValues::Sint32x4(_) => wgpu::VertexFormat::Sint32x4,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct GltfPrimitive {
+    attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
+    indices: Vec<u32>,
+}
+
+impl GltfPrimitive {
+    pub fn new() -> Self {
+        Self {
+            attributes: BTreeMap::new(),
+            indices: Vec::new(),
+        }
+    }
+
+    /// Checks
+    ///
+    /// At least one attribute exists
+    /// All attributes have the same length
+    pub fn validate(&self) -> bool {
+        if self.attributes.is_empty() {
+            return false;
+        }
+        let first_attribute_len = self.attributes.iter().next().unwrap().1.len();
+        for (_, values) in self.attributes.iter().skip(1) {
+            if values.len() != first_attribute_len {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn set_indices(&mut self, indices: Vec<u32>) {
+        self.indices = indices;
+    }
+
+    pub fn add_attribute(&mut self, id: VertexAttributeId, values: VertexAttributeValues) {
+        self.attributes.insert(id, values);
+    }
+
+    pub fn remove_attribute(&mut self, id: VertexAttributeId) -> Option<VertexAttributeValues> {
+        self.attributes.remove(&id)
+    }
+
+    pub fn layouts(&self) -> Vec<render::VertexBufferLayout> {
+        let attributes = self.attributes.values().collect::<Vec<_>>();
+
+        let mut layouts = Vec::new();
+
+        for attr in attributes.iter() {
+            let layout = render::VertexBufferLayout::from_vertex_formats(
+                wgpu::VertexStepMode::Vertex,
+                vec![attr.format()],
+            );
+            layouts.push(layout);
+        }
+
+        layouts
+    }
+
+    pub fn buffers(&self, ctx: &Context) -> Vec<wgpu::Buffer> {
+        let mut buffers = Vec::new();
+        for (_, values) in self.attributes.iter() {
+            let buf = render::device(ctx).create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: values.as_bytes(),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+            buffers.push(buf);
+        }
+        buffers
+    }
+
+    pub fn index_buffer(&self, ctx: &Context) -> wgpu::Buffer {
+        render::device(ctx).create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&self.indices),
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
+        })
+    }
+}
+
+//
+// Generic Material
+//
+
+pub struct Material {
+    albedo: render::TextureWithView,
+    metallic_roughness: render::TextureWithView,
+    occlusion: render::TextureWithView,
+}
+
+//
+// Generic Mesh
+//
+
+#[derive()]
+pub struct Mesh<T: VertexTrait> {
+    vertices: render::VertexBuffer<T>,
+    indices: render::IndexBuffer,
+}
+
+impl<T: VertexTrait> Mesh<T> {
+    pub fn vertices(&self) -> &render::VertexBuffer<T> {
+        &self.vertices
+    }
+    pub fn indices(&self) -> &render::IndexBuffer {
+        &self.indices
+    }
+}
+
+//
+// Mesh renderer
+//
+
+pub struct MeshRenderer<T: VertexTrait> {
+    pipeline: render::ArcRenderPipeline,
+    bindgroup_layout: render::ArcBindGroupLayout,
+
+    vertex_type: PhantomData<T>,
+
+    mesh: GltfPrimitive,
+    material: GltfMaterial,
+    buffers: Vec<wgpu::Buffer>,
+    index_buffer: wgpu::Buffer,
+}
+
+impl<T: VertexTrait> MeshRenderer<T> {
+    pub fn new(ctx: &mut Context, depth_buffer: &render::DepthBuffer) -> Self {
+        let mesh_cube = crate::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
+        let (mut mesh, material) = mesh_cube[0].clone();
+        mesh.remove_attribute(VertexAttributeId::Color(0)); // temp
+        let buffers = mesh.buffers(ctx);
+        let index_buffer = mesh.index_buffer(ctx);
+
+        let shader =
+            render::ShaderBuilder::new(include_str!("../assets/shaders/mesh.wgsl")).build(ctx);
+
+        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                // camera
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
+                // transform
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
+                // albedo texture
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // albedo sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
+            ])
+            .build(ctx);
+
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout.clone()])
+            .build(ctx);
+        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+            .buffers(mesh.layouts())
+            .single_target(render::ColorTargetState::from_current_screen(ctx))
+            .cull_mode(wgpu::Face::Back)
+            .depth_stencil(depth_buffer.depth_stencil_state())
+            .build(ctx);
+
+        Self {
+            pipeline,
+            bindgroup_layout,
+
+            vertex_type: PhantomData::<T>,
+
+            mesh,
+            material,
+            buffers,
+            index_buffer,
+        }
+    }
+
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        view: &wgpu::TextureView,
+        camera: &render::UniformBuffer<CameraUniform>,
+        transform: &render::UniformBuffer<TransformUniform>,
+        albedo: &render::TextureWithView,
+        albedo_sampler: &render::ArcSampler,
+        depth_buffer: &render::DepthBuffer,
+    ) {
+        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+            .entries(vec![
+                // camera
+                render::BindGroupEntry::Buffer(camera.buffer()),
+                // model
+                render::BindGroupEntry::Buffer(transform.buffer()),
+                // albedo texture
+                render::BindGroupEntry::Texture(albedo.view()),
+                // albedo sampler
+                render::BindGroupEntry::Sampler(albedo_sampler.clone()),
+            ])
+            .build(ctx);
+
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
+            .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
+            .build_run_submit(ctx, |mut pass| {
+                pass.set_pipeline(&self.pipeline);
+
+                for i in 0..self.buffers.len() {
+                    pass.set_vertex_buffer(i as u32, self.buffers[i].slice(..));
+                }
+                pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+
+                pass.draw_indexed(0..self.mesh.indices.len() as u32, 0, 0..1);
+            });
+    }
+}
+
 //
 // Mesh builder
-//
 //
 
 pub struct MeshBuilder<T: VertexTrait> {
@@ -471,109 +860,83 @@ impl MeshBuilder<render::VertexFull> {
     }
 }
 
+// // NOTE: bevy
+// #[derive(Debug, Copy, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
+// pub struct VertexAttributeId(u64);
 //
-// Mesh
+// impl VertexAttributeInfo {
+//     pub const ATTRIBUTE_POSITION: VertexAttributeInfo =
+//         VertexAttributeInfo::new("Vertex_Position", 0, VertexFormat::Float32x3);
 //
-
-#[derive()]
-pub struct Mesh<T: VertexTrait> {
-    vertices: render::VertexBuffer<T>,
-    indices: render::IndexBuffer,
-}
-
-impl<T: VertexTrait> Mesh<T> {
-    pub fn vertices(&self) -> &render::VertexBuffer<T> {
-        &self.vertices
-    }
-    pub fn indices(&self) -> &render::IndexBuffer {
-        &self.indices
-    }
-}
-
+//     /// The direction the vertex normal is facing in.
+//     /// Use in conjunction with [`Mesh::insert_attribute`] or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x3`].
+//     pub const ATTRIBUTE_NORMAL: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_Normal", 1, VertexFormat::Float32x3);
 //
-// Mesh renderer
+//     /// Texture coordinates for the vertex. Use in conjunction with [`Mesh::insert_attribute`]
+//     /// or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// Generally `[0.,0.]` is mapped to the top left of the texture, and `[1.,1.]` to the bottom-right.
+//     ///
+//     /// By default values outside will be clamped per pixel not for the vertex,
+//     /// "stretching" the borders of the texture.
+//     /// This behavior can be useful in some cases, usually when the borders have only
+//     /// one color, for example a logo, and you want to "extend" those borders.
+//     ///
+//     /// For different mapping outside of `0..=1` range,
+//     /// see [`ImageAddressMode`](bevy_image::ImageAddressMode).
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x2`].
+//     pub const ATTRIBUTE_UV_0: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_Uv", 2, VertexFormat::Float32x2);
 //
-
-pub struct MeshRenderer<T: VertexTrait> {
-    pipeline: render::ArcRenderPipeline,
-    bindgroup_layout: render::ArcBindGroupLayout,
-
-    vertex_type: PhantomData<T>,
-}
-
-impl<T: VertexTrait> MeshRenderer<T> {
-    pub fn new(ctx: &mut Context, depth_buffer: &render::DepthBuffer) -> Self {
-        let shader =
-            render::ShaderBuilder::new(include_str!("../assets/shaders/mesh.wgsl")).build(ctx);
-
-        let bindgroup_layout = render::BindGroupLayoutBuilder::new()
-            .entries(vec![
-                // camera
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
-                // transform
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
-                // albedo texture
-                render::BindGroupLayoutEntry::new()
-                    .texture_float_filterable()
-                    .fragment(),
-                // albedo sampler
-                render::BindGroupLayoutEntry::new()
-                    .sampler_filtering()
-                    .fragment(),
-            ])
-            .build(ctx);
-
-        let pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![bindgroup_layout.clone()])
-            .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(vec![T::desc()])
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
-            .cull_mode(wgpu::Face::Back)
-            .depth_stencil(depth_buffer.depth_stencil_state())
-            .build(ctx);
-
-        Self {
-            pipeline,
-            bindgroup_layout,
-
-            vertex_type: PhantomData::<T>,
-        }
-    }
-
-    pub fn render(
-        &mut self,
-        ctx: &mut Context,
-        view: &wgpu::TextureView,
-        camera: &render::UniformBuffer<CameraUniform>,
-        mesh: &Mesh<render::VertexFull>,
-        transform: &render::UniformBuffer<TransformUniform>,
-        albedo: &render::TextureWithView,
-        albedo_sampler: &render::ArcSampler,
-        depth_buffer: &render::DepthBuffer,
-    ) {
-        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-            .entries(vec![
-                // camera
-                render::BindGroupEntry::Buffer(camera.buffer()),
-                // model
-                render::BindGroupEntry::Buffer(transform.buffer()),
-                // albedo texture
-                render::BindGroupEntry::Texture(albedo.view()),
-                // albedo sampler
-                render::BindGroupEntry::Sampler(albedo_sampler.clone()),
-            ])
-            .build(ctx);
-
-        render::RenderPassBuilder::new()
-            .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
-            .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-            .build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&self.pipeline);
-                pass.set_vertex_buffer(0, mesh.vertices().slice(..));
-                pass.set_index_buffer(mesh.indices().slice(..), mesh.indices().format());
-                pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                pass.draw_indexed(0..mesh.indices().len(), 0, 0..1);
-            });
-    }
-}
+//     /// Alternate texture coordinates for the vertex. Use in conjunction with
+//     /// [`Mesh::insert_attribute`] or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// Typically, these are used for lightmaps, textures that provide
+//     /// precomputed illumination.
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x2`].
+//     pub const ATTRIBUTE_UV_1: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_Uv_1", 3, VertexFormat::Float32x2);
+//
+//     /// The direction of the vertex tangent. Used for normal mapping.
+//     /// Usually generated with [`generate_tangents`](Mesh::generate_tangents) or
+//     /// [`with_generated_tangents`](Mesh::with_generated_tangents).
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x4`].
+//     pub const ATTRIBUTE_TANGENT: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_Tangent", 4, VertexFormat::Float32x4);
+//
+//     /// Per vertex coloring. Use in conjunction with [`Mesh::insert_attribute`]
+//     /// or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x4`].
+//     pub const ATTRIBUTE_COLOR: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_Color", 5, VertexFormat::Float32x4);
+//
+//     /// Per vertex joint transform matrix weight. Use in conjunction with [`Mesh::insert_attribute`]
+//     /// or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Float32x4`].
+//     pub const ATTRIBUTE_JOINT_WEIGHT: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_JointWeight", 6, VertexFormat::Float32x4);
+//
+//     /// Per vertex joint transform matrix index. Use in conjunction with [`Mesh::insert_attribute`]
+//     /// or [`Mesh::with_inserted_attribute`].
+//     ///
+//     /// The format of this attribute is [`VertexFormat::Uint16x4`].
+//     pub const ATTRIBUTE_JOINT_INDEX: MeshVertexAttribute =
+//         MeshVertexAttribute::new("Vertex_JointIndex", 7, VertexFormat::Uint16x4);
+// }
+//
+// // NOTE: bevy
+// #[derive(Debug, Clone, Copy)]
+// pub struct VertexAttributeInfo {
+//     /// The friendly name of the vertex attribute
+//     pub name: &'static str,
+//     pub id: VertexAttributeId,
+//     pub format: wgpu::VertexFormat,
+// }

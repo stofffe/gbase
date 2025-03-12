@@ -1,9 +1,9 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    @location(1) color: vec4<f32>,
-    @location(2) normal: vec3<f32>,
+    // @location(1) color: vec4<f32>,
+    @location(1) normal: vec3<f32>,
+    @location(2) tangent: vec4<f32>,
     @location(3) uv: vec2<f32>,
-    @location(4) tangent: vec4<f32>,
 }
 
 @group(0) @binding(0)
@@ -29,7 +29,7 @@ fn vs_main(
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model * vec4<f32>(in.position, 1.0);
     out.uv = in.uv;
-    out.color = in.color;
+    // out.color = in.color;
     // NOTE: since TBN rotates normal and no normal texture is used assume normal is (0,0,1)
     // need to move this step to fragment shader if using normal textures
     let surface_normal = vec3f(0.0, 0.0, 1.0);
@@ -51,8 +51,8 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4f(in.normal, 1.0);
-// return textureSample(albedo, albedo_sampler, in.uv);
+    // return vec4f(1.0, 1.0, 1.0, 1.0);
+    return textureSample(albedo, albedo_sampler, in.uv);
 }
 
 struct CameraUniform {

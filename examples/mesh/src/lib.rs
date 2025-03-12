@@ -33,13 +33,13 @@ struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().log_level(gbase::LogLevel::Warn)
+        gbase::ContextBuilder::new().log_level(gbase::LogLevel::Info)
+        // .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let mut meshes =
-            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
-        meshes.push(gbase_utils::MeshBuilder::new().cube().build(ctx));
+        let meshes = Vec::new();
+        // meshes.push(gbase_utils::MeshBuilder::new().cube().build(ctx));
 
         let transform = gbase_utils::Transform3D::default();
         let transform_buffer =
@@ -85,8 +85,8 @@ impl Callbacks for App {
         let t = time::time_since_start(ctx);
 
         self.camera.flying_controls(ctx);
-        self.transform = gbase_utils::Transform3D::default()
-            .with_rot(Quat::from_rotation_y(t) * Quat::from_rotation_x(t / 2.0));
+        self.transform = gbase_utils::Transform3D::default();
+        // .with_rot(Quat::from_rotation_y(t) * Quat::from_rotation_x(t / 2.0));
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
             log::warn!("RESTART");
@@ -102,19 +102,18 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.transform_buffer.write(ctx, &self.transform.uniform());
 
-        for mesh in self.meshes.iter() {
-            self.mesh_renderer.render(
-                ctx,
-                screen_view,
-                &self.camera_buffer,
-                mesh,
-                &self.transform_buffer,
-                &self.albedo,
-                &self.albedo_sampler,
-                &self.depth_buffer,
-            );
-        }
+        // for mesh in self.meshes.iter() {
+        // }
 
+        self.mesh_renderer.render(
+            ctx,
+            screen_view,
+            &self.camera_buffer,
+            &self.transform_buffer,
+            &self.albedo,
+            &self.albedo_sampler,
+            &self.depth_buffer,
+        );
         false
     }
 

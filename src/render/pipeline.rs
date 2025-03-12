@@ -75,7 +75,7 @@ impl PipelineLayoutBuilder {
 // Render Pipeline Builder
 //
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct VertexBufferLayout {
     pub array_stride: wgpu::BufferAddress,
     pub step_mode: wgpu::VertexStepMode,
@@ -151,17 +151,17 @@ impl ColorTargetState {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct RenderPipelineBuilder {
-    layout: ArcPipelineLayout,
-    label: Option<String>,
-    shader: ArcShaderModule,
-    buffers: Vec<VertexBufferLayout>,
-    targets: Vec<Option<ColorTargetState>>,
-    topology: wgpu::PrimitiveTopology,
-    polygon_mode: wgpu::PolygonMode,
-    cull_mode: Option<wgpu::Face>,
-    depth_stencil: Option<wgpu::DepthStencilState>,
-    vertex_entry_point: Option<String>,
-    fragment_entry_point: Option<String>,
+    layout: ArcPipelineLayout,                      //
+    label: Option<String>,                          //
+    shader: ArcShaderModule,                        // shader
+    buffers: Vec<VertexBufferLayout>,               // mesh
+    targets: Vec<Option<ColorTargetState>>,         // shader
+    topology: wgpu::PrimitiveTopology,              // mesh
+    polygon_mode: wgpu::PolygonMode,                // mesh
+    cull_mode: Option<wgpu::Face>,                  //
+    depth_stencil: Option<wgpu::DepthStencilState>, //
+    vertex_entry_point: Option<String>,             // shader
+    fragment_entry_point: Option<String>,           // shader
 }
 
 impl RenderPipelineBuilder {
@@ -202,6 +202,8 @@ impl RenderPipelineBuilder {
             });
             location += buf.attributes.len() as u32;
         }
+
+        // log::warn!("buffers {:#?}", buffers);
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: self.label.as_deref(),
@@ -258,7 +260,7 @@ impl RenderPipelineBuilder {
     }
     pub fn build(self, ctx: &mut Context) -> ArcRenderPipeline {
         if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(&self) {
-            log::info!("Fetch cached render pipeline");
+            // log::info!("Fetch cached render pipeline");
             return render_pipeline.clone();
         }
 
@@ -364,7 +366,7 @@ impl ComputePipelineBuilder {
 
     pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {
         if let Some(compute_pipeline) = ctx.render.cache.compute_pipeline.get(self) {
-            log::info!("Fetch cached compute pipeline");
+            // log::info!("Fetch cached compute pipeline");
             return compute_pipeline.clone();
         }
 
