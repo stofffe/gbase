@@ -61,14 +61,14 @@ impl Callbacks for App {
         .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let texture2 = gbase_utils::texture_builder_from_image_bytes(
             &filesystem::load_b!("textures/city.jpg").unwrap(),
         )
         .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
 
         let texture3 = gbase_utils::texture_builder_from_image_bytes(
             &filesystem::load_b!("textures/hellokitty.jpg").unwrap(),
@@ -76,21 +76,21 @@ impl Callbacks for App {
         .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let texture4 = gbase_utils::texture_builder_from_image_bytes(
             &filesystem::load_b!("textures/mario.jpg").unwrap(),
         )
         .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let texture5 = gbase_utils::texture_builder_from_image_bytes(
             &filesystem::load_b!("textures/antialiasing.png").unwrap(),
         )
         .unwrap()
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let last_texture = texture1.view();
 
         // filters

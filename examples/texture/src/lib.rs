@@ -25,7 +25,7 @@ impl Callbacks for App {
         )
         .unwrap()
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);
 

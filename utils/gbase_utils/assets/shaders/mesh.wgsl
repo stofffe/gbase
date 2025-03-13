@@ -6,14 +6,16 @@ struct VertexInput {
     @location(3) uv: vec2<f32>,
 }
 
-@group(0) @binding(0)
-var<uniform> camera: CameraUniform;
-@group(0) @binding(1)
-var<uniform> model: mat4x4f;
-@group(0) @binding(2)
-var albedo: texture_2d<f32>;
-@group(0) @binding(3)
-var albedo_sampler: sampler;
+@group(0) @binding(0) var<uniform> camera: CameraUniform;
+@group(0) @binding(1) var<uniform> model: mat4x4f;
+@group(0) @binding(2) var base_color_texture: texture_2d<f32>;
+@group(0) @binding(3) var base_color_sampler: sampler;
+@group(0) @binding(4) var normal_texture: texture_2d<f32>;
+@group(0) @binding(5) var normal_sampler: sampler;
+@group(0) @binding(6) var metallic_roughness_texture: texture_2d<f32>;
+@group(0) @binding(7) var metallic_roughness_sampler: sampler;
+@group(0) @binding(8) var occlusion_texture: texture_2d<f32>;
+@group(0) @binding(9) var occlusion_sampler: sampler;
 
 @vertex
 fn vs_main(
@@ -52,7 +54,10 @@ struct VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return vec4f(1.0, 1.0, 1.0, 1.0);
-    return textureSample(albedo, albedo_sampler, in.uv);
+    // return textureSample(normal_texture, normal_sampler, in.uv);
+    // return textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
+    // return textureSample(base_color_texture, base_color_sampler, in.uv);
+    return textureSample(occlusion_texture, occlusion_sampler, in.uv);
 }
 
 struct CameraUniform {

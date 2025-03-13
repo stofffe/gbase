@@ -30,7 +30,7 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::TextureWithView
     .dimension(wgpu::TextureDimension::D3)
     .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
     .build(ctx)
-    .with_default_view(ctx);
+    .with_default_sampler_and_view(ctx);
 
     let noise_generator_info =
         render::UniformBufferBuilder::new(render::UniformBufferSource::Data(NOISE_UNIFORM))
@@ -88,7 +88,7 @@ pub fn generate_weather_map(ctx: &mut Context) -> render::TextureWithView {
     .unwrap()
     .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST)
     .build(ctx)
-    .with_default_view(ctx)
+    .with_default_sampler_and_view(ctx)
 }
 
 pub fn generate_blue_noise(ctx: &mut Context) -> render::TextureWithView {
@@ -96,5 +96,5 @@ pub fn generate_blue_noise(ctx: &mut Context) -> render::TextureWithView {
         .unwrap()
         .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST)
         .build(ctx)
-        .with_default_view(ctx)
+        .with_default_sampler_and_view(ctx)
 }

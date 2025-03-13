@@ -389,7 +389,7 @@ impl Callbacks for App {
             .unwrap()
             .format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .build(ctx)
-            .with_default_view(ctx);
+            .with_default_sampler_and_view(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,

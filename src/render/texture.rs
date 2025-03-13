@@ -31,8 +31,8 @@ impl SamplerBuilder {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
             address_mode_w: wgpu::AddressMode::Repeat,
-            mag_filter: wgpu::FilterMode::Nearest,
-            min_filter: wgpu::FilterMode::Nearest,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
             lod_min_clamp_u32: 0,
             lod_max_clamp_u32: 0,
             anisotropy_clamp: 1,
@@ -366,15 +366,25 @@ impl TextureViewBuilder {
 pub struct TextureWithView {
     texture: ArcTexture,
     view: ArcTextureView,
+    sampler: ArcSampler,
 }
 
 impl TextureWithView {
-    pub fn new(texture: ArcTexture, view: ArcTextureView) -> Self {
-        Self { texture, view }
+    pub fn new(texture: ArcTexture, view: ArcTextureView, sampler: ArcSampler) -> Self {
+        Self {
+            texture,
+            view,
+            sampler,
+        }
     }
     pub fn from_texture(ctx: &mut Context, texture: ArcTexture) -> Self {
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-        Self { texture, view }
+        let sampler = SamplerBuilder::new().build(ctx);
+        Self {
+            texture,
+            view,
+            sampler,
+        }
     }
     pub fn texture(&self) -> ArcTexture {
         self.texture.clone()
@@ -382,16 +392,22 @@ impl TextureWithView {
     pub fn view(&self) -> ArcTextureView {
         self.view.clone()
     }
+    pub fn sampler(&self) -> ArcSampler {
+        self.sampler.clone()
+    }
     pub fn texture_ref(&self) -> &wgpu::Texture {
         &self.texture
     }
     pub fn view_ref(&self) -> &wgpu::TextureView {
         &self.view
     }
+    pub fn sampler_ref(&self) -> &wgpu::Sampler {
+        &self.sampler
+    }
 }
 
 impl render::ArcTexture {
-    pub fn with_default_view(self, ctx: &mut Context) -> render::TextureWithView {
+    pub fn with_default_sampler_and_view(self, ctx: &mut Context) -> render::TextureWithView {
         render::TextureWithView::from_texture(ctx, self)
     }
 }

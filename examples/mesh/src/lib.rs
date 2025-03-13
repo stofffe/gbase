@@ -49,7 +49,7 @@ impl Callbacks for App {
         )
         .unwrap()
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let albedo_sampler = render::SamplerBuilder::new().build(ctx);
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
@@ -110,8 +110,6 @@ impl Callbacks for App {
             screen_view,
             &self.camera_buffer,
             &self.transform_buffer,
-            &self.albedo,
-            &self.albedo_sampler,
             &self.depth_buffer,
         );
         false

@@ -149,7 +149,7 @@ impl GrassRenderer {
         )
         .unwrap()
         .build(ctx)
-        .with_default_view(ctx);
+        .with_default_sampler_and_view(ctx);
         let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
 
         let tile_buffer =
