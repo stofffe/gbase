@@ -1,9 +1,9 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
-    // @location(1) color: vec4<f32>,
     @location(1) normal: vec3<f32>,
     @location(2) tangent: vec4<f32>,
     @location(3) uv: vec2<f32>,
+    @location(4) color: vec3<f32>,
 }
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
@@ -31,7 +31,7 @@ fn vs_main(
     var out: VertexOutput;
     out.clip_position = camera.view_proj * model * vec4<f32>(in.position, 1.0);
     out.uv = in.uv;
-    // out.color = in.color;
+    out.color = in.color;
     // NOTE: since TBN rotates normal and no normal texture is used assume normal is (0,0,1)
     // need to move this step to fragment shader if using normal textures
     let surface_normal = vec3f(0.0, 0.0, 1.0);
@@ -44,20 +44,21 @@ fn vs_main(
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
-    @location(0) color: vec4f,
+    @location(0) color: vec3f,
     @location(1) normal: vec3f,
     @location(2) uv: vec2f,
     @location(3) tangent: vec4f,
-
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return vec4f(1.0, 1.0, 1.0, 1.0);
-    // return textureSample(normal_texture, normal_sampler, in.uv);
-    // return textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
-    // return textureSample(base_color_texture, base_color_sampler, in.uv);
-    return textureSample(occlusion_texture, occlusion_sampler, in.uv);
+    return vec4f(in.color, 1.0);
+
+// return textureSample(normal_texture, normal_sampler, in.uv);
+// return textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
+// return textureSample(base_color_texture, base_color_sampler, in.uv);
+// return textureSample(occlusion_texture, occlusion_sampler, in.uv);
 }
 
 struct CameraUniform {

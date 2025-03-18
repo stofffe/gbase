@@ -7,6 +7,7 @@ use gbase::{
     wgpu::{
         self,
         util::{DeviceExt, RenderEncoder},
+        vertex_attr_array,
     },
     Context,
 };
@@ -57,11 +58,15 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<(GltfPrimitive, GltfMat
             // each primitive has its own material
             // so its basically out Mesh
             for primitive in mesh.primitives() {
-                if !matches!(primitive.mode(), gltf::mesh::Mode::Triangles) {
-                    panic!("glb loader doesnt support {:?}", primitive.mode());
-                }
-
-                let mut mesh = GltfPrimitive::new();
+                let topology = match primitive.mode() {
+                    gltf::mesh::Mode::Points => wgpu::PrimitiveTopology::PointList,
+                    gltf::mesh::Mode::Lines => wgpu::PrimitiveTopology::LineList,
+                    gltf::mesh::Mode::LineStrip => wgpu::PrimitiveTopology::LineStrip,
+                    gltf::mesh::Mode::Triangles => wgpu::PrimitiveTopology::TriangleList,
+                    gltf::mesh::Mode::TriangleStrip => wgpu::PrimitiveTopology::TriangleStrip,
+                    mode => panic!("primite mode {:?} not supported", mode),
+                };
+                let mut mesh = GltfPrimitive::new(topology);
 
                 // parse vertex attributes
                 for (sem, attr) in primitive.attributes() {
@@ -131,14 +136,8 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<(GltfPrimitive, GltfMat
                 let view = indices_attr.view().expect("buffer view not found");
 
                 assert!(
-                    indices_attr.data_type() == gltf::accessor::DataType::U16,
-                    "attribute expected {:?} got {:?}",
-                    gltf::accessor::DataType::U32,
-                    indices_attr.data_type()
-                );
-                assert!(
                     indices_attr.dimensions() == gltf::accessor::Dimensions::Scalar,
-                    "attribute expected {:?} got {:?}",
+                    "indices expected {:?} got {:?}",
                     gltf::accessor::Dimensions::Scalar,
                     indices_attr.dimensions()
                 );
@@ -154,12 +153,23 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<(GltfPrimitive, GltfMat
                 let offset = indices_attr.offset() + view.offset();
                 let length = view.length();
 
-                let indices = bytemuck::cast_slice::<u8, u16>(&buffer[offset..offset + length])
-                    .to_vec()
-                    .iter()
-                    .map(|&i| i as u32)
-                    .collect::<Vec<_>>();
-
+                let indices = match indices_attr.data_type() {
+                    gltf::accessor::DataType::U8 => buffer[offset..offset + length]
+                        .iter()
+                        .map(|&i| i as u32)
+                        .collect::<Vec<_>>(),
+                    gltf::accessor::DataType::U16 => {
+                        bytemuck::cast_slice::<u8, u16>(&buffer[offset..offset + length])
+                            .to_vec()
+                            .iter()
+                            .map(|&i| i as u32)
+                            .collect::<Vec<_>>()
+                    }
+                    gltf::accessor::DataType::U32 => {
+                        bytemuck::cast_slice::<u8, u32>(&buffer[offset..offset + length]).to_vec()
+                    }
+                    data_type => panic!("unsupported data type for indices: {:?}", data_type),
+                };
                 mesh.set_indices(indices);
 
                 // material
@@ -508,13 +518,15 @@ impl VertexAttributeValues {
 
 #[derive(Debug, Clone)]
 pub struct GltfPrimitive {
+    primitive_topology: wgpu::PrimitiveTopology,
     attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
     indices: Option<Vec<u32>>,
 }
 
 impl GltfPrimitive {
-    pub fn new() -> Self {
+    pub fn new(primitive_topology: wgpu::PrimitiveTopology) -> Self {
         Self {
+            primitive_topology,
             attributes: BTreeMap::new(),
             indices: None,
         }
@@ -535,6 +547,10 @@ impl GltfPrimitive {
             }
         }
         self.attributes.insert(id, values);
+    }
+
+    pub fn get_attribute(&self, id: VertexAttributeId) -> Option<&VertexAttributeValues> {
+        self.attributes.get(&id)
     }
 
     pub fn remove_attribute(&mut self, id: VertexAttributeId) -> Option<VertexAttributeValues> {
@@ -586,16 +602,13 @@ impl GltfPrimitive {
     }
 
     pub fn index_buffer(&self, ctx: &Context) -> Option<wgpu::Buffer> {
-        match &self.indices {
-            Some(indices) => Some(render::device(ctx).create_buffer_init(
-                &wgpu::util::BufferInitDescriptor {
-                    label: None,
-                    contents: bytemuck::cast_slice(&indices),
-                    usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
-                },
-            )),
-            None => None,
-        }
+        self.indices.as_ref().map(|indices| {
+            render::device(ctx).create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::INDEX,
+            })
+        })
     }
 
     /// Checks
@@ -613,6 +626,85 @@ impl GltfPrimitive {
             }
         }
         true
+    }
+
+    pub fn require_exact_attributes(mut self, attributes: &[VertexAttributeId]) -> Self {
+        // remove
+        self.attributes = self
+            .clone()
+            .attributes
+            .into_iter()
+            .filter(|(id, _)| attributes.contains(id))
+            .collect::<BTreeMap<VertexAttributeId, VertexAttributeValues>>();
+
+        // add
+        for attr in attributes {
+            if !self.attributes.contains_key(attr) {
+                match attr {
+                    VertexAttributeId::Normal => {
+                        log::warn!(
+                            "normal attribute could not be found, generating for each vertex"
+                        );
+                        self.generate_normals();
+                    }
+                    VertexAttributeId::Tangent => {
+                        log::warn!(
+                            "tangent attribute could not be found, generating for each vertex"
+                        );
+                        self.generate_tangents();
+                    }
+                    VertexAttributeId::Color(i) => {
+                        log::warn!(
+                        "color attribute could not be found, generating [1,1,1] for each vertex"
+                    );
+                        self.generate_colors(*i, [1.0, 1.0, 1.0]);
+                    }
+                    id => {
+                        panic!("vertex attributes does not contain required {:?}", id);
+                    }
+                }
+            }
+        }
+
+        self
+    }
+
+    pub fn generate_normals(&mut self) {
+        assert!(matches!(
+            self.primitive_topology,
+            wgpu::PrimitiveTopology::TriangleList
+        ));
+        if self.indices.is_some() {
+            self.generate_smoothed_normals();
+        } else {
+            self.generate_flat_normals();
+        }
+    }
+    pub fn generate_flat_normals(&mut self) {
+        todo!()
+    }
+    pub fn generate_smoothed_normals(&mut self) {
+        todo!()
+    }
+
+    pub fn generate_tangents(&mut self) {
+        todo!()
+    }
+    pub fn generate_colors(&mut self, color_index: u32, color: [f32; 3]) {
+        let Some(count) = self.vertex_count() else {
+            log::error!("trying to generate colors for mesh without vertices");
+            return;
+        };
+
+        let mut colors = Vec::with_capacity(count as usize);
+        for _ in 0..count {
+            colors.push(color);
+        }
+
+        self.add_attribute(
+            VertexAttributeId::Color(color_index),
+            VertexAttributeValues::Float32x3(colors),
+        );
     }
 }
 
@@ -675,7 +767,13 @@ impl<T: VertexTrait> MeshRenderer<T> {
     pub fn new(ctx: &mut Context, depth_buffer: &render::DepthBuffer) -> Self {
         let mesh_cube = crate::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
         let (mut mesh, gltf_material) = mesh_cube[0].clone();
-        mesh.remove_attribute(VertexAttributeId::Color(0)); // temp
+        mesh = mesh.require_exact_attributes(&[
+            VertexAttributeId::Position,
+            VertexAttributeId::Normal,
+            VertexAttributeId::Tangent,
+            VertexAttributeId::Uv(0),
+            VertexAttributeId::Color(0),
+        ]);
 
         let buffers = mesh.buffers(ctx);
         let index_buffer = mesh.index_buffer(ctx).expect("index buffer required");
@@ -749,7 +847,6 @@ impl<T: VertexTrait> MeshRenderer<T> {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         ctx: &mut Context,
