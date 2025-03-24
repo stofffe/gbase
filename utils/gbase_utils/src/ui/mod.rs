@@ -144,7 +144,7 @@ impl GUIRenderer {
     }
 
     // TODO use existing render pass instead?
-    pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
+    pub fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) {
         //
         // Layout widgets
         //

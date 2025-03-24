@@ -220,3 +220,48 @@ impl GizmoRenderer {
         }
     }
 }
+
+//
+// GPU
+//
+//
+// pub struct GpuMesh {
+//     pub attribute_buffer: render::ArcBuffer,
+//     pub attribute_ranges: BTreeMap<VertexAttributeId, (u64, u64)>,
+//     pub index_buffer: Option<render::ArcBuffer>,
+// }
+//
+// impl GpuMesh {
+//     pub fn new(ctx: &Context, mesh: &crate::Mesh) -> Self {
+//         let mut cursor = 0;
+//         let mut combined_bytes = Vec::new();
+//         let mut attribute_ranges = BTreeMap::new();
+//         for (&id, values) in mesh.attributes.iter() {
+//             let start = cursor;
+//             for value in values.as_bytes() {
+//                 combined_bytes.push(*value);
+//                 cursor += 1;
+//             }
+//             let end = cursor;
+//             attribute_ranges.insert(id, (start, end));
+//         }
+//
+//         let mut index_buffer = None;
+//         if let Some(indices) = &mesh.indices {
+//             let buffer =
+//                 render::RawBufferBuilder::new(render::RawBufferSource::Data(indices.clone()))
+//                     .usage(wgpu::BufferUsages::INDEX)
+//                     .build(ctx);
+//             index_buffer = Some(buffer.buffer());
+//         }
+//
+//         let buffer =
+//             render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes)).build(ctx);
+//
+//         Self {
+//             attribute_buffer: buffer.buffer(),
+//             attribute_ranges,
+//             index_buffer,
+//         }
+//     }
+// }

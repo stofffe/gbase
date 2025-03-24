@@ -37,7 +37,7 @@ use std::collections::BTreeSet;
 use encase::ShaderType;
 use gbase::{render, wgpu, Context};
 
-use crate::{GrowingBufferArena, Transform3D, TransformUniform, VertexAttributeId};
+use crate::{GpuMesh, GrowingBufferArena, Mesh, Transform3D, TransformUniform, VertexAttributeId};
 
 pub struct PbrRenderer {
     pipeline: render::ArcRenderPipeline,
@@ -151,21 +151,18 @@ impl PbrRenderer {
     pub fn clear(&mut self) {
         self.transforms.clear();
     }
-    #[allow(clippy::too_many_arguments)]
+
     pub fn render(
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
         camera: &render::UniformBuffer<crate::CameraUniform>,
         depth_buffer: &render::DepthBuffer,
-        mesh: &crate::Mesh,
 
-        gpu_mesh: &crate::GpuMesh,
-        gpu_material: &GpuMaterial,
+        draw_calls: &[(&Mesh, &GpuMesh, &GpuMaterial, Transform3D)],
     ) {
-        let mut bindgroups = Vec::new();
-
-        for transform in self.transforms.iter() {
+        let mut draws = Vec::new();
+        for (mesh, gpu_mesh, mat, transform) in draw_calls {
             let arena_allocation = self
                 .transform_arena
                 .allocate(render::device(ctx), TransformUniform::min_size().into());
@@ -191,29 +188,26 @@ impl PbrRenderer {
                         size: TransformUniform::min_size().into(),
                     },
                     // base color texture
-                    render::BindGroupEntry::Texture(gpu_material.base_color_texture.view()),
+                    render::BindGroupEntry::Texture(mat.base_color_texture.view()),
                     // base color sampler
-                    render::BindGroupEntry::Sampler(gpu_material.base_color_texture.sampler()),
+                    render::BindGroupEntry::Sampler(mat.base_color_texture.sampler()),
                     // normal texture
-                    render::BindGroupEntry::Texture(gpu_material.normal_texture.view()),
+                    render::BindGroupEntry::Texture(mat.normal_texture.view()),
                     // normal sampler
-                    render::BindGroupEntry::Sampler(gpu_material.normal_texture.sampler()),
+                    render::BindGroupEntry::Sampler(mat.normal_texture.sampler()),
                     // metallic roughness texture
-                    render::BindGroupEntry::Texture(gpu_material.metallic_roughness_texture.view()),
+                    render::BindGroupEntry::Texture(mat.metallic_roughness_texture.view()),
                     // metallic roughness sampler
-                    render::BindGroupEntry::Sampler(
-                        gpu_material.metallic_roughness_texture.sampler(),
-                    ),
+                    render::BindGroupEntry::Sampler(mat.metallic_roughness_texture.sampler()),
                     // occlusion roughness texture
-                    render::BindGroupEntry::Texture(gpu_material.occlusion_texture.view()),
+                    render::BindGroupEntry::Texture(mat.occlusion_texture.view()),
                     // occlusion roughness sampler
-                    render::BindGroupEntry::Sampler(gpu_material.occlusion_texture.sampler()),
+                    render::BindGroupEntry::Sampler(mat.occlusion_texture.sampler()),
                 ])
                 .build(ctx);
 
-            bindgroups.push(bindgroup);
+            draws.push((bindgroup, mesh, gpu_mesh));
         }
-
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
@@ -221,17 +215,16 @@ impl PbrRenderer {
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
 
-                for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
-                    let slice = gpu_mesh.attribute_buffer.slice(start..end);
-                    pass.set_vertex_buffer(i as u32, slice);
-                }
-                pass.set_index_buffer(
-                    gpu_mesh.index_buffer.as_ref().unwrap().slice(..),
-                    wgpu::IndexFormat::Uint32,
-                );
-
-                for b in bindgroups {
-                    pass.set_bind_group(0, Some(b.as_ref()), &[]);
+                for (bindgroup, mesh, gpu_mesh) in draws {
+                    for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
+                        let slice = gpu_mesh.attribute_buffer.slice(start..end);
+                        pass.set_vertex_buffer(i as u32, slice);
+                    }
+                    pass.set_index_buffer(
+                        gpu_mesh.index_buffer.as_ref().unwrap().slice(..),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                     pass.draw_indexed(0..mesh.index_count().unwrap(), 0, 0..1);
                 }
             });
