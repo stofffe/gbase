@@ -78,26 +78,27 @@ impl DeferredRenderer {
     ) -> (ArcBindGroupLayout, ArcBindGroup) {
         let sampler = render::SamplerBuilder::new().build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .label("deferred")
             .entries(vec![
                 // sampler
                 render::BindGroupLayoutEntry::new()
-                    .sampler_nonfiltering()
+                    .sampler_filtering()
                     .fragment(),
                 // position
                 render::BindGroupLayoutEntry::new()
-                    .texture_float_nonfilterable()
+                    .texture_float_filterable()
                     .fragment(),
                 // albedo
                 render::BindGroupLayoutEntry::new()
-                    .texture_float_nonfilterable()
+                    .texture_float_filterable()
                     .fragment(),
                 // normal
                 render::BindGroupLayoutEntry::new()
-                    .texture_float_nonfilterable()
+                    .texture_float_filterable()
                     .fragment(),
                 // roughness
                 render::BindGroupLayoutEntry::new()
-                    .texture_float_nonfilterable()
+                    .texture_float_filterable()
                     .fragment(),
                 // camera
                 render::BindGroupLayoutEntry::new().uniform().fragment(),
@@ -108,6 +109,7 @@ impl DeferredRenderer {
             ])
             .build(ctx);
         let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
+            .label("deferred")
             .entries(vec![
                 // sampler
                 render::BindGroupEntry::Sampler(sampler),

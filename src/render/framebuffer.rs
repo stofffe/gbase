@@ -185,6 +185,14 @@ impl DepthBufferBuilder {
         self.framebuffer_builder.usage = usage;
         self
     }
+    pub fn depth_write_enabled(mut self, value: bool) -> Self {
+        self.depth_write_enabled = value;
+        self
+    }
+    pub fn depth_compare(mut self, value: wgpu::CompareFunction) -> Self {
+        self.depth_compare = value;
+        self
+    }
     pub fn size(mut self, width: u32, height: u32) -> Self {
         self.framebuffer_builder.size = wgpu::Extent3d {
             width,

@@ -53,9 +53,10 @@ struct VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return vec4f(1.0, 1.0, 1.0, 1.0);
-    return vec4f(in.color, 1.0);
+    // return vec4f(in.color, 1.0);
+    // return vec4f(in.uv, 0.0, 1.0);
 
-// return textureSample(normal_texture, normal_sampler, in.uv);
+    return textureSample(normal_texture, normal_sampler, in.uv);
 // return textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
 // return textureSample(base_color_texture, base_color_sampler, in.uv);
 // return textureSample(occlusion_texture, occlusion_sampler, in.uv);

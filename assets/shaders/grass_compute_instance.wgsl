@@ -11,24 +11,26 @@ struct Tile {
     pos: vec2<f32>,
     size: f32,
     blades_per_side: f32,
-};
+}
 
-// instances tightly packed => size must be multiple of align 
-struct GrassInstance {          
-    pos: vec3<f32>,             
-    hash: u32,                  
-    facing: vec2<f32>,          
+
+// instances tightly packed => size must be multiple of align
+struct GrassInstance {
+    pos: vec3<f32>,
+    hash: u32,
+    facing: vec2<f32>,
     wind: f32,
     pad: f32,
-    height: f32,                
-    tilt: f32,                  
-    bend: f32,                  
-    width: f32,                  
-};
+    height: f32,
+    tilt: f32,
+    bend: f32,
+    width: f32,
+}
+
 struct CameraUniform {
     pos: vec3<f32>,
     facing: vec3<f32>,
-    
+
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
@@ -36,14 +38,27 @@ struct CameraUniform {
     inv_view: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>,
-};
+}
+
 
 struct AppInfo {
-    time_passed: f32
-};
+    time_passed: f32,
+}
+
 
 const ENABLE_INPUT = true;
-struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+struct DebugInput {
+    btn1: u32,
+    btn2: u32,
+    btn3: u32,
+    btn4: u32,
+    btn5: u32,
+    btn6: u32,
+    btn7: u32,
+    btn8: u32,
+    btn9: u32,
+}
+
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u && ENABLE_INPUT; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u && ENABLE_INPUT; }
 fn btn3_pressed() -> bool { return debug_input.btn3 == 1u && ENABLE_INPUT; }
@@ -95,8 +110,7 @@ const PI1_2 = PI / 2.0;
 const PI1_4 = PI / 4.0;
 const PI1_8 = PI / 8.0;
 
-@compute
-@workgroup_size(16,16,1)
+@compute @workgroup_size(16, 16, 1)
 fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if global_id.x >= u32(tile.blades_per_side) || global_id.y >= u32(tile.blades_per_side) {
         return;
@@ -175,10 +189,7 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     facing_angle += atan2(blade_clump_dir.y, blade_clump_dir.x);
     facing_angle += hash_to_range(blade_hash, -GRASS_MAX_ANGLE, GRASS_MAX_ANGLE);
-    let facing = normalize(vec2<f32>(
-        cos(facing_angle),
-        sin(facing_angle)
-    ));
+    let facing = normalize(vec2<f32>(cos(facing_angle), sin(facing_angle)));
 
     // caluclate wind
     let t = app_info.time_passed;
@@ -293,43 +304,4 @@ fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
         hash_to_snorm(hash ^ 0x36753621u),
         hash_to_snorm(hash ^ 0x12345678u),
     );
-}
-
-// Rotate orthogonal verticies towards camera 
-//let camera_dir = normalize(camera.pos.xz - pos.xz);
-//let dist_modifier = smoothstep(ORTH_DIST_BOUNDS.x, ORTH_DIST_BOUNDS.y, length(camera.pos.xz - pos.xz));
-//let vnd = dot(camera_dir, facing); // view normal dot
-//if vnd >= 0.0 {
-//    let rotate_factor = pow(1.0 - vnd, 3.0) * smoothstep(0.0, ORTH_LIM, vnd) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
-//    facing = mix(facing, camera_dir, rotate_factor);
-//} else {
-//    let rotate_factor = pow(vnd + 1.0, 3.0) * smoothstep(ORTH_LIM, 0.0, vnd + ORTH_LIM) * ORTHOGONAL_ROTATE_MODIFIER * dist_modifier;
-//    facing = mix(facing, -camera_dir, rotate_factor);
-//}
-
-// global wind from perline noise
-//let tile_uv = vec2<f32>(f32(x), 1.0 - f32(z)) / tile.blades_per_side;
-//let scroll = WIND_SCROLL_DIR * WIND_SCROLL_SPEED * t;
-//let uv = tile_uv + scroll;
-//let wind_sample_power = bilinear_r(uv);
-
-//let wind_sample_power = textureSample(perlin_tex, perlin_sam, uv) * WIND_GLOBAL_POWER;
-//var global_wind_dir = normalize(WIND_DIR);
-//var global_wind = vec2<f32>(
-//    abs(facing.x * global_wind_dir.x), // dot product on x 
-//    abs(facing.y * global_wind_dir.y), // dot product on z
-//) * global_wind_dir * wind_sample_power * WIND_GLOBAL_POWER;
-
-// blade curls towards normal, this affects how much wind is caught
-//if global_wind.x * facing.x <= 0.0 {
-//    global_wind.x *= WIND_FACING_MODIFIER;
-//}
-//if global_wind.y * facing.y <= 0.0 {
-//    global_wind.y *= WIND_FACING_MODIFIER;
-//}
-
-// local sway offset by hash
-//let local_wind = vec2<f32>(
-//    facing.x * sin(t + 2.0 * PI * hash_to_unorm(hash)),
-//    facing.y * sin(t + 2.0 * PI * hash_to_unorm(hash ^ 0x732846u)),
-//) * WIND_LOCAL_POWER;
+} // Rotate orthogonal verticies towards camera

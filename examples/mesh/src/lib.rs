@@ -1,14 +1,10 @@
-use std::{f32::consts::PI, marker::PhantomData};
-
 use gbase::{
     filesystem,
     glam::{vec3, Quat},
-    log,
-    render::{self, Vertex, VertexBuffer, VertexTrait},
-    time,
-    wgpu::{self},
-    Callbacks, Context,
+    load_b, log, render, time, Callbacks, Context,
 };
+use gbase_utils::Transform3D;
+use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -16,46 +12,42 @@ pub async fn run() {
 }
 
 struct App {
-    mesh_renderer: gbase_utils::MeshRenderer<render::VertexFull>,
-
-    meshes: Vec<gbase_utils::Mesh<render::VertexFull>>,
-    transform: gbase_utils::Transform3D,
-    transform_buffer: render::UniformBuffer<gbase_utils::TransformUniform>,
-    albedo: render::TextureWithView,
-    albedo_sampler: render::ArcSampler,
+    mesh_renderer: gbase_utils::PbrRenderer,
+    depth_buffer: render::DepthBuffer,
 
     camera: gbase_utils::Camera,
-    camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    mesh: gbase_utils::Mesh,
 
-    depth_buffer: render::DepthBuffer,
+    camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    material: gbase_utils::GpuMaterial,
+    gpu_mesh: gbase_utils::GpuMesh,
+
+    ui: gbase_utils::GUIRenderer,
 }
 
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().log_level(gbase::LogLevel::Info)
+        gbase::ContextBuilder::new()
+            .log_level(gbase::LogLevel::Info)
+            .vsync(false)
         // .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let meshes = Vec::new();
-        // meshes.push(gbase_utils::MeshBuilder::new().cube().build(ctx));
-
-        let transform = gbase_utils::Transform3D::default();
-        let transform_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let albedo = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/texture.jpeg").unwrap(),
-        )
-        .unwrap()
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
-        let albedo_sampler = render::SamplerBuilder::new().build(ctx);
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
+        let mesh_renderer = gbase_utils::PbrRenderer::new(ctx, &depth_buffer);
 
-        let mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &depth_buffer);
+        let mesh_cube =
+            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
+        let gltf_primitive = mesh_cube[0].clone();
+        let mesh = gltf_primitive
+            .mesh
+            .require_exact_attributes(mesh_renderer.required_attributes());
+        let material = gltf_primitive.material.to_material(ctx);
+        let gpu_mesh = gbase_utils::GpuMesh::new(ctx, &mesh);
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
@@ -65,28 +57,30 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
-        Self {
-            meshes,
-            transform,
-            transform_buffer,
-            albedo,
-            albedo_sampler,
+        let ui = gbase_utils::GUIRenderer::new(
+            ctx,
+            render::surface_format(ctx),
+            1024,
+            &load_b!("fonts/font.ttf").unwrap(),
+            gbase_utils::DEFAULT_SUPPORTED_CHARS,
+        );
 
+        Self {
             mesh_renderer,
             camera,
             camera_buffer,
 
             depth_buffer,
+            material,
+            mesh,
+            gpu_mesh,
+            ui,
         }
     }
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
-        let t = time::time_since_start(ctx);
-
         self.camera.flying_controls(ctx);
-        self.transform = gbase_utils::Transform3D::default();
-        // .with_rot(Quat::from_rotation_y(t) * Quat::from_rotation_x(t / 2.0));
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
             log::warn!("RESTART");
@@ -95,23 +89,33 @@ impl Callbacks for App {
 
         false
     }
+
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
         self.depth_buffer.clear(ctx);
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-        self.transform_buffer.write(ctx, &self.transform.uniform());
 
-        // for mesh in self.meshes.iter() {
-        // }
-
+        for i in 0..500 {
+            self.mesh_renderer.add_transform(
+                Transform3D::from_pos(vec3(10.0 * (i % 50) as f32, 0.0, 10.0 * (i / 50) as f32))
+                    .with_rot(Quat::from_rotation_x(
+                        time::time_since_start(ctx) + i as f32,
+                    )),
+            );
+        }
         self.mesh_renderer.render(
             ctx,
             screen_view,
             &self.camera_buffer,
-            &self.transform_buffer,
             &self.depth_buffer,
+            &self.mesh,
+            &self.gpu_mesh,
+            &self.material,
         );
+
+        self.ui.render(ctx, screen_view);
+
         false
     }
 
@@ -119,6 +123,7 @@ impl Callbacks for App {
     fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
         self.depth_buffer
             .resize(ctx, new_size.width, new_size.height);
+        self.ui.resize(ctx, new_size);
     }
 }
 

@@ -1,5 +1,3 @@
-use wgpu::util::DeviceExt;
-
 use crate::{
     render::{self, ArcSampler, ArcTexture, ArcTextureView},
     Context,
@@ -9,7 +7,7 @@ use crate::{
 // Sampler
 //
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct SamplerBuilder {
     label: Option<String>,
     address_mode_u: wgpu::AddressMode,
@@ -77,8 +75,8 @@ impl SamplerBuilder {
 }
 
 impl SamplerBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn min_mag_filter(mut self, min: wgpu::FilterMode, mag: wgpu::FilterMode) -> Self {
@@ -121,7 +119,7 @@ impl SamplerBuilder {
 //
 
 // TODO use struct notation?
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TextureSource {
     /// (width, height, bytes)
     Data(u32, u32, Vec<u8>),
@@ -129,7 +127,7 @@ pub enum TextureSource {
     Empty(u32, u32),
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TextureBuilder {
     source: TextureSource,
 

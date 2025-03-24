@@ -1,3 +1,5 @@
+use crate::VertexAttributeId;
+
 use super::CameraUniform;
 use gbase::{
     glam::{vec4, Vec3, Vec4Swizzles},
@@ -6,7 +8,7 @@ use gbase::{
     },
     wgpu, Context,
 };
-use std::f32::consts::PI;
+use std::{collections::BTreeMap, f32::consts::PI};
 
 pub struct GizmoRenderer {
     dynamic_vertex_buffer: Vec<VertexColor>,

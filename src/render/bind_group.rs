@@ -1,3 +1,5 @@
+use std::num::NonZero;
+
 use crate::{render, Context};
 use render::{ArcBindGroup, ArcBindGroupLayout, ArcBuffer, ArcSampler, ArcTextureView};
 
@@ -55,8 +57,8 @@ impl BindGroupLayoutBuilder {
 }
 
 impl BindGroupLayoutBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn entries(mut self, value: Vec<BindGroupLayoutEntry>) -> Self {
@@ -253,7 +255,12 @@ impl BindGroupBuilder {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub enum BindGroupEntry {
-    Buffer(ArcBuffer), // TODO add offset and size
+    Buffer(ArcBuffer),
+    BufferSlice {
+        buffer: ArcBuffer,
+        offset: u64,
+        size: u64,
+    },
     Texture(ArcTextureView),
     Sampler(ArcSampler),
 }
@@ -264,6 +271,15 @@ impl BindGroupEntry {
             BindGroupEntry::Buffer(buffer) => buffer.as_entire_binding(),
             BindGroupEntry::Texture(texture) => wgpu::BindingResource::TextureView(texture),
             BindGroupEntry::Sampler(sampler) => wgpu::BindingResource::Sampler(sampler),
+            BindGroupEntry::BufferSlice {
+                buffer,
+                offset,
+                size,
+            } => wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                buffer,
+                offset: *offset,
+                size: NonZero::new(*size),
+            }),
         }
     }
 }

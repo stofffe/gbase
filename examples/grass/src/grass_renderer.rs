@@ -150,7 +150,7 @@ impl GrassRenderer {
         .unwrap()
         .build(ctx)
         .with_default_sampler_and_view(ctx);
-        let perlin_noise_sampler = render::SamplerBuilder::new().build(ctx);
+        let perlin_noise_sampler = render::SamplerBuilder::new().label("perlin").build(ctx);
 
         let tile_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -159,6 +159,7 @@ impl GrassRenderer {
 
         // Instance
         let instance_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .label("instance")
             .entries(vec![
                 // instances
                 render::BindGroupLayoutEntry::new().storage().compute(),
@@ -205,6 +206,7 @@ impl GrassRenderer {
                 ])
                 .build(ctx),
             render::BindGroupBuilder::new(instance_bindgroup_layout.clone())
+                .label("instance")
                 .entries(vec![
                     // instances
                     render::BindGroupEntry::Buffer(instances[1].buffer()),
@@ -240,6 +242,7 @@ impl GrassRenderer {
 
         // Draw
         let draw_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .label("draw")
             .entries(vec![
                 // indirect buffer
                 render::BindGroupLayoutEntry::new().storage().compute(),
@@ -251,6 +254,7 @@ impl GrassRenderer {
             .build(ctx);
         let draw_bindgroup = [
             render::BindGroupBuilder::new(draw_bindgroup_layout.clone())
+                .label("draw")
                 .entries(vec![
                     // indirect buffer
                     render::BindGroupEntry::Buffer(indirect_buffer[0].buffer()),
@@ -259,6 +263,7 @@ impl GrassRenderer {
                 ])
                 .build(ctx),
             render::BindGroupBuilder::new(draw_bindgroup_layout.clone())
+                .label("draw")
                 .entries(vec![
                     // indirect buffer
                     render::BindGroupEntry::Buffer(indirect_buffer[1].buffer()),
@@ -281,6 +286,7 @@ impl GrassRenderer {
 
         // Render
         let render_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .label("render")
             .entries(vec![
                 // Camera
                 render::BindGroupLayoutEntry::new()
@@ -300,6 +306,7 @@ impl GrassRenderer {
             ])
             .build(ctx);
         let render_bindgroup = render::BindGroupBuilder::new(render_bindgroup_layout.clone())
+            .label("render")
             .entries(vec![
                 // Camera
                 render::BindGroupEntry::Buffer(camera_buffer.buffer()),
