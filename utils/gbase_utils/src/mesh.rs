@@ -287,6 +287,9 @@ pub struct GpuMesh {
     pub attribute_buffer: render::ArcBuffer,
     pub attribute_ranges: BTreeMap<VertexAttributeId, (u64, u64)>,
     pub index_buffer: Option<render::ArcBuffer>,
+    // TODO: add vertex and index count?
+    pub vertex_count: u32,
+    pub index_count: Option<u32>,
 }
 
 impl GpuMesh {
@@ -316,10 +319,15 @@ impl GpuMesh {
         let buffer =
             render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes)).build(ctx);
 
+        let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
+        let index_count = mesh.index_count();
+
         Self {
             attribute_buffer: buffer.buffer(),
             attribute_ranges,
             index_buffer,
+            vertex_count,
+            index_count,
         }
     }
 }

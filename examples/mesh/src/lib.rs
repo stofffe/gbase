@@ -16,13 +16,17 @@ struct App {
     depth_buffer: render::DepthBuffer,
 
     camera: gbase_utils::Camera,
-    mesh: gbase_utils::Mesh,
 
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
-    material: gbase_utils::GpuMaterial,
-    gpu_mesh: gbase_utils::GpuMesh,
-
     ui: gbase_utils::GUIRenderer,
+
+    ak47_mesh: gbase_utils::Mesh,
+    ak47_material: gbase_utils::GpuMaterial,
+    ak47_gpu_mesh: gbase_utils::GpuMesh,
+
+    cube_mesh: gbase_utils::Mesh,
+    cube_material: gbase_utils::GpuMaterial,
+    cube_gpu_mesh: gbase_utils::GpuMesh,
 }
 
 impl Callbacks for App {
@@ -40,14 +44,23 @@ impl Callbacks for App {
             .build(ctx);
         let mesh_renderer = gbase_utils::PbrRenderer::new(ctx, &depth_buffer);
 
-        let mesh_cube =
-            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap());
-        let gltf_primitive = mesh_cube[0].clone();
-        let mesh = gltf_primitive
+        let ak47_prim =
+            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap())[0]
+                .clone();
+        let ak47_mesh = ak47_prim
             .mesh
             .require_exact_attributes(mesh_renderer.required_attributes());
-        let material = gltf_primitive.material.to_material(ctx);
-        let gpu_mesh = gbase_utils::GpuMesh::new(ctx, &mesh);
+        let ak47_material = ak47_prim.material.to_material(ctx);
+        let ak47_gpu_mesh = gbase_utils::GpuMesh::new(ctx, &ak47_mesh);
+
+        let cube_prim =
+            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/cube.glb").unwrap())[0]
+                .clone();
+        let cube_mesh = cube_prim
+            .mesh
+            .require_exact_attributes(mesh_renderer.required_attributes());
+        let cube_material = cube_prim.material.to_material(ctx);
+        let cube_gpu_mesh = gbase_utils::GpuMesh::new(ctx, &cube_mesh);
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
@@ -71,10 +84,14 @@ impl Callbacks for App {
             camera_buffer,
 
             depth_buffer,
-            material,
-            mesh,
-            gpu_mesh,
             ui,
+
+            ak47_mesh,
+            ak47_material,
+            ak47_gpu_mesh,
+            cube_mesh,
+            cube_material,
+            cube_gpu_mesh,
         }
     }
 
@@ -96,22 +113,27 @@ impl Callbacks for App {
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        for i in 0..500 {
-            self.mesh_renderer.add_transform(
-                Transform3D::from_pos(vec3(10.0 * (i % 50) as f32, 0.0, 10.0 * (i / 50) as f32))
+        let elems = 500u32;
+        let mut draw_calls = Vec::new();
+        for x in 0..(elems.isqrt()) {
+            for z in 0..(elems.isqrt()) {
+                let transform = Transform3D::from_pos(vec3(10.0 * x as f32, 0.0, 10.0 * z as f32))
                     .with_rot(Quat::from_rotation_x(
-                        time::time_since_start(ctx) + i as f32,
-                    )),
-            );
+                        time::time_since_start(ctx) + (x + z) as f32,
+                    ));
+                if (x + z) % 2 == 0 {
+                    draw_calls.push((&self.ak47_gpu_mesh, &self.ak47_material, transform));
+                } else {
+                    draw_calls.push((&self.cube_gpu_mesh, &self.cube_material, transform));
+                }
+            }
         }
         self.mesh_renderer.render(
             ctx,
             screen_view,
             &self.camera_buffer,
             &self.depth_buffer,
-            &self.mesh,
-            &self.gpu_mesh,
-            &self.material,
+            &draw_calls,
         );
 
         self.ui.render(ctx, screen_view);

@@ -121,7 +121,7 @@ impl PbrRenderer {
             .build(ctx);
 
         // let size = dbg!(u64::from(TransformUniform::min_size()));
-        let size = dbg!(u64::from(TransformUniform::min_size())).next_multiple_of(256);
+        let size = u64::from(TransformUniform::min_size()).next_multiple_of(256);
         const TRANSFORM_MAX: u64 = 4096;
         let transform_arena = GrowingBufferArena::new(
             render::device(ctx),
@@ -144,14 +144,6 @@ impl PbrRenderer {
         }
     }
 
-    pub fn add_transform(&mut self, transform: Transform3D) {
-        self.transforms.push(transform);
-    }
-
-    pub fn clear(&mut self) {
-        self.transforms.clear();
-    }
-
     pub fn render(
         &mut self,
         ctx: &mut Context,
@@ -159,10 +151,10 @@ impl PbrRenderer {
         camera: &render::UniformBuffer<crate::CameraUniform>,
         depth_buffer: &render::DepthBuffer,
 
-        draw_calls: &[(&Mesh, &GpuMesh, &GpuMaterial, Transform3D)],
+        draw_calls: &[(&GpuMesh, &GpuMaterial, Transform3D)],
     ) {
         let mut draws = Vec::new();
-        for (mesh, gpu_mesh, mat, transform) in draw_calls {
+        for (gpu_mesh, mat, transform) in draw_calls {
             let arena_allocation = self
                 .transform_arena
                 .allocate(render::device(ctx), TransformUniform::min_size().into());
@@ -206,7 +198,7 @@ impl PbrRenderer {
                 ])
                 .build(ctx);
 
-            draws.push((bindgroup, mesh, gpu_mesh));
+            draws.push((bindgroup, gpu_mesh));
         }
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
@@ -215,7 +207,7 @@ impl PbrRenderer {
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&self.pipeline);
 
-                for (bindgroup, mesh, gpu_mesh) in draws {
+                for (bindgroup, gpu_mesh) in draws {
                     for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
                         let slice = gpu_mesh.attribute_buffer.slice(start..end);
                         pass.set_vertex_buffer(i as u32, slice);
@@ -225,7 +217,7 @@ impl PbrRenderer {
                         wgpu::IndexFormat::Uint32,
                     );
                     pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                    pass.draw_indexed(0..mesh.index_count().unwrap(), 0, 0..1);
+                    pass.draw_indexed(0..gpu_mesh.index_count.unwrap(), 0, 0..1);
                 }
             });
 
@@ -279,15 +271,9 @@ impl PbrMaterial {
                     render::TextureBuilder::new(render::TextureSource::Data(1, 1, default.into()))
                         .build(ctx);
                 let sampler = render::SamplerBuilder::new()
-                    .address_mode(
-                        wgpu::AddressMode::Repeat,
-                        wgpu::AddressMode::Repeat,
-                        wgpu::AddressMode::Repeat,
-                    )
                     .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
                     .build(ctx);
                 let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-
                 render::TextureWithView::new(texture, view, sampler)
             }
         }

@@ -1,15 +1,8 @@
 use crate::{
-    texture_builder_from_image_bytes, GpuMaterial, Image, Mesh, PbrMaterial, VertexAttributeId,
+    texture_builder_from_image_bytes, Image, Mesh, PbrMaterial, VertexAttributeId,
     VertexAttributeValues,
 };
-use gbase::{
-    glam::Mat4,
-    log::{self, warn},
-    render::{self, SamplerBuilder, TextureBuilder, TextureViewBuilder, TextureWithView},
-    wgpu::{self},
-    Context,
-};
-use image::load_from_memory_with_format;
+use gbase::{glam::Mat4, log, render::SamplerBuilder, wgpu, Context};
 
 //
 // Glb
