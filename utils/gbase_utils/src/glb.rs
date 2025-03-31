@@ -55,8 +55,17 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                 for (sem, attr) in primitive.attributes() {
                     let view = attr.view().expect("buffer view not found");
 
-                    let offset = attr.offset() + view.offset();
+                    let offset = view.offset();
                     let length = view.length();
+
+                    log::info!(
+                        "{:?}: view offset {:?} attr offset {:?} view length {:?} offset {:?}",
+                        sem,
+                        view.offset(),
+                        attr.offset(),
+                        view.length(),
+                        offset
+                    );
                     let bytes = &buffer[offset..offset + length];
 
                     match sem {
@@ -133,7 +142,7 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                     "attribute data with stride not supported"
                 );
 
-                let offset = indices_attr.offset() + view.offset();
+                let offset = view.offset();
                 let length = view.length();
 
                 let indices = match indices_attr.data_type() {
