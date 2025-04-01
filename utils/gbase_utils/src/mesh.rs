@@ -1,10 +1,15 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use gbase::{
     log, render,
     wgpu::{self, util::DeviceExt},
     Context,
 };
+
+use crate::{GpuMaterial, Transform3D};
 
 //
 // CPU
@@ -120,7 +125,7 @@ impl Mesh {
         true
     }
 
-    pub fn require_exact_attributes(mut self, attributes: &BTreeSet<VertexAttributeId>) -> Self {
+    pub fn extract_attributes(mut self, attributes: &BTreeSet<VertexAttributeId>) -> Self {
         // remove
         self.attributes = self
             .clone()
@@ -283,6 +288,12 @@ impl VertexAttributeValues {
 // GPU
 //
 
+#[derive(Clone)]
+pub struct GpuModel {
+    pub meshes: Vec<(Arc<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
+}
+
+#[derive(Clone)]
 pub struct GpuMesh {
     pub attribute_buffer: render::ArcBuffer,
     pub attribute_ranges: BTreeMap<VertexAttributeId, (u64, u64)>,

@@ -2,7 +2,12 @@ use crate::{
     texture_builder_from_image_bytes, Image, Mesh, PbrMaterial, VertexAttributeId,
     VertexAttributeValues,
 };
-use gbase::{glam::Mat4, log, render::SamplerBuilder, wgpu, Context};
+use gbase::{
+    glam::{vec3, vec4, Mat4, Vec3, Vec4Swizzles},
+    log,
+    render::SamplerBuilder,
+    wgpu, Context,
+};
 
 //
 // Glb
@@ -70,12 +75,27 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
 
                     match sem {
                         gltf::Semantic::Positions => {
+                            // TODO: debug for position
+                            let v = bytemuck::cast_slice::<u8, [f32; 3]>(bytes)
+                                .to_vec()
+                                .iter()
+                                .map(|a| {
+                                    (new_transform * vec4(a[0], a[1], a[2], 1.0))
+                                        .xyz()
+                                        .to_array()
+                                })
+                                .collect::<Vec<_>>();
+
                             mesh.attributes.insert(
                                 VertexAttributeId::Position,
-                                VertexAttributeValues::Float32x3(
-                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
-                                ),
+                                VertexAttributeValues::Float32x3(v),
                             );
+                            // mesh.attributes.insert(
+                            //     VertexAttributeId::Position,
+                            //     VertexAttributeValues::Float32x3(
+                            //         bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                            //     ),
+                            // );
                         }
                         gltf::Semantic::Normals => {
                             mesh.attributes.insert(
@@ -463,7 +483,13 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                     normal_scale,
                 };
 
-                meshes.push(GltfPrimitive { mesh, material });
+                // log::info!("{:#?}", new_transform.to_scale_rotation_translation());
+
+                meshes.push(GltfPrimitive {
+                    mesh,
+                    material,
+                    transform: new_transform,
+                });
             }
         }
 
@@ -484,4 +510,5 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
 pub struct GltfPrimitive {
     pub mesh: Mesh,
     pub material: PbrMaterial,
+    pub transform: Mat4,
 }

@@ -1,21 +1,30 @@
 struct VertexInput {
-    @location(0) position: vec3<f32>,
-    @location(1) normal: vec3<f32>,
-    @location(2) tangent: vec4<f32>,
-    @location(3) uv: vec2<f32>,
-    @location(4) color: vec3<f32>,
+    @location(0) position: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) tangent: vec4f,
+    @location(3) uv: vec2f,
+    @location(4) color: vec3f,
+}
+
+struct PbrMaterial {
+    base_color_factor: vec4f,
+    roughness_factor: f32,
+    metallic_factor: f32,
+    occlusion_strength: f32,
+    normal_scale: f32,
 }
 
 @group(0) @binding(0) var<uniform> camera: CameraUniform;
 @group(0) @binding(1) var<uniform> model: mat4x4f;
-@group(0) @binding(2) var base_color_texture: texture_2d<f32>;
-@group(0) @binding(3) var base_color_sampler: sampler;
-@group(0) @binding(4) var normal_texture: texture_2d<f32>;
-@group(0) @binding(5) var normal_sampler: sampler;
-@group(0) @binding(6) var metallic_roughness_texture: texture_2d<f32>;
-@group(0) @binding(7) var metallic_roughness_sampler: sampler;
-@group(0) @binding(8) var occlusion_texture: texture_2d<f32>;
-@group(0) @binding(9) var occlusion_sampler: sampler;
+@group(0) @binding(2) var<uniform> material: PbrMaterial;
+@group(0) @binding(3) var base_color_texture: texture_2d<f32>;
+@group(0) @binding(4) var base_color_sampler: sampler;
+@group(0) @binding(5) var normal_texture: texture_2d<f32>;
+@group(0) @binding(6) var normal_sampler: sampler;
+@group(0) @binding(7) var metallic_roughness_texture: texture_2d<f32>;
+@group(0) @binding(8) var metallic_roughness_sampler: sampler;
+@group(0) @binding(9) var occlusion_texture: texture_2d<f32>;
+@group(0) @binding(10) var occlusion_sampler: sampler;
 
 @vertex
 fn vs_main(
@@ -55,12 +64,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     // return vec4f(1.0, 1.0, 1.0, 1.0);
     // return vec4f(in.color, 1.0);
     // return vec4f(in.uv, 0.0, 1.0);
+    // return vec4f(material.metallic_factor, 0.0, 0.0, 1.0);
 
+    // return vec4f(in.normal, 1.0);
     // return textureSample(normal_texture, normal_sampler, in.uv);
     // return textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
     let base_color = textureSample(base_color_texture, base_color_sampler, in.uv).xyz;
-    return vec4f(base_color * in.color, 1.0);
-// return textureSample(occlusion_texture, occlusion_sampler, in.uv);
+    return vec4f(base_color * in.color * material.base_color_factor.xyz, 1.0);
+// let color = vec3f(1.0, 1.0, 1.0) * material.roughness_factor;
+// return vec4f(color, 1.0);
 }
 
 struct CameraUniform {

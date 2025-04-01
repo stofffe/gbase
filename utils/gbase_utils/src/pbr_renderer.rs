@@ -2,6 +2,7 @@
 // GPU types
 //
 
+#[derive(Clone)]
 pub struct GpuMaterial {
     pub base_color_texture: render::TextureWithView,
     pub color_factor: [f32; 4],
@@ -15,6 +16,18 @@ pub struct GpuMaterial {
 
     pub normal_texture: render::TextureWithView,
     pub normal_scale: f32,
+}
+
+impl GpuMaterial {
+    pub fn uniform(&self) -> PbrMaterialUniform {
+        PbrMaterialUniform {
+            color_factor: self.color_factor.into(),
+            roughness_factor: self.roughness_factor,
+            metallic_factor: self.metallic_factor,
+            occlusion_strength: self.occlusion_strength,
+            normal_scale: self.normal_scale,
+        }
+    }
 }
 
 //
@@ -32,12 +45,14 @@ pub struct GpuMaterial {
 //  rougness
 //  occlusion
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use encase::ShaderType;
-use gbase::{render, wgpu, Context};
+use gbase::{glam::Vec4, render, wgpu, Context};
 
-use crate::{GpuMesh, GrowingBufferArena, Mesh, Transform3D, TransformUniform, VertexAttributeId};
+use crate::{
+    GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform, VertexAttributeId,
+};
 
 pub struct PbrRenderer {
     pipeline: render::ArcRenderPipeline,
@@ -45,8 +60,9 @@ pub struct PbrRenderer {
     vertex_attributes: BTreeSet<VertexAttributeId>,
 
     transform_arena: GrowingBufferArena,
+    material_arena: GrowingBufferArena,
 
-    transforms: Vec<Transform3D>,
+    frame_meshes: Vec<(Arc<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 impl PbrRenderer {
@@ -60,6 +76,8 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
                 // transform
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
+                // pbr material
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // base color texture
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
@@ -121,14 +139,25 @@ impl PbrRenderer {
             .build(ctx);
 
         // let size = dbg!(u64::from(TransformUniform::min_size()));
-        let size = u64::from(TransformUniform::min_size()).next_multiple_of(256);
-        const TRANSFORM_MAX: u64 = 4096;
+        let transform_size = u64::from(TransformUniform::min_size()).next_multiple_of(256);
+        const DRAWS_MAX: u64 = 4096;
         let transform_arena = GrowingBufferArena::new(
             render::device(ctx),
-            size,
+            transform_size,
             wgpu::BufferDescriptor {
                 label: None,
-                size: size * TRANSFORM_MAX,
+                size: transform_size * DRAWS_MAX,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        );
+        let material_size = u64::from(PbrMaterialUniform::min_size()).next_multiple_of(256);
+        let material_arena = GrowingBufferArena::new(
+            render::device(ctx),
+            transform_size,
+            wgpu::BufferDescriptor {
+                label: None,
+                size: material_size * DRAWS_MAX,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             },
@@ -139,34 +168,65 @@ impl PbrRenderer {
             bindgroup_layout,
             vertex_attributes,
             transform_arena,
-
-            transforms: Vec::new(),
+            material_arena,
+            frame_meshes: Vec::new(),
         }
     }
 
+    pub fn add_mesh(
+        &mut self,
+        mesh: Arc<GpuMesh>,
+        material: Arc<GpuMaterial>,
+        transform: Transform3D,
+    ) {
+        self.frame_meshes.push((mesh, material, transform));
+    }
+
+    pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
+        for (mesh, material, transform) in model.meshes.iter() {
+            let final_transform =
+                Transform3D::from_matrix(global_transform.matrix() * transform.matrix());
+            self.frame_meshes
+                .push((mesh.clone(), material.clone(), final_transform));
+        }
+    }
+
+    // TODO: should have internal vector<(mesh mat transform)>
     pub fn render(
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
         camera: &render::UniformBuffer<crate::CameraUniform>,
         depth_buffer: &render::DepthBuffer,
-
-        draw_calls: &[(&GpuMesh, &GpuMaterial, Transform3D)],
     ) {
         let mut draws = Vec::new();
-        for (gpu_mesh, mat, transform) in draw_calls {
-            let arena_allocation = self
+        for (gpu_mesh, mat, transform) in self.frame_meshes.iter() {
+            // transform
+            let transform_allocation = self
                 .transform_arena
                 .allocate(render::device(ctx), TransformUniform::min_size().into());
-            let mut buffer = encase::UniformBuffer::new(Vec::new());
-            buffer
+            let mut transform_buffer = encase::UniformBuffer::new(Vec::new());
+            transform_buffer
                 .write(&transform.uniform())
                 .expect("could not write to transform buffer");
 
             render::queue(ctx).write_buffer(
-                &arena_allocation.buffer,
-                arena_allocation.offset,
-                &buffer.into_inner(),
+                &transform_allocation.buffer,
+                transform_allocation.offset,
+                &transform_buffer.into_inner(),
+            );
+            // material
+            let material_allocation = self
+                .material_arena
+                .allocate(render::device(ctx), PbrMaterialUniform::min_size().into());
+            let mut material_buffer = encase::UniformBuffer::new(Vec::new());
+            material_buffer
+                .write(&mat.uniform())
+                .expect("could not write to material buffer");
+            render::queue(ctx).write_buffer(
+                &material_allocation.buffer,
+                material_allocation.offset,
+                &material_buffer.into_inner(),
             );
 
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
@@ -175,9 +235,15 @@ impl PbrRenderer {
                     render::BindGroupEntry::Buffer(camera.buffer()),
                     // model
                     render::BindGroupEntry::BufferSlice {
-                        buffer: arena_allocation.buffer,
-                        offset: arena_allocation.offset,
+                        buffer: transform_allocation.buffer,
+                        offset: transform_allocation.offset,
                         size: TransformUniform::min_size().into(),
+                    },
+                    // pbr material
+                    render::BindGroupEntry::BufferSlice {
+                        buffer: material_allocation.buffer,
+                        offset: material_allocation.offset,
+                        size: PbrMaterialUniform::min_size().into(),
                     },
                     // base color texture
                     render::BindGroupEntry::Texture(mat.base_color_texture.view()),
@@ -200,6 +266,7 @@ impl PbrRenderer {
 
             draws.push((bindgroup, gpu_mesh));
         }
+
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
@@ -221,11 +288,33 @@ impl PbrRenderer {
                 }
             });
 
-        self.transforms.clear();
         self.transform_arena.free();
+        self.material_arena.free();
+        self.frame_meshes.clear();
     }
     pub fn required_attributes(&self) -> &BTreeSet<VertexAttributeId> {
         &self.vertex_attributes
+    }
+}
+
+#[derive(Debug, Clone, ShaderType)]
+pub struct PbrMaterialUniform {
+    pub color_factor: Vec4,
+    pub roughness_factor: f32,
+    pub metallic_factor: f32,
+    pub occlusion_strength: f32,
+    pub normal_scale: f32,
+}
+
+impl PbrMaterial {
+    pub fn uniform(&self) -> PbrMaterialUniform {
+        PbrMaterialUniform {
+            color_factor: self.color_factor.into(),
+            roughness_factor: self.roughness_factor,
+            metallic_factor: self.metallic_factor,
+            occlusion_strength: self.occlusion_strength,
+            normal_scale: self.normal_scale,
+        }
     }
 }
 
