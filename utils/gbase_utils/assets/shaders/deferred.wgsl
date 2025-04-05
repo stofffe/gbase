@@ -3,7 +3,8 @@
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) uv: vec2<f32>,
-};
+}
+;
 
 @vertex
 fn vs_main(in: VertexInput) -> FragmentInput {
@@ -24,7 +25,18 @@ fn vs_main(in: VertexInput) -> FragmentInput {
 @group(0) @binding(6) var<uniform> light: vec3<f32>;
 @group(0) @binding(7) var<uniform> debug_input: DebugInput;
 
-struct DebugInput { btn1: u32, btn2: u32, btn3: u32, btn4: u32, btn5: u32, btn6: u32, btn7: u32, btn8: u32, btn9: u32 };
+struct DebugInput {
+    btn1: u32,
+    btn2: u32,
+    btn3: u32,
+    btn4: u32,
+    btn5: u32,
+    btn6: u32,
+    btn7: u32,
+    btn8: u32,
+    btn9: u32,
+}
+;
 fn btn1_pressed() -> bool { return debug_input.btn1 == 1u; }
 fn btn2_pressed() -> bool { return debug_input.btn2 == 1u; }
 fn btn3_pressed() -> bool { return debug_input.btn3 == 1u; }
@@ -38,12 +50,14 @@ fn btn9_pressed() -> bool { return debug_input.btn9 == 1u; }
 struct Camera {
     view_proj: mat4x4<f32>,
     position: vec3<f32>,
-};
+}
+;
 
 struct FragmentInput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) uv: vec2<f32>,
-};
+}
+;
 
 const SPECULAR_INTENSITY = 150.0;
 const SPECULAR_MODIFIER = 0.7;
@@ -57,7 +71,7 @@ const AMBIENT_DITHER = 0.15;
 
 @fragment
 fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    // Gather g-buffer data 
+    // Gather g-buffer data
     let position = textureSample(position_tex, samp, in.uv).xyz;
     let albedo = textureSample(albedo_tex, samp, in.uv).xyz;
     var normal = textureSample(normal_tex, samp, in.uv).xyz;

@@ -45,6 +45,7 @@ pub struct Camera {
     pub zfar: f32,
 
     pub projection: CameraProjection,
+    // TODO: add aspect here
 }
 
 impl Camera {
@@ -94,15 +95,15 @@ impl Camera {
         let pos = self.pos;
         let facing = self.forward();
 
-        let aspect = render::aspect_ratio(ctx);
+        let aspect_ratio = render::aspect_ratio(ctx);
         let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
         let proj = match self.projection {
             CameraProjection::Perspective { fov } => {
-                Mat4::perspective_rh(fov, aspect, self.znear, self.zfar)
+                Mat4::perspective_rh(fov, aspect_ratio, self.znear, self.zfar)
             }
             CameraProjection::Orthographic { height } => Mat4::orthographic_rh(
-                aspect * -height / 2.0,
-                aspect * height / 2.0,
+                aspect_ratio * -height / 2.0,
+                aspect_ratio * height / 2.0,
                 -height / 2.0,
                 height / 2.0,
                 self.znear,
@@ -196,5 +197,92 @@ impl Camera {
     pub fn zfar(mut self, value: f32) -> Self {
         self.zfar = value;
         self
+    }
+}
+
+pub struct FrustumPlane {
+    pub origin: Vec3,
+    pub normal: Vec3,
+}
+
+impl FrustumPlane {
+    pub fn in_front(&self, point: Vec3) -> bool {
+        Vec3::dot(self.normal, point - self.origin) >= 0.0
+    }
+}
+
+pub struct CameraFrustum {
+    pub near: FrustumPlane,
+    pub far: FrustumPlane,
+    pub left: FrustumPlane,
+    pub right: FrustumPlane,
+    pub bottom: FrustumPlane,
+    pub top: FrustumPlane,
+}
+
+impl CameraFrustum {
+    pub fn point_inside(&self, point: Vec3) -> bool {
+        self.near.in_front(point)
+            && self.far.in_front(point)
+            && self.left.in_front(point)
+            && self.right.in_front(point)
+            && self.bottom.in_front(point)
+            && self.top.in_front(point)
+    }
+}
+
+impl Camera {
+    // TODO: cache in camera?
+    pub fn calculate_frustum(&self, ctx: &Context) -> CameraFrustum {
+        let cam_forward = self.forward();
+        let cam_right = self.right();
+        let cam_up = self.up();
+
+        match self.projection {
+            CameraProjection::Orthographic { height } => todo!(),
+            CameraProjection::Perspective { fov } => {
+                let aspect_ratio = render::aspect_ratio(ctx);
+                let half_far_height = self.zfar * f32::tan(fov / 2.0);
+                let half_far_width = half_far_height * aspect_ratio;
+
+                let far_left = cam_forward * self.zfar - cam_right * half_far_width;
+                let far_right = cam_forward * self.zfar + cam_right * half_far_width;
+                let far_bottom = cam_forward * self.zfar - cam_up * half_far_height;
+                let far_top = cam_forward * self.zfar + cam_up * half_far_height;
+
+                let near = FrustumPlane {
+                    origin: self.pos + self.znear * cam_forward,
+                    normal: cam_forward.normalize(),
+                };
+                let far = FrustumPlane {
+                    origin: self.pos + self.zfar * cam_forward,
+                    normal: -cam_forward.normalize(),
+                };
+                let left = FrustumPlane {
+                    origin: self.pos,
+                    normal: Vec3::cross(far_left, cam_up).normalize(),
+                };
+                let right = FrustumPlane {
+                    origin: self.pos,
+                    normal: Vec3::cross(cam_up, far_right).normalize(),
+                };
+                let bottom = FrustumPlane {
+                    origin: self.pos,
+                    normal: Vec3::cross(cam_right, far_bottom).normalize(),
+                };
+                let top = FrustumPlane {
+                    origin: self.pos,
+                    normal: Vec3::cross(far_top, cam_right).normalize(),
+                };
+                CameraFrustum {
+                    near,
+                    far,
+                    left,
+                    right,
+                    bottom,
+                    top,
+                }
+            }
+        }
     }
 }

@@ -48,7 +48,10 @@ impl GpuMaterial {
 use std::{collections::BTreeSet, sync::Arc};
 
 use encase::ShaderType;
-use gbase::{glam::Vec4, render, wgpu, Context};
+use gbase::{
+    glam::{Vec3, Vec4},
+    render, wgpu, Context,
+};
 
 use crate::{
     GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform, VertexAttributeId,
@@ -73,7 +76,12 @@ impl PbrRenderer {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // camera
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
+                // lights
+                render::BindGroupLayoutEntry::new().uniform().fragment(),
                 // transform
                 render::BindGroupLayoutEntry::new().uniform().vertex(),
                 // pbr material
@@ -196,11 +204,21 @@ impl PbrRenderer {
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
-        camera: &render::UniformBuffer<crate::CameraUniform>,
+        camera: &crate::Camera,
+        camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
+        lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
     ) {
+        let frustum = camera.calculate_frustum(ctx);
+
         let mut draws = Vec::new();
         for (gpu_mesh, mat, transform) in self.frame_meshes.iter() {
+            // cull
+            // TODO: use circles or AABB?
+            if !frustum.point_inside(transform.pos) {
+                continue;
+            }
+
             // transform
             let transform_allocation = self
                 .transform_arena
@@ -232,7 +250,9 @@ impl PbrRenderer {
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
-                    render::BindGroupEntry::Buffer(camera.buffer()),
+                    render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                    // lights
+                    render::BindGroupEntry::Buffer(lights.buffer()),
                     // model
                     render::BindGroupEntry::BufferSlice {
                         buffer: transform_allocation.buffer,
@@ -297,27 +317,6 @@ impl PbrRenderer {
     }
 }
 
-#[derive(Debug, Clone, ShaderType)]
-pub struct PbrMaterialUniform {
-    pub color_factor: Vec4,
-    pub roughness_factor: f32,
-    pub metallic_factor: f32,
-    pub occlusion_strength: f32,
-    pub normal_scale: f32,
-}
-
-impl PbrMaterial {
-    pub fn uniform(&self) -> PbrMaterialUniform {
-        PbrMaterialUniform {
-            color_factor: self.color_factor.into(),
-            roughness_factor: self.roughness_factor,
-            metallic_factor: self.metallic_factor,
-            occlusion_strength: self.occlusion_strength,
-            normal_scale: self.normal_scale,
-        }
-    }
-}
-
 // TODO: shoudl use handles for textures to reuse
 // TODO: emissive
 #[derive(Debug, Clone, Default)]
@@ -343,6 +342,12 @@ pub struct Image {
 }
 
 impl PbrMaterial {
+    pub fn new_colored(color: [f32; 4]) -> Self {
+        Self {
+            color_factor: color,
+            ..Default::default()
+        }
+    }
     pub fn to_material(&self, ctx: &mut Context) -> GpuMaterial {
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
         fn create_texture_or_default(
@@ -388,4 +393,34 @@ impl PbrMaterial {
             normal_scale: self.normal_scale,
         }
     }
+}
+
+impl PbrMaterial {
+    pub fn uniform(&self) -> PbrMaterialUniform {
+        PbrMaterialUniform {
+            color_factor: self.color_factor.into(),
+            roughness_factor: self.roughness_factor,
+            metallic_factor: self.metallic_factor,
+            occlusion_strength: self.occlusion_strength,
+            normal_scale: self.normal_scale,
+        }
+    }
+}
+
+#[derive(Debug, Clone, ShaderType)]
+pub struct PbrMaterialUniform {
+    pub color_factor: Vec4,
+    pub roughness_factor: f32,
+    pub metallic_factor: f32,
+    pub occlusion_strength: f32,
+    pub normal_scale: f32,
+}
+
+//
+// lights
+//
+
+#[derive(ShaderType)]
+pub struct PbrLightUniforms {
+    pub main_light_dir: Vec3,
 }

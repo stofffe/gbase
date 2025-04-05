@@ -1,9 +1,9 @@
 use gbase::{
     filesystem,
     glam::{vec3, Quat},
-    load_b, log, render, time, Callbacks, Context,
+    load_b, log, render, time, wgpu, Callbacks, Context,
 };
-use gbase_utils::{GpuModel, Transform3D};
+use gbase_utils::{GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D};
 use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -12,13 +12,12 @@ pub async fn run() {
 }
 
 struct App {
-    mesh_renderer: gbase_utils::PbrRenderer,
     depth_buffer: render::DepthBuffer,
+    mesh_renderer: gbase_utils::PbrRenderer,
+    ui: gbase_utils::GUIRenderer,
 
     camera: gbase_utils::Camera,
-
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
-    ui: gbase_utils::GUIRenderer,
 
     ak47_material: Arc<gbase_utils::GpuMaterial>,
     ak47_gpu_mesh: Arc<gbase_utils::GpuMesh>,
@@ -28,6 +27,8 @@ struct App {
     penguin_model: GpuModel,
 
     helmet_model: GpuModel,
+
+    lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 }
 
 impl Callbacks for App {
@@ -113,7 +114,6 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
-        log::error!("1");
         let ui = gbase_utils::GUIRenderer::new(
             ctx,
             render::surface_format(ctx),
@@ -128,6 +128,13 @@ impl Callbacks for App {
         //     .unwrap();
         // render::window(ctx).set_cursor_visible(false);
 
+        let lights_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
+            PbrLightUniforms {
+                main_light_dir: vec3(0.0, -1.0, 1.0).normalize(),
+            },
+        ))
+        .build(ctx);
+
         Self {
             mesh_renderer,
             camera,
@@ -141,6 +148,7 @@ impl Callbacks for App {
             cube_model,
             penguin_model,
             helmet_model,
+            lights_buffer,
         }
     }
 
@@ -166,9 +174,10 @@ impl Callbacks for App {
         for x in 0..(elems.isqrt()) {
             for z in 0..(elems.isqrt()) {
                 let transform = Transform3D::from_pos(vec3(10.0 * x as f32, 0.0, 10.0 * z as f32))
-                    .with_rot(Quat::from_rotation_x(
-                        time::time_since_start(ctx) + (x + z) as f32,
+                    .with_rot(Quat::from_rotation_y(
+                        (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
                     ));
+
                 if (x + z) % 2 == 0 {
                     self.mesh_renderer.add_mesh(
                         self.ak47_gpu_mesh.clone(),
@@ -181,20 +190,23 @@ impl Callbacks for App {
             }
         }
 
+        // let plane_mesh = gbase_utils::MeshBuilder::quad().build();
         // self.mesh_renderer.add_mesh(
-        //     self.ak47_gpu_mesh.clone(),
-        //     self.ak47_material.clone(),
-        //     Transform3D::default(),
+        //     GpuMesh::new(ctx, &plane_mesh).into(),
+        //     PbrMaterial::new_colored([1.0, 0.0, 0.0, 1.0])
+        //         .to_material(ctx)
+        //         .into(),
+        //     Transform3D::default().with_rot(Quat::from_rotation_x(-PI / 2.0)),
         // );
-        // self.mesh_renderer.add_model(
-        //     &self.penguin_model,
-        //     Transform3D::default().with_rot(Quat::from_rotation_y(time::time_since_start(ctx))),
-        // );
-        // self.mesh_renderer
-        //     .add_model(&self.helmet_model, Transform3D::default());
 
-        self.mesh_renderer
-            .render(ctx, screen_view, &self.camera_buffer, &self.depth_buffer);
+        self.mesh_renderer.render(
+            ctx,
+            screen_view,
+            &self.camera,
+            &self.camera_buffer,
+            &self.lights_buffer,
+            &self.depth_buffer,
+        );
         self.ui.render(ctx, screen_view);
 
         false
