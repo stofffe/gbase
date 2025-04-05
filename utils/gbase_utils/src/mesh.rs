@@ -233,6 +233,7 @@ impl Mesh {
     }
 }
 
+#[derive(Clone)]
 pub struct BoundingBox {
     pub min: Vec3,
     pub max: Vec3,
@@ -334,6 +335,7 @@ pub struct GpuMesh {
     // TODO: add vertex and index count?
     pub vertex_count: u32,
     pub index_count: Option<u32>,
+    pub bounds: BoundingBox,
 }
 
 impl GpuMesh {
@@ -366,12 +368,15 @@ impl GpuMesh {
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();
 
+        let bounds = mesh.calculate_bounding_box();
+
         Self {
             attribute_buffer: buffer.buffer(),
             attribute_ranges,
             index_buffer,
             vertex_count,
             index_count,
+            bounds,
         }
     }
 }

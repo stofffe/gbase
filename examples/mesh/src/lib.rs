@@ -15,24 +15,21 @@ pub async fn run() {
 
 struct App {
     depth_buffer: render::DepthBuffer,
-    mesh_renderer: gbase_utils::PbrRenderer,
+    pbr_renderer: gbase_utils::PbrRenderer,
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
 
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 
     ak47_mesh: gbase_utils::Mesh,
     ak47_material: Arc<gbase_utils::GpuMaterial>,
     ak47_gpu_mesh: Arc<gbase_utils::GpuMesh>,
 
     cube_model: GpuModel,
-
     penguin_model: GpuModel,
-
     helmet_model: GpuModel,
-
-    lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 }
 
 impl Callbacks for App {
@@ -48,14 +45,14 @@ impl Callbacks for App {
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let mesh_renderer = gbase_utils::PbrRenderer::new(ctx, &depth_buffer);
+        let pbr_renderer = gbase_utils::PbrRenderer::new(ctx, &depth_buffer);
 
         let ak47_prim =
             gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/ak47.glb").unwrap())[0]
                 .clone();
         let ak47_mesh = ak47_prim
             .mesh
-            .extract_attributes(mesh_renderer.required_attributes());
+            .extract_attributes(pbr_renderer.required_attributes());
         let ak47_material = ak47_prim.material.to_material(ctx);
         let ak47_gpu_mesh = gbase_utils::GpuMesh::new(ctx, &ak47_mesh);
 
@@ -65,7 +62,7 @@ impl Callbacks for App {
         for prim in cube_prim {
             let mesh_with_attr = &prim
                 .mesh
-                .extract_attributes(mesh_renderer.required_attributes());
+                .extract_attributes(pbr_renderer.required_attributes());
 
             cube_model.meshes.push((
                 Arc::new(gbase_utils::GpuMesh::new(ctx, mesh_with_attr)),
@@ -80,7 +77,7 @@ impl Callbacks for App {
         for prim in penguin_prim {
             let mesh_with_attr = &prim
                 .mesh
-                .extract_attributes(mesh_renderer.required_attributes());
+                .extract_attributes(pbr_renderer.required_attributes());
             let penguin_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
             let penguin_material = prim.material.to_material(ctx);
             let penguin_local_transform = Transform3D::from_matrix(prim.transform);
@@ -98,7 +95,7 @@ impl Callbacks for App {
         for prim in helmet_prim {
             let mesh_with_attr = &prim
                 .mesh
-                .extract_attributes(mesh_renderer.required_attributes());
+                .extract_attributes(pbr_renderer.required_attributes());
             let helmet_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
             let helmet_material = prim.material.to_material(ctx);
             let helmet_local_transform = Transform3D::from_matrix(prim.transform);
@@ -142,7 +139,7 @@ impl Callbacks for App {
         .build(ctx);
 
         Self {
-            mesh_renderer,
+            pbr_renderer,
             ui_renderer,
             gizmo_renderer,
 
@@ -179,35 +176,22 @@ impl Callbacks for App {
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        let elems = 500u32;
+        let elems = 20u32;
         for x in 0..(elems.isqrt()) {
             for z in 0..(elems.isqrt()) {
-                let transform = Transform3D::from_pos(vec3(10.0 * x as f32, 0.0, 10.0 * z as f32))
+                let transform = Transform3D::from_pos(vec3(15.0 * x as f32, 0.0, 10.0 * z as f32))
                     .with_rot(Quat::from_rotation_y(
                         (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
                     ));
 
                 if (x + z) % 2 == 0 {
-                    let ak47_bouding = self.ak47_mesh.calculate_bounding_box();
-                    let max_radius = f32::max(
-                        -ak47_bouding.min.min_element(),
-                        ak47_bouding.max.max_element(),
-                    );
-                    log::info!("RAD {:?}", max_radius);
-                    self.gizmo_renderer.draw_sphere(
-                        &Transform3D::default()
-                            .with_pos(transform.pos)
-                            .with_rot(transform.rot)
-                            .with_scale(Vec3::ONE * max_radius * 2.0),
-                        RED.xyz(),
-                    );
-                    self.mesh_renderer.add_mesh(
+                    self.pbr_renderer.add_mesh(
                         self.ak47_gpu_mesh.clone(),
                         self.ak47_material.clone(),
                         transform,
                     );
                 } else {
-                    self.mesh_renderer.add_model(&self.helmet_model, transform);
+                    self.pbr_renderer.add_model(&self.helmet_model, transform);
                 }
             }
         }
@@ -223,7 +207,9 @@ impl Callbacks for App {
         //
         //
 
-        self.mesh_renderer.render(
+        self.pbr_renderer
+            .render_bounding_boxes(&mut self.gizmo_renderer);
+        self.pbr_renderer.render(
             ctx,
             screen_view,
             &self.camera,

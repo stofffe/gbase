@@ -49,12 +49,13 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use encase::ShaderType;
 use gbase::{
-    glam::{Vec3, Vec4},
-    render, wgpu, Context,
+    glam::{Vec3, Vec4, Vec4Swizzles},
+    log, render, wgpu, Context,
 };
 
 use crate::{
-    GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform, VertexAttributeId,
+    GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform,
+    VertexAttributeId, WHITE,
 };
 
 pub struct PbrRenderer {
@@ -199,6 +200,25 @@ impl PbrRenderer {
         }
     }
 
+    // temp?
+    pub fn render_bounding_boxes(&self, gizmo_renderer: &mut GizmoRenderer) {
+        for (gpu_mesh, _, transform) in self.frame_meshes.iter() {
+            let bounding_radius = f32::max(
+                -gpu_mesh.bounds.min.min_element(),
+                gpu_mesh.bounds.max.max_element(),
+            );
+
+            gizmo_renderer.draw_sphere(
+                &Transform3D::new(
+                    transform.pos,
+                    transform.rot,
+                    Vec3::ONE * bounding_radius * 2.0,
+                ),
+                WHITE.xyz(),
+            );
+        }
+    }
+
     // TODO: should have internal vector<(mesh mat transform)>
     pub fn render(
         &mut self,
@@ -215,7 +235,12 @@ impl PbrRenderer {
         for (gpu_mesh, mat, transform) in self.frame_meshes.iter() {
             // cull
             // TODO: use circles or AABB?
-            if !frustum.point_inside(transform.pos) {
+            let bounding_radius = f32::max(
+                -gpu_mesh.bounds.min.min_element(),
+                gpu_mesh.bounds.max.max_element(),
+            );
+
+            if !frustum.sphere_inside(transform.pos, bounding_radius) {
                 continue;
             }
 
@@ -286,6 +311,8 @@ impl PbrRenderer {
 
             draws.push((bindgroup, gpu_mesh));
         }
+
+        // log::info!("Issuing {:?} draw calls", draws.len());
 
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
