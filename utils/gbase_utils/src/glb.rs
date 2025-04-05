@@ -75,27 +75,12 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
 
                     match sem {
                         gltf::Semantic::Positions => {
-                            // TODO: debug for position
-                            let v = bytemuck::cast_slice::<u8, [f32; 3]>(bytes)
-                                .to_vec()
-                                .iter()
-                                .map(|a| {
-                                    (new_transform * vec4(a[0], a[1], a[2], 1.0))
-                                        .xyz()
-                                        .to_array()
-                                })
-                                .collect::<Vec<_>>();
-
                             mesh.attributes.insert(
                                 VertexAttributeId::Position,
-                                VertexAttributeValues::Float32x3(v),
+                                VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
                             );
-                            // mesh.attributes.insert(
-                            //     VertexAttributeId::Position,
-                            //     VertexAttributeValues::Float32x3(
-                            //         bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
-                            //     ),
-                            // );
                         }
                         gltf::Semantic::Normals => {
                             mesh.attributes.insert(

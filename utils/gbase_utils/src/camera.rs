@@ -206,8 +206,11 @@ pub struct FrustumPlane {
 }
 
 impl FrustumPlane {
-    pub fn in_front(&self, point: Vec3) -> bool {
-        Vec3::dot(self.normal, point - self.origin) >= 0.0
+    pub fn point_in_front(&self, point: Vec3) -> bool {
+        Vec3::dot(point - self.origin, self.normal) >= 0.0
+    }
+    pub fn sphere_in_front(&self, point: Vec3, radius: f32) -> bool {
+        Vec3::dot(point - self.origin, self.normal) + radius >= 0.0
     }
 }
 
@@ -222,12 +225,21 @@ pub struct CameraFrustum {
 
 impl CameraFrustum {
     pub fn point_inside(&self, point: Vec3) -> bool {
-        self.near.in_front(point)
-            && self.far.in_front(point)
-            && self.left.in_front(point)
-            && self.right.in_front(point)
-            && self.bottom.in_front(point)
-            && self.top.in_front(point)
+        self.near.point_in_front(point)
+            && self.far.point_in_front(point)
+            && self.left.point_in_front(point)
+            && self.right.point_in_front(point)
+            && self.bottom.point_in_front(point)
+            && self.top.point_in_front(point)
+    }
+
+    pub fn sphere_inside(&self, point: Vec3, radius: f32) -> bool {
+        self.near.point_in_front(point)
+            && self.far.sphere_in_front(point, radius)
+            && self.left.sphere_in_front(point, radius)
+            && self.right.sphere_in_front(point, radius)
+            && self.bottom.sphere_in_front(point, radius)
+            && self.top.sphere_in_front(point, radius)
     }
 }
 

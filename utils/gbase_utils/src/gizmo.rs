@@ -24,8 +24,8 @@ pub struct GizmoRenderer {
     resolution: u32,
 }
 
-const GIZMO_MAX_VERTICES: usize = 10000;
-const GIZMO_MAX_INDICES: usize = 10000;
+const GIZMO_MAX_VERTICES: usize = 100000;
+const GIZMO_MAX_INDICES: usize = 100000;
 const GIZMO_RESOLUTION: u32 = 16;
 impl GizmoRenderer {
     pub fn new(

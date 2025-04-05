@@ -3,13 +3,13 @@ use std::{
     sync::Arc,
 };
 
+use crate::{GpuMaterial, Transform3D};
 use gbase::{
+    glam::Vec3,
     log, render,
     wgpu::{self, util::DeviceExt},
     Context,
 };
-
-use crate::{GpuMaterial, Transform3D};
 
 //
 // CPU
@@ -203,6 +203,39 @@ impl Mesh {
             VertexAttributeValues::Float32x3(colors),
         );
     }
+
+    /// panics if no position attribute
+    pub fn calculate_bounding_box(&self) -> BoundingBox {
+        let positions = self
+            .get_attribute(VertexAttributeId::Position)
+            .expect("position attribute needed for calculating bounding box");
+
+        let VertexAttributeValues::Float32x3(positions) = positions else {
+            panic!("positions must be float32x3")
+        };
+
+        let mut bounding_box = BoundingBox {
+            min: Vec3::ONE * f32::MAX,
+            max: Vec3::ONE * f32::MIN,
+        };
+
+        for pos in positions.iter() {
+            bounding_box.min.x = bounding_box.min.x.min(pos[0]);
+            bounding_box.min.y = bounding_box.min.y.min(pos[1]);
+            bounding_box.min.z = bounding_box.min.z.min(pos[2]);
+
+            bounding_box.max.x = bounding_box.max.x.max(pos[0]);
+            bounding_box.max.y = bounding_box.max.y.max(pos[1]);
+            bounding_box.max.z = bounding_box.max.z.max(pos[2]);
+        }
+
+        bounding_box
+    }
+}
+
+pub struct BoundingBox {
+    pub min: Vec3,
+    pub max: Vec3,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

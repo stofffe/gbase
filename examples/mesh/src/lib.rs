@@ -1,9 +1,11 @@
 use gbase::{
     filesystem,
-    glam::{vec3, Quat},
+    glam::{vec3, Quat, Vec3, Vec4Swizzles},
     load_b, log, render, time, wgpu, Callbacks, Context,
 };
-use gbase_utils::{GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D};
+use gbase_utils::{
+    GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D, RED,
+};
 use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -14,11 +16,13 @@ pub async fn run() {
 struct App {
     depth_buffer: render::DepthBuffer,
     mesh_renderer: gbase_utils::PbrRenderer,
-    ui: gbase_utils::GUIRenderer,
+    gizmo_renderer: gbase_utils::GizmoRenderer,
+    ui_renderer: gbase_utils::GUIRenderer,
 
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
 
+    ak47_mesh: gbase_utils::Mesh,
     ak47_material: Arc<gbase_utils::GpuMaterial>,
     ak47_gpu_mesh: Arc<gbase_utils::GpuMesh>,
 
@@ -36,7 +40,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            .vsync(false)
+            .vsync(true)
         // .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
     #[no_mangle]
@@ -114,13 +118,15 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
-        let ui = gbase_utils::GUIRenderer::new(
+        let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             render::surface_format(ctx),
             1024,
             &load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
+        let gizmo_renderer =
+            gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
 
         // lock and hide cursor
         // render::window(ctx)
@@ -137,12 +143,15 @@ impl Callbacks for App {
 
         Self {
             mesh_renderer,
+            ui_renderer,
+            gizmo_renderer,
+
             camera,
             camera_buffer,
 
             depth_buffer,
-            ui,
 
+            ak47_mesh,
             ak47_material: Arc::new(ak47_material),
             ak47_gpu_mesh: Arc::new(ak47_gpu_mesh),
             cube_model,
@@ -179,6 +188,19 @@ impl Callbacks for App {
                     ));
 
                 if (x + z) % 2 == 0 {
+                    let ak47_bouding = self.ak47_mesh.calculate_bounding_box();
+                    let max_radius = f32::max(
+                        -ak47_bouding.min.min_element(),
+                        ak47_bouding.max.max_element(),
+                    );
+                    log::info!("RAD {:?}", max_radius);
+                    self.gizmo_renderer.draw_sphere(
+                        &Transform3D::default()
+                            .with_pos(transform.pos)
+                            .with_rot(transform.rot)
+                            .with_scale(Vec3::ONE * max_radius * 2.0),
+                        RED.xyz(),
+                    );
                     self.mesh_renderer.add_mesh(
                         self.ak47_gpu_mesh.clone(),
                         self.ak47_material.clone(),
@@ -198,6 +220,8 @@ impl Callbacks for App {
         //         .into(),
         //     Transform3D::default().with_rot(Quat::from_rotation_x(-PI / 2.0)),
         // );
+        //
+        //
 
         self.mesh_renderer.render(
             ctx,
@@ -207,7 +231,8 @@ impl Callbacks for App {
             &self.lights_buffer,
             &self.depth_buffer,
         );
-        self.ui.render(ctx, screen_view);
+        self.gizmo_renderer.render(ctx, screen_view);
+        self.ui_renderer.render(ctx, screen_view);
 
         false
     }
@@ -216,7 +241,9 @@ impl Callbacks for App {
     fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
         self.depth_buffer
             .resize(ctx, new_size.width, new_size.height);
-        self.ui.resize(ctx, new_size);
+        self.ui_renderer.resize(ctx, new_size);
+        self.gizmo_renderer
+            .resize(ctx, new_size.width, new_size.height);
     }
 }
 
