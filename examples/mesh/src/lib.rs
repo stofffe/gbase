@@ -1,10 +1,10 @@
 use gbase::{
-    filesystem,
+    bytemuck, filesystem,
     glam::{vec3, Quat, Vec3, Vec4Swizzles},
-    load_b, log, render, time, wgpu, Callbacks, Context,
+    input, load_b, log, render, time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D, RED,
+    Assets, GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D, RED,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -28,8 +28,14 @@ struct App {
     ak47_gpu_mesh: Arc<gbase_utils::GpuMesh>,
 
     cube_model: GpuModel,
+
     penguin_model: GpuModel,
     helmet_model: GpuModel,
+
+    cube_handle: gbase_utils::AssetHandle,
+    cube_material: Arc<gbase_utils::GpuMaterial>,
+
+    assets: Assets,
 }
 
 impl Callbacks for App {
@@ -125,18 +131,22 @@ impl Callbacks for App {
         let gizmo_renderer =
             gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
 
-        // lock and hide cursor
-        // render::window(ctx)
-        //     .set_cursor_grab(gbase::winit::window::CursorGrabMode::Locked)
-        //     .unwrap();
-        // render::window(ctx).set_cursor_visible(false);
-
         let lights_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
             PbrLightUniforms {
                 main_light_dir: vec3(0.0, -1.0, 1.0).normalize(),
             },
         ))
         .build(ctx);
+
+        let mut assets = Assets::new();
+        let cube_prim =
+            gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/cube.glb").unwrap())[0]
+                .clone();
+        let cube_mesh = cube_prim
+            .mesh
+            .extract_attributes(pbr_renderer.required_attributes());
+        let cube_material = Arc::new(cube_prim.material.to_material(ctx));
+        let cube_handle = assets.allocate_data(cube_mesh);
 
         Self {
             pbr_renderer,
@@ -155,6 +165,10 @@ impl Callbacks for App {
             penguin_model,
             helmet_model,
             lights_buffer,
+
+            assets,
+            cube_handle,
+            cube_material,
         }
     }
 
@@ -204,8 +218,30 @@ impl Callbacks for App {
         //         .into(),
         //     Transform3D::default().with_rot(Quat::from_rotation_x(-PI / 2.0)),
         // );
-        //
-        //
+
+        if input::key_just_pressed(ctx, input::KeyCode::F1) {
+            let cube_mesh = self.assets.get_mut(self.cube_handle.clone());
+            let pos_verts = cube_mesh
+                .attributes
+                .get_mut(&gbase_utils::VertexAttributeId::Position)
+                .unwrap();
+
+            let shifted = pos_verts
+                .as_type::<[f32; 3]>()
+                .iter()
+                .map(|&[x, y, z]| [x * 1.1, y * 1.1, z * 1.1])
+                .collect::<Vec<_>>();
+
+            cube_mesh.add_attribute(
+                gbase_utils::VertexAttributeId::Position,
+                gbase_utils::VertexAttributeValues::Float32x3(shifted),
+            );
+        }
+
+        let cube_gpu = self.assets.get_gpu(ctx, self.cube_handle.clone());
+        // println!("cube gpu {:?}", cube_gpu);
+        self.pbr_renderer
+            .add_mesh(cube_gpu, self.cube_material.clone(), Transform3D::default());
 
         self.pbr_renderer
             .render_bounding_boxes(&mut self.gizmo_renderer);

@@ -203,10 +203,7 @@ impl PbrRenderer {
     // temp?
     pub fn render_bounding_boxes(&self, gizmo_renderer: &mut GizmoRenderer) {
         for (gpu_mesh, _, transform) in self.frame_meshes.iter() {
-            let bounding_radius = f32::max(
-                -gpu_mesh.bounds.min.min_element(),
-                gpu_mesh.bounds.max.max_element(),
-            );
+            let bounding_radius = gpu_mesh.bounds.bounding_radius();
 
             gizmo_renderer.draw_sphere(
                 &Transform3D::new(
@@ -235,10 +232,7 @@ impl PbrRenderer {
         for (gpu_mesh, mat, transform) in self.frame_meshes.iter() {
             // cull
             // TODO: use circles or AABB?
-            let bounding_radius = f32::max(
-                -gpu_mesh.bounds.min.min_element(),
-                gpu_mesh.bounds.max.max_element(),
-            );
+            let bounding_radius = gpu_mesh.bounds.bounding_radius();
 
             if !frustum.sphere_inside(transform.pos, bounding_radius) {
                 continue;

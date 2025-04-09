@@ -1,4 +1,5 @@
 mod app_info;
+mod assets;
 mod buffer_arena;
 mod camera;
 mod debug_input;
@@ -15,6 +16,7 @@ mod transform;
 mod ui;
 
 pub use app_info::*;
+pub use assets::*;
 pub use buffer_arena::*;
 pub use camera::*;
 pub use debug_input::*;
