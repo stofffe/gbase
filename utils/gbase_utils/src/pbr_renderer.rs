@@ -4,17 +4,17 @@
 
 #[derive(Clone)]
 pub struct GpuMaterial {
-    pub base_color_texture: render::TextureWithView,
+    pub base_color_texture: Arc<render::TextureWithView>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: render::TextureWithView,
+    pub metallic_roughness_texture: Arc<render::TextureWithView>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: render::TextureWithView,
+    pub occlusion_texture: Arc<render::TextureWithView>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: render::TextureWithView,
+    pub normal_texture: Arc<render::TextureWithView>,
     pub normal_scale: f32,
 }
 
@@ -54,7 +54,7 @@ use gbase::{
 };
 
 use crate::{
-    GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform,
+    Assets, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform,
     VertexAttributeId, WHITE,
 };
 
@@ -369,38 +369,57 @@ impl PbrMaterial {
             ..Default::default()
         }
     }
-    pub fn to_material(&self, ctx: &mut Context) -> GpuMaterial {
+    pub fn to_material(&self, ctx: &mut Context, assets: &mut Assets) -> GpuMaterial {
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-        fn create_texture_or_default(
-            ctx: &mut Context,
-            texture: &Option<Image>,
-            default: [u8; 4],
-        ) -> render::TextureWithView {
-            if let Some(tex) = texture {
-                let texture = tex.texture.clone().build(ctx);
-                let sampler = tex.sampler.clone().build(ctx);
-                let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-                render::TextureWithView::new(texture, view, sampler)
-            } else {
-                let texture =
-                    render::TextureBuilder::new(render::TextureSource::Data(1, 1, default.into()))
-                        .build(ctx);
-                let sampler = render::SamplerBuilder::new()
-                    .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
-                    .build(ctx);
-                let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-                render::TextureWithView::new(texture, view, sampler)
-            }
-        }
+        // fn create_texture_or_default(
+        //     ctx: &mut Context,
+        //     texture: &Option<Image>,
+        //     default: [u8; 4],
+        // ) -> render::TextureWithView {
+        //     if let Some(tex) = texture {
+        //         let texture = tex.texture.clone().build(ctx);
+        //         let sampler = tex.sampler.clone().build(ctx);
+        //         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        //         render::TextureWithView::new(texture, view, sampler)
+        //     } else {
+        //         log::error!("CREATE TEXTURE WITH DEFAULT {:?}", default);
+        //         let texture =
+        //             render::TextureBuilder::new(render::TextureSource::Data(1, 1, default.into()))
+        //                 .build(ctx);
+        //         let sampler = render::SamplerBuilder::new()
+        //             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+        //             .build(ctx);
+        //         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        //         render::TextureWithView::new(texture, view, sampler)
+        //     }
+        // }
+        //
+        // let base_color_texture =
+        //     create_texture_or_default(ctx, &self.base_color_texture, [255, 255, 255, 255]);
+        // let metallic_roughness_texture =
+        //     create_texture_or_default(ctx, &self.metallic_roughness_texture, [0, 255, 0, 0]);
+        // let normal_texture =
+        //     create_texture_or_default(ctx, &self.normal_texture, [128, 128, 255, 0]);
+        // let occlusion_texture =
+        //     create_texture_or_default(ctx, &self.occlusion_texture, [255, 0, 0, 0]);
+        let base_color_handle = assets
+            .allocate_image_or_default(self.base_color_texture.clone(), [255, 255, 255, 255])
+            .clone();
+        let base_color_texture = assets.get_image_gpu(ctx, base_color_handle);
 
-        let base_color_texture =
-            create_texture_or_default(ctx, &self.base_color_texture, [255, 255, 255, 255]);
-        let metallic_roughness_texture =
-            create_texture_or_default(ctx, &self.metallic_roughness_texture, [0, 255, 0, 0]);
-        let normal_texture =
-            create_texture_or_default(ctx, &self.normal_texture, [128, 128, 255, 0]);
-        let occlusion_texture =
-            create_texture_or_default(ctx, &self.occlusion_texture, [255, 0, 0, 0]);
+        let metallic_roughness_handle = assets
+            .allocate_image_or_default(self.metallic_roughness_texture.clone(), [0, 255, 0, 0])
+            .clone();
+        let metallic_roughness_texture = assets.get_image_gpu(ctx, metallic_roughness_handle);
+
+        let normal_handle = assets
+            .allocate_image_or_default(self.normal_texture.clone(), [128, 128, 255, 0])
+            .clone();
+        let normal_texture = assets.get_image_gpu(ctx, normal_handle);
+        let occlusion_handle = assets
+            .allocate_image_or_default(self.occlusion_texture.clone(), [255, 0, 0, 0])
+            .clone();
+        let occlusion_texture = assets.get_image_gpu(ctx, occlusion_handle);
 
         GpuMaterial {
             base_color_texture,

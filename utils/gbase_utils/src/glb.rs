@@ -34,7 +34,7 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
     }
 
     while let Some((node, transform)) = node_stack.pop() {
-        log::info!("visiting {}", node.name().unwrap_or("---"));
+        // log::info!("visiting {}", node.name().unwrap_or("---"));
         if node.camera().is_some() {
             log::error!("camera decoding not supported");
         }
@@ -63,14 +63,14 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                     let offset = view.offset();
                     let length = view.length();
 
-                    log::info!(
-                        "{:?}: view offset {:?} attr offset {:?} view length {:?} offset {:?}",
-                        sem,
-                        view.offset(),
-                        attr.offset(),
-                        view.length(),
-                        offset
-                    );
+                    // log::info!(
+                    //     "{:?}: view offset {:?} attr offset {:?} view length {:?} offset {:?}",
+                    //     sem,
+                    //     view.offset(),
+                    //     attr.offset(),
+                    //     view.length(),
+                    //     offset
+                    // );
                     let bytes = &buffer[offset..offset + length];
 
                     match sem {
@@ -183,7 +183,7 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                         panic!("image source URI not supported");
                     };
 
-                    log::info!("loading image with mime type {}", mime_type);
+                    // log::info!("loading image with mime type {}", mime_type);
                     assert!(
                         mime_type == "image/jpeg" || mime_type == "image/png",
                         "mime type must be image/jpeg or image/png got {}",

@@ -4,7 +4,8 @@ use gbase::{
     input, load_b, log, render, time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    Assets, GpuMaterial, GpuMesh, GpuModel, PbrLightUniforms, PbrMaterial, Transform3D, RED,
+    Assets, GpuMaterial, GpuMesh, GpuModel, Image, Mesh, PbrLightUniforms, PbrMaterial,
+    Transform3D, RED,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -32,8 +33,9 @@ struct App {
     penguin_model: GpuModel,
     helmet_model: GpuModel,
 
-    cube_handle: gbase_utils::AssetHandle,
-    cube_material: Arc<gbase_utils::GpuMaterial>,
+    cube_material: Arc<GpuMaterial>,
+    cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
+    cube_material_handle: gbase_utils::AssetHandle<Image>,
 
     assets: Assets,
 }
@@ -48,6 +50,7 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
+        let mut assets = Assets::new();
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
@@ -59,7 +62,7 @@ impl Callbacks for App {
         let ak47_mesh = ak47_prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes());
-        let ak47_material = ak47_prim.material.to_material(ctx);
+        let ak47_material = ak47_prim.material.to_material(ctx, &mut assets);
         let ak47_gpu_mesh = gbase_utils::GpuMesh::new(ctx, &ak47_mesh);
 
         let cube_prim =
@@ -72,7 +75,7 @@ impl Callbacks for App {
 
             cube_model.meshes.push((
                 Arc::new(gbase_utils::GpuMesh::new(ctx, mesh_with_attr)),
-                Arc::new(prim.material.to_material(ctx)),
+                Arc::new(prim.material.to_material(ctx, &mut assets)),
                 Transform3D::from_matrix(prim.transform),
             ));
         }
@@ -85,7 +88,7 @@ impl Callbacks for App {
                 .mesh
                 .extract_attributes(pbr_renderer.required_attributes());
             let penguin_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
-            let penguin_material = prim.material.to_material(ctx);
+            let penguin_material = prim.material.to_material(ctx, &mut assets);
             let penguin_local_transform = Transform3D::from_matrix(prim.transform);
 
             penguin_model.meshes.push((
@@ -103,7 +106,7 @@ impl Callbacks for App {
                 .mesh
                 .extract_attributes(pbr_renderer.required_attributes());
             let helmet_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
-            let helmet_material = prim.material.to_material(ctx);
+            let helmet_material = prim.material.to_material(ctx, &mut assets);
             let helmet_local_transform = Transform3D::from_matrix(prim.transform);
 
             helmet_model.meshes.push((
@@ -138,15 +141,16 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
-        let mut assets = Assets::new();
         let cube_prim =
             gbase_utils::parse_glb(ctx, &filesystem::load_b!("models/cube.glb").unwrap())[0]
                 .clone();
         let cube_mesh = cube_prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes());
-        let cube_material = Arc::new(cube_prim.material.to_material(ctx));
-        let cube_handle = assets.allocate_data(cube_mesh);
+        let cube_material = cube_prim.material.to_material(ctx, &mut assets).into();
+
+        let cube_mesh_handle = assets.allocate_mesh_data(cube_mesh);
+        let cube_material_handle = assets.allocate_image_or_default(None, [255, 255, 255, 255]);
 
         Self {
             pbr_renderer,
@@ -167,7 +171,8 @@ impl Callbacks for App {
             lights_buffer,
 
             assets,
-            cube_handle,
+            cube_mesh_handle,
+            cube_material_handle,
             cube_material,
         }
     }
@@ -220,7 +225,7 @@ impl Callbacks for App {
         // );
 
         if input::key_just_pressed(ctx, input::KeyCode::F1) {
-            let cube_mesh = self.assets.get_mut(self.cube_handle.clone());
+            let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
             let pos_verts = cube_mesh
                 .attributes
                 .get_mut(&gbase_utils::VertexAttributeId::Position)
@@ -238,8 +243,7 @@ impl Callbacks for App {
             );
         }
 
-        let cube_gpu = self.assets.get_gpu(ctx, self.cube_handle.clone());
-        // println!("cube gpu {:?}", cube_gpu);
+        let cube_gpu = self.assets.get_mesh_gpu(ctx, self.cube_mesh_handle.clone());
         self.pbr_renderer
             .add_mesh(cube_gpu, self.cube_material.clone(), Transform3D::default());
 

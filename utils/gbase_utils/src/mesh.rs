@@ -15,7 +15,7 @@ use gbase::{
 // CPU
 //
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Mesh {
     pub primitive_topology: wgpu::PrimitiveTopology,
     pub attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
@@ -233,10 +233,16 @@ impl Mesh {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct BoundingBox {
     pub min: Vec3,
     pub max: Vec3,
+}
+
+impl BoundingBox {
+    pub fn bounding_radius(&self) -> f32 {
+        f32::max(self.min.length(), self.max.length())
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -300,6 +306,9 @@ impl VertexAttributeValues {
         self.len() == 0
     }
 
+    pub fn as_type<T: bytemuck::Pod>(&self) -> &[T] {
+        bytemuck::cast_slice::<u8, T>(self.as_bytes())
+    }
     pub fn as_bytes(&self) -> &[u8] {
         match self {
             VertexAttributeValues::Float32(vec) => bytemuck::cast_slice(vec),
@@ -340,6 +349,7 @@ pub struct GpuMesh {
 
 impl GpuMesh {
     pub fn new(ctx: &Context, mesh: &crate::Mesh) -> Self {
+        // layout attributes sequentially in the buffer
         let mut cursor = 0;
         let mut combined_bytes = Vec::new();
         let mut attribute_ranges = BTreeMap::new();
