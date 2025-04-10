@@ -54,8 +54,8 @@ use gbase::{
 };
 
 use crate::{
-    Assets, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Transform3D, TransformUniform,
-    VertexAttributeId, WHITE,
+    AssetHandle, Assets, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Mesh, Transform3D,
+    TransformUniform, VertexAttributeId, WHITE,
 };
 
 pub struct PbrRenderer {
@@ -184,11 +184,14 @@ impl PbrRenderer {
 
     pub fn add_mesh(
         &mut self,
-        mesh: Arc<GpuMesh>,
+        ctx: &mut Context,
+        assets: &mut Assets,
+        mesh: AssetHandle<Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
-        self.frame_meshes.push((mesh, material, transform));
+        let gpu_mesh = assets.get_mesh_gpu(ctx, mesh.clone());
+        self.frame_meshes.push((gpu_mesh, material, transform));
     }
 
     pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
@@ -340,19 +343,19 @@ impl PbrRenderer {
 
 // TODO: shoudl use handles for textures to reuse
 // TODO: emissive
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct PbrMaterial {
-    pub base_color_texture: Option<Image>,
+    pub base_color_texture: AssetHandle<Image>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: Option<Image>,
+    pub metallic_roughness_texture: AssetHandle<Image>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: Option<Image>,
+    pub occlusion_texture: AssetHandle<Image>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: Option<Image>,
+    pub normal_texture: AssetHandle<Image>,
     pub normal_scale: f32,
 }
 
@@ -363,14 +366,14 @@ pub struct Image {
 }
 
 impl PbrMaterial {
-    pub fn new_colored(color: [f32; 4]) -> Self {
-        Self {
-            color_factor: color,
-            ..Default::default()
-        }
-    }
+    // pub fn new_colored(color: [f32; 4]) -> Self {
+    //     Self {
+    //         color_factor: color,
+    //         ..Default::default()
+    //     }
+    // }
+    // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
     pub fn to_material(&self, ctx: &mut Context, assets: &mut Assets) -> GpuMaterial {
-        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
         // fn create_texture_or_default(
         //     ctx: &mut Context,
         //     texture: &Option<Image>,
@@ -402,24 +405,30 @@ impl PbrMaterial {
         //     create_texture_or_default(ctx, &self.normal_texture, [128, 128, 255, 0]);
         // let occlusion_texture =
         //     create_texture_or_default(ctx, &self.occlusion_texture, [255, 0, 0, 0]);
-        let base_color_handle = assets
-            .allocate_image_or_default(self.base_color_texture.clone(), [255, 255, 255, 255])
-            .clone();
-        let base_color_texture = assets.get_image_gpu(ctx, base_color_handle);
-
-        let metallic_roughness_handle = assets
-            .allocate_image_or_default(self.metallic_roughness_texture.clone(), [0, 255, 0, 0])
-            .clone();
-        let metallic_roughness_texture = assets.get_image_gpu(ctx, metallic_roughness_handle);
-
-        let normal_handle = assets
-            .allocate_image_or_default(self.normal_texture.clone(), [128, 128, 255, 0])
-            .clone();
-        let normal_texture = assets.get_image_gpu(ctx, normal_handle);
-        let occlusion_handle = assets
-            .allocate_image_or_default(self.occlusion_texture.clone(), [255, 0, 0, 0])
-            .clone();
-        let occlusion_texture = assets.get_image_gpu(ctx, occlusion_handle);
+        // let base_color_handle = assets
+        //     .allocate_image_or_default(self.base_color_texture.clone(), [255, 255, 255, 255])
+        //     .clone();
+        // let base_color_texture = assets.get_image_gpu(ctx, base_color_handle);
+        //
+        // let metallic_roughness_handle = assets
+        //     .allocate_image_or_default(self.metallic_roughness_texture.clone(), [0, 255, 0, 0])
+        //     .clone();
+        // let metallic_roughness_texture = assets.get_image_gpu(ctx, metallic_roughness_handle);
+        //
+        // let normal_handle = assets
+        //     .allocate_image_or_default(self.normal_texture.clone(), [128, 128, 255, 0])
+        //     .clone();
+        // let normal_texture = assets.get_image_gpu(ctx, normal_handle);
+        // let occlusion_handle = assets
+        //     .allocate_image_or_default(self.occlusion_texture.clone(), [255, 0, 0, 0])
+        //     .clone();
+        // let occlusion_texture = assets.get_image_gpu(ctx, occlusion_handle);
+        //
+        let base_color_texture = assets.get_image_gpu(ctx, self.base_color_texture.clone());
+        let metallic_roughness_texture =
+            assets.get_image_gpu(ctx, self.metallic_roughness_texture.clone());
+        let normal_texture = assets.get_image_gpu(ctx, self.normal_texture.clone());
+        let occlusion_texture = assets.get_image_gpu(ctx, self.occlusion_texture.clone());
 
         GpuMaterial {
             base_color_texture,

@@ -1,5 +1,5 @@
 use crate::{
-    texture_builder_from_image_bytes, Image, Mesh, PbrMaterial, VertexAttributeId,
+    texture_builder_from_image_bytes, Assets, Image, Mesh, PbrMaterial, VertexAttributeId,
     VertexAttributeValues,
 };
 use gbase::{
@@ -13,7 +13,7 @@ use gbase::{
 // Glb
 //
 
-pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
+pub fn parse_glb(ctx: &Context, assets: &mut Assets, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
     let mut meshes = Vec::new();
 
     let glb = gltf::Glb::from_slice(glb_bytes).expect("could not import glb from slice");
@@ -258,6 +258,8 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
+                let base_color_texture =
+                    assets.allocate_image_or_default(base_color_texture, [255, 255, 255, 255]);
 
                 let color_factor = pbr.base_color_factor(); // scaling / replacement
 
@@ -323,6 +325,8 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
+                let metallic_roughness_texture =
+                    assets.allocate_image_or_default(metallic_roughness_texture, [0, 255, 0, 0]);
                 let metallic_factor = pbr.metallic_factor(); // scaling / replacement
                 let roughness_factor = pbr.roughness_factor(); // scaling / replacement
 
@@ -390,6 +394,8 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
+                let normal_texture =
+                    assets.allocate_image_or_default(normal_texture, [128, 128, 255, 0]);
 
                 let mut occlusion_strength = 1.0;
                 let occlusion_texture = material.occlusion_texture().map(|info| {
@@ -455,6 +461,8 @@ pub fn parse_glb(ctx: &Context, glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
+                let occlusion_texture =
+                    assets.allocate_image_or_default(occlusion_texture, [255, 0, 0, 0]);
 
                 let material = PbrMaterial {
                     base_color_texture,
