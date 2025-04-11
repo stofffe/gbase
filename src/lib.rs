@@ -24,6 +24,7 @@ pub use encase;
 
 pub use glam;
 pub use log;
+pub use notify;
 pub use wgpu;
 pub use winit;
 

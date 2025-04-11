@@ -1,13 +1,21 @@
-use crate::{GpuMesh, Image, Mesh};
+use crate::{texture_builder_from_image_bytes, GpuMesh, Image, Mesh};
 use gbase::{
     log,
+    notify::{self, Watcher},
     render::{self, TextureWithView},
-    wgpu, Context,
+    wgpu,
+    winit::platform::modifier_supplement,
+    Context,
 };
+use gltf::json::Path;
+use image::GenericImageView;
 use std::{
     collections::HashMap,
+    fs,
     marker::PhantomData,
-    sync::{atomic::AtomicU64, Arc},
+    path::PathBuf,
+    sync::{atomic::AtomicU64, mpsc, Arc},
+    time::SystemTime,
 };
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -48,12 +56,20 @@ impl<T: 'static> std::hash::Hash for AssetHandle<T> {
     }
 }
 
+struct ReloadHandle<T: 'static> {
+    path: String,
+    modified: SystemTime,
+    handle: AssetHandle<T>,
+}
+
 pub struct Assets {
     meshes: HashMap<AssetHandle<Mesh>, Mesh>,
     meshes_gpu: HashMap<AssetHandle<Mesh>, (Arc<GpuMesh>, bool)>,
 
     images: HashMap<AssetHandle<Image>, Image>,
     images_gpu: HashMap<AssetHandle<Image>, (Arc<TextureWithView>, bool)>,
+
+    images_reload: Vec<ReloadHandle<Image>>,
 
     default_images: HashMap<[u8; 4], AssetHandle<Image>>,
 }
@@ -67,6 +83,7 @@ impl Assets {
 
             images: HashMap::new(),
             images_gpu: HashMap::new(),
+            images_reload: Vec::new(),
 
             default_images: HashMap::new(),
         }
@@ -76,11 +93,11 @@ impl Assets {
     // Mesh
     //
 
-    pub fn allocate_mesh(&mut self) -> AssetHandle<Mesh> {
-        let handle = AssetHandle::new();
-        self.meshes.insert(handle.clone(), Mesh::default());
-        handle
-    }
+    // pub fn allocate_mesh(&mut self) -> AssetHandle<Mesh> {
+    //     let handle = AssetHandle::new();
+    //     self.meshes.insert(handle.clone(), Mesh::default());
+    //     handle
+    // }
     pub fn allocate_mesh_data(&mut self, mesh: Mesh) -> AssetHandle<Mesh> {
         let handle = AssetHandle::new();
         self.meshes.insert(handle.clone(), mesh);
@@ -173,8 +190,9 @@ impl Assets {
         self.images.get(&id).unwrap()
     }
     pub fn get_image_mut(&mut self, id: AssetHandle<Image>) -> &mut Image {
-        let (_, gpu_changed) = self.images_gpu.get_mut(&id).unwrap();
-        *gpu_changed = true;
+        if let Some((_, changed)) = self.images_gpu.get_mut(&id) {
+            *changed = true;
+        }
 
         self.images.get_mut(&id).unwrap()
     }
@@ -212,5 +230,41 @@ impl Assets {
         }
 
         self.images_gpu.get(&id).expect("should exst").0.clone()
+    }
+
+    pub fn watch_image(&mut self, path: String, handle: AssetHandle<Image>) {
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        self.images_reload.push(ReloadHandle {
+            path,
+            modified,
+            handle,
+        });
+    }
+
+    pub fn check_watch_images(&mut self) {
+        for i in 0..self.images_reload.len() {
+            let Ok(md) = fs::metadata(&self.images_reload[i].path) else {
+                continue;
+            };
+
+            let modified = md.modified().unwrap();
+            if modified != self.images_reload[i].modified {
+                self.images_reload[i].modified = modified;
+
+                let bytes = fs::read(&self.images_reload[i].path).unwrap();
+
+                match image::load_from_memory(&bytes) {
+                    Ok(img) => {
+                        let img = img.to_rgba8();
+                        let image = self.get_image_mut(self.images_reload[i].handle.clone());
+                        image.texture.source =
+                            render::TextureSource::Data(img.width(), img.height(), img.to_vec());
+                    }
+                    Err(err) => {
+                        log::error!("error loading {:?}: {:?}", self.images_reload[i].path, err);
+                    }
+                }
+            }
+        }
     }
 }

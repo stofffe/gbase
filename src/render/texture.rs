@@ -129,11 +129,11 @@ pub enum TextureSource {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TextureBuilder {
-    source: TextureSource,
+    pub source: TextureSource,
 
     label: Option<String>,
     usage: wgpu::TextureUsages,
-    format: wgpu::TextureFormat,
+    pub format: wgpu::TextureFormat,
     depth_or_array_layers: u32,
     mip_level_count: u32,
     sample_count: u32,
