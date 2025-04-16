@@ -6,7 +6,8 @@ use std::{
 use crate::{GpuMaterial, Transform3D};
 use gbase::{
     glam::Vec3,
-    log, render,
+    log,
+    render::{self, VertexBuffer, VertexBufferLayout},
     wgpu::{self, util::DeviceExt},
     Context,
 };
@@ -231,6 +232,17 @@ impl Mesh {
 
         bounding_box
     }
+
+    pub fn buffer_layout(&self) -> Vec<VertexBufferLayout> {
+        let mut buffers = Vec::new();
+        for (attr, _) in self.attributes.iter() {
+            buffers.push(render::VertexBufferLayout::from_vertex_formats(
+                wgpu::VertexStepMode::Vertex,
+                vec![attr.format()],
+            ));
+        }
+        buffers
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -387,6 +399,16 @@ impl GpuMesh {
             vertex_count,
             index_count,
             bounds,
+        }
+    }
+
+    pub fn bind_to_render_pass(&self, render_pass: &mut wgpu::RenderPass<'_>) {
+        for (i, (_, (start, end))) in self.attribute_ranges.iter().enumerate() {
+            let slice = self.attribute_buffer.slice(start..end);
+            render_pass.set_vertex_buffer(i as u32, slice);
+        }
+        if let Some(indices) = &self.index_buffer {
+            render_pass.set_index_buffer(indices.as_ref().slice(..), wgpu::IndexFormat::Uint32);
         }
     }
 }

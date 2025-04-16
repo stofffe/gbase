@@ -1,27 +1,23 @@
-use crate::{texture_builder_from_image_bytes, GpuMesh, Image, Mesh};
+use crate::{GpuMesh, Image, Mesh};
 use gbase::{
     log,
-    notify::{self, Watcher},
-    render::{self, TextureWithView},
-    wgpu,
-    winit::platform::modifier_supplement,
+    pollster::FutureExt,
+    render::{self, ArcHandle, ArcShaderModule, ShaderBuilder, TextureWithView},
+    wgpu::{self},
     Context,
 };
-use gltf::json::Path;
-use image::GenericImageView;
 use std::{
     collections::HashMap,
     fs,
     marker::PhantomData,
-    path::PathBuf,
-    sync::{atomic::AtomicU64, mpsc, Arc},
+    sync::{atomic::AtomicU64, Arc},
     time::SystemTime,
 };
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 // TODO: should have type aswell
-#[derive(PartialOrd, Ord, Clone, Debug)]
+#[derive(PartialOrd, Ord, Debug)]
 pub struct AssetHandle<T: 'static> {
     id: u64,
     ty: PhantomData<T>,
@@ -56,6 +52,15 @@ impl<T: 'static> std::hash::Hash for AssetHandle<T> {
     }
 }
 
+impl<T: 'static> Clone for AssetHandle<T> {
+    fn clone(&self) -> Self {
+        Self {
+            id: self.id,
+            ty: PhantomData,
+        }
+    }
+}
+
 struct ReloadHandle<T: 'static> {
     path: String,
     modified: SystemTime,
@@ -64,12 +69,15 @@ struct ReloadHandle<T: 'static> {
 
 pub struct Assets {
     meshes: HashMap<AssetHandle<Mesh>, Mesh>,
-    meshes_gpu: HashMap<AssetHandle<Mesh>, (Arc<GpuMesh>, bool)>,
-
+    shaders: HashMap<AssetHandle<ShaderBuilder>, (ShaderBuilder, bool)>,
     images: HashMap<AssetHandle<Image>, Image>,
+
+    meshes_gpu: HashMap<AssetHandle<Mesh>, (Arc<GpuMesh>, bool)>,
+    shaders_gpu: HashMap<AssetHandle<ShaderBuilder>, ArcShaderModule>,
     images_gpu: HashMap<AssetHandle<Image>, (Arc<TextureWithView>, bool)>,
 
     images_reload: Vec<ReloadHandle<Image>>,
+    shaders_reload: Vec<ReloadHandle<ShaderBuilder>>,
 
     default_images: HashMap<[u8; 4], AssetHandle<Image>>,
 }
@@ -86,6 +94,96 @@ impl Assets {
             images_reload: Vec::new(),
 
             default_images: HashMap::new(),
+
+            shaders: HashMap::new(),
+            shaders_gpu: HashMap::new(),
+            shaders_reload: Vec::new(),
+        }
+    }
+
+    //
+    // Shader
+    //
+
+    pub fn allocate_shader_data(&mut self, shader: ShaderBuilder) -> AssetHandle<ShaderBuilder> {
+        let handle = AssetHandle::new();
+        self.shaders.insert(handle.clone(), (shader, true));
+        handle
+    }
+
+    pub fn get_shader(&self, id: AssetHandle<ShaderBuilder>) -> &ShaderBuilder {
+        &self.shaders.get(&id).unwrap().0 // fine to unwrap here it think
+    }
+    pub fn get_shader_mut(&mut self, id: AssetHandle<ShaderBuilder>) -> &mut ShaderBuilder {
+        let (shader, changed) = self.shaders.get_mut(&id).unwrap();
+        *changed = true;
+
+        shader
+    }
+
+    pub fn get_shader_gpu(
+        &mut self,
+        ctx: &mut Context,
+        id: AssetHandle<ShaderBuilder>,
+    ) -> Result<ArcShaderModule, ()> {
+        debug_assert!(self.shaders.contains_key(&id), "handle doesnt exist");
+
+        let (shader, changed) = self.shaders.get_mut(&id).unwrap();
+        let shader_gpu = self.shaders_gpu.get_mut(&id);
+
+        if !*changed {
+            // log::error!("RETURN");
+            return match shader_gpu {
+                Some(shader_gpu) => Ok(shader_gpu.clone()),
+                None => Err(()),
+            };
+        }
+
+        *changed = false;
+
+        let Ok(new_gpu_shader) = shader.clone().build_err(ctx) else {
+            self.shaders_gpu.remove(&id); // TODO: why is this needed
+            return Err(());
+        };
+
+        match self.shaders_gpu.get_mut(&id) {
+            None => {
+                self.shaders_gpu.insert(id.clone(), new_gpu_shader);
+                log::info!("create shader gpu buffer");
+            }
+            Some(gpu_shader) => {
+                *gpu_shader = new_gpu_shader;
+                log::info!("Update shader gpu buffer");
+            }
+        }
+
+        Ok(self.shaders_gpu.get(&id).expect("should exst").clone())
+    }
+
+    pub fn watch_shader(&mut self, path: String, handle: AssetHandle<ShaderBuilder>) {
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        self.shaders_reload.push(ReloadHandle {
+            path,
+            modified,
+            handle,
+        });
+    }
+
+    pub fn check_watch_shaders(&mut self) {
+        for i in 0..self.shaders_reload.len() {
+            let Ok(md) = fs::metadata(&self.shaders_reload[i].path) else {
+                continue;
+            };
+
+            let modified = md.modified().unwrap();
+            if modified != self.shaders_reload[i].modified {
+                self.shaders_reload[i].modified = modified;
+
+                let txt = fs::read_to_string(&self.shaders_reload[i].path).unwrap();
+
+                let shader = self.get_shader_mut(self.shaders_reload[i].handle.clone());
+                shader.source = txt;
+            }
         }
     }
 
@@ -93,11 +191,8 @@ impl Assets {
     // Mesh
     //
 
-    // pub fn allocate_mesh(&mut self) -> AssetHandle<Mesh> {
-    //     let handle = AssetHandle::new();
-    //     self.meshes.insert(handle.clone(), Mesh::default());
-    //     handle
-    // }
+    // TODO: add shader
+
     pub fn allocate_mesh_data(&mut self, mesh: Mesh) -> AssetHandle<Mesh> {
         let handle = AssetHandle::new();
         self.meshes.insert(handle.clone(), mesh);
@@ -253,6 +348,8 @@ impl Assets {
 
                 let bytes = fs::read(&self.images_reload[i].path).unwrap();
 
+                // TODO: should this even do this here
+                // or should it be done in get_gpu
                 match image::load_from_memory(&bytes) {
                     Ok(img) => {
                         let img = img.to_rgba8();
@@ -264,6 +361,159 @@ impl Assets {
                         log::error!("error loading {:?}: {:?}", self.images_reload[i].path, err);
                     }
                 }
+            }
+        }
+    }
+}
+
+//
+// Generic asset manager
+//
+
+pub struct ShaderDescriptor {
+    pub label: Option<String>,
+    pub source: String,
+}
+
+pub struct AssetCache<T: 'static, G: 'static> {
+    cpu_cache: HashMap<AssetHandle<T>, (T, bool)>,
+    gpu_cache: HashMap<AssetHandle<T>, ArcHandle<G>>,
+    reload: Vec<ReloadHandle<T>>,
+}
+
+// trait which takes hot reloadable (bytes -> update struct)
+
+pub trait Asset<T: 'static, G: 'static> {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<G>;
+    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>);
+}
+
+impl Asset<ShaderDescriptor, wgpu::ShaderModule> for ShaderDescriptor {
+    // TODO: maybe async? at least for reloading
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<wgpu::ShaderModule> {
+        let device = render::device(ctx);
+
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(self.source.clone().into()), // TODO: clone here?
+        });
+
+        ArcHandle::new(module)
+    }
+
+    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>) {
+        let source = String::from_utf8(data).expect("could not convert to string");
+
+        // validation
+        let device = render::device(ctx);
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let _ = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(source.clone().into()), // TODO: dont clone here?
+        });
+        let result = device.pop_error_scope().block_on(); // async, doesnt work for wasm
+        if let Some(err) = result {
+            log::error!("{:?}", err.to_string());
+            return;
+        }
+
+        // reload
+        self.source = source;
+    }
+}
+
+impl<T, G> AssetCache<T, G>
+where
+    G: 'static,
+    T: 'static + Asset<T, G>,
+{
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
+        Self {
+            cpu_cache: HashMap::new(),
+            gpu_cache: HashMap::new(),
+            reload: Vec::new(),
+        }
+    }
+
+    pub fn allocate_reload(&mut self, data: T, reload_path: String) -> AssetHandle<T> {
+        let handle = AssetHandle::new();
+
+        self.cpu_cache.insert(handle.clone(), (data, true));
+        self.watch(reload_path, handle.clone());
+
+        handle
+    }
+
+    pub fn allocate(&mut self, data: T) -> AssetHandle<T> {
+        let handle = AssetHandle::new();
+
+        self.cpu_cache.insert(handle.clone(), (data, true));
+
+        handle
+    }
+
+    pub fn get(&self, id: AssetHandle<T>) -> &T {
+        &self.cpu_cache.get(&id).unwrap().0 // fine to unwrap here it think
+    }
+
+    pub fn get_mut(&mut self, id: AssetHandle<T>) -> &mut T {
+        let (typ, changed) = self.cpu_cache.get_mut(&id).unwrap(); // fine to unwrap here it think
+        *changed = true;
+        typ
+    }
+
+    #[allow(clippy::result_unit_err)]
+    pub fn get_gpu(&mut self, ctx: &mut Context, id: AssetHandle<T>) -> Result<ArcHandle<G>, ()> {
+        debug_assert!(self.cpu_cache.contains_key(&id), "handle doesnt exist");
+
+        match self.gpu_cache.get_mut(&id) {
+            // create buffer
+            None => {
+                let (cpu_typ, changed) = self.cpu_cache.get(&id).expect("handle doesnt exist");
+                debug_assert!(*changed);
+
+                let gpu_typ = cpu_typ.convert(ctx);
+                self.gpu_cache.insert(id.clone(), gpu_typ);
+                log::info!("create type gpu buffer");
+            }
+            // get cached or update buffer
+            Some(gpu_typ) => {
+                let (cpu_typ, changed) = self.cpu_cache.get_mut(&id).expect("handle doesnt exist");
+                if *changed {
+                    *changed = false;
+                    *gpu_typ = cpu_typ.convert(ctx);
+                    log::info!("Update mesh gpu buffer");
+                }
+            }
+        }
+
+        Ok(self.gpu_cache.get_mut(&id).expect("should exist").clone())
+    }
+
+    pub fn watch(&mut self, path: String, handle: AssetHandle<T>) {
+        let modified = fs::metadata(&path).unwrap().modified().unwrap();
+        self.reload.push(ReloadHandle {
+            path,
+            modified,
+            handle,
+        });
+    }
+
+    pub fn check_watch(&mut self, ctx: &mut Context) {
+        for i in 0..self.reload.len() {
+            let Ok(md) = fs::metadata(&self.reload[i].path) else {
+                log::warn!("could not get metadata");
+                continue;
+            };
+
+            let modified = md.modified().expect("could not get modified");
+            if modified != self.reload[i].modified {
+                self.reload[i].modified = modified;
+
+                let bytes = fs::read(&self.reload[i].path).unwrap();
+                self.get_mut(self.reload[i].handle.clone())
+                    .reload(ctx, bytes);
             }
         }
     }

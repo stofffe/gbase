@@ -1,15 +1,10 @@
-use std::{fs, io::Read};
-
 use gbase::{
-    bytemuck::bytes_of,
-    filesystem, input,
-    render::{self, ArcBindGroup, ArcRenderPipeline, VertexBufferBuilder, VertexBufferSource},
-    wgpu, Callbacks, Context,
+    filesystem, input, log,
+    render::{self, ArcPipelineLayout, SamplerBuilder, ShaderBuilder},
+    wgpu::{self},
+    Callbacks, Context,
 };
-use gbase_utils::{
-    image::{self, GenericImageView},
-    AssetHandle, Assets, Image,
-};
+use gbase_utils::{AssetCache, AssetHandle, Assets, Image, Mesh, ShaderDescriptor, BLACK};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -17,32 +12,48 @@ pub async fn run() {
 }
 
 struct App {
-    vertex_buffer: render::VertexBuffer<render::VertexUV>,
-    pipeline: ArcRenderPipeline,
+    pipeline_layout: ArcPipelineLayout,
+    bindgroup_layout: render::ArcBindGroupLayout,
 
     assets: Assets,
+    mesh_handle: AssetHandle<Mesh>,
     texture_handle: AssetHandle<Image>,
-    bindgroup_layout: render::ArcBindGroupLayout,
+    shader_handle: AssetHandle<ShaderDescriptor>,
+    shader_cache: AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
 }
 
 impl Callbacks for App {
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new().vsync(false)
+    }
     fn new(ctx: &mut Context) -> Self {
         let mut assets = Assets::new();
-        let vertex_buffer =
-            VertexBufferBuilder::new(VertexBufferSource::Data(QUAD_VERTICES.to_vec())).build(ctx);
 
-        let texture = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/texture.jpeg").unwrap(),
-        )
-        .unwrap();
-        let sampler = render::SamplerBuilder::new();
-        let image = Image { texture, sampler };
+        let mesh = gbase_utils::MeshBuilder::quad().build().extract_attributes(
+            &[
+                gbase_utils::VertexAttributeId::Position,
+                gbase_utils::VertexAttributeId::Uv(0),
+            ]
+            .into(),
+        );
+
+        let image = Image {
+            texture: gbase_utils::texture_builder_from_image_bytes(
+                &filesystem::load_b!("textures/texture.jpeg").unwrap(),
+            )
+            .unwrap(),
+            sampler: SamplerBuilder::new(),
+        };
         let texture_handle = assets.allocate_image_data(image);
+        assets.watch_image(
+            "assets/textures/texture.jpeg".into(),
+            texture_handle.clone(),
+        );
 
-        assets.watch_image("assets/textures/city.jpg".into(), texture_handle.clone());
-
-        let shader_str = filesystem::load_s!("shaders/texture.wgsl").unwrap();
-        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+        // let shader_str = filesystem::load_s!("shaders/texture.wgsl").unwrap();
+        // let shader = render::ShaderBuilder::new(shader_str);
+        // let shader_handle = assets.allocate_shader_data(shader);
+        // assets.watch_shader("assets/shaders/texture.wgsl".into(), shader_handle.clone());
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -60,73 +71,80 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
-            .buffers(vec![vertex_buffer.desc()])
-            .build(ctx);
+
+        let mesh_handle = assets.allocate_mesh_data(mesh);
+
+        let mut shader_cache = AssetCache::new();
+        // let shader_str = filesystem::load_s!("shaders/texture.wgsl").unwrap();
+        // let shader = render::ShaderBuilder::new(shader_str);
+        let shader_descriptor = ShaderDescriptor {
+            label: None,
+            source: filesystem::load_s!("shaders/texture.wgsl").unwrap(),
+        };
+        let shader_handle =
+            shader_cache.allocate_reload(shader_descriptor, "assets/shaders/texture.wgsl".into());
+        // let shader_handle = shader_cache.allocate(shader);
+        // shader_cache.watch("assets/shaders/texture.wgsl".into(), shader_handle.clone());
 
         Self {
-            vertex_buffer,
-            pipeline,
+            shader_handle,
+            pipeline_layout,
             bindgroup_layout,
             assets,
             texture_handle,
+            mesh_handle,
+            shader_cache,
         }
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        if input::key_just_pressed(ctx, input::KeyCode::F1) {
-            let image = self.assets.get_image_mut(self.texture_handle.clone());
-            image.texture.format = wgpu::TextureFormat::Rgba8UnormSrgb;
-        }
+        self.shader_cache.check_watch(ctx);
+        // clear
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
+            )])
+            .build_run_submit(ctx, |_| {});
 
         self.assets.check_watch_images();
+        self.assets.check_watch_shaders();
 
-        let texture = self.assets.get_image_gpu(ctx, self.texture_handle.clone());
-        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-            .entries(vec![
-                // texture
-                render::BindGroupEntry::Texture(texture.view()),
-                // sampler
-                render::BindGroupEntry::Sampler(texture.sampler()),
-            ])
-            .build(ctx);
+        match self.shader_cache.get_gpu(ctx, self.shader_handle.clone()) {
+            Ok(shader) => {
+                let mesh_gpu = self.assets.get_mesh_gpu(ctx, self.mesh_handle.clone());
+                let texture = self.assets.get_image_gpu(ctx, self.texture_handle.clone());
+                let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+                    .entries(vec![
+                        // texture
+                        render::BindGroupEntry::Texture(texture.view()),
+                        // sampler
+                        render::BindGroupEntry::Sampler(texture.sampler()),
+                    ])
+                    .build(ctx);
 
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-        let queue = render::queue(ctx);
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: screen_view,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLUE),
-                    store: wgpu::StoreOp::Store,
-                },
-                resolve_target: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
+                let buffer_layout = self
+                    .assets
+                    .get_mesh(self.mesh_handle.clone())
+                    .buffer_layout();
+                let pipeline =
+                    render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+                        .single_target(render::ColorTargetState::from_current_screen(ctx))
+                        .buffers(buffer_layout)
+                        .build(ctx);
 
-        render_pass.set_pipeline(&self.pipeline);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-        render_pass.draw(0..self.vertex_buffer.len(), 0..1);
+                render::RenderPassBuilder::new()
+                    .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
+                    .build_run_submit(ctx, |mut render_pass| {
+                        render_pass.set_pipeline(&pipeline);
 
-        drop(render_pass);
-        queue.submit(Some(encoder.finish()));
+                        mesh_gpu.bind_to_render_pass(&mut render_pass);
+
+                        render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+                        render_pass.draw_indexed(0..mesh_gpu.index_count.unwrap(), 0, 0..1);
+                    });
+            }
+            Err(err) => log::error!("could not compile shader: {:?}", err),
+        }
 
         false
     }
 }
-
-#[rustfmt::skip]
-const QUAD_VERTICES: &[render::VertexUV] = &[
-    render::VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
-    render::VertexUV { position: [-0.5,  0.5, 0.0], uv: [0.0, 0.0] }, // top left
-
-    render::VertexUV { position: [-0.5, -0.5, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 0.5, -0.5, 0.0], uv: [1.0, 1.0] }, // bottom right
-    render::VertexUV { position: [ 0.5,  0.5, 0.0], uv: [1.0, 0.0] }, // top right
-];

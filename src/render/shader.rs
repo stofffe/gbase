@@ -7,8 +7,8 @@ use crate::{render, Context};
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
-    source: String,
-    label: Option<String>,
+    pub source: String,
+    pub label: Option<String>,
 }
 
 impl ShaderBuilder {
