@@ -58,5 +58,4 @@ members = [
     "examples/transform",
     "examples/texture",
     "examples/flappy_bird",
-    "examples/angry_birds",
 ]

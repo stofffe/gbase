@@ -1,11 +1,13 @@
 use gbase::{
-    bytemuck, filesystem,
-    glam::{vec3, Quat, Vec3, Vec4Swizzles},
-    input, load_b, log, render, time, wgpu, Callbacks, Context,
+    filesystem,
+    glam::{vec3, Quat},
+    input, load_b, log,
+    render::{self, ArcHandle, TextureWithView},
+    time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetHandle, Assets, GpuMaterial, GpuMesh, GpuModel, Image, Mesh, PbrLightUniforms,
-    PbrMaterial, Transform3D, RED,
+    AssetCache, AssetHandle, GlbLoader, GpuMaterial, GpuMesh, GpuModel, Image, Mesh,
+    PbrLightUniforms, PbrMaterial, PbrRenderer, ShaderDescriptor, Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -24,19 +26,18 @@ struct App {
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 
-    ak47_mesh: gbase_utils::Mesh,
-    ak47_material: PbrMaterial,
-    ak47_gpu_material: Arc<gbase_utils::GpuMaterial>,
-    ak47_gpu_mesh: Arc<gbase_utils::GpuMesh>,
+    ak47_mesh_handle: AssetHandle<Mesh>,
+    ak47_material: Arc<GpuMaterial>,
 
     // cube_model: GpuModel,
     // penguin_model: GpuModel,
     // helmet_model: GpuModel,
-    cube_material: Arc<GpuMaterial>,
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
-    cube_material_handle: gbase_utils::AssetHandle<Image>,
+    cube_material: Arc<GpuMaterial>,
 
-    assets: Assets,
+    image_cache: AssetCache<Image, TextureWithView>,
+    mesh_cache: AssetCache<Mesh, GpuMesh>,
+    shader_cache: AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
 }
 
 impl Callbacks for App {
@@ -50,28 +51,37 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let mut assets = Assets::new();
+        let mut image_cache = AssetCache::new();
+        let mut mesh_cache = AssetCache::new();
+        let mut shader_cache = AssetCache::new();
+
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let pbr_renderer = gbase_utils::PbrRenderer::new(ctx, &depth_buffer);
 
-        let ak47_prim = gbase_utils::parse_glb(
+        let pbr_renderer = PbrRenderer::new(ctx, &mut shader_cache);
+
+        let mut glb_loader = GlbLoader::new(ctx);
+
+        let ak47_prim = glb_loader.parse_glb(
             ctx,
-            &mut assets,
+            &mut image_cache,
             &filesystem::load_b!("models/ak47.glb").unwrap(),
         )[0]
         .clone();
         let ak47_mesh = ak47_prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes());
-        let ak47_material = ak47_prim.material.clone();
-        let ak47_gpu_material = ak47_prim.material.to_material(ctx, &mut assets);
-        let ak47_gpu_mesh = gbase_utils::GpuMesh::new(ctx, &ak47_mesh);
+        let ak47_mesh_handle = mesh_cache.allocate(ak47_mesh);
+        let ak47_material = ak47_prim
+            .material
+            .clone()
+            .to_material(ctx, &mut image_cache)
+            .into();
 
-        let cube_prim = gbase_utils::parse_glb(
+        let cube_prim = glb_loader.parse_glb(
             ctx,
-            &mut assets,
+            &mut image_cache,
             &filesystem::load_b!("models/cube.glb").unwrap(),
         );
         let mut cube_model = GpuModel { meshes: Vec::new() };
@@ -81,8 +91,8 @@ impl Callbacks for App {
                 .extract_attributes(pbr_renderer.required_attributes());
 
             cube_model.meshes.push((
-                Arc::new(gbase_utils::GpuMesh::new(ctx, mesh_with_attr)),
-                Arc::new(prim.material.to_material(ctx, &mut assets)),
+                ArcHandle::new(gbase_utils::GpuMesh::new(ctx, mesh_with_attr)),
+                Arc::new(prim.material.to_material(ctx, &mut image_cache)),
                 Transform3D::from_matrix(prim.transform),
             ));
         }
@@ -154,42 +164,37 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
-        let cube_prim = gbase_utils::parse_glb(
+        let cube_prim = glb_loader.parse_glb(
             ctx,
-            &mut assets,
+            &mut image_cache,
             &filesystem::load_b!("models/cube.glb").unwrap(),
         )[0]
         .clone();
         let cube_mesh = cube_prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes());
-        let cube_material = cube_prim.material.to_material(ctx, &mut assets).into();
-
-        let cube_mesh_handle = assets.allocate_mesh_data(cube_mesh);
-        let cube_material_handle = assets.allocate_image_or_default(None, [255, 255, 255, 255]);
+        let cube_material = cube_prim.material.to_material(ctx, &mut image_cache).into();
+        let cube_mesh_handle = mesh_cache.allocate(cube_mesh);
 
         Self {
             pbr_renderer,
             ui_renderer,
             gizmo_renderer,
+            lights_buffer,
 
             camera,
             camera_buffer,
 
             depth_buffer,
 
-            ak47_mesh,
-            ak47_material,
-            ak47_gpu_material: ak47_gpu_material.into(),
-            ak47_gpu_mesh: ak47_gpu_mesh.into(),
-            // cube_model,
-            // penguin_model,
-            // helmet_model,
-            lights_buffer,
+            image_cache,
+            mesh_cache,
+            shader_cache,
 
-            assets,
+            ak47_mesh_handle,
+            ak47_material,
+
             cube_mesh_handle,
-            cube_material_handle,
             cube_material,
         }
     }
@@ -208,34 +213,41 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        self.mesh_cache.check_watch(ctx);
+        self.image_cache.check_watch(ctx);
+        self.shader_cache.check_watch(ctx);
+
         self.depth_buffer.clear(ctx);
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        // let elems = 20u32;
-        // for x in 0..(elems.isqrt()) {
-        //     for z in 0..(elems.isqrt()) {
-        //         let transform = Transform3D::from_pos(vec3(15.0 * x as f32, 0.0, 10.0 * z as f32))
-        //             .with_rot(Quat::from_rotation_y(
-        //                 (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
-        //             ));
-        //
-        //         self.pbr_renderer.add_mesh(
-        //             self.ak47_gpu_mesh.clone(),
-        //             self.ak47_gpu_material.clone(),
-        //             transform,
-        //         );
-        //         // if (x + z) % 2 == 0 {
-        //         //     self.pbr_renderer.add_mesh(
-        //         //         self.ak47_gpu_mesh.clone(),
-        //         //         self.ak47_gpu_material.clone(),
-        //         //         transform,
-        //         //     );
-        //         // } else {
-        //         //     self.pbr_renderer.add_model(&self.helmet_model, transform);
-        //         // }
-        //     }
-        // }
+        let elems = 20u32;
+        for x in 0..(elems.isqrt()) {
+            for z in 0..(elems.isqrt()) {
+                let transform = Transform3D::from_pos(vec3(15.0 * x as f32, 0.0, 10.0 * z as f32))
+                    .with_rot(Quat::from_rotation_y(
+                        (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
+                    ));
+
+                self.pbr_renderer.add_mesh(
+                    ctx,
+                    &mut self.mesh_cache,
+                    self.ak47_mesh_handle.clone(),
+                    self.ak47_material.clone(),
+                    transform,
+                );
+
+                // if (x + z) % 2 == 0 {
+                //     self.pbr_renderer.add_mesh(
+                //         self.ak47_gpu_mesh.clone(),
+                //         self.ak47_gpu_material.clone(),
+                //         transform,
+                //     );
+                // } else {
+                //     self.pbr_renderer.add_model(&self.helmet_model, transform);
+                // }
+            }
+        }
 
         // let plane_mesh = gbase_utils::MeshBuilder::quad().build();
         // self.mesh_renderer.add_mesh(
@@ -247,7 +259,8 @@ impl Callbacks for App {
         // );
 
         if input::key_just_pressed(ctx, input::KeyCode::F1) {
-            let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
+            let cube_mesh = self.mesh_cache.get_mut(self.cube_mesh_handle.clone());
+            // let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
             let pos_verts = cube_mesh
                 .attributes
                 .get_mut(&gbase_utils::VertexAttributeId::Position)
@@ -267,7 +280,7 @@ impl Callbacks for App {
 
         self.pbr_renderer.add_mesh(
             ctx,
-            &mut self.assets,
+            &mut self.mesh_cache,
             self.cube_mesh_handle.clone(),
             self.cube_material.clone(),
             Transform3D::default(),
@@ -277,6 +290,7 @@ impl Callbacks for App {
         //     .render_bounding_boxes(&mut self.gizmo_renderer);
         self.pbr_renderer.render(
             ctx,
+            &mut self.shader_cache,
             screen_view,
             &self.camera,
             &self.camera_buffer,

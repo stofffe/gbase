@@ -4,17 +4,17 @@
 
 #[derive(Clone)]
 pub struct GpuMaterial {
-    pub base_color_texture: Arc<render::TextureWithView>,
+    pub base_color_texture: ArcHandle<render::TextureWithView>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: Arc<render::TextureWithView>,
+    pub metallic_roughness_texture: ArcHandle<render::TextureWithView>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: Arc<render::TextureWithView>,
+    pub occlusion_texture: ArcHandle<render::TextureWithView>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: Arc<render::TextureWithView>,
+    pub normal_texture: ArcHandle<render::TextureWithView>,
     pub normal_scale: f32,
 }
 
@@ -45,34 +45,43 @@ impl GpuMaterial {
 //  rougness
 //  occlusion
 
-use std::{collections::BTreeSet, sync::Arc};
-
+use crate::{
+    AssetCache, AssetHandle, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Mesh,
+    ShaderDescriptor, Transform3D, TransformUniform, VertexAttributeId, WHITE,
+};
 use encase::ShaderType;
 use gbase::{
     glam::{Vec3, Vec4, Vec4Swizzles},
-    render, wgpu, Context,
+    render::{self, ArcHandle, SamplerBuilder, TextureBuilder, TextureWithView},
+    wgpu::{self},
+    Context,
 };
-
-use crate::{
-    AssetHandle, Assets, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Mesh, Transform3D,
-    TransformUniform, VertexAttributeId, WHITE,
-};
+use std::{collections::BTreeSet, sync::Arc};
 
 pub struct PbrRenderer {
-    pipeline: render::ArcRenderPipeline,
+    shader_handle: AssetHandle<ShaderDescriptor>,
+    pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
     vertex_attributes: BTreeSet<VertexAttributeId>,
 
     transform_arena: GrowingBufferArena,
     material_arena: GrowingBufferArena,
 
-    frame_meshes: Vec<(Arc<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
+    frame_meshes: Vec<(ArcHandle<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 impl PbrRenderer {
-    pub fn new(ctx: &mut Context, depth_buffer: &render::DepthBuffer) -> Self {
-        let shader =
-            render::ShaderBuilder::new(include_str!("../assets/shaders/mesh.wgsl")).build(ctx);
+    pub fn new(
+        ctx: &mut Context,
+        shader_cache: &mut AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
+    ) -> Self {
+        let shader_handle = shader_cache.allocate_reload(
+            ShaderDescriptor {
+                label: None,
+                source: include_str!("../assets/shaders/mesh.wgsl").into(),
+            },
+            "../../utils/gbase_utils/assets/shaders/mesh.wgsl".into(),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -129,22 +138,9 @@ impl PbrRenderer {
             VertexAttributeId::Tangent,
             VertexAttributeId::Color(0),
         ]);
-        let mut buffers = Vec::new();
-        for attr in vertex_attributes.iter() {
-            buffers.push(render::VertexBufferLayout::from_vertex_formats(
-                wgpu::VertexStepMode::Vertex,
-                vec![attr.format()],
-            ));
-        }
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
-            .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(buffers)
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
-            .cull_mode(wgpu::Face::Back)
-            .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
         // let size = dbg!(u64::from(TransformUniform::min_size()));
@@ -173,7 +169,8 @@ impl PbrRenderer {
         );
 
         Self {
-            pipeline,
+            shader_handle,
+            pipeline_layout,
             bindgroup_layout,
             vertex_attributes,
             transform_arena,
@@ -185,12 +182,12 @@ impl PbrRenderer {
     pub fn add_mesh(
         &mut self,
         ctx: &mut Context,
-        assets: &mut Assets,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
         mesh: AssetHandle<Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
-        let gpu_mesh = assets.get_mesh_gpu(ctx, mesh.clone());
+        let gpu_mesh = mesh_cache.get_gpu(ctx, mesh.clone());
         self.frame_meshes.push((gpu_mesh, material, transform));
     }
 
@@ -220,15 +217,33 @@ impl PbrRenderer {
     }
 
     // TODO: should have internal vector<(mesh mat transform)>
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         ctx: &mut Context,
+        shader_cache: &mut AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
+
         view: &wgpu::TextureView,
         camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
     ) {
+        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let mut buffers = Vec::new();
+        for attr in self.vertex_attributes.iter() {
+            buffers.push(render::VertexBufferLayout::from_vertex_formats(
+                wgpu::VertexStepMode::Vertex,
+                vec![attr.format()],
+            ));
+        }
+        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+            .buffers(buffers)
+            .single_target(render::ColorTargetState::from_current_screen(ctx))
+            .cull_mode(wgpu::Face::Back)
+            .depth_stencil(depth_buffer.depth_stencil_state())
+            .build(ctx);
+
         let frustum = camera.calculate_frustum(ctx);
 
         let mut draws = Vec::new();
@@ -316,7 +331,7 @@ impl PbrRenderer {
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&self.pipeline);
+                pass.set_pipeline(&pipeline);
 
                 for (bindgroup, gpu_mesh) in draws {
                     for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
@@ -365,14 +380,28 @@ pub struct Image {
     pub sampler: render::SamplerBuilder,
 }
 
+impl Image {
+    pub fn new_pixel_texture(color: [u8; 4]) -> Self {
+        Self {
+            texture: TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec())),
+            sampler: SamplerBuilder::new()
+                .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
+        }
+    }
+}
+
 impl PbrMaterial {
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-    pub fn to_material(&self, ctx: &mut Context, assets: &mut Assets) -> GpuMaterial {
-        let base_color_texture = assets.get_image_gpu(ctx, self.base_color_texture.clone());
+    pub fn to_material(
+        &self,
+        ctx: &mut Context,
+        image_cache: &mut AssetCache<Image, TextureWithView>,
+    ) -> GpuMaterial {
+        let base_color_texture = image_cache.get_gpu(ctx, self.base_color_texture.clone());
         let metallic_roughness_texture =
-            assets.get_image_gpu(ctx, self.metallic_roughness_texture.clone());
-        let normal_texture = assets.get_image_gpu(ctx, self.normal_texture.clone());
-        let occlusion_texture = assets.get_image_gpu(ctx, self.occlusion_texture.clone());
+            image_cache.get_gpu(ctx, self.metallic_roughness_texture.clone());
+        let normal_texture = image_cache.get_gpu(ctx, self.normal_texture.clone());
+        let occlusion_texture = image_cache.get_gpu(ctx, self.occlusion_texture.clone());
 
         GpuMaterial {
             base_color_texture,

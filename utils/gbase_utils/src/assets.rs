@@ -370,56 +370,15 @@ impl Assets {
 // Generic asset manager
 //
 
-pub struct ShaderDescriptor {
-    pub label: Option<String>,
-    pub source: String,
+pub trait Asset<T: 'static, G: 'static> {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<G>;
+    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>);
 }
 
 pub struct AssetCache<T: 'static, G: 'static> {
     cpu_cache: HashMap<AssetHandle<T>, (T, bool)>,
     gpu_cache: HashMap<AssetHandle<T>, ArcHandle<G>>,
     reload: Vec<ReloadHandle<T>>,
-}
-
-// trait which takes hot reloadable (bytes -> update struct)
-
-pub trait Asset<T: 'static, G: 'static> {
-    fn convert(&self, ctx: &mut Context) -> ArcHandle<G>;
-    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>);
-}
-
-impl Asset<ShaderDescriptor, wgpu::ShaderModule> for ShaderDescriptor {
-    // TODO: maybe async? at least for reloading
-    fn convert(&self, ctx: &mut Context) -> ArcHandle<wgpu::ShaderModule> {
-        let device = render::device(ctx);
-
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: self.label.as_deref(),
-            source: wgpu::ShaderSource::Wgsl(self.source.clone().into()), // TODO: clone here?
-        });
-
-        ArcHandle::new(module)
-    }
-
-    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>) {
-        let source = String::from_utf8(data).expect("could not convert to string");
-
-        // validation
-        let device = render::device(ctx);
-        device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let _ = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: self.label.as_deref(),
-            source: wgpu::ShaderSource::Wgsl(source.clone().into()), // TODO: dont clone here?
-        });
-        let result = device.pop_error_scope().block_on(); // async, doesnt work for wasm
-        if let Some(err) = result {
-            log::error!("{:?}", err.to_string());
-            return;
-        }
-
-        // reload
-        self.source = source;
-    }
 }
 
 impl<T, G> AssetCache<T, G>
@@ -464,7 +423,7 @@ where
     }
 
     #[allow(clippy::result_unit_err)]
-    pub fn get_gpu(&mut self, ctx: &mut Context, id: AssetHandle<T>) -> Result<ArcHandle<G>, ()> {
+    pub fn get_gpu(&mut self, ctx: &mut Context, id: AssetHandle<T>) -> ArcHandle<G> {
         debug_assert!(self.cpu_cache.contains_key(&id), "handle doesnt exist");
 
         match self.gpu_cache.get_mut(&id) {
@@ -475,7 +434,7 @@ where
 
                 let gpu_typ = cpu_typ.convert(ctx);
                 self.gpu_cache.insert(id.clone(), gpu_typ);
-                log::info!("create type gpu buffer");
+                log::info!("create cached gpu buffer");
             }
             // get cached or update buffer
             Some(gpu_typ) => {
@@ -483,12 +442,14 @@ where
                 if *changed {
                     *changed = false;
                     *gpu_typ = cpu_typ.convert(ctx);
-                    log::info!("Update mesh gpu buffer");
+                    log::info!("update cached gpu buffer");
+                } else {
+                    // log::info!("fetch cached gpu buffer ");
                 }
             }
         }
 
-        Ok(self.gpu_cache.get_mut(&id).expect("should exist").clone())
+        self.gpu_cache.get_mut(&id).expect("should exist").clone()
     }
 
     pub fn watch(&mut self, path: String, handle: AssetHandle<T>) {
@@ -516,5 +477,80 @@ where
                     .reload(ctx, bytes);
             }
         }
+    }
+}
+
+// trait which takes hot reloadable (bytes -> update struct)
+
+impl Asset<Mesh, GpuMesh> for Mesh {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<GpuMesh> {
+        let gpu_mesh = GpuMesh::new(ctx, self);
+        ArcHandle::new(gpu_mesh)
+    }
+
+    fn reload(&mut self, _ctx: &mut Context, _data: Vec<u8>) {
+        log::warn!("meshes can not currently be hot reloaded");
+    }
+}
+
+impl Asset<Image, TextureWithView> for Image {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<TextureWithView> {
+        let texture = self.texture.clone().build(ctx);
+        let sampler = self.sampler.clone().build(ctx);
+        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        let image_gpu = render::TextureWithView::new(texture, view, sampler);
+
+        ArcHandle::new(image_gpu)
+    }
+
+    fn reload(&mut self, _ctx: &mut Context, data: Vec<u8>) {
+        let img = image::load_from_memory(&data);
+
+        let Ok(img) = img else {
+            log::error!("could not decode image bytes");
+            return;
+        };
+
+        let img = img.to_rgba8();
+        self.texture.source = render::TextureSource::Data(img.width(), img.height(), img.to_vec());
+    }
+}
+
+pub struct ShaderDescriptor {
+    pub label: Option<String>,
+    pub source: String,
+}
+
+impl Asset<ShaderDescriptor, wgpu::ShaderModule> for ShaderDescriptor {
+    // TODO: maybe async? at least for reloading
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<wgpu::ShaderModule> {
+        let device = render::device(ctx);
+
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(self.source.clone().into()), // TODO: clone here?
+        });
+
+        ArcHandle::new(module)
+    }
+
+    fn reload(&mut self, ctx: &mut Context, data: Vec<u8>) {
+        let source = String::from_utf8(data).expect("could not convert to string");
+
+        // validation
+        let device = render::device(ctx);
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let _ = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(source.clone().into()), // TODO: dont clone here?
+        });
+        let result = device.pop_error_scope().block_on(); // async, doesnt work for wasm
+        if let Some(err) = result {
+            log::error!("{:?}", err.to_string());
+            return;
+        }
+
+        // reload
+        self.source = source;
     }
 }

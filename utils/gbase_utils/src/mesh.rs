@@ -7,7 +7,7 @@ use crate::{GpuMaterial, Transform3D};
 use gbase::{
     glam::Vec3,
     log,
-    render::{self, VertexBuffer, VertexBufferLayout},
+    render::{self, ArcHandle, VertexBuffer, VertexBufferLayout},
     wgpu::{self, util::DeviceExt},
     Context,
 };
@@ -345,7 +345,7 @@ impl VertexAttributeValues {
 
 #[derive(Clone)]
 pub struct GpuModel {
-    pub meshes: Vec<(Arc<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
+    pub meshes: Vec<(ArcHandle<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 #[derive(Clone)]
