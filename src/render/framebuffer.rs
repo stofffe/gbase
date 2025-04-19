@@ -1,6 +1,8 @@
-use winit::dpi::PhysicalSize;
+use std::sync::Arc;
 
 use crate::{render, Context};
+
+use super::ArcHandle;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameBufferBuilder {
@@ -51,9 +53,9 @@ impl FrameBufferBuilder {
             usage: None,
         });
         FrameBuffer {
+            label: self.label,
             texture: render::ArcTexture::new(texture),
             view: render::ArcTextureView::new(view),
-            builder: self,
         }
     }
 
@@ -93,9 +95,9 @@ impl FrameBufferBuilder {
 
 #[derive(Debug)]
 pub struct FrameBuffer {
+    label: Option<String>,
     texture: render::ArcTexture,
     view: render::ArcTextureView,
-    builder: FrameBufferBuilder,
 }
 
 impl FrameBuffer {
@@ -130,11 +132,37 @@ impl FrameBuffer {
         }
     }
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
-        *self = self
-            .builder
-            .clone()
-            .size(new_size.width, new_size.height)
-            .build(ctx);
+        let device = render::device(ctx);
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: self.label.as_deref(), // TODO:
+            size: wgpu::Extent3d {
+                width: new_size.width,
+                height: new_size.height,
+                depth_or_array_layers: self.texture().depth_or_array_layers(),
+            },
+            format: self.texture().format(),
+            usage: self.texture().usage(),
+            mip_level_count: self.texture().mip_level_count(),
+            sample_count: self.texture().sample_count(),
+            dimension: self.texture().dimension(),
+            view_formats: &[],
+        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            label: self.label.as_deref(),
+            aspect: wgpu::TextureAspect::All,
+            format: None,
+            dimension: None,
+            mip_level_count: None,
+            array_layer_count: None,
+            base_mip_level: 0,
+            base_array_layer: 0,
+            usage: None,
+        });
+        *self = FrameBuffer {
+            label: self.label.clone(),
+            texture: ArcHandle::new(texture),
+            view: ArcHandle::new(view),
+        }
     }
     pub fn format(&self) -> wgpu::TextureFormat {
         self.texture().format()
@@ -148,9 +176,6 @@ impl FrameBuffer {
             )])
             .build(&mut encoder);
         render::queue(ctx).submit(Some(encoder.finish()));
-    }
-    pub fn builder(&self) -> FrameBufferBuilder {
-        self.builder.clone()
     }
 }
 

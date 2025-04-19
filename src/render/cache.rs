@@ -1,16 +1,13 @@
-use crate::{
-    render::{
-        self, ArcBindGroup, ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout,
-        ArcRenderPipeline, ArcSampler, ArcShaderModule, ArcTexture, BindGroupBuilder,
-        BindGroupLayoutBuilder, ComputePipelineBuilder, PipelineLayoutBuilder,
-        RenderPipelineBuilder, SamplerBuilder, ShaderBuilder, TextureBuilder, TextureViewBuilder,
-    },
-    Context,
+use crate::render::{
+    self, ArcBindGroup, ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout,
+    ArcRenderPipeline, ArcSampler, ArcTexture, BindGroupBuilder, BindGroupLayoutBuilder,
+    ComputePipelineBuilder, PipelineLayoutBuilder, RenderPipelineBuilder, SamplerBuilder,
+    TextureBuilder, TextureViewBuilder,
 };
+use crate::Context;
 use std::collections::HashMap;
 
 pub struct RenderCache {
-    pub shaders: HashMap<ShaderBuilder, ArcShaderModule>,
     pub bindgroup_layouts: HashMap<BindGroupLayoutBuilder, ArcBindGroupLayout>,
     pub bindgroups: HashMap<BindGroupBuilder, ArcBindGroup>,
     pub pipeline_layouts: HashMap<PipelineLayoutBuilder, ArcPipelineLayout>,
@@ -24,7 +21,6 @@ pub struct RenderCache {
 impl RenderCache {
     pub fn empty() -> Self {
         Self {
-            shaders: HashMap::new(),
             bindgroup_layouts: HashMap::new(),
             bindgroups: HashMap::new(),
             pipeline_layouts: HashMap::new(),
