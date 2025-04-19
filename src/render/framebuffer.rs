@@ -1,3 +1,5 @@
+use winit::dpi::PhysicalSize;
+
 use crate::{render, Context};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,8 +129,12 @@ impl FrameBuffer {
             },
         }
     }
-    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
-        *self = self.builder.clone().size(width, height).build(ctx);
+    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        *self = self
+            .builder
+            .clone()
+            .size(new_size.width, new_size.height)
+            .build(ctx);
     }
     pub fn format(&self) -> wgpu::TextureFormat {
         self.texture().format()
@@ -246,8 +252,8 @@ impl DepthBuffer {
     pub fn framebuffer(&self) -> &FrameBuffer {
         &self.framebuffer
     }
-    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
-        self.framebuffer.resize(ctx, width, height);
+    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.framebuffer.resize(ctx, new_size);
     }
     pub fn clear(&mut self, ctx: &Context) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);

@@ -2,12 +2,12 @@ use gbase::{
     filesystem,
     glam::{vec3, Quat},
     input, load_b, log,
-    render::{self, ArcHandle, TextureWithView},
+    render::{self, ShaderBuilder, TextureWithView},
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
     AssetCache, AssetHandle, GlbLoader, GpuMaterial, GpuMesh, GpuModel, Image, Mesh,
-    PbrLightUniforms, PbrMaterial, PbrRenderer, ShaderDescriptor, Transform3D,
+    PbrLightUniforms, PbrRenderer, Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -37,7 +37,7 @@ struct App {
 
     image_cache: AssetCache<Image, TextureWithView>,
     mesh_cache: AssetCache<Mesh, GpuMesh>,
-    shader_cache: AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
+    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
 }
 
 impl Callbacks for App {
@@ -90,8 +90,9 @@ impl Callbacks for App {
                 .mesh
                 .extract_attributes(pbr_renderer.required_attributes());
 
+            let mesh_handle = mesh_cache.allocate(mesh_with_attr.clone());
             cube_model.meshes.push((
-                ArcHandle::new(gbase_utils::GpuMesh::new(ctx, mesh_with_attr)),
+                mesh_handle,
                 Arc::new(prim.material.to_material(ctx, &mut image_cache)),
                 Transform3D::from_matrix(prim.transform),
             ));
@@ -149,13 +150,11 @@ impl Callbacks for App {
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            render::surface_format(ctx),
             1024,
             &load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
+        let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         let lights_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
             PbrLightUniforms {
@@ -230,8 +229,6 @@ impl Callbacks for App {
                     ));
 
                 self.pbr_renderer.add_mesh(
-                    ctx,
-                    &mut self.mesh_cache,
                     self.ak47_mesh_handle.clone(),
                     self.ak47_material.clone(),
                     transform,
@@ -279,37 +276,43 @@ impl Callbacks for App {
         }
 
         self.pbr_renderer.add_mesh(
-            ctx,
-            &mut self.mesh_cache,
             self.cube_mesh_handle.clone(),
             self.cube_material.clone(),
             Transform3D::default(),
         );
 
-        // self.pbr_renderer
-        //     .render_bounding_boxes(&mut self.gizmo_renderer);
+        self.pbr_renderer.render_bounding_boxes(
+            ctx,
+            &mut self.gizmo_renderer,
+            &mut self.mesh_cache,
+        );
         self.pbr_renderer.render(
             ctx,
-            &mut self.shader_cache,
             screen_view,
+            &mut self.shader_cache,
+            &mut self.mesh_cache,
             &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
         );
-        self.gizmo_renderer.render(ctx, screen_view);
-        self.ui_renderer.render(ctx, screen_view);
+        self.gizmo_renderer.render(
+            ctx,
+            screen_view,
+            render::surface_format(ctx),
+            &self.camera_buffer,
+        );
+        self.ui_renderer
+            .render(ctx, screen_view, render::surface_format(ctx));
 
         false
     }
 
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
-        self.depth_buffer
-            .resize(ctx, new_size.width, new_size.height);
+        self.depth_buffer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
-        self.gizmo_renderer
-            .resize(ctx, new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, new_size);
     }
 }
 

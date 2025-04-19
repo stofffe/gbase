@@ -39,8 +39,7 @@ impl Callbacks for App {
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
+        let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         Self {
             camera,
@@ -80,7 +79,12 @@ impl Callbacks for App {
             WHITE,
         );
 
-        self.gizmo_renderer.render(ctx, screen_view);
+        self.gizmo_renderer.render(
+            ctx,
+            screen_view,
+            render::surface_format(ctx),
+            &self.camera_buffer,
+        );
         false
     }
 
@@ -126,7 +130,6 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
-        self.gizmo_renderer
-            .resize(ctx, new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, new_size);
     }
 }

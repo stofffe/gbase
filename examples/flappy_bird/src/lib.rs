@@ -393,14 +393,12 @@ impl Callbacks for App {
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            render::surface_format(ctx),
             1000,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
 
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, render::surface_format(ctx), &camera_buffer);
+        let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         let highscore = if let Ok(data) = filesystem::load_str(ctx, HIGHSCORE_PATH) {
             data.trim().parse::<u32>().unwrap()
@@ -736,8 +734,14 @@ impl Callbacks for App {
         }
 
         // render to screen
-        self.ui_renderer.render(ctx, screen_view);
-        self.gizmo_renderer.render(ctx, screen_view);
+        self.ui_renderer
+            .render(ctx, screen_view, render::surface_format(ctx));
+        self.gizmo_renderer.render(
+            ctx,
+            screen_view,
+            render::surface_format(ctx),
+            &self.camera_buffer,
+        );
 
         false
     }
@@ -745,8 +749,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn resize(&mut self, ctx: &mut gbase::Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
         self.ui_renderer.resize(ctx, new_size);
-        self.gizmo_renderer
-            .resize(ctx, new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, new_size);
         self.sprite_renderer.resize(ctx, new_size);
     }
 }

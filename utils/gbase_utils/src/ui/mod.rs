@@ -10,7 +10,7 @@ use crate::{app_info, camera, AppInfoUniform, CameraProjection};
 use gbase::{
     glam::{vec2, vec3},
     input,
-    render::{self, ArcBindGroup, ArcRenderPipeline, VertexUV},
+    render::{self, ArcBindGroup, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule, VertexUV},
     time,
     wgpu::{self},
     winit, Context,
@@ -34,7 +34,8 @@ pub struct GUIRenderer {
     instances: Vec<WidgetInstance>,
     instance_buffer: render::RawBuffer<WidgetInstance>,
 
-    pipeline: ArcRenderPipeline,
+    shader: ArcShaderModule,
+    pipeline_layout: ArcPipelineLayout,
     bindgroup: ArcBindGroup,
     font_atlas: FontAtlas,
 
@@ -47,7 +48,6 @@ pub struct GUIRenderer {
 impl GUIRenderer {
     pub fn new(
         ctx: &mut Context,
-        output_format: wgpu::TextureFormat,
         max_quads: usize,
         font_bytes: &[u8],
         supported_chars: &str,
@@ -111,21 +111,14 @@ impl GUIRenderer {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout])
             .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(vec![vertices.desc(), WidgetInstance::desc()])
-            .single_target(
-                render::ColorTargetState::new()
-                    .format(output_format)
-                    .blend(wgpu::BlendState::ALPHA_BLENDING),
-            )
-            .build(ctx);
 
         Self {
             vertices,
             indices,
             instances,
             instance_buffer,
-            pipeline,
+            shader,
+            pipeline_layout,
             font_atlas,
             bindgroup,
             camera,
@@ -144,7 +137,12 @@ impl GUIRenderer {
     }
 
     // TODO use existing render pass instead?
-    pub fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) {
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        screen_view: &wgpu::TextureView,
+        view_format: wgpu::TextureFormat,
+    ) {
         //
         // Layout widgets
         //
@@ -177,13 +175,22 @@ impl GUIRenderer {
         //
         // Rendering
         //
+        let pipeline =
+            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
+                .buffers(vec![self.vertices.desc(), WidgetInstance::desc()])
+                .single_target(
+                    render::ColorTargetState::new()
+                        .format(view_format)
+                        .blend(wgpu::BlendState::ALPHA_BLENDING),
+                )
+                .build(ctx);
 
         self.instance_buffer.write(ctx, &self.instances);
         self.app_info_buffer.write(ctx, &AppInfoUniform::new(ctx));
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
             .build_run_submit(ctx, |mut render_pass| {
-                render_pass.set_pipeline(&self.pipeline);
+                render_pass.set_pipeline(&pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());

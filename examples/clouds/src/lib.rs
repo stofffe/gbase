@@ -79,7 +79,7 @@ impl Default for CloudParameters {
 }
 
 pub struct App {
-    framebuffer: render::FrameBuffer,
+    cloud_framebuffer: render::FrameBuffer,
     texture_to_screen: gbase_utils::TextureRenderer,
     depth_buffer: render::DepthBuffer,
 
@@ -120,7 +120,7 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
-        let framebuffer = render::FrameBufferBuilder::new()
+        let cloud_framebuffer = render::FrameBufferBuilder::new()
             .usage(
                 wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::STORAGE_BINDING
@@ -145,30 +145,21 @@ impl gbase::Callbacks for App {
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            framebuffer.format(),
             1024,
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
-            gbase_utils::DEFAULT_SUPPORTED_CHARS,
+            gbase_utils::DEFAULT_SUPPORTED_CHARS, // TODO: make this an enum?
         );
         let cloud_parameters_buffer = UniformBufferBuilder::new(render::UniformBufferSource::Data(
             CloudParameters::default(),
         ))
         .build(ctx);
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
-        let cloud_renderer = cloud_renderer::CloudRenderer::new(
-            ctx,
-            &framebuffer,
-            &depth_buffer,
-            &camera_buffer,
-            &cloud_parameters_buffer,
-        )
-        .expect("could not create cloud renderer");
-
+        let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
+        let cloud_renderer =
+            cloud_renderer::CloudRenderer::new(ctx).expect("could not create cloud renderer");
         let gaussian_blur = gaussian_filter::GaussianFilter::new(ctx);
 
         Self {
-            framebuffer,
+            cloud_framebuffer,
             depth_buffer,
             texture_to_screen: framebuffer_renderer,
             ui_renderer,
@@ -202,13 +193,7 @@ impl gbase::Callbacks for App {
         #[cfg(debug_assertions)]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             println!("Reload cloud renderer");
-            if let Ok(r) = cloud_renderer::CloudRenderer::new(
-                ctx,
-                &self.framebuffer,
-                &self.depth_buffer,
-                &self.camera_buffer,
-                &self.cloud_parameters_buffer,
-            ) {
+            if let Ok(r) = cloud_renderer::CloudRenderer::new(ctx) {
                 println!("Ok");
                 self.cloud_renderer = r;
                 self.debug_msg = String::from("Ok")
@@ -252,7 +237,7 @@ impl gbase::Callbacks for App {
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);
 
         // clear buffers
-        self.framebuffer.clear(
+        self.cloud_framebuffer.clear(
             ctx,
             wgpu::Color {
                 r: 0.35,
@@ -264,20 +249,26 @@ impl gbase::Callbacks for App {
         self.depth_buffer.clear(ctx);
 
         // render
-        self.cloud_renderer
-            .render(ctx, self.framebuffer.view_ref(), &self.depth_buffer);
+        self.cloud_renderer.render(
+            ctx,
+            self.cloud_framebuffer.view_ref(),
+            &self.depth_buffer,
+            &self.cloud_framebuffer,
+            &self.camera_buffer,
+            &self.cloud_parameters_buffer,
+        );
 
         if input::key_pressed(ctx, input::KeyCode::KeyH) {
             self.gaussian_blur.apply_filter(
                 ctx,
-                &self.framebuffer,
+                &self.cloud_framebuffer,
                 &gaussian_filter::GaussianFilterParams::new(2, 1.5),
             );
         }
         if input::key_pressed(ctx, input::KeyCode::KeyJ) {
             self.gaussian_blur.apply_filter(
                 ctx,
-                &self.framebuffer,
+                &self.cloud_framebuffer,
                 &gaussian_filter::GaussianFilterParams::new(1, 1.0),
             );
         }
@@ -289,27 +280,28 @@ impl gbase::Callbacks for App {
             self.store_surface = false;
         }
 
+        self.texture_to_screen
+            .render(ctx, self.cloud_framebuffer.view(), screen_view);
+
         if self.enable_gizmos {
             self.gizmos(ctx);
-            self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+            self.gizmo_renderer.render(
+                ctx,
+                screen_view,
+                render::surface_format(ctx),
+                &self.camera_buffer,
+            );
         }
-        self.ui_renderer.render(ctx, self.framebuffer.view_ref());
 
-        self.texture_to_screen
-            .render(ctx, self.framebuffer.view(), screen_view);
+        self.ui_renderer
+            .render(ctx, screen_view, render::surface_format(ctx));
 
         false
     }
 
     #[no_mangle]
     fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
-        self.gizmo_renderer
-            .resize(ctx, new_size.width, new_size.height);
-
-        self.framebuffer
-            .resize(ctx, new_size.width, new_size.height);
-        self.depth_buffer
-            .resize(ctx, new_size.width, new_size.height);
+        self.gizmo_renderer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
     }
 }
@@ -536,16 +528,12 @@ impl App {
                     if resolution_btn.clicked {
                         println!("change cloud res to {} {}", res.x, res.y);
                         self.cloud_resolution = res;
-                        self.framebuffer.resize(
-                            ctx,
+                        let new_size = winit::dpi::PhysicalSize::new(
                             self.cloud_resolution.x,
                             self.cloud_resolution.y,
                         );
-                        self.depth_buffer.resize(
-                            ctx,
-                            self.cloud_resolution.x,
-                            self.cloud_resolution.y,
-                        );
+                        self.cloud_framebuffer.resize(ctx, new_size);
+                        self.depth_buffer.resize(ctx, new_size);
                     }
                 }
             });
@@ -698,7 +686,7 @@ impl App {
         // NOTE: always render to original resolution
         let image_bytes = texture_to_buffer_gamma(
             ctx,
-            self.framebuffer.view(),
+            self.cloud_framebuffer.view(),
             CLOUD_BASE_RESOLUTION.x,
             CLOUD_BASE_RESOLUTION.y,
         );

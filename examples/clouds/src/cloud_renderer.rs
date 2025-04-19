@@ -6,23 +6,19 @@ use gbase::{filesystem, render, Context};
 
 pub struct CloudRenderer {
     vertices: render::VertexBuffer<render::VertexUV>,
-    pipeline: render::ArcRenderPipeline,
-    bindgroup: render::ArcBindGroup,
+    shader: render::ArcShaderModule,
+    pipeline_layout: render::ArcPipelineLayout,
+    bindgroup_layout: render::ArcBindGroupLayout,
 
     noise_texture: render::TextureWithView,
     weather_map_texture: render::TextureWithView,
     blue_noise_texture: render::TextureWithView,
-    app_info: gbase_utils::AppInfo,
+    noise_sampler: render::ArcSampler,
+    app_info: gbase_utils::AppInfo, // TODO: global or passed in render?
 }
 
 impl CloudRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        framebuffer: &render::FrameBuffer,
-        depth_buffer: &render::DepthBuffer,
-        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
-        parameters: &render::UniformBuffer<CloudParameters>,
-    ) -> Result<Self, wgpu::Error> {
+    pub fn new(ctx: &mut Context) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
         let weather_map_texture = generate_weather_map(ctx);
         let blue_noise_texture = generate_blue_noise(ctx);
@@ -81,42 +77,21 @@ impl CloudRenderer {
                     .fragment(),
             ])
             .build(ctx);
-        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
-            .entries(vec![
-                // App info
-                render::BindGroupEntry::Buffer(app_info.buffer()),
-                // Camera
-                render::BindGroupEntry::Buffer(camera.buffer()),
-                // Parameters
-                render::BindGroupEntry::Buffer(parameters.buffer()),
-                // Noise texture
-                render::BindGroupEntry::Texture(noise_texture.view()),
-                // Weather map
-                render::BindGroupEntry::Texture(weather_map_texture.view()),
-                // Blue noise
-                render::BindGroupEntry::Texture(blue_noise_texture.view()),
-                // Noise sampler
-                render::BindGroupEntry::Sampler(noise_sampler.clone()),
-            ])
-            .build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![bindgroup_layout])
-            .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(vec![vertices.desc()])
-            .single_target(framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING))
-            .depth_stencil(depth_buffer.depth_stencil_state())
+            .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
 
         Ok(Self {
             app_info,
             vertices,
-            pipeline,
-            bindgroup,
+            pipeline_layout,
+            bindgroup_layout,
+            shader,
 
             noise_texture,
             weather_map_texture,
             blue_noise_texture,
+            noise_sampler,
         })
     }
 
@@ -125,17 +100,45 @@ impl CloudRenderer {
         ctx: &mut Context,
         view: &wgpu::TextureView,
         depth_buffer: &render::DepthBuffer,
+        framebuffer: &render::FrameBuffer, // TODO: remove
+        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
+        parameters: &render::UniformBuffer<CloudParameters>,
     ) {
         self.app_info.update_buffer(ctx);
+
+        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+            .entries(vec![
+                // App info
+                render::BindGroupEntry::Buffer(self.app_info.buffer()),
+                // Camera
+                render::BindGroupEntry::Buffer(camera.buffer()),
+                // Parameters
+                render::BindGroupEntry::Buffer(parameters.buffer()),
+                // Noise texture
+                render::BindGroupEntry::Texture(self.noise_texture.view()),
+                // Weather map
+                render::BindGroupEntry::Texture(self.weather_map_texture.view()),
+                // Blue noise
+                render::BindGroupEntry::Texture(self.blue_noise_texture.view()),
+                // Noise sampler
+                render::BindGroupEntry::Sampler(self.noise_sampler.clone()),
+            ])
+            .build(ctx);
+        let pipeline =
+            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
+                .buffers(vec![self.vertices.desc()])
+                .single_target(framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING))
+                .depth_stencil(depth_buffer.depth_stencil_state())
+                .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run(&mut encoder, |mut rp| {
-                rp.set_pipeline(&self.pipeline);
+                rp.set_pipeline(&pipeline);
                 rp.set_vertex_buffer(0, self.vertices.slice(..));
-                rp.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
+                rp.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 rp.draw(0..self.vertices.len(), 0..1);
             });
 

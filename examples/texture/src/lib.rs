@@ -1,10 +1,10 @@
 use gbase::{
-    bytemuck, filesystem, input,
+    filesystem,
     render::{self, ArcPipelineLayout, SamplerBuilder, TextureWithView},
     wgpu::{self},
     Callbacks, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, Assets, GpuMesh, Image, Mesh, ShaderDescriptor};
+use gbase_utils::{AssetCache, AssetHandle, GpuMesh, Image, Mesh};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -21,8 +21,8 @@ struct App {
     texture_cache: AssetCache<Image, TextureWithView>,
     texture_handle: AssetHandle<Image>,
 
-    shader_cache: AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
-    shader_handle: AssetHandle<ShaderDescriptor>,
+    shader_cache: AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
+    shader_handle: AssetHandle<render::ShaderBuilder>,
 }
 
 impl Callbacks for App {
@@ -48,10 +48,8 @@ impl Callbacks for App {
             .build_uncached(ctx);
 
         let mut shader_cache = AssetCache::new();
-        let shader_descriptor = ShaderDescriptor {
-            label: None,
-            source: filesystem::load_s!("shaders/texture.wgsl").unwrap(),
-        };
+        let shader_descriptor =
+            render::ShaderBuilder::new(filesystem::load_s!("shaders/texture.wgsl").unwrap());
         let shader_handle =
             shader_cache.allocate_reload(shader_descriptor, "assets/shaders/texture.wgsl".into());
 

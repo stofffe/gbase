@@ -33,8 +33,7 @@ pub struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
-        self.framebuffer
-            .resize(ctx, new_size.width, new_size.height);
+        self.framebuffer.resize(ctx, new_size);
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {

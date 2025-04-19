@@ -84,7 +84,8 @@ impl SobelFilter {
 
         if texture.texture().size() != self.copy_texture.texture().size() {
             log::warn!("in and out texture of box blur must have same size");
-            self.copy_texture.resize(ctx, width, height);
+            self.copy_texture
+                .resize(ctx, gbase::winit::dpi::PhysicalSize::new(width, height));
         }
 
         // Copy current texture to copy texture

@@ -252,8 +252,7 @@ impl SpriteRenderer {
     }
 
     pub fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
-        self.stencil_buffer
-            .resize(ctx, new_size.width, new_size.height);
+        self.stencil_buffer.resize(ctx, new_size);
     }
 
     pub fn draw_sprite(&mut self, transform: &Transform2D, atlas_pos: Vec2, atlas_size: Vec2) {

@@ -151,9 +151,9 @@ impl ColorTargetState {
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct RenderPipelineBuilder {
+    shader: ArcShaderModule,                        // shader
     layout: ArcPipelineLayout,                      //
     label: Option<String>,                          //
-    shader: ArcShaderModule,                        // shader
     buffers: Vec<VertexBufferLayout>,               // mesh
     targets: Vec<Option<ColorTargetState>>,         // shader
     topology: wgpu::PrimitiveTopology,              // mesh

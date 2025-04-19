@@ -21,7 +21,6 @@ impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            render::surface_format(ctx),
             1000,
             &filesystem::load_b!("fonts/times.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
@@ -182,7 +181,7 @@ impl Callbacks for App {
                 .render(renderer);
         });
 
-        self.gui_renderer.render(ctx, screen_view);
+        self.gui_renderer.render(ctx, screen_view, render::surface_format(ctx));
         false
     }
 

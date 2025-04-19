@@ -7,8 +7,8 @@ use crate::{render, Context};
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
-    pub source: String,
     pub label: Option<String>,
+    pub source: String,
 }
 
 impl ShaderBuilder {
@@ -22,7 +22,7 @@ impl ShaderBuilder {
     /// Create shader module
     ///
     /// panics if source is invalid
-    pub fn build_uncached(&self, ctx: &Context) -> ArcShaderModule {
+    pub fn build(&self, ctx: &Context) -> ArcShaderModule {
         let mut shader_code = String::with_capacity(self.source.len());
 
         shader_code.push_str(&self.source);
@@ -38,50 +38,12 @@ impl ShaderBuilder {
 
     /// Create shader module
     ///
-    /// Checks cache before creating new
-    ///
-    /// panics if source is invalid
-    pub fn build(self, ctx: &mut Context) -> ArcShaderModule {
-        if let Some(shader) = ctx.render.cache.shaders.get(&self) {
-            // log::info!("Fetch cached shader");
-            return shader.clone();
-        }
-
-        log::info!("Create cached shader");
-        let shader = self.build_uncached(ctx);
-        ctx.render.cache.shaders.insert(self, shader.clone());
-        shader
-    }
-
-    /// Create shader module
-    ///
-    /// Checks cache before creating new
-    ///
     /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
-        if let Some(shader) = ctx.render.cache.shaders.get(self) {
-            // log::info!("Fetch cached shader");
-            return Ok(shader.clone());
-        }
-
-        log::info!("Create cached shader");
-        let shader = self.build_unchached_err(ctx)?;
-        ctx.render
-            .cache
-            .shaders
-            .insert(self.clone(), shader.clone());
-        Ok(shader)
-    }
-
-    /// Create shader module
-    ///
-    /// Not supported on WASM (blocking call)
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn build_unchached_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
         let device = render::device(ctx);
         device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let shader = self.build_uncached(ctx);
+        let shader = self.build(ctx);
         pollster::block_on(async {
             let device = render::device(ctx);
             if let Some(err) = device.pop_error_scope().await {
@@ -96,6 +58,10 @@ impl ShaderBuilder {
 impl ShaderBuilder {
     pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
+        self
+    }
+    pub fn source(mut self, value: String) -> Self {
+        self.source = value;
         self
     }
 }

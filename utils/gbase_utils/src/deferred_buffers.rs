@@ -1,4 +1,4 @@
-use gbase::{render, wgpu, Context};
+use gbase::{render, wgpu, winit, Context};
 
 pub struct DeferredBuffers {
     pub position: render::FrameBuffer,
@@ -148,11 +148,11 @@ impl DeferredBuffers {
     /// * Normal
     /// * Roughness
     /// * Depth
-    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
-        self.position.resize(ctx, width, height);
-        self.albedo.resize(ctx, width, height);
-        self.normal.resize(ctx, width, height);
-        self.roughness.resize(ctx, width, height);
-        self.depth.resize(ctx, width, height);
+    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.position.resize(ctx, new_size);
+        self.albedo.resize(ctx, new_size);
+        self.normal.resize(ctx, new_size);
+        self.roughness.resize(ctx, new_size);
+        self.depth.resize(ctx, new_size);
     }
 }

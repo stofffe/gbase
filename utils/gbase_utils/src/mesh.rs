@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use crate::{GpuMaterial, Transform3D};
+use crate::{AssetHandle, GpuMaterial, Transform3D};
 use gbase::{
     glam::Vec3,
     log,
@@ -345,7 +345,7 @@ impl VertexAttributeValues {
 
 #[derive(Clone)]
 pub struct GpuModel {
-    pub meshes: Vec<(ArcHandle<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
+    pub meshes: Vec<(AssetHandle<Mesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 #[derive(Clone)]

@@ -47,7 +47,7 @@ impl GpuMaterial {
 
 use crate::{
     AssetCache, AssetHandle, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Mesh,
-    ShaderDescriptor, Transform3D, TransformUniform, VertexAttributeId, WHITE,
+    Transform3D, TransformUniform, VertexAttributeId, WHITE,
 };
 use encase::ShaderType;
 use gbase::{
@@ -59,7 +59,7 @@ use gbase::{
 use std::{collections::BTreeSet, sync::Arc};
 
 pub struct PbrRenderer {
-    shader_handle: AssetHandle<ShaderDescriptor>,
+    shader_handle: AssetHandle<render::ShaderBuilder>,
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
     vertex_attributes: BTreeSet<VertexAttributeId>,
@@ -67,16 +67,16 @@ pub struct PbrRenderer {
     transform_arena: GrowingBufferArena,
     material_arena: GrowingBufferArena,
 
-    frame_meshes: Vec<(ArcHandle<GpuMesh>, Arc<GpuMaterial>, Transform3D)>,
+    frame_meshes: Vec<(AssetHandle<Mesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 impl PbrRenderer {
     pub fn new(
         ctx: &mut Context,
-        shader_cache: &mut AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) -> Self {
         let shader_handle = shader_cache.allocate_reload(
-            ShaderDescriptor {
+            render::ShaderBuilder {
                 label: None,
                 source: include_str!("../assets/shaders/mesh.wgsl").into(),
             },
@@ -181,14 +181,11 @@ impl PbrRenderer {
 
     pub fn add_mesh(
         &mut self,
-        ctx: &mut Context,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
         mesh: AssetHandle<Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
-        let gpu_mesh = mesh_cache.get_gpu(ctx, mesh.clone());
-        self.frame_meshes.push((gpu_mesh, material, transform));
+        self.frame_meshes.push((mesh, material, transform));
     }
 
     pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
@@ -201,8 +198,14 @@ impl PbrRenderer {
     }
 
     // temp?
-    pub fn render_bounding_boxes(&self, gizmo_renderer: &mut GizmoRenderer) {
-        for (gpu_mesh, _, transform) in self.frame_meshes.iter() {
+    pub fn render_bounding_boxes(
+        &self,
+        ctx: &mut Context,
+        gizmo_renderer: &mut GizmoRenderer,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+    ) {
+        for (mesh_handle, _, transform) in self.frame_meshes.iter() {
+            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
             let bounding_radius = gpu_mesh.bounds.bounding_radius();
 
             gizmo_renderer.draw_sphere(
@@ -221,9 +224,10 @@ impl PbrRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        shader_cache: &mut AssetCache<ShaderDescriptor, wgpu::ShaderModule>,
-
         view: &wgpu::TextureView,
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+
         camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
@@ -247,7 +251,9 @@ impl PbrRenderer {
         let frustum = camera.calculate_frustum(ctx);
 
         let mut draws = Vec::new();
-        for (gpu_mesh, mat, transform) in self.frame_meshes.iter() {
+        for (mesh_handle, mat, transform) in self.frame_meshes.iter() {
+            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+
             // cull
             // TODO: use circles or AABB?
             let bounding_radius = gpu_mesh.bounds.bounding_radius();
@@ -446,66 +452,3 @@ pub struct PbrMaterialUniform {
 pub struct PbrLightUniforms {
     pub main_light_dir: Vec3,
 }
-
-// pub fn new_colored(color: [f32; 4]) -> Self {
-//     Self {
-//         color_factor: color,
-//         base_color_texture: todo!(),
-//         metallic_roughness_texture: todo!(),
-//         roughness_factor: todo!(),
-//         metallic_factor: todo!(),
-//         occlusion_texture: todo!(),
-//         occlusion_strength: todo!(),
-//         normal_texture: todo!(),
-//         normal_scale: todo!(),
-//     }
-// }
-// fn create_texture_or_default(
-//     ctx: &mut Context,
-//     texture: &Option<Image>,
-//     default: [u8; 4],
-// ) -> render::TextureWithView {
-//     if let Some(tex) = texture {
-//         let texture = tex.texture.clone().build(ctx);
-//         let sampler = tex.sampler.clone().build(ctx);
-//         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-//         render::TextureWithView::new(texture, view, sampler)
-//     } else {
-//         log::error!("CREATE TEXTURE WITH DEFAULT {:?}", default);
-//         let texture =
-//             render::TextureBuilder::new(render::TextureSource::Data(1, 1, default.into()))
-//                 .build(ctx);
-//         let sampler = render::SamplerBuilder::new()
-//             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
-//             .build(ctx);
-//         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-//         render::TextureWithView::new(texture, view, sampler)
-//     }
-// }
-//
-// let base_color_texture =
-//     create_texture_or_default(ctx, &self.base_color_texture, [255, 255, 255, 255]);
-// let metallic_roughness_texture =
-//     create_texture_or_default(ctx, &self.metallic_roughness_texture, [0, 255, 0, 0]);
-// let normal_texture =
-//     create_texture_or_default(ctx, &self.normal_texture, [128, 128, 255, 0]);
-// let occlusion_texture =
-//     create_texture_or_default(ctx, &self.occlusion_texture, [255, 0, 0, 0]);
-// let base_color_handle = assets
-//     .allocate_image_or_default(self.base_color_texture.clone(), [255, 255, 255, 255])
-//     .clone();
-// let base_color_texture = assets.get_image_gpu(ctx, base_color_handle);
-//
-// let metallic_roughness_handle = assets
-//     .allocate_image_or_default(self.metallic_roughness_texture.clone(), [0, 255, 0, 0])
-//     .clone();
-// let metallic_roughness_texture = assets.get_image_gpu(ctx, metallic_roughness_handle);
-//
-// let normal_handle = assets
-//     .allocate_image_or_default(self.normal_texture.clone(), [128, 128, 255, 0])
-//     .clone();
-// let normal_texture = assets.get_image_gpu(ctx, normal_handle);
-// let occlusion_handle = assets
-//     .allocate_image_or_default(self.occlusion_texture.clone(), [255, 0, 0, 0])
-//     .clone();
-// let occlusion_texture = assets.get_image_gpu(ctx, occlusion_handle);

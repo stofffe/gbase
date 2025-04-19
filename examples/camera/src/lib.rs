@@ -28,7 +28,7 @@ impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/camera.wgsl").unwrap();
-        let shader = render::ShaderBuilder::new(shader_str).build_uncached(ctx);
+        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(

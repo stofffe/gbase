@@ -97,13 +97,11 @@ impl Callbacks for App {
         let grass_renderer = GrassRenderer::new(ctx, &deferred_buffers, &camera_buffer);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
-            framebuffer.format(),
             1024,
             &filesystem::load_b!("fonts/meslo.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
-        let gizmo_renderer =
-            gbase_utils::GizmoRenderer::new(ctx, framebuffer.format(), &camera_buffer);
+        let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         // // Plane mesh
         // let plane_transform = gbase_utils::Transform3D::new(
@@ -191,12 +189,18 @@ impl Callbacks for App {
         //     .render(ctx, &self.deferred_buffers, &[&self.plane]);
         self.deferred_renderer
             .render(ctx, self.framebuffer.view_ref());
-        self.gui_renderer.render(ctx, self.framebuffer.view_ref());
+        self.gui_renderer
+            .render(ctx, self.framebuffer.view_ref(), self.framebuffer.format());
         self.gizmo_renderer.draw_sphere(
             &Transform3D::new(self.light, Quat::IDENTITY, Vec3::ONE),
             vec3(1.0, 0.0, 0.0),
         );
-        self.gizmo_renderer.render(ctx, self.framebuffer.view_ref());
+        self.gizmo_renderer.render(
+            ctx,
+            self.framebuffer.view_ref(),
+            self.framebuffer.format(),
+            &self.camera_buffer,
+        );
 
         if input::key_pressed(ctx, KeyCode::KeyP) {
             self.sobel_filter.apply_filter(
@@ -214,10 +218,9 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
-        let (w, h) = (new_size.width, new_size.height);
-        self.gizmo_renderer.resize(ctx, w, h);
-        self.deferred_buffers.resize(ctx, w, h);
-        self.framebuffer.resize(ctx, w, h);
+        self.gizmo_renderer.resize(ctx, new_size);
+        self.deferred_buffers.resize(ctx, new_size);
+        self.framebuffer.resize(ctx, new_size);
         self.deferred_renderer.rebuild_bindgroup(
             ctx,
             &self.deferred_buffers,

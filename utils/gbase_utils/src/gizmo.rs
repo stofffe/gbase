@@ -1,38 +1,34 @@
-use crate::VertexAttributeId;
-
 use super::CameraUniform;
 use gbase::{
     glam::{vec4, Vec3, Vec4Swizzles},
     render::{
-        self, ArcBindGroup, ArcRenderPipeline, RenderPipelineBuilder, ShaderBuilder, VertexColor,
+        self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule, RenderPipelineBuilder,
+        ShaderBuilder, VertexColor,
     },
     wgpu, Context,
 };
-use std::{collections::BTreeMap, f32::consts::PI};
+use std::f32::consts::PI;
 
 pub struct GizmoRenderer {
     dynamic_vertex_buffer: Vec<VertexColor>,
     dynamic_index_buffer: Vec<u32>,
-
     vertex_buffer: render::VertexBuffer<VertexColor>,
     index_buffer: render::IndexBuffer,
-    bindgroup: ArcBindGroup,
-    pipeline: ArcRenderPipeline,
 
-    depth_buffer: render::DepthBuffer,
+    shader: ArcShaderModule,
+    pipeline_layout: ArcPipelineLayout,
+    bindgroup_layout: ArcBindGroupLayout,
+
+    depth_buffer: render::DepthBuffer, // depth buffer only for gizmos
 
     resolution: u32,
 }
 
 const GIZMO_MAX_VERTICES: usize = 100000;
 const GIZMO_MAX_INDICES: usize = 100000;
-const GIZMO_RESOLUTION: u32 = 16;
+const GIZMO_RESOLUTION: u32 = 32;
 impl GizmoRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        output_format: wgpu::TextureFormat,
-        camera_buffer: &render::UniformBuffer<CameraUniform>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let dynamic_vertex_buffer = Vec::with_capacity(GIZMO_MAX_VERTICES);
         let dynamic_index_buffer = Vec::with_capacity(GIZMO_MAX_INDICES);
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Size(
@@ -50,12 +46,6 @@ impl GizmoRenderer {
                 render::BindGroupLayoutEntry::new().vertex().uniform(),
             ])
             .build(ctx);
-        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
-            .entries(vec![
-                // camera
-                render::BindGroupEntry::Buffer(camera_buffer.buffer()),
-            ])
-            .build(ctx);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
@@ -63,13 +53,7 @@ impl GizmoRenderer {
 
         let shader = ShaderBuilder::new(include_str!("../assets/shaders/gizmo.wgsl")).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![bindgroup_layout])
-            .build(ctx);
-        let pipeline = RenderPipelineBuilder::new(shader, pipeline_layout)
-            .buffers(vec![vertex_buffer.desc()])
-            .single_target(render::ColorTargetState::new().format(output_format))
-            .depth_stencil(depth_buffer.depth_stencil_state())
-            .topology(wgpu::PrimitiveTopology::LineList)
+            .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
 
         Self {
@@ -77,24 +61,46 @@ impl GizmoRenderer {
             dynamic_index_buffer,
             vertex_buffer,
             index_buffer,
-            pipeline,
+            shader,
+            pipeline_layout,
             depth_buffer,
-            bindgroup,
+            bindgroup_layout,
             resolution: GIZMO_RESOLUTION,
         }
     }
-    pub fn render(&mut self, ctx: &Context, view: &wgpu::TextureView) {
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        view: &wgpu::TextureView,
+        view_format: wgpu::TextureFormat,
+        camera_buffer: &render::UniformBuffer<CameraUniform>,
+    ) {
         self.vertex_buffer.write(ctx, &self.dynamic_vertex_buffer);
         self.index_buffer.write(ctx, &self.dynamic_index_buffer);
+
+        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+            .entries(vec![
+                // camera
+                render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+            ])
+            .build(ctx);
+
+        let pipeline =
+            RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
+                .buffers(vec![self.vertex_buffer.desc()])
+                .single_target(render::ColorTargetState::new().format(view_format))
+                .depth_stencil(self.depth_buffer.depth_stencil_state())
+                .topology(wgpu::PrimitiveTopology::LineList)
+                .build(ctx);
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
             .build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&self.pipeline);
+                pass.set_pipeline(&pipeline);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                 pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
-                pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
+                pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 pass.draw_indexed(0..self.index_buffer.len(), 0, 0..1);
             });
 
@@ -102,8 +108,8 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.clear();
     }
 
-    pub fn resize(&mut self, ctx: &Context, width: u32, height: u32) {
-        self.depth_buffer.resize(ctx, width, height);
+    pub fn resize(&mut self, ctx: &Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+        self.depth_buffer.resize(ctx, new_size);
     }
 
     // TODO: builder instead?
@@ -220,48 +226,3 @@ impl GizmoRenderer {
         }
     }
 }
-
-//
-// GPU
-//
-//
-// pub struct GpuMesh {
-//     pub attribute_buffer: render::ArcBuffer,
-//     pub attribute_ranges: BTreeMap<VertexAttributeId, (u64, u64)>,
-//     pub index_buffer: Option<render::ArcBuffer>,
-// }
-//
-// impl GpuMesh {
-//     pub fn new(ctx: &Context, mesh: &crate::Mesh) -> Self {
-//         let mut cursor = 0;
-//         let mut combined_bytes = Vec::new();
-//         let mut attribute_ranges = BTreeMap::new();
-//         for (&id, values) in mesh.attributes.iter() {
-//             let start = cursor;
-//             for value in values.as_bytes() {
-//                 combined_bytes.push(*value);
-//                 cursor += 1;
-//             }
-//             let end = cursor;
-//             attribute_ranges.insert(id, (start, end));
-//         }
-//
-//         let mut index_buffer = None;
-//         if let Some(indices) = &mesh.indices {
-//             let buffer =
-//                 render::RawBufferBuilder::new(render::RawBufferSource::Data(indices.clone()))
-//                     .usage(wgpu::BufferUsages::INDEX)
-//                     .build(ctx);
-//             index_buffer = Some(buffer.buffer());
-//         }
-//
-//         let buffer =
-//             render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes)).build(ctx);
-//
-//         Self {
-//             attribute_buffer: buffer.buffer(),
-//             attribute_ranges,
-//             index_buffer,
-//         }
-//     }
-// }
