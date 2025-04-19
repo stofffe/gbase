@@ -4,7 +4,8 @@ use gbase::{
 };
 
 pub struct TextureRenderer {
-    pipeline: render::ArcRenderPipeline,
+    shader: render::ArcShaderModule,
+    pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
     vertices: render::VertexBuffer<VertexUV>,
     indices: render::IndexBuffer,
@@ -12,7 +13,7 @@ pub struct TextureRenderer {
 }
 
 impl TextureRenderer {
-    pub fn new(ctx: &mut Context, output_texture_format: wgpu::TextureFormat) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let shader =
             render::ShaderBuilder::new(include_str!("../assets/shaders/texture.wgsl")).build(ctx);
 
@@ -41,16 +42,13 @@ impl TextureRenderer {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .single_target(render::ColorTargetState::new().format(output_texture_format))
-            .buffers(vec![vertices.desc()])
-            .build(ctx);
 
         Self {
             vertices,
             indices,
+            shader,
             bindgroup_layout,
-            pipeline,
+            pipeline_layout,
             sampler,
         }
     }
@@ -60,6 +58,7 @@ impl TextureRenderer {
         ctx: &mut Context,
         in_texture: ArcTextureView,
         out_texture: &wgpu::TextureView,
+        out_texture_format: wgpu::TextureFormat,
     ) {
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -70,12 +69,18 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
+        let pipeline =
+            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
+                .single_target(render::ColorTargetState::new().format(out_texture_format))
+                .buffers(vec![self.vertices.desc()])
+                .build(ctx);
+
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
             )])
             .build_run_submit(ctx, |mut render_pass| {
-                render_pass.set_pipeline(&self.pipeline);
+                render_pass.set_pipeline(&pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);

@@ -80,7 +80,7 @@ impl Default for CloudParameters {
 
 pub struct App {
     cloud_framebuffer: render::FrameBuffer,
-    texture_to_screen: gbase_utils::TextureRenderer,
+    framebuffer_blitter: gbase_utils::TextureRenderer,
     depth_buffer: render::DepthBuffer,
 
     camera: gbase_utils::Camera,
@@ -132,8 +132,7 @@ impl gbase::Callbacks for App {
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
+        let framebuffer_blitter = gbase_utils::TextureRenderer::new(ctx);
 
         // TODO: check if it works
         let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
@@ -161,7 +160,7 @@ impl gbase::Callbacks for App {
         Self {
             cloud_framebuffer,
             depth_buffer,
-            texture_to_screen: framebuffer_renderer,
+            framebuffer_blitter,
             ui_renderer,
             gizmo_renderer,
             cloud_renderer,
@@ -280,8 +279,12 @@ impl gbase::Callbacks for App {
             self.store_surface = false;
         }
 
-        self.texture_to_screen
-            .render(ctx, self.cloud_framebuffer.view(), screen_view);
+        self.framebuffer_blitter.render(
+            ctx,
+            self.cloud_framebuffer.view(),
+            screen_view,
+            render::surface_format(ctx),
+        );
 
         if self.enable_gizmos {
             self.gizmos(ctx);
@@ -721,10 +724,11 @@ fn texture_to_buffer_gamma(
         .size(width, height)
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx);
-    gbase_utils::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8UnormSrgb).render(
+    gbase_utils::TextureRenderer::new(ctx).render(
         ctx,
         texture,
         temp_framebuffer.view_ref(),
+        wgpu::TextureFormat::Rgba8UnormSrgb,
     );
     texture_to_buffer_sync(ctx, temp_framebuffer.texture_ref(), width, height)
 }

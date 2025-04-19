@@ -68,8 +68,7 @@ impl Callbacks for App {
                     | wgpu::TextureUsages::STORAGE_BINDING,
             )
             .build(ctx);
-        let framebuffer_renderer =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
+        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
 
         // Camera
         let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
@@ -210,8 +209,12 @@ impl Callbacks for App {
             );
         }
 
-        self.framebuffer_renderer
-            .render(ctx, self.framebuffer.view(), screen_view);
+        self.framebuffer_renderer.render(
+            ctx,
+            self.framebuffer.view(),
+            screen_view,
+            render::surface_format(ctx),
+        );
 
         false
     }

@@ -48,10 +48,8 @@ impl Callbacks for App {
             )
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
-        let texture_renderer_base =
-            gbase_utils::TextureRenderer::new(ctx, wgpu::TextureFormat::Rgba8Unorm);
-        let texture_renderer_final =
-            gbase_utils::TextureRenderer::new(ctx, render::surface_format(ctx));
+        let texture_renderer_base = gbase_utils::TextureRenderer::new(ctx);
+        let texture_renderer_final = gbase_utils::TextureRenderer::new(ctx);
 
         // textures
         let texture1 = gbase_utils::texture_builder_from_image_bytes(
@@ -126,6 +124,7 @@ impl Callbacks for App {
                 ctx,
                 self.current_texture.clone(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
         }
         if input::key_just_pressed(ctx, KeyCode::Enter)
@@ -144,6 +143,7 @@ impl Callbacks for App {
                 ctx,
                 self.texture1.view(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
             self.current_texture = self.texture1.view();
         }
@@ -152,6 +152,7 @@ impl Callbacks for App {
                 ctx,
                 self.texture2.view(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
             self.current_texture = self.texture2.view();
         }
@@ -160,6 +161,7 @@ impl Callbacks for App {
                 ctx,
                 self.texture3.view(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
             self.current_texture = self.texture3.view();
         }
@@ -168,6 +170,7 @@ impl Callbacks for App {
                 ctx,
                 self.texture4.view(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
             self.current_texture = self.texture4.view();
         }
@@ -176,6 +179,7 @@ impl Callbacks for App {
                 ctx,
                 self.texture5.view(),
                 self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
             );
             self.current_texture = self.texture5.view();
         }
@@ -247,8 +251,12 @@ impl Callbacks for App {
         }
 
         // final
-        self.texture_renderer_final
-            .render(ctx, self.framebuffer.view(), screen_view);
+        self.texture_renderer_final.render(
+            ctx,
+            self.framebuffer.view(),
+            screen_view,
+            render::surface_format(ctx),
+        );
         false
     }
 }
