@@ -1,14 +1,14 @@
-use crate::{GpuMesh, Image, Mesh};
 use gbase::{
     log,
-    pollster::FutureExt,
-    render::{self, ArcHandle, TextureWithView},
+    render::{self, ArcHandle, GpuImage},
     wgpu::{self},
     Context,
 };
 use std::{
     collections::HashMap, fs, marker::PhantomData, sync::atomic::AtomicU64, time::SystemTime,
 };
+
+use crate::Image;
 
 //
 // Asset handle
@@ -179,6 +179,8 @@ where
                 let bytes = fs::read(&self.reload[i].path).unwrap();
                 self.get_mut(self.reload[i].handle.clone())
                     .reload(ctx, bytes);
+
+                log::info!("reload {}", self.reload[i].path);
             }
         }
     }
@@ -186,9 +188,9 @@ where
 
 // trait which takes hot reloadable (bytes -> update struct)
 
-impl Asset<Mesh, GpuMesh> for Mesh {
-    fn convert(&self, ctx: &mut Context) -> ArcHandle<GpuMesh> {
-        let gpu_mesh = GpuMesh::new(ctx, self);
+impl Asset<render::Mesh, render::GpuMesh> for render::Mesh {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<render::GpuMesh> {
+        let gpu_mesh = render::GpuMesh::new(ctx, self);
         ArcHandle::new(gpu_mesh)
     }
 
@@ -197,12 +199,12 @@ impl Asset<Mesh, GpuMesh> for Mesh {
     }
 }
 
-impl Asset<Image, TextureWithView> for Image {
-    fn convert(&self, ctx: &mut Context) -> ArcHandle<TextureWithView> {
+impl Asset<Image, render::GpuImage> for Image {
+    fn convert(&self, ctx: &mut Context) -> ArcHandle<GpuImage> {
         let texture = self.texture.clone().build(ctx);
         let sampler = self.sampler.clone().build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-        let image_gpu = render::TextureWithView::new(texture, view, sampler);
+        let image_gpu = render::GpuImage::new(texture, view, sampler);
 
         ArcHandle::new(image_gpu)
     }

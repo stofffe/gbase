@@ -2,12 +2,12 @@ use gbase::{
     filesystem,
     glam::{vec3, Quat},
     input, load_b, log,
-    render::{self, ShaderBuilder, TextureWithView},
+    render::{self, GpuImage, GpuMesh, Mesh, ShaderBuilder},
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GlbLoader, GpuMaterial, GpuMesh, GpuModel, Image, Mesh,
-    PbrLightUniforms, PbrRenderer, Transform3D,
+    AssetCache, AssetHandle, GlbLoader, GpuMaterial, Image, PbrLightUniforms, PbrRenderer,
+    Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -35,7 +35,7 @@ struct App {
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
 
-    image_cache: AssetCache<Image, TextureWithView>,
+    image_cache: AssetCache<Image, GpuImage>,
     mesh_cache: AssetCache<Mesh, GpuMesh>,
     shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
 }
@@ -79,24 +79,24 @@ impl Callbacks for App {
             .to_material(ctx, &mut image_cache)
             .into();
 
-        let cube_prim = glb_loader.parse_glb(
-            ctx,
-            &mut image_cache,
-            &filesystem::load_b!("models/cube.glb").unwrap(),
-        );
-        let mut cube_model = GpuModel { meshes: Vec::new() };
-        for prim in cube_prim {
-            let mesh_with_attr = &prim
-                .mesh
-                .extract_attributes(pbr_renderer.required_attributes());
-
-            let mesh_handle = mesh_cache.allocate(mesh_with_attr.clone());
-            cube_model.meshes.push((
-                mesh_handle,
-                Arc::new(prim.material.to_material(ctx, &mut image_cache)),
-                Transform3D::from_matrix(prim.transform),
-            ));
-        }
+        // let cube_prim = glb_loader.parse_glb(
+        //     ctx,
+        //     &mut image_cache,
+        //     &filesystem::load_b!("models/cube.glb").unwrap(),
+        // );
+        // let mut cube_model = GpuModel { meshes: Vec::new() };
+        // for prim in cube_prim {
+        //     let mesh_with_attr = &prim
+        //         .mesh
+        //         .extract_attributes(pbr_renderer.required_attributes());
+        //
+        //     let mesh_handle = mesh_cache.allocate(mesh_with_attr.clone());
+        //     cube_model.meshes.push((
+        //         mesh_handle,
+        //         Arc::new(prim.material.to_material(ctx, &mut image_cache)),
+        //         Transform3D::from_matrix(prim.transform),
+        //     ));
+        // }
 
         // let penguin_prim = gbase_utils::parse_glb(
         //     ctx,
@@ -255,25 +255,25 @@ impl Callbacks for App {
         //     Transform3D::default().with_rot(Quat::from_rotation_x(-PI / 2.0)),
         // );
 
-        if input::key_just_pressed(ctx, input::KeyCode::F1) {
-            let cube_mesh = self.mesh_cache.get_mut(self.cube_mesh_handle.clone());
-            // let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
-            let pos_verts = cube_mesh
-                .attributes
-                .get_mut(&gbase_utils::VertexAttributeId::Position)
-                .unwrap();
-
-            let shifted = pos_verts
-                .as_type::<[f32; 3]>()
-                .iter()
-                .map(|&[x, y, z]| [x * 1.1, y * 1.1, z * 1.1])
-                .collect::<Vec<_>>();
-
-            cube_mesh.add_attribute(
-                gbase_utils::VertexAttributeId::Position,
-                gbase_utils::VertexAttributeValues::Float32x3(shifted),
-            );
-        }
+        // if input::key_just_pressed(ctx, input::KeyCode::F1) {
+        //     let cube_mesh = self.mesh_cache.get_mut(self.cube_mesh_handle.clone());
+        //     // let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
+        //     let pos_verts = cube_mesh
+        //         .attributes
+        //         .get_mut(&render::VertexAttributeId::Position)
+        //         .unwrap();
+        //
+        //     let shifted = pos_verts
+        //         .as_type::<[f32; 3]>()
+        //         .iter()
+        //         .map(|&[x, y, z]| [x * 1.1, y * 1.1, z * 1.1])
+        //         .collect::<Vec<_>>();
+        //
+        //     // cube_mesh.add_attribute(
+        //     //     render::VertexAttributeId::Position,
+        //     //     render::VertexAttributeValues::Float32x3(shifted),
+        //     // );
+        // }
 
         self.pbr_renderer.add_mesh(
             self.cube_mesh_handle.clone(),

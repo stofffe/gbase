@@ -365,7 +365,7 @@ impl ComputePipelineBuilder {
     }
 
     pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {
-        if let Some(compute_pipeline) = ctx.render.cache.compute_pipeline.get(self) {
+        if let Some(compute_pipeline) = ctx.render.cache.compute_pipelines.get(self) {
             // log::info!("Fetch cached compute pipeline");
             return compute_pipeline.clone();
         }
@@ -374,7 +374,7 @@ impl ComputePipelineBuilder {
         let compute_pipeline = self.build_uncached(ctx);
         ctx.render
             .cache
-            .compute_pipeline
+            .compute_pipelines
             .insert(self.clone(), compute_pipeline.clone());
         compute_pipeline
     }

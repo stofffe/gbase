@@ -133,7 +133,7 @@ pub struct TextureBuilder {
 
     label: Option<String>,
     usage: wgpu::TextureUsages,
-    pub format: wgpu::TextureFormat,
+    format: wgpu::TextureFormat,
     depth_or_array_layers: u32,
     mip_level_count: u32,
     sample_count: u32,
@@ -361,13 +361,13 @@ impl TextureViewBuilder {
 //
 
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct TextureWithView {
+pub struct GpuImage {
     texture: ArcTexture,
     view: ArcTextureView,
     sampler: ArcSampler,
 }
 
-impl TextureWithView {
+impl GpuImage {
     pub fn new(texture: ArcTexture, view: ArcTextureView, sampler: ArcSampler) -> Self {
         Self {
             texture,
@@ -405,7 +405,7 @@ impl TextureWithView {
 }
 
 impl render::ArcTexture {
-    pub fn with_default_sampler_and_view(self, ctx: &mut Context) -> render::TextureWithView {
-        render::TextureWithView::from_texture(ctx, self)
+    pub fn with_default_sampler_and_view(self, ctx: &mut Context) -> render::GpuImage {
+        render::GpuImage::from_texture(ctx, self)
     }
 }

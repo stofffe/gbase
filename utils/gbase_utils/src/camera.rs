@@ -166,7 +166,7 @@ impl Camera {
         if input::key_pressed(ctx, winit::keyboard::KeyCode::ShiftLeft) {
             camera_movement_dir -= self.world_up();
         }
-        const CAMERA_MOVE_SPEED: f32 = 5.0;
+        const CAMERA_MOVE_SPEED: f32 = 50.0;
         if camera_movement_dir != Vec3::ZERO {
             if input::key_pressed(ctx, winit::keyboard::KeyCode::KeyM) {
                 self.pos += camera_movement_dir.normalize() * dt * CAMERA_MOVE_SPEED / 10.0;

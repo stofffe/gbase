@@ -4,17 +4,17 @@
 
 #[derive(Clone)]
 pub struct GpuMaterial {
-    pub base_color_texture: ArcHandle<render::TextureWithView>,
+    pub base_color_texture: ArcHandle<render::GpuImage>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: ArcHandle<render::TextureWithView>,
+    pub metallic_roughness_texture: ArcHandle<render::GpuImage>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: ArcHandle<render::TextureWithView>,
+    pub occlusion_texture: ArcHandle<render::GpuImage>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: ArcHandle<render::TextureWithView>,
+    pub normal_texture: ArcHandle<render::GpuImage>,
     pub normal_scale: f32,
 }
 
@@ -46,13 +46,13 @@ impl GpuMaterial {
 //  occlusion
 
 use crate::{
-    AssetCache, AssetHandle, GizmoRenderer, GpuMesh, GpuModel, GrowingBufferArena, Mesh,
-    Transform3D, TransformUniform, VertexAttributeId, WHITE,
+    AssetCache, AssetHandle, GizmoRenderer, GrowingBufferArena, Transform3D, TransformUniform,
+    WHITE,
 };
 use encase::ShaderType;
 use gbase::{
     glam::{Vec3, Vec4, Vec4Swizzles},
-    render::{self, ArcHandle, SamplerBuilder, TextureBuilder, TextureWithView},
+    render::{self, ArcHandle, GpuImage, GpuMesh, Mesh, SamplerBuilder, TextureBuilder},
     wgpu::{self},
     Context,
 };
@@ -62,12 +62,12 @@ pub struct PbrRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
-    vertex_attributes: BTreeSet<VertexAttributeId>,
+    vertex_attributes: BTreeSet<render::VertexAttributeId>,
 
     transform_arena: GrowingBufferArena,
     material_arena: GrowingBufferArena,
 
-    frame_meshes: Vec<(AssetHandle<Mesh>, Arc<GpuMaterial>, Transform3D)>,
+    frame_meshes: Vec<(AssetHandle<render::Mesh>, Arc<GpuMaterial>, Transform3D)>,
 }
 
 impl PbrRenderer {
@@ -132,11 +132,11 @@ impl PbrRenderer {
             .build(ctx);
 
         let vertex_attributes = BTreeSet::from([
-            VertexAttributeId::Position,
-            VertexAttributeId::Normal,
-            VertexAttributeId::Uv(0),
-            VertexAttributeId::Tangent,
-            VertexAttributeId::Color(0),
+            render::VertexAttributeId::Position,
+            render::VertexAttributeId::Normal,
+            render::VertexAttributeId::Uv(0),
+            render::VertexAttributeId::Tangent,
+            render::VertexAttributeId::Color(0),
         ]);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -181,28 +181,28 @@ impl PbrRenderer {
 
     pub fn add_mesh(
         &mut self,
-        mesh: AssetHandle<Mesh>,
+        mesh: AssetHandle<render::Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
         self.frame_meshes.push((mesh, material, transform));
     }
 
-    pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
-        for (mesh, material, transform) in model.meshes.iter() {
-            let final_transform =
-                Transform3D::from_matrix(global_transform.matrix() * transform.matrix());
-            self.frame_meshes
-                .push((mesh.clone(), material.clone(), final_transform));
-        }
-    }
+    // pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
+    //     for (mesh, material, transform) in model.meshes.iter() {
+    //         let final_transform =
+    //             Transform3D::from_matrix(global_transform.matrix() * transform.matrix());
+    //         self.frame_meshes
+    //             .push((mesh.clone(), material.clone(), final_transform));
+    //     }
+    // }
 
     // temp?
     pub fn render_bounding_boxes(
         &self,
         ctx: &mut Context,
         gizmo_renderer: &mut GizmoRenderer,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+        mesh_cache: &mut AssetCache<render::Mesh, render::GpuMesh>,
     ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
             let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
@@ -357,7 +357,7 @@ impl PbrRenderer {
         self.material_arena.free();
         self.frame_meshes.clear();
     }
-    pub fn required_attributes(&self) -> &BTreeSet<VertexAttributeId> {
+    pub fn required_attributes(&self) -> &BTreeSet<render::VertexAttributeId> {
         &self.vertex_attributes
     }
 }
@@ -401,7 +401,7 @@ impl PbrMaterial {
     pub fn to_material(
         &self,
         ctx: &mut Context,
-        image_cache: &mut AssetCache<Image, TextureWithView>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
     ) -> GpuMaterial {
         let base_color_texture = image_cache.get_gpu(ctx, self.base_color_texture.clone());
         let metallic_roughness_texture =

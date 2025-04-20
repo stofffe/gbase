@@ -2,6 +2,7 @@
 #![allow(clippy::new_without_default)]
 
 mod app;
+pub mod assets;
 pub mod audio;
 pub mod collision;
 pub mod filesystem;

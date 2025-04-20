@@ -32,7 +32,7 @@ impl TextureAtlasBuilder {
     pub fn new() -> Self {
         Self {}
     }
-    pub fn build(self, texture: render::TextureWithView) -> TextureAtlas {
+    pub fn build(self, texture: render::GpuImage) -> TextureAtlas {
         TextureAtlas { texture }
     }
 }
@@ -44,7 +44,7 @@ impl Default for TextureAtlasBuilder {
 }
 
 pub struct TextureAtlas {
-    texture: render::TextureWithView,
+    texture: render::GpuImage,
 }
 
 impl TextureAtlas {
@@ -76,7 +76,7 @@ impl TextureAtlas {
         );
     }
 
-    pub fn texture(&self) -> &render::TextureWithView {
+    pub fn texture(&self) -> &render::GpuImage {
         &self.texture
     }
 }

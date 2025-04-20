@@ -56,9 +56,11 @@ struct CloudParameters {
 @group(0) @binding(1) var<uniform> camera: CameraUniform;
 @group(0) @binding(2) var<uniform> params: CloudParameters;
 @group(0) @binding(3) var noise_tex: texture_3d<f32>;
-@group(0) @binding(4) var weather_map_tex: texture_2d<f32>;
-@group(0) @binding(5) var blue_noise_tex: texture_2d<f32>;
-@group(0) @binding(6) var noise_samp: sampler;
+@group(0) @binding(4) var noise_samp: sampler;
+@group(0) @binding(5) var weather_map_tex: texture_2d<f32>;
+@group(0) @binding(6) var weather_map_samp: sampler;
+@group(0) @binding(7) var blue_noise_tex: texture_2d<f32>;
+@group(0) @binding(8) var blue_noise_samp: sampler;
 
 @vertex
 fn vs(
@@ -80,8 +82,8 @@ const SCROLL_SPEED = 0.00;
 @fragment
 fn fs(in: VertexOutput) -> @location(0) vec4f {
     // if true {
-    // let d = textureSample(noise_tex, noise_samp, vec3f(in.uv, 0.0)).b;
-    // return vec4f(d, d, d, 1.0);
+    //     let d = textureSample(noise_tex, noise_samp, vec3f(in.uv, 0.0)).b;
+    //     return vec4f(d, d, d, 1.0);
     // return textureSample(weather_map_tex, noise_samp, in.uv * vec2f(1.0, 1.0));
     // return textureSample(blue_noise_tex, noise_samp, in.uv * 2.0).a * vec4f(1.0);
     // }
@@ -99,7 +101,7 @@ fn fs(in: VertexOutput) -> @location(0) vec4f {
     let exit = hit.t_far;
 
     // offset entry with blue noise
-    let blue_noise = textureSample(blue_noise_tex, noise_samp, uv * params.blue_noise_zoom).r;
+    let blue_noise = textureSample(blue_noise_tex, blue_noise_samp, uv * params.blue_noise_zoom).r;
     let step_size = length(exit - entry) / f32(DENSITY_STEPS);
     let entry_offseted = entry + (blue_noise - 0.5) * params.blue_noise_step_mult * step_size;
 
@@ -194,6 +196,7 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32, blue_noise: f32) -> CloudInfo {
         }
 
         t += step_size;
+
     }
 
     var cloud_info: CloudInfo;
@@ -201,7 +204,6 @@ fn cloud_march(ray: Ray, entry: f32, exit: f32, blue_noise: f32) -> CloudInfo {
     cloud_info.color = color;
     return cloud_info;
 }
-
 
 fn sample_density(pos: vec3f) -> f32 {
     // noise
@@ -216,7 +218,7 @@ fn sample_density(pos: vec3f) -> f32 {
     // weather
     let weather_coord_offset = vec2f(1.0, 1.0) * app_info.t * SCROLL_SPEED;
     let weather_coord = pos.xz * vec2f(1.0 / 1.0, 1.0) * 0.003 + weather_coord_offset;
-    let weather = textureSample(weather_map_tex, noise_samp, weather_coord);
+    let weather = textureSample(weather_map_tex, weather_map_samp, weather_coord);
     let weather_mask = weather.r;
     let weather_height = weather.g + 0.1;
 

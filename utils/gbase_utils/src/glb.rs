@@ -1,13 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{
-    texture_builder_from_image_bytes, AssetCache, AssetHandle, Image, Mesh, PbrMaterial,
-    VertexAttributeId, VertexAttributeValues,
-};
+use crate::{texture_builder_from_image_bytes, AssetCache, AssetHandle, Image, PbrMaterial};
 use gbase::{
     glam::Mat4,
     log,
-    render::{self, SamplerBuilder, TextureBuilder, TextureWithView},
+    render::{self, GpuImage, SamplerBuilder, TextureBuilder},
     wgpu, Context,
 };
 
@@ -24,7 +21,7 @@ pub struct GlbLoader {
 impl GlbLoader {
     fn pixel_cache(
         &mut self,
-        image_cache: &mut AssetCache<Image, TextureWithView>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
         value: [u8; 4],
     ) -> AssetHandle<Image> {
         let image = Image {
@@ -45,7 +42,7 @@ impl GlbLoader {
     pub fn parse_glb(
         &mut self,
         ctx: &Context,
-        image_cache: &mut AssetCache<Image, TextureWithView>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
         glb_bytes: &[u8],
     ) -> Vec<GltfPrimitive> {
         let mut meshes = Vec::new();
@@ -88,7 +85,7 @@ impl GlbLoader {
                         gltf::mesh::Mode::TriangleStrip => wgpu::PrimitiveTopology::TriangleStrip,
                         mode => panic!("primite mode {:?} not supported", mode),
                     };
-                    let mut mesh = crate::Mesh::new(topology);
+                    let mut mesh = render::Mesh::new(topology);
 
                     // parse vertex attributes
                     for (sem, attr) in primitive.attributes() {
@@ -110,40 +107,40 @@ impl GlbLoader {
                         match sem {
                             gltf::Semantic::Positions => {
                                 mesh.attributes.insert(
-                                    VertexAttributeId::Position,
-                                    VertexAttributeValues::Float32x3(
+                                    render::VertexAttributeId::Position,
+                                    render::VertexAttributeValues::Float32x3(
                                         bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
                                     ),
                                 );
                             }
                             gltf::Semantic::Normals => {
                                 mesh.attributes.insert(
-                                    VertexAttributeId::Normal,
-                                    VertexAttributeValues::Float32x3(
+                                    render::VertexAttributeId::Normal,
+                                    render::VertexAttributeValues::Float32x3(
                                         bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
                                     ),
                                 );
                             }
                             gltf::Semantic::Tangents => {
                                 mesh.attributes.insert(
-                                    VertexAttributeId::Tangent,
-                                    VertexAttributeValues::Float32x4(
+                                    render::VertexAttributeId::Tangent,
+                                    render::VertexAttributeValues::Float32x4(
                                         bytemuck::cast_slice::<u8, [f32; 4]>(bytes).to_vec(),
                                     ),
                                 );
                             }
                             gltf::Semantic::TexCoords(i) => {
                                 mesh.attributes.insert(
-                                    VertexAttributeId::Uv(i),
-                                    VertexAttributeValues::Float32x2(
+                                    render::VertexAttributeId::Uv(i),
+                                    render::VertexAttributeValues::Float32x2(
                                         bytemuck::cast_slice::<u8, [f32; 2]>(bytes).to_vec(),
                                     ),
                                 );
                             }
                             gltf::Semantic::Colors(i) => {
                                 mesh.attributes.insert(
-                                    VertexAttributeId::Color(i),
-                                    VertexAttributeValues::Float32x3(
+                                    render::VertexAttributeId::Color(i),
+                                    render::VertexAttributeValues::Float32x3(
                                         bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
                                     ),
                                 );
@@ -550,7 +547,7 @@ impl GlbLoader {
 
 #[derive(Debug, Clone)]
 pub struct GltfPrimitive {
-    pub mesh: Mesh,
+    pub mesh: render::Mesh,
     pub material: PbrMaterial,
     pub transform: Mat4,
 }

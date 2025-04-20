@@ -232,7 +232,7 @@ pub struct App {
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     sprite_renderer: sprite_renderer::SpriteRenderer,
-    sprite_atlas: render::TextureWithView,
+    sprite_atlas: render::GpuImage,
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
     highscore: u32,

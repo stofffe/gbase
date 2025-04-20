@@ -1,45 +1,51 @@
 use crate::noise::{generate_blue_noise, generate_cloud_noise, generate_weather_map};
 use crate::CloudParameters;
-use gbase::render::SamplerBuilder;
-use gbase::wgpu;
-use gbase::{filesystem, render, Context};
+use gbase::filesystem;
+use gbase::render::{GpuImage, GpuMesh, Mesh};
+use gbase::{
+    render::{self, ShaderBuilder},
+    wgpu, Context,
+};
+use gbase_utils::{AssetCache, AssetHandle, Image};
+use std::collections::BTreeSet;
 
 pub struct CloudRenderer {
-    vertices: render::VertexBuffer<render::VertexUV>,
-    shader: render::ArcShaderModule,
+    mesh_handle: AssetHandle<Mesh>,
+    shader_handle: AssetHandle<ShaderBuilder>,
+
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
-    noise_texture: render::TextureWithView,
-    weather_map_texture: render::TextureWithView,
-    blue_noise_texture: render::TextureWithView,
-    noise_sampler: render::ArcSampler,
+    noise_texture: render::GpuImage,
+    weather_map_texture: AssetHandle<Image>,
+    blue_noise_texture: AssetHandle<Image>,
     app_info: gbase_utils::AppInfo, // TODO: global or passed in render?
 }
 
 impl CloudRenderer {
-    pub fn new(ctx: &mut Context) -> Result<Self, wgpu::Error> {
+    pub fn new(
+        ctx: &mut Context,
+        shader_cache: &mut AssetCache<ShaderBuilder, wgpu::ShaderModule>,
+        image_cache: &mut AssetCache<Image, render::GpuImage>,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+    ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map_texture = generate_weather_map(ctx);
-        let blue_noise_texture = generate_blue_noise(ctx);
+        let weather_map_texture = generate_weather_map(image_cache);
+        let blue_noise_texture = generate_blue_noise(image_cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
-        let noise_sampler = SamplerBuilder::new()
-            .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
-            .build(ctx);
-        let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
-            QUAD_VERTICES.to_vec(),
-        ))
-        .build(ctx);
+        let mesh = render::MeshBuilder::fullscreen_quad()
+            .build()
+            .extract_attributes(&BTreeSet::from([
+                render::VertexAttributeId::Position,
+                render::VertexAttributeId::Uv(0),
+            ]));
+        let mesh_handle = mesh_cache.allocate(mesh);
 
-        let shader =
-            render::ShaderBuilder::new(filesystem::load_s!("shaders/clouds.wgsl").unwrap());
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let shader = shader.build_err(ctx)?;
-
-        #[cfg(target_arch = "wasm32")]
-        let shader = shader.build(ctx);
+        let shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder::new(filesystem::load_s!("shaders/clouds.wgsl").unwrap()),
+            "assets/shaders/clouds.wgsl".into(),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -63,15 +69,23 @@ impl CloudRenderer {
                         multisampled: false,
                     })
                     .fragment(),
+                // Noise sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
                 // Weather map
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
+                    .fragment(),
+                // Weather sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
                     .fragment(),
                 // Blue noise
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
                     .fragment(),
-                // Noise sampler
+                // Blue sampler
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
                     .fragment(),
@@ -83,22 +97,25 @@ impl CloudRenderer {
 
         Ok(Self {
             app_info,
-            vertices,
+            mesh_handle,
             pipeline_layout,
             bindgroup_layout,
-            shader,
+            shader_handle,
 
             noise_texture,
             weather_map_texture,
             blue_noise_texture,
-            noise_sampler,
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
+        shader_cache: &mut AssetCache<ShaderBuilder, wgpu::ShaderModule>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
         depth_buffer: &render::DepthBuffer,
         framebuffer: &render::FrameBuffer, // TODO: remove
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
@@ -106,6 +123,8 @@ impl CloudRenderer {
     ) {
         self.app_info.update_buffer(ctx);
 
+        let weather_map = image_cache.get_gpu(ctx, self.weather_map_texture.clone());
+        let blue_noise = image_cache.get_gpu(ctx, self.blue_noise_texture.clone());
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -116,30 +135,41 @@ impl CloudRenderer {
                 render::BindGroupEntry::Buffer(parameters.buffer()),
                 // Noise texture
                 render::BindGroupEntry::Texture(self.noise_texture.view()),
-                // Weather map
-                render::BindGroupEntry::Texture(self.weather_map_texture.view()),
-                // Blue noise
-                render::BindGroupEntry::Texture(self.blue_noise_texture.view()),
                 // Noise sampler
-                render::BindGroupEntry::Sampler(self.noise_sampler.clone()),
+                render::BindGroupEntry::Sampler(self.noise_texture.sampler()),
+                // Weather map texture
+                render::BindGroupEntry::Texture(weather_map.view()),
+                // Weather map sampler
+                render::BindGroupEntry::Sampler(weather_map.sampler()),
+                // Blue noise texture
+                render::BindGroupEntry::Texture(blue_noise.view()),
+                // Blue noise sampler
+                render::BindGroupEntry::Sampler(blue_noise.sampler()),
             ])
             .build(ctx);
-        let pipeline =
-            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
-                .buffers(vec![self.vertices.desc()])
-                .single_target(framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING))
-                .depth_stencil(depth_buffer.depth_stencil_state())
-                .build(ctx);
 
+        let mesh = mesh_cache.get(self.mesh_handle.clone());
+        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+            .label("cloud renderer")
+            .buffers(mesh.buffer_layout())
+            .single_target(framebuffer.target_blend(wgpu::BlendState::ALPHA_BLENDING))
+            .depth_stencil(depth_buffer.depth_stencil_state())
+            .build(ctx);
+
+        let mesh_gpu = mesh_cache.get_gpu(ctx, self.mesh_handle.clone());
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-            .build_run(&mut encoder, |mut rp| {
-                rp.set_pipeline(&pipeline);
-                rp.set_vertex_buffer(0, self.vertices.slice(..));
-                rp.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                rp.draw(0..self.vertices.len(), 0..1);
+            .build_run(&mut encoder, |mut render_pass| {
+                render_pass.set_pipeline(&pipeline);
+
+                mesh_gpu.bind_to_render_pass(&mut render_pass);
+
+                render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+
+                mesh_gpu.draw_in_render_pass(&mut render_pass);
             });
 
         let queue = render::queue(ctx);
@@ -147,13 +177,13 @@ impl CloudRenderer {
     }
 }
 
-#[rustfmt::skip]
-const QUAD_VERTICES: &[render::VertexUV] = &[
-    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-    render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
-
-    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
-    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-];
+// #[rustfmt::skip]
+// const QUAD_VERTICES: &[render::VertexUV] = &[
+//     render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+//     render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+//     render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
+//
+//     render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+//     render::VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
+//     render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+// ];

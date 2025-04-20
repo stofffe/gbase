@@ -16,11 +16,11 @@ pub struct App {
     texture_renderer_final: gbase_utils::TextureRenderer,
     framebuffer: render::FrameBuffer,
 
-    texture1: render::TextureWithView,
-    texture2: render::TextureWithView,
-    texture3: render::TextureWithView,
-    texture4: render::TextureWithView,
-    texture5: render::TextureWithView,
+    texture1: render::GpuImage,
+    texture2: render::GpuImage,
+    texture3: render::GpuImage,
+    texture4: render::GpuImage,
+    texture5: render::GpuImage,
 
     current_texture: ArcTextureView,
 

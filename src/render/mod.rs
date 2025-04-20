@@ -3,6 +3,7 @@ mod bind_group;
 mod buffer;
 mod cache;
 mod framebuffer;
+mod mesh;
 mod pipeline;
 mod render_pass;
 mod shader;
@@ -13,6 +14,7 @@ pub use bind_group::*;
 pub use buffer::*;
 pub use cache::*;
 pub use framebuffer::*;
+pub use mesh::*;
 pub use pipeline::*;
 pub use render_pass::*;
 pub use shader::*;
@@ -21,7 +23,6 @@ pub use vertex::*;
 
 use crate::Context;
 use std::sync::Arc;
-use winit::dpi::PhysicalSize;
 
 pub(crate) struct RenderContext {
     surface: Arc<wgpu::Surface<'static>>,
@@ -56,7 +57,6 @@ impl RenderContext {
         let surface = instance
             .create_surface(window.clone())
             .expect("could not create surface");
-        // let surface = unsafe { instance.create_surface(window) }.expect("could not create surface");
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptionsBase {
@@ -128,7 +128,7 @@ impl RenderContext {
     /// Resizes the window to a new size
     ///
     /// width and height has to be non zero
-    pub(crate) fn resize_window(&mut self, new_size: PhysicalSize<u32>) {
+    pub(crate) fn resize_window(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width == 0 || new_size.height == 0 {
             return;
         }

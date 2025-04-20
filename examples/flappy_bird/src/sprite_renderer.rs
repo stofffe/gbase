@@ -203,7 +203,7 @@ impl SpriteRenderer {
         ctx: &mut Context,
         output_view: &wgpu::TextureView,
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
-        atlas: &render::TextureWithView,
+        atlas: &render::GpuImage,
         stencil_reference: u32,
     ) {
         // update buffers

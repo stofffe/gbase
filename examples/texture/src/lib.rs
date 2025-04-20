@@ -1,10 +1,10 @@
 use gbase::{
     filesystem,
-    render::{self, ArcPipelineLayout, SamplerBuilder, TextureWithView},
+    render::{self, ArcPipelineLayout, GpuImage, GpuMesh, Mesh, SamplerBuilder},
     wgpu::{self},
     Callbacks, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, GpuMesh, Image, Mesh};
+use gbase_utils::{AssetCache, AssetHandle, Image};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -18,7 +18,7 @@ struct App {
     mesh_cache: AssetCache<Mesh, GpuMesh>,
     mesh_handle: AssetHandle<Mesh>,
 
-    texture_cache: AssetCache<Image, TextureWithView>,
+    texture_cache: AssetCache<Image, GpuImage>,
     texture_handle: AssetHandle<Image>,
 
     shader_cache: AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
@@ -65,10 +65,10 @@ impl Callbacks for App {
             texture_cache.allocate_reload(image, "assets/textures/texture.jpeg".into());
 
         let mut mesh_cache = AssetCache::new();
-        let mesh = gbase_utils::MeshBuilder::quad().build().extract_attributes(
+        let mesh = render::MeshBuilder::quad().build().extract_attributes(
             &[
-                gbase_utils::VertexAttributeId::Position,
-                gbase_utils::VertexAttributeId::Uv(0),
+                render::VertexAttributeId::Position,
+                render::VertexAttributeId::Uv(0),
             ]
             .into(),
         );
