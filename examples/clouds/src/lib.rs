@@ -3,14 +3,14 @@ mod noise;
 
 use gbase::{
     filesystem, glam, input, log,
-    render::{self, GpuImage, GpuMesh, Mesh, ShaderBuilder, UniformBufferBuilder},
+    render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder, UniformBufferBuilder},
     time, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
     Context,
 };
 use gbase_utils::{
-    gaussian_filter, Alignment, AssetCache, Direction, Image, SizeKind, Transform3D, Widget, BLUE,
-    GRAY, GREEN, RED,
+    gaussian_filter, Alignment, AssetCache, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY,
+    GREEN, RED,
 };
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::{f32::consts::PI, fs, io::Write, sync::mpsc};

@@ -2,12 +2,11 @@ use gbase::{
     filesystem,
     glam::{vec3, Quat},
     input, load_b, log,
-    render::{self, GpuImage, GpuMesh, Mesh, ShaderBuilder},
+    render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GlbLoader, GpuMaterial, Image, PbrLightUniforms, PbrRenderer,
-    Transform3D,
+    AssetCache, AssetHandle, GlbLoader, GpuMaterial, PbrLightUniforms, PbrRenderer, Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 

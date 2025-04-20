@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use crate::{texture_builder_from_image_bytes, AssetCache, AssetHandle, Image, PbrMaterial};
+use crate::{texture_builder_from_image_bytes, AssetCache, AssetHandle, PbrMaterial};
 use gbase::{
     glam::Mat4,
     log,
-    render::{self, GpuImage, SamplerBuilder, TextureBuilder},
+    render::{self, GpuImage, Image, SamplerBuilder, TextureBuilder},
     wgpu, Context,
 };
 

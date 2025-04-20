@@ -3,6 +3,22 @@ use crate::{
     Context,
 };
 
+#[derive(Debug, Clone)]
+pub struct Image {
+    pub texture: render::TextureBuilder,
+    pub sampler: render::SamplerBuilder,
+}
+
+impl Image {
+    pub fn new_pixel_texture(color: [u8; 4]) -> Self {
+        Self {
+            texture: TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec())),
+            sampler: SamplerBuilder::new()
+                .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
+        }
+    }
+}
+
 //
 // Sampler
 //

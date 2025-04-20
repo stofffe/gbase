@@ -1,14 +1,12 @@
 use gbase::{
     log,
-    render::{self, ArcHandle, GpuImage},
+    render::{self, ArcHandle, GpuImage, Image},
     wgpu::{self},
     Context,
 };
 use std::{
     collections::HashMap, fs, marker::PhantomData, sync::atomic::AtomicU64, time::SystemTime,
 };
-
-use crate::Image;
 
 //
 // Asset handle

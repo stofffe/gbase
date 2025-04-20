@@ -1,10 +1,10 @@
 use encase::ShaderType;
 use gbase::{
-    filesystem, load_b, render,
-    wgpu::{self, core::impl_storage_item},
-    Context,
+    filesystem, load_b,
+    render::{self, Image},
+    wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, Image};
+use gbase_utils::{AssetCache, AssetHandle};
 
 #[derive(ShaderType)]
 struct NoiseGeneratorUniforms {

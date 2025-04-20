@@ -1,12 +1,12 @@
 use crate::noise::{generate_blue_noise, generate_cloud_noise, generate_weather_map};
 use crate::CloudParameters;
 use gbase::filesystem;
-use gbase::render::{GpuImage, GpuMesh, Mesh};
+use gbase::render::{GpuImage, GpuMesh, Image, Mesh};
 use gbase::{
     render::{self, ShaderBuilder},
     wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, Image};
+use gbase_utils::{AssetCache, AssetHandle};
 use std::collections::BTreeSet;
 
 pub struct CloudRenderer {

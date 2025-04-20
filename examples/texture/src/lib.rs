@@ -1,10 +1,10 @@
 use gbase::{
     filesystem,
-    render::{self, ArcPipelineLayout, GpuImage, GpuMesh, Mesh, SamplerBuilder},
+    render::{self, ArcPipelineLayout, GpuImage, GpuMesh, Image, Mesh, SamplerBuilder},
     wgpu::{self},
     Callbacks, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, Image};
+use gbase_utils::{AssetCache, AssetHandle};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
