@@ -1,62 +1,19 @@
-//
-// GPU types
-//
-
-#[derive(Clone)]
-pub struct GpuMaterial {
-    pub base_color_texture: AssetHandle<Image>,
-    pub color_factor: [f32; 4],
-
-    pub metallic_roughness_texture: AssetHandle<Image>,
-    pub roughness_factor: f32,
-    pub metallic_factor: f32,
-
-    pub occlusion_texture: AssetHandle<Image>,
-    pub occlusion_strength: f32,
-
-    pub normal_texture: AssetHandle<Image>,
-    pub normal_scale: f32,
-}
-
-impl GpuMaterial {
-    pub fn uniform(&self) -> PbrMaterialUniform {
-        PbrMaterialUniform {
-            color_factor: self.color_factor.into(),
-            roughness_factor: self.roughness_factor,
-            metallic_factor: self.metallic_factor,
-            occlusion_strength: self.occlusion_strength,
-            normal_scale: self.normal_scale,
-        }
-    }
-}
+use crate::{AssetCache, AssetHandle, BoundingSphere, GizmoRenderer, Transform3D, WHITE};
+use encase::ShaderType;
+use gbase::{
+    glam::{Vec3, Vec4, Vec4Swizzles},
+    render::{
+        self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder, TextureBuilder,
+        VertexBuffer, VertexTrait,
+    },
+    wgpu::{self},
+    Context,
+};
+use std::{collections::BTreeSet, sync::Arc};
 
 //
 // Mesh renderer
 //
-
-// PBR
-// unqiue per draw call
-//
-// transform
-//
-// material
-//  base color
-//  normal
-//  rougness
-//  occlusion
-
-use crate::{
-    AssetCache, AssetHandle, BoundingSphere, GizmoRenderer, GrowingBufferArena, Transform3D,
-    TransformUniform, WHITE,
-};
-use encase::ShaderType;
-use gbase::{
-    glam::{Vec3, Vec4, Vec4Swizzles},
-    render::{self, ArcHandle, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder, TextureBuilder},
-    wgpu::{self},
-    Context,
-};
-use std::{alloc::alloc, collections::BTreeSet, sync::Arc};
 
 pub struct PbrRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
@@ -64,8 +21,7 @@ pub struct PbrRenderer {
     bindgroup_layout: render::ArcBindGroupLayout,
     vertex_attributes: BTreeSet<render::VertexAttributeId>,
 
-    transform_arena: GrowingBufferArena,
-    material_arena: GrowingBufferArena,
+    transforms: RawBuffer<Instances>,
 
     frame_meshes: Vec<(AssetHandle<render::Mesh>, Arc<GpuMaterial>, Transform3D)>,
 
@@ -92,10 +48,11 @@ impl PbrRenderer {
                     .fragment(),
                 // lights
                 render::BindGroupLayoutEntry::new().uniform().fragment(),
-                // transform
-                render::BindGroupLayoutEntry::new().uniform().vertex(),
-                // pbr material
-                render::BindGroupLayoutEntry::new().uniform().fragment(),
+                // instances
+                render::BindGroupLayoutEntry::new()
+                    .storage_readonly()
+                    .vertex()
+                    .fragment(),
                 // base color texture
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
@@ -143,80 +100,20 @@ impl PbrRenderer {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
 
-        // let size = dbg!(u64::from(TransformUniform::min_size()));
-        let transform_size = u64::from(TransformUniform::min_size()).next_multiple_of(256);
-        const DRAWS_MAX: u64 = 4096;
-        let transform_arena = GrowingBufferArena::new(
-            render::device(ctx),
-            transform_size,
-            wgpu::BufferDescriptor {
-                label: None,
-                size: transform_size * DRAWS_MAX,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        );
-        let material_size = u64::from(PbrMaterialUniform::min_size()).next_multiple_of(256);
-        let material_arena = GrowingBufferArena::new(
-            render::device(ctx),
-            transform_size,
-            wgpu::BufferDescriptor {
-                label: None,
-                size: material_size * DRAWS_MAX,
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            },
-        );
+        let transforms = render::RawBufferBuilder::new(render::RawBufferSource::Size(
+            1000 * std::mem::size_of::<Instances>() as u64,
+        ))
+        .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
+        .build(ctx);
 
         Self {
             shader_handle,
             pipeline_layout,
             bindgroup_layout,
             vertex_attributes,
-            transform_arena,
-            material_arena,
             frame_meshes: Vec::new(),
             shader_cache,
-        }
-    }
-
-    pub fn add_mesh(
-        &mut self,
-        mesh: AssetHandle<render::Mesh>,
-        material: Arc<GpuMaterial>,
-        transform: Transform3D,
-    ) {
-        self.frame_meshes.push((mesh, material, transform));
-    }
-
-    // pub fn add_model(&mut self, model: &GpuModel, global_transform: Transform3D) {
-    //     for (mesh, material, transform) in model.meshes.iter() {
-    //         let final_transform =
-    //             Transform3D::from_matrix(global_transform.matrix() * transform.matrix());
-    //         self.frame_meshes
-    //             .push((mesh.clone(), material.clone(), final_transform));
-    //     }
-    // }
-
-    // temp?
-    pub fn render_bounding_boxes(
-        &self,
-        ctx: &mut Context,
-        gizmo_renderer: &mut GizmoRenderer,
-        mesh_cache: &mut AssetCache<render::Mesh, render::GpuMesh>,
-    ) {
-        for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
-            let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
-
-            gizmo_renderer.draw_sphere(
-                &Transform3D::new(
-                    bounding_sphere.center,
-                    transform.rot,
-                    Vec3::ONE * bounding_sphere.radius * 2.0,
-                ),
-                WHITE.xyz(),
-            );
+            transforms,
         }
     }
 
@@ -246,6 +143,7 @@ impl PbrRenderer {
             ));
         }
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+            .label("pbr")
             .buffers(buffers)
             .single_target(render::ColorTargetState::new().format(view_format))
             // .polygon_mode(wgpu::PolygonMode::Line)
@@ -255,6 +153,9 @@ impl PbrRenderer {
 
         let frustum = camera.calculate_frustum(ctx);
 
+        // self.frame_meshes.sort_by_key(|a| a.0.clone());
+
+        let mut transforms = Vec::new();
         let mut draws = Vec::new();
         for (mesh_handle, mat, transform) in self.frame_meshes.iter() {
             let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
@@ -264,34 +165,6 @@ impl PbrRenderer {
             if !frustum.sphere_inside(&gpu_mesh.bounds, transform) {
                 continue;
             }
-
-            // transform
-            let transform_allocation = self
-                .transform_arena
-                .allocate(render::device(ctx), TransformUniform::min_size().into());
-            let mut transform_buffer = encase::UniformBuffer::new(Vec::new());
-            transform_buffer
-                .write(&transform.uniform())
-                .expect("could not write to transform buffer");
-
-            render::queue(ctx).write_buffer(
-                &transform_allocation.buffer,
-                transform_allocation.offset,
-                &transform_buffer.into_inner(),
-            );
-            // material
-            let material_allocation = self
-                .material_arena
-                .allocate(render::device(ctx), PbrMaterialUniform::min_size().into());
-            let mut material_buffer = encase::UniformBuffer::new(Vec::new());
-            material_buffer
-                .write(&mat.uniform())
-                .expect("could not write to material buffer");
-            render::queue(ctx).write_buffer(
-                &material_allocation.buffer,
-                material_allocation.offset,
-                &material_buffer.into_inner(),
-            );
 
             let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
             let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
@@ -304,18 +177,8 @@ impl PbrRenderer {
                     render::BindGroupEntry::Buffer(camera_buffer.buffer()),
                     // lights
                     render::BindGroupEntry::Buffer(lights.buffer()),
-                    // model
-                    render::BindGroupEntry::BufferSlice {
-                        buffer: transform_allocation.buffer,
-                        offset: transform_allocation.offset,
-                        size: TransformUniform::min_size().into(),
-                    },
-                    // pbr material
-                    render::BindGroupEntry::BufferSlice {
-                        buffer: material_allocation.buffer,
-                        offset: material_allocation.offset,
-                        size: PbrMaterialUniform::min_size().into(),
-                    },
+                    // instances
+                    render::BindGroupEntry::Buffer(self.transforms.buffer()),
                     // base color texture
                     render::BindGroupEntry::Texture(base_color_texture.view()),
                     // base color sampler
@@ -336,9 +199,17 @@ impl PbrRenderer {
                 .build(ctx);
 
             draws.push((bindgroup, gpu_mesh));
+            transforms.push(Instances {
+                model: transform.matrix().to_cols_array_2d(),
+                color_factor: mat.color_factor,
+                roughness_factor: mat.roughness_factor,
+                metallic_factor: mat.metallic_factor,
+                occlusion_strength: mat.occlusion_strength,
+                normal_scale: mat.normal_scale,
+            });
         }
 
-        // log::info!("Issuing {:?} draw calls", draws.len());
+        self.transforms.write(ctx, &transforms);
 
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
@@ -347,28 +218,82 @@ impl PbrRenderer {
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&pipeline);
 
-                for (bindgroup, gpu_mesh) in draws {
+                for (index, (bindgroup, gpu_mesh)) in draws.into_iter().enumerate() {
                     for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
                         let slice = gpu_mesh.attribute_buffer.slice(start..end);
                         pass.set_vertex_buffer(i as u32, slice);
                     }
+
                     pass.set_index_buffer(
                         gpu_mesh.index_buffer.as_ref().unwrap().slice(..),
                         wgpu::IndexFormat::Uint32,
                     );
                     pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                    pass.draw_indexed(0..gpu_mesh.index_count.unwrap(), 0, 0..1);
+                    pass.draw_indexed(
+                        0..gpu_mesh.index_count.unwrap(),
+                        0,
+                        index as u32..index as u32 + 1,
+                    );
                 }
             });
 
-        self.transform_arena.free();
-        self.material_arena.free();
         self.frame_meshes.clear();
+    }
+
+    pub fn add_mesh(
+        &mut self,
+        mesh: AssetHandle<render::Mesh>,
+        material: Arc<GpuMaterial>,
+        transform: Transform3D,
+    ) {
+        self.frame_meshes.push((mesh, material, transform));
+    }
+
+    // temp?
+    pub fn render_bounding_boxes(
+        &self,
+        ctx: &mut Context,
+        gizmo_renderer: &mut GizmoRenderer,
+        mesh_cache: &mut AssetCache<render::Mesh, render::GpuMesh>,
+    ) {
+        for (mesh_handle, _, transform) in self.frame_meshes.iter() {
+            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+            let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
+
+            gizmo_renderer.draw_sphere(
+                &Transform3D::new(
+                    bounding_sphere.center,
+                    transform.rot,
+                    Vec3::ONE * bounding_sphere.radius * 2.0,
+                ),
+                WHITE.xyz(),
+            );
+        }
     }
 
     pub fn required_attributes(&self) -> &BTreeSet<render::VertexAttributeId> {
         &self.vertex_attributes
     }
+}
+
+//
+// GPU types
+//
+
+#[derive(Clone)]
+pub struct GpuMaterial {
+    pub base_color_texture: AssetHandle<Image>,
+    pub color_factor: [f32; 4],
+
+    pub metallic_roughness_texture: AssetHandle<Image>,
+    pub roughness_factor: f32,
+    pub metallic_factor: f32,
+
+    pub occlusion_texture: AssetHandle<Image>,
+    pub occlusion_strength: f32,
+
+    pub normal_texture: AssetHandle<Image>,
+    pub normal_scale: f32,
 }
 
 // TODO: shoudl use handles for textures to reuse
@@ -436,27 +361,6 @@ impl PbrMaterial {
     }
 }
 
-impl PbrMaterial {
-    pub fn uniform(&self) -> PbrMaterialUniform {
-        PbrMaterialUniform {
-            color_factor: self.color_factor.into(),
-            roughness_factor: self.roughness_factor,
-            metallic_factor: self.metallic_factor,
-            occlusion_strength: self.occlusion_strength,
-            normal_scale: self.normal_scale,
-        }
-    }
-}
-
-#[derive(Debug, Clone, ShaderType)]
-pub struct PbrMaterialUniform {
-    pub color_factor: Vec4,
-    pub roughness_factor: f32,
-    pub metallic_factor: f32,
-    pub occlusion_strength: f32,
-    pub normal_scale: f32,
-}
-
 //
 // lights
 //
@@ -464,4 +368,23 @@ pub struct PbrMaterialUniform {
 #[derive(ShaderType)]
 pub struct PbrLightUniforms {
     pub main_light_dir: Vec3,
+}
+
+//
+// Transforms
+//
+
+// TODO: use encase for auto alignment?
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Instances {
+    // transform
+    model: [[f32; 4]; 4],
+
+    // material
+    color_factor: [f32; 4],
+    roughness_factor: f32,
+    metallic_factor: f32,
+    occlusion_strength: f32,
+    normal_scale: f32,
 }
