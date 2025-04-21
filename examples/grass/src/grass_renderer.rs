@@ -1,5 +1,6 @@
 use encase::ShaderType;
 use gbase::glam;
+use gbase::render::{ArcPipelineLayout, ArcShaderModule};
 use gbase::wgpu;
 use gbase::{
     filesystem,
@@ -27,94 +28,18 @@ pub struct GrassRenderer {
     draw_pipeline: ArcComputePipeline,
     draw_bindgroup: [ArcBindGroup; 2],
 
-    render_pipeline: ArcRenderPipeline,
+    render_pipeline_layout: ArcPipelineLayout,
+    render_shader: ArcShaderModule,
     render_bindgroup: ArcBindGroup,
 
     debug_input: gbase_utils::DebugInput,
 }
 
 impl GrassRenderer {
-    pub fn render(
-        &mut self,
-        ctx: &Context,
-        camera: &gbase_utils::Camera,
-        deferred_buffers: &gbase_utils::DeferredBuffers,
-    ) {
-        let queue = render::queue(ctx);
-        self.app_info.update_buffer(ctx);
-        self.debug_input.update_buffer(ctx);
-
-        let curr_tile = camera.pos.xz().div(TILE_SIZE).floor() * TILE_SIZE;
-
-        let lower = -TILES_PER_SIDE / 2;
-        let upper = TILES_PER_SIDE / 2;
-
-        let mut tiles = Vec::new();
-        for y in lower..=upper {
-            for x in lower..=upper {
-                let tile = curr_tile + vec2(x as f32, y as f32) * TILE_SIZE;
-                tiles.push(tile);
-            }
-        }
-
-        for (i, tile) in tiles.into_iter().enumerate() {
-            let mut encoder = render::EncoderBuilder::new().build(ctx);
-            // Alternate buffers to allow for GPU pipelining
-            let i_cur = i % 2;
-
-            //
-            // Compute
-            //
-            self.instance_count.write(ctx, &[0u32]);
-            self.tile_buffer.write(
-                ctx,
-                &Tile {
-                    pos: tile,
-                    size: TILE_SIZE,
-                    blades_per_side: BLADES_PER_SIDE as f32,
-                },
-            );
-            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("compute pass"),
-                timestamp_writes: None,
-            });
-
-            // instance
-            compute_pass.set_pipeline(&self.instance_pipeline);
-            compute_pass.set_bind_group(0, Some(self.instance_bindgroup[i_cur].as_ref()), &[]);
-            compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
-
-            // draw
-            compute_pass.set_pipeline(&self.draw_pipeline);
-            compute_pass.set_bind_group(0, Some(self.draw_bindgroup[i_cur].as_ref()), &[]);
-            compute_pass.dispatch_workgroups(1, 1, 1);
-
-            drop(compute_pass);
-
-            //
-            // Render
-            //
-            let attachments = &deferred_buffers.color_attachments();
-            let mut render_pass = render::RenderPassBuilder::new()
-                .color_attachments(attachments)
-                .depth_stencil_attachment(deferred_buffers.depth_stencil_attachment_load())
-                .build(&mut encoder);
-
-            render_pass.set_pipeline(&self.render_pipeline);
-            render_pass.set_vertex_buffer(0, self.instances[i_cur].slice(..));
-            render_pass.set_bind_group(0, Some(self.render_bindgroup.as_ref()), &[]);
-            render_pass.draw_indirect(self.indirect_buffer[i_cur].buffer_ref(), 0);
-
-            drop(render_pass);
-
-            queue.submit(Some(encoder.finish()));
-        }
-    }
-
     pub fn new(
         ctx: &mut Context,
-        deferred_buffers: &gbase_utils::DeferredBuffers,
-        camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>,
+        // deferred_buffers: &gbase_utils::DeferredBuffers,
+        camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>, // TODO: remove
     ) -> Self {
         let instances = [
             render::RawBufferBuilder::new(render::RawBufferSource::Size(
@@ -240,7 +165,7 @@ impl GrassRenderer {
                 .label("instance".to_string())
                 .build(ctx);
 
-        // Draw
+        // Draw with indirect draw calls
         let draw_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .label("draw")
             .entries(vec![
@@ -322,15 +247,6 @@ impl GrassRenderer {
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout])
             .build(ctx);
-        let render_pipeline =
-            render::RenderPipelineBuilder::new(render_shader, render_pipeline_layout)
-                .label("render".to_string())
-                .buffers(vec![GrassInstanceGPU::desc()])
-                .multiple_targets(deferred_buffers.targets().to_vec())
-                .depth_stencil(deferred_buffers.depth_stencil_state())
-                .topology(wgpu::PrimitiveTopology::TriangleStrip)
-                // .polygon_mode(wgpu::PolygonMode::Line)
-                .build(ctx);
 
         Self {
             instances,
@@ -342,10 +258,99 @@ impl GrassRenderer {
             instance_bindgroup,
             draw_pipeline,
             draw_bindgroup,
-            render_pipeline,
+            render_pipeline_layout,
+            render_shader,
             render_bindgroup,
 
             debug_input,
+        }
+    }
+
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        camera: &gbase_utils::Camera,
+        deferred_buffers: &gbase_utils::DeferredBuffers,
+    ) {
+        self.app_info.update_buffer(ctx);
+        self.debug_input.update_buffer(ctx);
+
+        let curr_tile = camera.pos.xz().div(TILE_SIZE).floor() * TILE_SIZE;
+
+        let lower = -TILES_PER_SIDE / 2;
+        let upper = TILES_PER_SIDE / 2;
+
+        let mut tiles = Vec::new();
+        for y in lower..=upper {
+            for x in lower..=upper {
+                let tile = curr_tile + vec2(x as f32, y as f32) * TILE_SIZE;
+                tiles.push(tile);
+            }
+        }
+
+        for (i, tile) in tiles.into_iter().enumerate() {
+            let mut encoder = render::EncoderBuilder::new().build(ctx);
+            // Alternate buffers to allow for GPU pipelining
+            let i_cur = i % 2;
+
+            //
+            // Compute
+            //
+            self.instance_count.write(ctx, &[0u32]);
+            self.tile_buffer.write(
+                ctx,
+                &Tile {
+                    pos: tile,
+                    size: TILE_SIZE,
+                    blades_per_side: BLADES_PER_SIDE as f32,
+                },
+            );
+            let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: Some("compute pass"),
+                timestamp_writes: None,
+            });
+
+            // Instance
+            compute_pass.set_pipeline(&self.instance_pipeline);
+            compute_pass.set_bind_group(0, Some(self.instance_bindgroup[i_cur].as_ref()), &[]);
+            compute_pass.dispatch_workgroups(BLADES_PER_SIDE / 16, BLADES_PER_SIDE / 16, 1);
+
+            // Draw indirect
+            compute_pass.set_pipeline(&self.draw_pipeline);
+            compute_pass.set_bind_group(0, Some(self.draw_bindgroup[i_cur].as_ref()), &[]);
+            compute_pass.dispatch_workgroups(1, 1, 1);
+
+            drop(compute_pass);
+
+            //
+            // Render
+            //
+            let render_pipeline = render::RenderPipelineBuilder::new(
+                self.render_shader.clone(),
+                self.render_pipeline_layout.clone(),
+            )
+            .label("render".to_string())
+            .buffers(vec![GrassInstanceGPU::desc()])
+            .multiple_targets(deferred_buffers.targets().to_vec())
+            .depth_stencil(deferred_buffers.depth.depth_stencil_state())
+            .topology(wgpu::PrimitiveTopology::TriangleStrip)
+            // .polygon_mode(wgpu::PolygonMode::Line)
+            .build(ctx);
+            let attachments = &deferred_buffers.color_attachments();
+            let mut render_pass = render::RenderPassBuilder::new()
+                .color_attachments(attachments)
+                .depth_stencil_attachment(deferred_buffers.depth.depth_render_attachment_load())
+                .build(&mut encoder);
+
+            render_pass.set_pipeline(&render_pipeline);
+            render_pass.set_vertex_buffer(0, self.instances[i_cur].slice(..));
+            render_pass.set_bind_group(0, Some(self.render_bindgroup.as_ref()), &[]);
+            render_pass.draw_indirect(self.indirect_buffer[i_cur].buffer_ref(), 0);
+
+            drop(render_pass);
+
+            let queue = render::queue(ctx);
+            queue.submit(Some(encoder.finish()));
         }
     }
 }

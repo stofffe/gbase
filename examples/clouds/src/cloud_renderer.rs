@@ -36,7 +36,7 @@ impl CloudRenderer {
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
             .build()
-            .extract_attributes(&BTreeSet::from([
+            .extract_attributes(BTreeSet::from([
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]));

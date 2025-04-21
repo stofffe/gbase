@@ -339,15 +339,15 @@ impl GUIRenderer {
             false,
         );
         self.text(
-            &format!("hot: {}", self.hot_this_frame),
-            vec2(0.0, font_size),
+            &format!("ms: {}", time::frame_time(ctx)),
+            vec2(0.0, font_size * 1.0),
             vec2(0.5, font_size),
             font_size,
             font_color,
             false,
         );
         self.text(
-            &format!("hot last: {}", self.hot_last_frame),
+            &format!("hot: {}", self.hot_this_frame),
             vec2(0.0, font_size * 2.0),
             vec2(0.5, font_size),
             font_size,
@@ -355,8 +355,16 @@ impl GUIRenderer {
             false,
         );
         self.text(
-            &format!("active: {}", self.active),
+            &format!("hot last: {}", self.hot_last_frame),
             vec2(0.0, font_size * 3.0),
+            vec2(0.5, font_size),
+            font_size,
+            font_color,
+            false,
+        );
+        self.text(
+            &format!("active: {}", self.active),
+            vec2(0.0, font_size * 4.0),
             vec2(0.5, font_size),
             font_size,
             font_color,

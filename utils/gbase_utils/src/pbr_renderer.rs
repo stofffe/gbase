@@ -4,17 +4,17 @@
 
 #[derive(Clone)]
 pub struct GpuMaterial {
-    pub base_color_texture: ArcHandle<render::GpuImage>,
+    pub base_color_texture: AssetHandle<Image>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: ArcHandle<render::GpuImage>,
+    pub metallic_roughness_texture: AssetHandle<Image>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: ArcHandle<render::GpuImage>,
+    pub occlusion_texture: AssetHandle<Image>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: ArcHandle<render::GpuImage>,
+    pub normal_texture: AssetHandle<Image>,
     pub normal_scale: f32,
 }
 
@@ -46,17 +46,17 @@ impl GpuMaterial {
 //  occlusion
 
 use crate::{
-    AssetCache, AssetHandle, GizmoRenderer, GrowingBufferArena, Transform3D, TransformUniform,
-    WHITE,
+    AssetCache, AssetHandle, BoundingSphere, GizmoRenderer, GrowingBufferArena, Transform3D,
+    TransformUniform, WHITE,
 };
 use encase::ShaderType;
 use gbase::{
     glam::{Vec3, Vec4, Vec4Swizzles},
-    render::{self, ArcHandle, GpuImage, GpuMesh, Image, Mesh, SamplerBuilder, TextureBuilder},
+    render::{self, ArcHandle, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder, TextureBuilder},
     wgpu::{self},
     Context,
 };
-use std::{collections::BTreeSet, sync::Arc};
+use std::{alloc::alloc, collections::BTreeSet, sync::Arc};
 
 pub struct PbrRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
@@ -68,13 +68,13 @@ pub struct PbrRenderer {
     material_arena: GrowingBufferArena,
 
     frame_meshes: Vec<(AssetHandle<render::Mesh>, Arc<GpuMaterial>, Transform3D)>,
+
+    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
 }
 
 impl PbrRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
+        let mut shader_cache = AssetCache::new();
         let shader_handle = shader_cache.allocate_reload(
             render::ShaderBuilder {
                 label: None,
@@ -176,6 +176,7 @@ impl PbrRenderer {
             transform_arena,
             material_arena,
             frame_meshes: Vec::new(),
+            shader_cache,
         }
     }
 
@@ -206,13 +207,13 @@ impl PbrRenderer {
     ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
             let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
-            let bounding_radius = gpu_mesh.bounds.bounding_radius();
+            let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
 
             gizmo_renderer.draw_sphere(
                 &Transform3D::new(
-                    transform.pos,
+                    bounding_sphere.center,
                     transform.rot,
-                    Vec3::ONE * bounding_radius * 2.0,
+                    Vec3::ONE * bounding_sphere.radius * 2.0,
                 ),
                 WHITE.xyz(),
             );
@@ -225,15 +226,18 @@ impl PbrRenderer {
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
+        view_format: wgpu::TextureFormat,
         mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
 
         camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
     ) {
-        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        self.shader_cache.check_watch(ctx);
+
+        let shader = self.shader_cache.get_gpu(ctx, self.shader_handle.clone());
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -243,7 +247,8 @@ impl PbrRenderer {
         }
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .buffers(buffers)
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
+            .single_target(render::ColorTargetState::new().format(view_format))
+            // .polygon_mode(wgpu::PolygonMode::Line)
             .cull_mode(wgpu::Face::Back)
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
@@ -256,9 +261,7 @@ impl PbrRenderer {
 
             // cull
             // TODO: use circles or AABB?
-            let bounding_radius = gpu_mesh.bounds.bounding_radius();
-
-            if !frustum.sphere_inside(transform.pos, bounding_radius) {
+            if !frustum.sphere_inside(&gpu_mesh.bounds, transform) {
                 continue;
             }
 
@@ -290,6 +293,11 @@ impl PbrRenderer {
                 &material_buffer.into_inner(),
             );
 
+            let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
+            let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
+            let metallic_roughness_texture =
+                image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
+            let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -309,21 +317,21 @@ impl PbrRenderer {
                         size: PbrMaterialUniform::min_size().into(),
                     },
                     // base color texture
-                    render::BindGroupEntry::Texture(mat.base_color_texture.view()),
+                    render::BindGroupEntry::Texture(base_color_texture.view()),
                     // base color sampler
-                    render::BindGroupEntry::Sampler(mat.base_color_texture.sampler()),
+                    render::BindGroupEntry::Sampler(base_color_texture.sampler()),
                     // normal texture
-                    render::BindGroupEntry::Texture(mat.normal_texture.view()),
+                    render::BindGroupEntry::Texture(normal_texture.view()),
                     // normal sampler
-                    render::BindGroupEntry::Sampler(mat.normal_texture.sampler()),
+                    render::BindGroupEntry::Sampler(normal_texture.sampler()),
                     // metallic roughness texture
-                    render::BindGroupEntry::Texture(mat.metallic_roughness_texture.view()),
+                    render::BindGroupEntry::Texture(metallic_roughness_texture.view()),
                     // metallic roughness sampler
-                    render::BindGroupEntry::Sampler(mat.metallic_roughness_texture.sampler()),
+                    render::BindGroupEntry::Sampler(metallic_roughness_texture.sampler()),
                     // occlusion roughness texture
-                    render::BindGroupEntry::Texture(mat.occlusion_texture.view()),
+                    render::BindGroupEntry::Texture(occlusion_texture.view()),
                     // occlusion roughness sampler
-                    render::BindGroupEntry::Sampler(mat.occlusion_texture.sampler()),
+                    render::BindGroupEntry::Sampler(occlusion_texture.sampler()),
                 ])
                 .build(ctx);
 
@@ -357,6 +365,7 @@ impl PbrRenderer {
         self.material_arena.free();
         self.frame_meshes.clear();
     }
+
     pub fn required_attributes(&self) -> &BTreeSet<render::VertexAttributeId> {
         &self.vertex_attributes
     }
@@ -366,32 +375,52 @@ impl PbrRenderer {
 // TODO: emissive
 #[derive(Debug, Clone)]
 pub struct PbrMaterial {
-    pub base_color_texture: AssetHandle<Image>,
+    pub base_color_texture: Option<Image>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: AssetHandle<Image>,
+    pub metallic_roughness_texture: Option<Image>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: AssetHandle<Image>,
+    pub occlusion_texture: Option<Image>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: AssetHandle<Image>,
+    pub normal_texture: Option<Image>,
     pub normal_scale: f32,
 }
 
 impl PbrMaterial {
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-    pub fn to_material(
-        &self,
-        ctx: &mut Context,
-        image_cache: &mut AssetCache<Image, GpuImage>,
-    ) -> GpuMaterial {
-        let base_color_texture = image_cache.get_gpu(ctx, self.base_color_texture.clone());
-        let metallic_roughness_texture =
-            image_cache.get_gpu(ctx, self.metallic_roughness_texture.clone());
-        let normal_texture = image_cache.get_gpu(ctx, self.normal_texture.clone());
-        let occlusion_texture = image_cache.get_gpu(ctx, self.occlusion_texture.clone());
+    pub fn to_material(self, image_cache: &mut AssetCache<Image, GpuImage>) -> GpuMaterial {
+        const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
+        const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
+        const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
+        const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
+        // TODO: NOT CACHED
+        fn alloc(
+            image_cache: &mut AssetCache<Image, GpuImage>,
+            tex: Option<Image>,
+            default: [u8; 4],
+        ) -> AssetHandle<Image> {
+            if let Some(tex) = tex {
+                image_cache.allocate(tex)
+            } else {
+                let image = Image {
+                    texture: TextureBuilder::new(render::TextureSource::Data(1, 1, default.into())),
+                    sampler: render::SamplerBuilder::new()
+                        .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
+                };
+                image_cache.allocate(image)
+            }
+        }
+        let base_color_texture = alloc(image_cache, self.base_color_texture, BASE_COLOR_DEFAULT);
+        let normal_texture = alloc(image_cache, self.normal_texture, NORMAL_DEFAULT);
+        let metallic_roughness_texture = alloc(
+            image_cache,
+            self.metallic_roughness_texture,
+            METALLIC_ROUGHNESS_DEFAULT,
+        );
+        let occlusion_texture = alloc(image_cache, self.occlusion_texture, OCCLUSION_DEFAULT);
 
         GpuMaterial {
             base_color_texture,

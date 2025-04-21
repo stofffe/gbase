@@ -1,10 +1,8 @@
-// use crate::{AssetHandle, GpuMaterial, Transform3D};
 use crate::{
     glam::Vec3,
     log,
     render::{self, VertexBufferLayout},
-    wgpu::{self, util::DeviceExt},
-    Context,
+    wgpu, Context,
 };
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -14,9 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Default)]
 pub struct Mesh {
-    pub primitive_topology: wgpu::PrimitiveTopology,
-    pub attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
-    pub indices: Option<Vec<u32>>,
+    primitive_topology: wgpu::PrimitiveTopology,
+    attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
+    indices: Option<Vec<u32>>,
 }
 
 impl Mesh {
@@ -103,7 +101,11 @@ impl Mesh {
         true
     }
 
-    pub fn extract_attributes(mut self, attributes: &BTreeSet<VertexAttributeId>) -> Self {
+    pub fn extract_attributes(
+        mut self,
+        attributes: impl Into<BTreeSet<VertexAttributeId>>,
+    ) -> Self {
+        let attributes = attributes.into();
         // remove
         self.attributes = self
             .clone()
@@ -114,7 +116,7 @@ impl Mesh {
 
         // add
         for attr in attributes {
-            if !self.attributes.contains_key(attr) {
+            if !self.attributes.contains_key(&attr) {
                 match attr {
                     VertexAttributeId::Normal => {
                         log::warn!(
@@ -132,7 +134,7 @@ impl Mesh {
                         log::warn!(
                         "color attribute could not be found, generating [1,1,1] for each vertex"
                     );
-                        self.generate_colors(*i, [1.0, 1.0, 1.0]);
+                        self.generate_colors(i, [1.0, 1.0, 1.0]);
                     }
                     id => {
                         panic!("vertex attributes does not contain required {:?}", id);
@@ -312,9 +314,11 @@ pub struct BoundingBox {
 }
 
 impl BoundingBox {
-    pub fn bounding_radius(&self) -> f32 {
-        f32::max(self.min.length(), self.max.length())
-    }
+    // pub fn bounding_radius(&self) -> f32 {
+    //     f32::max(self.min.length(), self.max.length())
+    //     // let center = (self.min + self.max) * 0.5;
+    //     // (self.max - center).length()
+    // }
 }
 
 //

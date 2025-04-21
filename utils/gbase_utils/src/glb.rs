@@ -33,7 +33,7 @@ impl GlbLoader {
         self.default_textures.insert(value, handle.clone());
         handle
     }
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new() -> Self {
         Self {
             default_textures: HashMap::new(),
         }
@@ -94,57 +94,39 @@ impl GlbLoader {
                         let offset = view.offset();
                         let length = view.length();
 
-                        // log::info!(
-                        //     "{:?}: view offset {:?} attr offset {:?} view length {:?} offset {:?}",
-                        //     sem,
-                        //     view.offset(),
-                        //     attr.offset(),
-                        //     view.length(),
-                        //     offset
-                        // );
                         let bytes = &buffer[offset..offset + length];
 
                         match sem {
-                            gltf::Semantic::Positions => {
-                                mesh.attributes.insert(
-                                    render::VertexAttributeId::Position,
-                                    render::VertexAttributeValues::Float32x3(
-                                        bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
-                                    ),
-                                );
-                            }
-                            gltf::Semantic::Normals => {
-                                mesh.attributes.insert(
-                                    render::VertexAttributeId::Normal,
-                                    render::VertexAttributeValues::Float32x3(
-                                        bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
-                                    ),
-                                );
-                            }
-                            gltf::Semantic::Tangents => {
-                                mesh.attributes.insert(
-                                    render::VertexAttributeId::Tangent,
-                                    render::VertexAttributeValues::Float32x4(
-                                        bytemuck::cast_slice::<u8, [f32; 4]>(bytes).to_vec(),
-                                    ),
-                                );
-                            }
-                            gltf::Semantic::TexCoords(i) => {
-                                mesh.attributes.insert(
-                                    render::VertexAttributeId::Uv(i),
-                                    render::VertexAttributeValues::Float32x2(
-                                        bytemuck::cast_slice::<u8, [f32; 2]>(bytes).to_vec(),
-                                    ),
-                                );
-                            }
-                            gltf::Semantic::Colors(i) => {
-                                mesh.attributes.insert(
-                                    render::VertexAttributeId::Color(i),
-                                    render::VertexAttributeValues::Float32x3(
-                                        bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
-                                    ),
-                                );
-                            }
+                            gltf::Semantic::Positions => mesh.set_attribute(
+                                render::VertexAttributeId::Position,
+                                render::VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            ),
+                            gltf::Semantic::Normals => mesh.set_attribute(
+                                render::VertexAttributeId::Normal,
+                                render::VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            ),
+                            gltf::Semantic::Tangents => mesh.set_attribute(
+                                render::VertexAttributeId::Tangent,
+                                render::VertexAttributeValues::Float32x4(
+                                    bytemuck::cast_slice::<u8, [f32; 4]>(bytes).to_vec(),
+                                ),
+                            ),
+                            gltf::Semantic::TexCoords(i) => mesh.set_attribute(
+                                render::VertexAttributeId::Uv(i),
+                                render::VertexAttributeValues::Float32x2(
+                                    bytemuck::cast_slice::<u8, [f32; 2]>(bytes).to_vec(),
+                                ),
+                            ),
+                            gltf::Semantic::Colors(i) => mesh.set_attribute(
+                                render::VertexAttributeId::Color(i),
+                                render::VertexAttributeValues::Float32x3(
+                                    bytemuck::cast_slice::<u8, [f32; 3]>(bytes).to_vec(),
+                                ),
+                            ),
                             gltf::Semantic::Joints(_) => {
                                 // TODO: gotta check u16x4 vs u32x4
                                 log::warn!("joints not supported in gltf");
@@ -291,10 +273,10 @@ impl GlbLoader {
                         }
                     });
 
-                    let base_color_texture = match base_color_texture {
-                        Some(tex) => image_cache.allocate(tex),
-                        None => self.pixel_cache(image_cache, BASE_COLOR_DEFAULT),
-                    };
+                    // let base_color_texture = match base_color_texture {
+                    //     Some(tex) => image_cache.allocate(tex),
+                    //     None => self.pixel_cache(image_cache, BASE_COLOR_DEFAULT),
+                    // };
 
                     let color_factor = pbr.base_color_factor(); // scaling / replacement
 
@@ -360,10 +342,10 @@ impl GlbLoader {
                                 ),
                         }
                     });
-                    let metallic_roughness_texture = match metallic_roughness_texture {
-                        Some(tex) => image_cache.allocate(tex),
-                        None => self.pixel_cache(image_cache, METALLIC_ROUGHNESS_DEFAULT),
-                    };
+                    // let metallic_roughness_texture = match metallic_roughness_texture {
+                    //     Some(tex) => image_cache.allocate(tex),
+                    //     None => self.pixel_cache(image_cache, METALLIC_ROUGHNESS_DEFAULT),
+                    // };
                     let metallic_factor = pbr.metallic_factor(); // scaling / replacement
                     let roughness_factor = pbr.roughness_factor(); // scaling / replacement
 
@@ -431,10 +413,10 @@ impl GlbLoader {
                                 ),
                         }
                     });
-                    let normal_texture = match normal_texture {
-                        Some(tex) => image_cache.allocate(tex),
-                        None => self.pixel_cache(image_cache, NORMAL_DEFAULT),
-                    };
+                    // let normal_texture = match normal_texture {
+                    //     Some(tex) => image_cache.allocate(tex),
+                    //     None => self.pixel_cache(image_cache, NORMAL_DEFAULT),
+                    // };
 
                     let mut occlusion_strength = 1.0;
                     let occlusion_texture = material.occlusion_texture().map(|info| {
@@ -500,10 +482,10 @@ impl GlbLoader {
                                 ),
                         }
                     });
-                    let occlusion_texture = match occlusion_texture {
-                        Some(tex) => image_cache.allocate(tex),
-                        None => self.pixel_cache(image_cache, OCCLUSION_DEFAULT),
-                    };
+                    // let occlusion_texture = match occlusion_texture {
+                    //     Some(tex) => image_cache.allocate(tex),
+                    //     None => self.pixel_cache(image_cache, OCCLUSION_DEFAULT),
+                    // };
 
                     let material = PbrMaterial {
                         base_color_texture,
@@ -536,10 +518,6 @@ impl GlbLoader {
         meshes
     }
 }
-
-//
-// Glb
-//
 
 //
 // Gltf types

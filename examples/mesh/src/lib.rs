@@ -45,22 +45,22 @@ impl Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
             .vsync(true)
-        // .device_features(wgpu::Features::POLYGON_MODE_LINE)
+            .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
 
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let mut image_cache = AssetCache::new();
         let mut mesh_cache = AssetCache::new();
-        let mut shader_cache = AssetCache::new();
+        let shader_cache = AssetCache::new();
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
 
-        let pbr_renderer = PbrRenderer::new(ctx, &mut shader_cache);
+        let pbr_renderer = PbrRenderer::new(ctx);
 
-        let mut glb_loader = GlbLoader::new(ctx);
+        let mut glb_loader = GlbLoader::new();
 
         let ak47_prim = glb_loader.parse_glb(
             ctx,
@@ -70,12 +70,12 @@ impl Callbacks for App {
         .clone();
         let ak47_mesh = ak47_prim
             .mesh
-            .extract_attributes(pbr_renderer.required_attributes());
+            .extract_attributes(pbr_renderer.required_attributes().clone());
         let ak47_mesh_handle = mesh_cache.allocate(ak47_mesh);
         let ak47_material = ak47_prim
             .material
             .clone()
-            .to_material(ctx, &mut image_cache)
+            .to_material(&mut image_cache)
             .into();
 
         // let cube_prim = glb_loader.parse_glb(
@@ -170,8 +170,8 @@ impl Callbacks for App {
         .clone();
         let cube_mesh = cube_prim
             .mesh
-            .extract_attributes(pbr_renderer.required_attributes());
-        let cube_material = cube_prim.material.to_material(ctx, &mut image_cache).into();
+            .extract_attributes(pbr_renderer.required_attributes().clone());
+        let cube_material = cube_prim.material.to_material(&mut image_cache).into();
         let cube_mesh_handle = mesh_cache.allocate(cube_mesh);
 
         Self {
@@ -288,8 +288,9 @@ impl Callbacks for App {
         self.pbr_renderer.render(
             ctx,
             screen_view,
-            &mut self.shader_cache,
+            render::surface_format(ctx),
             &mut self.mesh_cache,
+            &mut self.image_cache,
             &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,

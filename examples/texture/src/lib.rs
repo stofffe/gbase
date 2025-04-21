@@ -65,13 +65,10 @@ impl Callbacks for App {
             texture_cache.allocate_reload(image, "assets/textures/texture.jpeg".into());
 
         let mut mesh_cache = AssetCache::new();
-        let mesh = render::MeshBuilder::quad().build().extract_attributes(
-            &[
-                render::VertexAttributeId::Position,
-                render::VertexAttributeId::Uv(0),
-            ]
-            .into(),
-        );
+        let mesh = render::MeshBuilder::quad().build().extract_attributes([
+            render::VertexAttributeId::Position,
+            render::VertexAttributeId::Uv(0),
+        ]);
         let mesh_handle = mesh_cache.allocate(mesh);
 
         Self {

@@ -5,77 +5,74 @@ pub struct DeferredBuffers {
     pub albedo: render::FrameBuffer,
     pub normal: render::FrameBuffer,
     pub roughness: render::FrameBuffer,
-    pub depth: render::FrameBuffer,
+    pub depth: render::DepthBuffer,
 }
 
 impl DeferredBuffers {
-    const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-
-    // TODO should all of these be 32float?
+    // TODO: go over formats
     pub fn new(ctx: &Context) -> Self {
-        let position_buffer = render::FrameBufferBuilder::new()
+        let position = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba16Float)
             .build(ctx);
-        let albedo_buffer = render::FrameBufferBuilder::new()
+        let albedo = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
-        let normal_buffer = render::FrameBufferBuilder::new()
+        let normal = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba16Float)
             .build(ctx);
-        let roughness_buffer = render::FrameBufferBuilder::new()
+        let roughness = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
-        let depth_buffer = render::FrameBufferBuilder::new()
+        let depth = render::DepthBufferBuilder::new()
             .screen_size(ctx)
-            .format(Self::DEPTH_FORMAT)
             .build(ctx);
         Self {
-            position: position_buffer,
-            albedo: albedo_buffer,
-            normal: normal_buffer,
-            roughness: roughness_buffer,
-            depth: depth_buffer,
+            position,
+            albedo,
+            normal,
+            roughness,
+            depth,
         }
     }
 
-    /// Depth stencil attachment (clear) for depth buffer
-    pub fn depth_stencil_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
-        wgpu::RenderPassDepthStencilAttachment {
-            view: self.depth.view_ref(),
-            depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Clear(1.0),
-                store: wgpu::StoreOp::Store,
-            }),
-            stencil_ops: None,
-        }
-    }
-
-    /// Depth stencil attachment (load) for depth buffer
-    pub fn depth_stencil_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
-        wgpu::RenderPassDepthStencilAttachment {
-            view: self.depth.view_ref(),
-            depth_ops: Some(wgpu::Operations {
-                load: wgpu::LoadOp::Load,
-                store: wgpu::StoreOp::Store,
-            }),
-            stencil_ops: None,
-        }
-    }
-
-    /// Depth stencil state for depth buffer
-    pub fn depth_stencil_state(&self) -> wgpu::DepthStencilState {
-        wgpu::DepthStencilState {
-            format: Self::DEPTH_FORMAT,
-            depth_write_enabled: true,
-            depth_compare: wgpu::CompareFunction::Less,
-            bias: wgpu::DepthBiasState::default(),
-            stencil: wgpu::StencilState::default(),
-        }
-    }
+    // /// Depth stencil attachment (clear) for depth buffer
+    // pub fn depth_stencil_attachment_clear(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
+    //     wgpu::RenderPassDepthStencilAttachment {
+    //         view: self.depth.view_ref(),
+    //         depth_ops: Some(wgpu::Operations {
+    //             load: wgpu::LoadOp::Clear(1.0),
+    //             store: wgpu::StoreOp::Store,
+    //         }),
+    //         stencil_ops: None,
+    //     }
+    // }
+    //
+    // /// Depth stencil attachment (load) for depth buffer
+    // pub fn depth_stencil_attachment_load(&self) -> wgpu::RenderPassDepthStencilAttachment<'_> {
+    //     wgpu::RenderPassDepthStencilAttachment {
+    //         view: self.depth.view_ref(),
+    //         depth_ops: Some(wgpu::Operations {
+    //             load: wgpu::LoadOp::Load,
+    //             store: wgpu::StoreOp::Store,
+    //         }),
+    //         stencil_ops: None,
+    //     }
+    // }
+    //
+    // /// Depth stencil state for depth buffer
+    // pub fn depth_stencil_state(&self) -> wgpu::DepthStencilState {
+    //     wgpu::DepthStencilState {
+    //         format: Self::DEPTH_FORMAT,
+    //         depth_write_enabled: true,
+    //         depth_compare: wgpu::CompareFunction::Less,
+    //         bias: wgpu::DepthBiasState::default(),
+    //         stencil: wgpu::StencilState::default(),
+    //     }
+    // }
 
     /// Target including
     /// * Position
@@ -99,7 +96,7 @@ impl DeferredBuffers {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&self.color_attachments_clear())
-            .depth_stencil_attachment(self.depth_stencil_attachment_clear())
+            .depth_stencil_attachment(self.depth.depth_render_attachment_clear())
             .build(&mut encoder);
         queue.submit(Some(encoder.finish()));
     }

@@ -228,6 +228,10 @@ impl DepthBufferBuilder {
         let surface_conf = render::surface_config(ctx);
         self.size(surface_conf.width, surface_conf.height)
     }
+    pub fn format(mut self, format: wgpu::TextureFormat) -> Self {
+        self.framebuffer_builder.format = format;
+        self
+    }
 }
 
 pub struct DepthBuffer {

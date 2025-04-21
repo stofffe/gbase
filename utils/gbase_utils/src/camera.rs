@@ -2,9 +2,13 @@ use std::f32::consts::PI;
 
 use encase::ShaderType;
 use gbase::{
-    glam::{vec3, Mat4, Vec3},
-    input, log, render, time, winit, Context,
+    glam::{vec3, Mat4, Vec3, Vec4Swizzles},
+    input,
+    render::{self, BoundingBox},
+    time, winit, Context,
 };
+
+use crate::Transform3D;
 
 #[derive(ShaderType)]
 pub struct CameraUniform {
@@ -209,8 +213,8 @@ impl FrustumPlane {
     pub fn point_in_front(&self, point: Vec3) -> bool {
         Vec3::dot(point - self.origin, self.normal) >= 0.0
     }
-    pub fn sphere_in_front(&self, point: Vec3, radius: f32) -> bool {
-        Vec3::dot(point - self.origin, self.normal) + radius >= 0.0
+    pub fn sphere_in_front(&self, sphere: &BoundingSphere) -> bool {
+        Vec3::dot(sphere.center - self.origin, self.normal) + sphere.radius >= 0.0
     }
 }
 
@@ -223,6 +227,25 @@ pub struct CameraFrustum {
     pub top: FrustumPlane,
 }
 
+pub struct BoundingSphere {
+    pub center: Vec3,
+    pub radius: f32,
+}
+
+impl BoundingSphere {
+    pub fn new(bounds: &BoundingBox, transform: &Transform3D) -> Self {
+        let local_center = (bounds.min + bounds.max) * 0.5;
+        let max_distance_from_center = f32::max(
+            (bounds.min - local_center).length(),
+            (bounds.max - local_center).length(),
+        );
+
+        let center = (transform.matrix() * local_center.extend(1.0)).xyz();
+        let radius = max_distance_from_center * transform.scale.max_element();
+        Self { center, radius }
+    }
+}
+
 impl CameraFrustum {
     pub fn point_inside(&self, point: Vec3) -> bool {
         self.near.point_in_front(point)
@@ -233,13 +256,14 @@ impl CameraFrustum {
             && self.top.point_in_front(point)
     }
 
-    pub fn sphere_inside(&self, point: Vec3, radius: f32) -> bool {
-        self.near.point_in_front(point)
-            && self.far.sphere_in_front(point, radius)
-            && self.left.sphere_in_front(point, radius)
-            && self.right.sphere_in_front(point, radius)
-            && self.bottom.sphere_in_front(point, radius)
-            && self.top.sphere_in_front(point, radius)
+    pub fn sphere_inside(&self, bounds: &BoundingBox, transform: &Transform3D) -> bool {
+        let bounding_sphere = BoundingSphere::new(bounds, transform);
+        self.near.sphere_in_front(&bounding_sphere)
+            && self.far.sphere_in_front(&bounding_sphere)
+            && self.left.sphere_in_front(&bounding_sphere)
+            && self.right.sphere_in_front(&bounding_sphere)
+            && self.bottom.sphere_in_front(&bounding_sphere)
+            && self.top.sphere_in_front(&bounding_sphere)
     }
 }
 

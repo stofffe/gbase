@@ -1,31 +1,25 @@
+use super::CameraUniform;
 use gbase::{
     glam::Vec3,
-    render::{self, ArcBindGroup, ArcBindGroupLayout, ArcRenderPipeline},
+    render::{self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule},
     wgpu, Context,
 };
-
-use super::CameraUniform;
 
 //
 // Deferred renderer
 //
 
 pub struct DeferredRenderer {
-    pipeline: ArcRenderPipeline,
-    bindgroup: ArcBindGroup,
+    shader: ArcShaderModule,
+    pipeline_layout: ArcPipelineLayout,
+    bindgroup_layout: ArcBindGroupLayout,
 
     vertex_buffer: render::VertexBuffer<render::VertexUV>,
     debug_input: crate::DebugInput,
 }
 
 impl DeferredRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        output_format: wgpu::TextureFormat,
-        buffers: &crate::DeferredBuffers,
-        camera: &render::UniformBuffer<CameraUniform>,
-        light: &render::UniformBuffer<Vec3>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
@@ -33,50 +27,6 @@ impl DeferredRenderer {
         let shader =
             render::ShaderBuilder::new(include_str!("../assets/shaders/deferred.wgsl")).build(ctx);
         let debug_input = crate::DebugInput::new(ctx);
-        let (bindgroup_layout, bindgroup) =
-            Self::bindgroups(ctx, buffers, camera, light, &debug_input);
-        let pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![bindgroup_layout])
-            .build(ctx);
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
-            .single_target(render::ColorTargetState::new().format(output_format))
-            .buffers(vec![vertex_buffer.desc()])
-            .build(ctx);
-        Self {
-            pipeline,
-            bindgroup,
-            vertex_buffer,
-            debug_input,
-        }
-    }
-
-    pub fn render(&mut self, ctx: &Context, screen_view: &wgpu::TextureView) {
-        self.debug_input.update_buffer(ctx);
-
-        let queue = render::queue(ctx);
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
-
-        render::RenderPassBuilder::new()
-            .color_attachments(&[Some(
-                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
-            )])
-            .build_run(&mut encoder, |mut render_pass| {
-                render_pass.set_pipeline(&self.pipeline);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
-                render_pass.draw(0..self.vertex_buffer.len(), 0..1);
-            });
-
-        queue.submit(Some(encoder.finish()));
-    }
-    fn bindgroups(
-        ctx: &mut Context,
-        buffers: &crate::DeferredBuffers,
-        camera: &render::UniformBuffer<CameraUniform>,
-        light: &render::UniformBuffer<Vec3>,
-        debug_input: &crate::DebugInput,
-    ) -> (ArcBindGroupLayout, ArcBindGroup) {
-        let sampler = render::SamplerBuilder::new().build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .label("deferred")
             .entries(vec![
@@ -108,8 +58,33 @@ impl DeferredRenderer {
                 render::BindGroupLayoutEntry::new().uniform().fragment(),
             ])
             .build(ctx);
-        let bindgroup = render::BindGroupBuilder::new(bindgroup_layout.clone())
-            .label("deferred")
+        let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![bindgroup_layout.clone()])
+            .build(ctx);
+
+        Self {
+            shader,
+            pipeline_layout,
+            bindgroup_layout,
+            vertex_buffer,
+            debug_input,
+        }
+    }
+
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        view: &wgpu::TextureView,
+        view_format: wgpu::TextureFormat,
+        buffers: &crate::DeferredBuffers,
+        camera: &render::UniformBuffer<CameraUniform>,
+        light: &render::UniformBuffer<Vec3>,
+    ) {
+        self.debug_input.update_buffer(ctx);
+
+        let sampler = render::SamplerBuilder::new().build(ctx);
+        let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+            .label("deferred bindgroup")
             .entries(vec![
                 // sampler
                 render::BindGroupEntry::Sampler(sampler),
@@ -126,21 +101,24 @@ impl DeferredRenderer {
                 // light
                 render::BindGroupEntry::Buffer(light.buffer()),
                 // debug input
-                render::BindGroupEntry::Buffer(debug_input.buffer()),
+                render::BindGroupEntry::Buffer(self.debug_input.buffer()),
             ])
             .build(ctx);
 
-        (bindgroup_layout, bindgroup)
-    }
-    pub fn rebuild_bindgroup(
-        &mut self,
-        ctx: &mut Context,
-        buffers: &crate::DeferredBuffers,
-        camera: &render::UniformBuffer<CameraUniform>,
-        light: &render::UniformBuffer<Vec3>,
-    ) {
-        let (_, bindgroup) = Self::bindgroups(ctx, buffers, camera, light, &self.debug_input);
-        self.bindgroup = bindgroup;
+        let pipeline =
+            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
+                .single_target(render::ColorTargetState::new().format(view_format))
+                .buffers(vec![self.vertex_buffer.desc()])
+                .build(ctx);
+
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(view).load())])
+            .build_run_submit(ctx, |mut render_pass| {
+                render_pass.set_pipeline(&pipeline);
+                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+                render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+                render_pass.draw(0..self.vertex_buffer.len(), 0..1);
+            });
     }
 }
 
