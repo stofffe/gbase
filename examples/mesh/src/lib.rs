@@ -28,9 +28,9 @@ struct App {
     ak47_mesh_handle: AssetHandle<Mesh>,
     ak47_material: Arc<GpuMaterial>,
 
-    // cube_model: GpuModel,
-    // penguin_model: GpuModel,
-    // helmet_model: GpuModel,
+    helmet_mesh_handle: AssetHandle<Mesh>,
+    helmet_material: Arc<GpuMaterial>,
+
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
 
@@ -44,7 +44,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            .vsync(true)
+            .vsync(false)
             .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
 
@@ -78,66 +78,21 @@ impl Callbacks for App {
             .to_material(&mut image_cache)
             .into();
 
-        // let cube_prim = glb_loader.parse_glb(
-        //     ctx,
-        //     &mut image_cache,
-        //     &filesystem::load_b!("models/cube.glb").unwrap(),
-        // );
-        // let mut cube_model = GpuModel { meshes: Vec::new() };
-        // for prim in cube_prim {
-        //     let mesh_with_attr = &prim
-        //         .mesh
-        //         .extract_attributes(pbr_renderer.required_attributes());
-        //
-        //     let mesh_handle = mesh_cache.allocate(mesh_with_attr.clone());
-        //     cube_model.meshes.push((
-        //         mesh_handle,
-        //         Arc::new(prim.material.to_material(ctx, &mut image_cache)),
-        //         Transform3D::from_matrix(prim.transform),
-        //     ));
-        // }
-
-        // let penguin_prim = gbase_utils::parse_glb(
-        //     ctx,
-        //     &mut assets,
-        //     &filesystem::load_b!("models/penguin.glb").unwrap(),
-        // );
-        // let mut penguin_model = GpuModel { meshes: Vec::new() };
-        // for prim in penguin_prim {
-        //     let mesh_with_attr = &prim
-        //         .mesh
-        //         .extract_attributes(pbr_renderer.required_attributes());
-        //     let penguin_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
-        //     let penguin_material = prim.material.to_material(ctx, &mut assets);
-        //     let penguin_local_transform = Transform3D::from_matrix(prim.transform);
-        //
-        //     penguin_model.meshes.push((
-        //         Arc::new(penguin_gpu_mesh),
-        //         Arc::new(penguin_material),
-        //         penguin_local_transform,
-        //     ));
-        // }
-        //
-        // let helmet_prim = gbase_utils::parse_glb(
-        //     ctx,
-        //     &mut assets,
-        //     &filesystem::load_b!("models/helmet.glb").unwrap(),
-        // );
-        // let mut helmet_model = GpuModel { meshes: Vec::new() };
-        // for prim in helmet_prim {
-        //     let mesh_with_attr = &prim
-        //         .mesh
-        //         .extract_attributes(pbr_renderer.required_attributes());
-        //     let helmet_gpu_mesh = gbase_utils::GpuMesh::new(ctx, mesh_with_attr);
-        //     let helmet_material = prim.material.to_material(ctx, &mut assets);
-        //     let helmet_local_transform = Transform3D::from_matrix(prim.transform);
-        //
-        //     helmet_model.meshes.push((
-        //         Arc::new(helmet_gpu_mesh),
-        //         Arc::new(helmet_material),
-        //         helmet_local_transform,
-        //     ));
-        // }
+        let helmet_prim = glb_loader.parse_glb(
+            ctx,
+            &mut image_cache,
+            &filesystem::load_b!("models/helmet.glb").unwrap(),
+        )[0]
+        .clone();
+        let helmet_mesh = helmet_prim
+            .mesh
+            .extract_attributes(pbr_renderer.required_attributes().clone());
+        let helmet_mesh_handle = mesh_cache.allocate(helmet_mesh);
+        let helmet_material = helmet_prim
+            .material
+            .clone()
+            .to_material(&mut image_cache)
+            .into();
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
@@ -192,6 +147,9 @@ impl Callbacks for App {
             ak47_mesh_handle,
             ak47_material,
 
+            helmet_mesh_handle,
+            helmet_material,
+
             cube_mesh_handle,
             cube_material,
         }
@@ -219,28 +177,32 @@ impl Callbacks for App {
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        let elems = 20u32;
+        let elems = 10000u32;
         for x in 0..(elems.isqrt()) {
             for z in 0..(elems.isqrt()) {
-                let transform = Transform3D::from_pos(vec3(15.0 * x as f32, 0.0, 10.0 * z as f32))
+                let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
                     .with_rot(Quat::from_rotation_y(
                         (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
                     ));
 
                 self.pbr_renderer.add_mesh(
-                    self.ak47_mesh_handle.clone(),
-                    self.ak47_material.clone(),
+                    self.cube_mesh_handle.clone(),
+                    self.cube_material.clone(),
                     transform,
                 );
 
                 // if (x + z) % 2 == 0 {
                 //     self.pbr_renderer.add_mesh(
-                //         self.ak47_gpu_mesh.clone(),
-                //         self.ak47_gpu_material.clone(),
+                //         self.ak47_mesh_handle.clone(),
+                //         self.ak47_material.clone(),
                 //         transform,
                 //     );
                 // } else {
-                //     self.pbr_renderer.add_model(&self.helmet_model, transform);
+                //     self.pbr_renderer.add_mesh(
+                //         self.helmet_mesh_handle.clone(),
+                //         self.helmet_material.clone(),
+                //         transform,
+                //     );
                 // }
             }
         }
@@ -279,12 +241,17 @@ impl Callbacks for App {
             self.cube_material.clone(),
             Transform3D::default(),
         );
+        // self.pbr_renderer.add_mesh(
+        //     self.helmet_mesh_handle.clone(),
+        //     self.helmet_material.clone(),
+        //     Transform3D::default(),
+        // );
 
-        self.pbr_renderer.render_bounding_boxes(
-            ctx,
-            &mut self.gizmo_renderer,
-            &mut self.mesh_cache,
-        );
+        // self.pbr_renderer.render_bounding_boxes(
+        //     ctx,
+        //     &mut self.gizmo_renderer,
+        //     &mut self.mesh_cache,
+        // );
         self.pbr_renderer.render(
             ctx,
             screen_view,

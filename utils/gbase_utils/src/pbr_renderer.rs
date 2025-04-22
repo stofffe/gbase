@@ -2,11 +2,12 @@ use crate::{AssetCache, AssetHandle, BoundingSphere, GizmoRenderer, Transform3D,
 use encase::ShaderType;
 use gbase::{
     glam::{Vec3, Vec4, Vec4Swizzles},
+    log,
     render::{
-        self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder, TextureBuilder,
-        VertexBuffer, VertexTrait,
+        self, BindGroupBuilder, BindGroupLayoutBuilder, GpuImage, GpuMesh, Image, Mesh, RawBuffer,
+        ShaderBuilder, TextureBuilder, VertexBuffer, VertexTrait,
     },
-    wgpu::{self},
+    wgpu::{self, util::RenderEncoder},
     Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
@@ -101,7 +102,7 @@ impl PbrRenderer {
             .build(ctx);
 
         let transforms = render::RawBufferBuilder::new(render::RawBufferSource::Size(
-            1000 * std::mem::size_of::<Instances>() as u64,
+            100000 * std::mem::size_of::<Instances>() as u64,
         ))
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
@@ -132,6 +133,11 @@ impl PbrRenderer {
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
     ) {
+        if self.frame_meshes.is_empty() {
+            log::warn!("trying to render without any meshes");
+            return;
+        }
+
         self.shader_cache.check_watch(ctx);
 
         let shader = self.shader_cache.get_gpu(ctx, self.shader_handle.clone());
@@ -153,18 +159,41 @@ impl PbrRenderer {
 
         let frustum = camera.calculate_frustum(ctx);
 
-        // self.frame_meshes.sort_by_key(|a| a.0.clone());
+        self.frame_meshes.sort_by_key(|a| a.0.clone());
 
-        let mut transforms = Vec::new();
+        let mut instances = Vec::new();
         let mut draws = Vec::new();
-        for (mesh_handle, mat, transform) in self.frame_meshes.iter() {
-            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+        let mut ranges = Vec::new();
 
-            // cull
-            // TODO: use circles or AABB?
-            if !frustum.sphere_inside(&gpu_mesh.bounds, transform) {
-                continue;
+        //
+        // Culling
+        //
+        self.frame_meshes.retain(|(handle, _, transform)| {
+            let gpu_mesh = mesh_cache.get_gpu(ctx, handle.clone());
+            frustum.sphere_inside(&gpu_mesh.bounds, transform)
+        });
+
+        //
+        // Grouping of draws
+        //
+        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
+        for (index, (mesh_handle, mat, transform)) in self.frame_meshes.iter().enumerate() {
+            instances.push(Instances {
+                model: transform.matrix().to_cols_array_2d(),
+                color_factor: mat.color_factor,
+                roughness_factor: mat.roughness_factor,
+                metallic_factor: mat.metallic_factor,
+                occlusion_strength: mat.occlusion_strength,
+                normal_scale: mat.normal_scale,
+            });
+
+            if let Some(prev) = &prev_mesh {
+                if prev == mesh_handle {
+                    continue;
+                }
             }
+
+            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
 
             let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
             let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
@@ -198,18 +227,15 @@ impl PbrRenderer {
                 ])
                 .build(ctx);
 
-            draws.push((bindgroup, gpu_mesh));
-            transforms.push(Instances {
-                model: transform.matrix().to_cols_array_2d(),
-                color_factor: mat.color_factor,
-                roughness_factor: mat.roughness_factor,
-                metallic_factor: mat.metallic_factor,
-                occlusion_strength: mat.occlusion_strength,
-                normal_scale: mat.normal_scale,
-            });
+            draws.push((gpu_mesh, bindgroup));
+            ranges.push(index);
+            prev_mesh = Some(mesh_handle.clone());
         }
+        ranges.push(self.frame_meshes.len());
 
-        self.transforms.write(ctx, &transforms);
+        log::info!("ranges {:#?}", ranges);
+
+        self.transforms.write(ctx, &instances);
 
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
@@ -218,22 +244,13 @@ impl PbrRenderer {
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&pipeline);
 
-                for (index, (bindgroup, gpu_mesh)) in draws.into_iter().enumerate() {
-                    for (i, (_, (start, end))) in gpu_mesh.attribute_ranges.iter().enumerate() {
-                        let slice = gpu_mesh.attribute_buffer.slice(start..end);
-                        pass.set_vertex_buffer(i as u32, slice);
-                    }
+                for (i, range) in ranges.windows(2).enumerate() {
+                    let (from, to) = (range[0], range[1]);
+                    let (mesh, bindgroup) = draws[i].clone();
 
-                    pass.set_index_buffer(
-                        gpu_mesh.index_buffer.as_ref().unwrap().slice(..),
-                        wgpu::IndexFormat::Uint32,
-                    );
+                    mesh.bind_to_render_pass(&mut pass);
                     pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                    pass.draw_indexed(
-                        0..gpu_mesh.index_count.unwrap(),
-                        0,
-                        index as u32..index as u32 + 1,
-                    );
+                    pass.draw_indexed(0..mesh.index_count.unwrap(), 0, from as u32..to as u32);
                 }
             });
 
