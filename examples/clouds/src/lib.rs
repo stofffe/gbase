@@ -246,8 +246,8 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
-        self.shader_cache.check_watch(ctx);
-        self.image_cache.check_watch(ctx);
+        self.shader_cache.check_watched_files(ctx);
+        self.image_cache.check_watched_files(ctx);
 
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));

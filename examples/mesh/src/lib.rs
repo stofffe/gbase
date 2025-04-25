@@ -6,7 +6,8 @@ use gbase::{
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GlbLoader, GpuMaterial, PbrLightUniforms, PbrRenderer, Transform3D,
+    AssetCache, AssetHandle, GlbLoader, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache,
+    Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -37,6 +38,7 @@ struct App {
     image_cache: AssetCache<Image, GpuImage>,
     mesh_cache: AssetCache<Mesh, GpuMesh>,
     shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
+    pixel_cache: PixelCache,
 }
 
 impl Callbacks for App {
@@ -53,6 +55,7 @@ impl Callbacks for App {
         let mut image_cache = AssetCache::new();
         let mut mesh_cache = AssetCache::new();
         let shader_cache = AssetCache::new();
+        let mut pixel_cache = PixelCache::new();
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
@@ -62,6 +65,7 @@ impl Callbacks for App {
 
         let mut glb_loader = GlbLoader::new();
 
+        log::warn!("load ak");
         let ak47_prim = glb_loader.parse_glb(
             ctx,
             &mut image_cache,
@@ -75,9 +79,10 @@ impl Callbacks for App {
         let ak47_material = ak47_prim
             .material
             .clone()
-            .to_material(&mut image_cache)
+            .to_material(&mut image_cache, &mut pixel_cache)
             .into();
 
+        log::warn!("load helmet");
         let helmet_prim = glb_loader.parse_glb(
             ctx,
             &mut image_cache,
@@ -91,7 +96,7 @@ impl Callbacks for App {
         let helmet_material = helmet_prim
             .material
             .clone()
-            .to_material(&mut image_cache)
+            .to_material(&mut image_cache, &mut pixel_cache)
             .into();
 
         let camera =
@@ -117,6 +122,7 @@ impl Callbacks for App {
         ))
         .build(ctx);
 
+        log::warn!("load cube");
         let cube_prim = glb_loader.parse_glb(
             ctx,
             &mut image_cache,
@@ -126,7 +132,10 @@ impl Callbacks for App {
         let cube_mesh = cube_prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes().clone());
-        let cube_material = cube_prim.material.to_material(&mut image_cache).into();
+        let cube_material = cube_prim
+            .material
+            .to_material(&mut image_cache, &mut pixel_cache)
+            .into();
         let cube_mesh_handle = mesh_cache.allocate(cube_mesh);
 
         Self {
@@ -143,6 +152,7 @@ impl Callbacks for App {
             image_cache,
             mesh_cache,
             shader_cache,
+            pixel_cache,
 
             ak47_mesh_handle,
             ak47_material,
@@ -169,9 +179,9 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        self.mesh_cache.check_watch(ctx);
-        self.image_cache.check_watch(ctx);
-        self.shader_cache.check_watch(ctx);
+        self.mesh_cache.check_watched_files(ctx);
+        self.image_cache.check_watched_files(ctx);
+        self.shader_cache.check_watched_files(ctx);
 
         self.depth_buffer.clear(ctx);
 

@@ -86,8 +86,8 @@ impl Callbacks for App {
         }
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        self.shader_cache.check_watch(ctx);
-        self.texture_cache.check_watch(ctx);
+        self.shader_cache.check_watched_files(ctx);
+        self.texture_cache.check_watched_files(ctx);
 
         // clear
         render::RenderPassBuilder::new()

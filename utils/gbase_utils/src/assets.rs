@@ -175,7 +175,7 @@ where
         });
     }
 
-    pub fn check_watch(&mut self, ctx: &mut Context) {
+    pub fn check_watched_files(&mut self, ctx: &mut Context) {
         for i in 0..self.reload.len() {
             let Ok(md) = fs::metadata(&self.reload[i].path) else {
                 log::warn!("could not get metadata for {}", &self.reload[i].path);
@@ -251,5 +251,41 @@ impl Asset<render::ShaderBuilder, wgpu::ShaderModule> for render::ShaderBuilder 
         }
 
         self.source = source;
+    }
+}
+
+pub struct PixelCache {
+    default_textures: HashMap<[u8; 4], AssetHandle<Image>>,
+}
+
+impl PixelCache {
+    pub fn new() -> Self {
+        Self {
+            default_textures: HashMap::new(),
+        }
+    }
+
+    pub fn allocate(
+        &mut self,
+        image_cache: &mut AssetCache<Image, GpuImage>,
+        value: [u8; 4],
+    ) -> AssetHandle<Image> {
+        match self.default_textures.get(&value) {
+            Some(handle) => handle.clone(),
+            None => {
+                let image = Image {
+                    texture: render::TextureBuilder::new(render::TextureSource::Data(
+                        1,
+                        1,
+                        value.to_vec(),
+                    )),
+                    sampler: render::SamplerBuilder::new()
+                        .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
+                };
+                let handle = image_cache.allocate(image);
+                self.default_textures.insert(value, handle.clone());
+                handle
+            }
+        }
     }
 }

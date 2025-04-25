@@ -8,7 +8,7 @@ use gbase::{
     Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GpuMaterial, PbrLightUniforms, PbrMaterial, Transform3D,
+    AssetCache, AssetHandle, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache, Transform3D,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass_renderer::GrassRenderer;
@@ -39,6 +39,8 @@ pub struct App {
 
     mesh_cache: AssetCache<render::Mesh, render::GpuMesh>,
     image_cache: AssetCache<render::Image, render::GpuImage>,
+    pixel_cache: PixelCache,
+
     plane_mesh: AssetHandle<render::Mesh>,
     plane_material: Arc<GpuMaterial>,
 
@@ -107,6 +109,8 @@ impl Callbacks for App {
 
         let mut mesh_cache = AssetCache::new();
         let mut image_cache = AssetCache::new();
+        let mut pixel_cache = PixelCache::new();
+
         let plane_mesh = mesh_cache.allocate(
             MeshBuilder::quad()
                 .build()
@@ -124,14 +128,14 @@ impl Callbacks for App {
                 normal_texture: None,
                 normal_scale: 1.0,
             }
-            .to_material(&mut image_cache),
+            .to_material(&mut image_cache, &mut pixel_cache),
         );
 
-        let depth_buffer = render::DepthBufferBuilder::new()
-            .screen_size(ctx)
-            .build(ctx);
-
         Self {
+            mesh_cache,
+            image_cache,
+            pixel_cache,
+
             camera,
             camera_buffer,
             gui_renderer,
@@ -140,8 +144,6 @@ impl Callbacks for App {
             plane_mesh,
             light_buffer,
             plane_material,
-            mesh_cache,
-            image_cache,
             deferred_buffers,
             deferred_renderer,
             grass_renderer,
