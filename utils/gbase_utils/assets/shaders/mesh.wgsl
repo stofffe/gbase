@@ -42,6 +42,8 @@ struct VertexInput {
 @group(0) @binding(8) var metallic_roughness_sampler: sampler;
 @group(0) @binding(9) var occlusion_texture: texture_2d<f32>;
 @group(0) @binding(10) var occlusion_sampler: sampler;
+@group(0) @binding(11) var emissive_texture: texture_2d<f32>;
+@group(0) @binding(12) var emissive_sampler: sampler;
 
 // NOTE: alignment
 struct Instance {
@@ -98,9 +100,10 @@ struct VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let normal_tex = textureSample(normal_texture, normal_sampler, in.uv);
-    let base_color_tex = textureSample(base_color_texture, base_color_sampler, in.uv);
+    let base_color_tex = decode_gamma_correction(textureSample(base_color_texture, base_color_sampler, in.uv));
     let roughness_tex = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
     let occlusion_tex = textureSample(occlusion_texture, occlusion_sampler, in.uv);
+    let emissive_tex = decode_gamma_correction(textureSample(emissive_texture, emissive_sampler, in.uv));
 
     let roughness = roughness_tex.g;
     let metalness = roughness_tex.b;
@@ -116,7 +119,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         lights.main_light_dir,
         vec3f(1.0), // light color
         base_color_tex.rgb,
-        vec3f(0.0),
+        emissive_tex.rgb,
         roughness,
         metalness,
         occlusion,
@@ -236,4 +239,8 @@ fn safe_division_f32(num: f32, denom: f32) -> f32 {
 
 fn safe_division_vec3(num: vec3f, denom: vec3f) -> vec3f {
     return num / max(denom, vec3f(0.000001));
+}
+
+fn decode_gamma_correction(in: vec4f) -> vec4f {
+    return pow(in, vec4f(2.2));
 }

@@ -94,6 +94,14 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
                     .fragment(),
+                // emissive texture
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // emissive sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
             ])
             .build(ctx);
 
@@ -209,6 +217,7 @@ impl PbrRenderer {
             let metallic_roughness_texture =
                 image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
             let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
+            let emissive_texture = image_cache.get_gpu(ctx, mat.emissive_texture.clone());
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -233,6 +242,10 @@ impl PbrRenderer {
                     render::BindGroupEntry::Texture(occlusion_texture.view()),
                     // occlusion roughness sampler
                     render::BindGroupEntry::Sampler(occlusion_texture.sampler()),
+                    // emissive roughness texture
+                    render::BindGroupEntry::Texture(emissive_texture.view()),
+                    // emissive roughness sampler
+                    render::BindGroupEntry::Sampler(emissive_texture.sampler()),
                 ])
                 .build(ctx);
 
@@ -348,6 +361,7 @@ impl PbrRenderer {
             let metallic_roughness_texture =
                 image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
             let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
+            let emissive_texture = image_cache.get_gpu(ctx, mat.emissive_texture.clone());
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -372,6 +386,10 @@ impl PbrRenderer {
                     render::BindGroupEntry::Texture(occlusion_texture.view()),
                     // occlusion roughness sampler
                     render::BindGroupEntry::Sampler(occlusion_texture.sampler()),
+                    // emissive roughness texture
+                    render::BindGroupEntry::Texture(emissive_texture.view()),
+                    // emissive roughness sampler
+                    render::BindGroupEntry::Sampler(emissive_texture.sampler()),
                 ])
                 .build(ctx);
 
@@ -457,6 +475,9 @@ pub struct GpuMaterial {
 
     pub normal_texture: AssetHandle<Image>,
     pub normal_scale: f32,
+
+    pub emissive_texture: AssetHandle<Image>,
+    pub emissive_factor: [f32; 3],
 }
 
 // TODO: shoudl use handles for textures to reuse
@@ -475,6 +496,9 @@ pub struct PbrMaterial {
 
     pub normal_texture: Option<Image>,
     pub normal_scale: f32,
+
+    pub emissive_texture: Option<Image>,
+    pub emissive_factor: [f32; 3],
 }
 
 impl PbrMaterial {
@@ -489,6 +513,7 @@ impl PbrMaterial {
         const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
+        const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
         fn alloc(
             image_cache: &mut AssetCache<Image, GpuImage>,
             pixel_cache: &mut PixelCache,
@@ -525,6 +550,12 @@ impl PbrMaterial {
             self.occlusion_texture,
             OCCLUSION_DEFAULT,
         );
+        let emissive_texture = alloc(
+            image_cache,
+            pixel_cache,
+            self.emissive_texture,
+            EMISSIVE_DEFAULT,
+        );
 
         GpuMaterial {
             base_color_texture,
@@ -536,6 +567,8 @@ impl PbrMaterial {
             occlusion_strength: self.occlusion_strength,
             normal_texture,
             normal_scale: self.normal_scale,
+            emissive_texture,
+            emissive_factor: self.emissive_factor,
         }
     }
 }

@@ -130,6 +130,8 @@ impl Callbacks for App {
                 occlusion_strength: 0.0,
                 normal_texture: None,
                 normal_scale: 1.0,
+                emissive_texture: None,
+                emissive_factor: [0.0, 0.0, 0.0],
             }
             .to_material(&mut image_cache, &mut pixel_cache),
         );

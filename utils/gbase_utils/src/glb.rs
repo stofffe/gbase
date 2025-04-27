@@ -450,6 +450,71 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
+
+                let emissive_factor = material.emissive_factor();
+                let emissive_texture = material.emissive_texture().map(|info| {
+                    assert!(
+                        info.tex_coord() == 0,
+                        "non 0 TEXCOORD not supported (normal)"
+                    );
+                    let samp = info.texture().sampler();
+                    let texture = must_load_texture(&info.texture(), &buffer);
+                    Image {
+                        texture: texture_builder_from_image_bytes(&texture)
+                            .expect("could not load"),
+                        sampler: SamplerBuilder::new()
+                            .min_mag_filter(
+                                samp.min_filter()
+                                    .map_or(wgpu::FilterMode::Linear, |filter| match filter {
+                                        gltf::texture::MinFilter::Nearest
+                                        | gltf::texture::MinFilter::NearestMipmapLinear
+                                        | gltf::texture::MinFilter::NearestMipmapNearest => {
+                                            wgpu::FilterMode::Nearest
+                                        }
+                                        gltf::texture::MinFilter::Linear
+                                        | gltf::texture::MinFilter::LinearMipmapNearest
+                                        | gltf::texture::MinFilter::LinearMipmapLinear => {
+                                            wgpu::FilterMode::Linear
+                                        }
+                                    }),
+                                samp.mag_filter()
+                                    .map_or(wgpu::FilterMode::Linear, |filter| match filter {
+                                        gltf::texture::MagFilter::Nearest => {
+                                            wgpu::FilterMode::Nearest
+                                        }
+                                        gltf::texture::MagFilter::Linear => {
+                                            wgpu::FilterMode::Linear
+                                        }
+                                    }),
+                            )
+                            .address_mode(
+                                match samp.wrap_s() {
+                                    gltf::texture::WrappingMode::ClampToEdge => {
+                                        wgpu::AddressMode::ClampToEdge
+                                    }
+                                    gltf::texture::WrappingMode::MirroredRepeat => {
+                                        wgpu::AddressMode::MirrorRepeat
+                                    }
+                                    gltf::texture::WrappingMode::Repeat => {
+                                        wgpu::AddressMode::Repeat
+                                    }
+                                },
+                                match samp.wrap_t() {
+                                    gltf::texture::WrappingMode::ClampToEdge => {
+                                        wgpu::AddressMode::ClampToEdge
+                                    }
+                                    gltf::texture::WrappingMode::MirroredRepeat => {
+                                        wgpu::AddressMode::MirrorRepeat
+                                    }
+                                    gltf::texture::WrappingMode::Repeat => {
+                                        wgpu::AddressMode::Repeat
+                                    }
+                                },
+                                wgpu::AddressMode::default(),
+                            ),
+                    }
+                });
+
                 // let occlusion_texture = match occlusion_texture {
                 //     Some(tex) => image_cache.allocate(tex),
                 //     None => self.pixel_cache(image_cache, OCCLUSION_DEFAULT),
@@ -465,6 +530,8 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                     occlusion_strength,
                     normal_texture,
                     normal_scale,
+                    emissive_texture,
+                    emissive_factor,
                 };
 
                 // log::info!("{:#?}", new_transform.to_scale_rotation_translation());
