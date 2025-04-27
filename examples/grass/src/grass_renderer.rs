@@ -4,9 +4,10 @@ use gbase::render::{ArcPipelineLayout, ArcShaderModule};
 use gbase::wgpu;
 use gbase::{
     filesystem,
-    render::{self, ArcBindGroup, ArcComputePipeline, ArcRenderPipeline},
+    render::{self, ArcBindGroup, ArcComputePipeline},
     Context,
 };
+use gbase_utils::{AssetCache, AssetHandle};
 use glam::{vec2, Vec2, Vec3Swizzles};
 use std::{mem::size_of, ops::Div};
 
@@ -29,7 +30,7 @@ pub struct GrassRenderer {
     draw_bindgroup: [ArcBindGroup; 2],
 
     render_pipeline_layout: ArcPipelineLayout,
-    render_shader: ArcShaderModule,
+    render_shader_handle: AssetHandle<render::ShaderBuilder>,
     render_bindgroup: ArcBindGroup,
 
     debug_input: gbase_utils::DebugInput,
@@ -40,6 +41,7 @@ impl GrassRenderer {
         ctx: &mut Context,
         // deferred_buffers: &gbase_utils::DeferredBuffers,
         camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>, // TODO: remove
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) -> Self {
         let instances = [
             render::RawBufferBuilder::new(render::RawBufferSource::Size(
@@ -242,8 +244,15 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_shader_str = filesystem::load_s!("shaders/grass.wgsl").unwrap();
-        let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
+        let render_shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder {
+                label: None,
+                source: include_str!("../assets/shaders/grass.wgsl").into(),
+            },
+            "assets/shaders/grass.wgsl".into(),
+        );
+        // let render_shader_str = filesystem::load_s!("shaders/grass.wgsl").unwrap();
+        // let render_shader = render::ShaderBuilder::new(render_shader_str).build(ctx);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout])
             .build(ctx);
@@ -259,7 +268,7 @@ impl GrassRenderer {
             draw_pipeline,
             draw_bindgroup,
             render_pipeline_layout,
-            render_shader,
+            render_shader_handle,
             render_bindgroup,
 
             debug_input,
@@ -271,6 +280,7 @@ impl GrassRenderer {
         ctx: &mut Context,
         camera: &gbase_utils::Camera,
         deferred_buffers: &gbase_utils::DeferredBuffers,
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) {
         self.app_info.update_buffer(ctx);
         self.debug_input.update_buffer(ctx);
@@ -325,17 +335,16 @@ impl GrassRenderer {
             //
             // Render
             //
-            let render_pipeline = render::RenderPipelineBuilder::new(
-                self.render_shader.clone(),
-                self.render_pipeline_layout.clone(),
-            )
-            .label("render".to_string())
-            .buffers(vec![GrassInstanceGPU::desc()])
-            .multiple_targets(deferred_buffers.targets().to_vec())
-            .depth_stencil(deferred_buffers.depth.depth_stencil_state())
-            .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            // .polygon_mode(wgpu::PolygonMode::Line)
-            .build(ctx);
+            let shader = shader_cache.get_gpu(ctx, self.render_shader_handle.clone());
+            let render_pipeline =
+                render::RenderPipelineBuilder::new(shader, self.render_pipeline_layout.clone())
+                    .label("render".to_string())
+                    .buffers(vec![GrassInstanceGPU::desc()])
+                    .multiple_targets(deferred_buffers.targets().to_vec())
+                    .depth_stencil(deferred_buffers.depth.depth_stencil_state())
+                    .topology(wgpu::PrimitiveTopology::TriangleStrip)
+                    // .polygon_mode(wgpu::PolygonMode::Line)
+                    .build(ctx);
             let attachments = &deferred_buffers.color_attachments();
             let mut render_pass = render::RenderPassBuilder::new()
                 .color_attachments(attachments)

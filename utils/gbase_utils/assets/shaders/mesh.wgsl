@@ -1,3 +1,27 @@
+struct CameraUniform {
+    pos: vec3<f32>,
+    facing: vec3<f32>,
+
+    view: mat4x4<f32>,
+    proj: mat4x4<f32>,
+    view_proj: mat4x4<f32>,
+
+    inv_view: mat4x4<f32>,
+    inv_proj: mat4x4<f32>,
+    inv_view_proj: mat4x4<f32>,
+}
+
+struct PbrMaterial {
+    base_color_factor: vec4f,
+    roughness_factor: f32,
+    metallic_factor: f32,
+    occlusion_strength: f32,
+    normal_scale: f32,
+}
+
+struct PbrLights {
+    main_light_dir: vec3f,
+}
 struct VertexInput {
     @builtin(instance_index) index: u32,
     @location(0) position: vec3f,
@@ -69,7 +93,6 @@ struct VertexOutput {
     @location(6) B: vec3f,
     @location(7) N: vec3f,
     @location(8) index: u32,
-
 }
 
 @fragment
@@ -80,68 +103,137 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let occlusion_tex = textureSample(occlusion_texture, occlusion_sampler, in.uv);
 
     let roughness = roughness_tex.g;
-    let metallicness = roughness_tex.b;
+    let metalness = roughness_tex.b;
     let occlusion = occlusion_tex.r;
 
     let TBN = mat3x3f(in.T, in.B, in.N);
     let unpacked_normal = normalize(normal_tex.xyz * 2.0 - 1.0); // [0,1] -> [-1,1]
     let normal = normalize(TBN * unpacked_normal);
 
-    let light_dir = normalize(-lights.main_light_dir);
-    let view_dir = normalize(camera.pos - in.pos);
-    let half_dir = normalize(light_dir + view_dir);
-
-    let ambient = 0.01;
-    let diffuse = 0.5 * saturate(dot(normal, light_dir));
-    let specular_factor = 1.0 / (roughness * roughness);
-    let specular = 1.0 * pow(saturate(dot(normal, half_dir)), specular_factor);
-    let light = ambient + diffuse + specular;
-
-    // if true {
-    //     let col = transforms[in.index].color;
-    //     return vec4f(col, 1.0);
-    // }
-    // return
-    // if in.index == 0 {
-    //     return vec4f(1.0, 0.0, 0.0, 1.0);
-    // } else if in.index == 1 {
-    //     return vec4f(0.0, 1.0, 0.0, 1.0);
-    // } else if in.index == 2 {
-    //     return vec4f(0.0, 0.0, 1.0, 1.0);
-    // }
+    let color = pbr_lighting(
+        normal,
+        camera.pos - in.pos,
+        lights.main_light_dir,
+        vec3f(1.0), // light color
+        base_color_tex.rgb,
+        vec3f(0.0),
+        roughness,
+        metalness,
+        occlusion,
+    );
 
     if true {
-    // return vec4f(1.0, 1.0, 1.0, 1.0);
-    // return vec4f(normal, 1.0);
     // return vec4f(roughness, roughness, roughness, 1.0);
+    // return vec4f(metalness, mtalness, metalness, 1.0);
     }
-
-    // let color = base_color_tex.xyz * material.base_color_factor.xyz * light;
-    let color = base_color_tex.xyz * instances[in.index].color_factor.xyz * light;
     return vec4f(color, 1.0);
+
 }
 
-struct CameraUniform {
-    pos: vec3<f32>,
-    facing: vec3<f32>,
+const PI = 3.1415927;
 
-    view: mat4x4<f32>,
-    proj: mat4x4<f32>,
-    view_proj: mat4x4<f32>,
+//
+// PBR
+//
 
-    inv_view: mat4x4<f32>,
-    inv_proj: mat4x4<f32>,
-    inv_view_proj: mat4x4<f32>,
+// directional lights
+fn pbr_lighting(
+    normal: vec3f,
+    view_dir: vec3f,
+    light_dir: vec3f,
+    light_color: vec3f,
+    albedo: vec3f,
+    emissivity: vec3f,
+    roughness: f32,
+    metalness: f32,
+    ambient_occlusion: f32,
+) -> vec3f {
+    let N = normalize(normal);
+    let V = normalize(view_dir);
+    let L = normalize(light_dir);
+    let H = normalize(V + L);
+    let F0 = mix(vec3f(0.04), albedo, metalness);
+
+    let emission = emissivity;
+    let radiance = light_color; // falloff when using point light
+    let brdf = brdf_lambert_cook(roughness, metalness, F0, albedo, N, V, L, H);
+    let ldotn = safe_dot(L, N);
+
+    let light = emission + brdf * radiance * ldotn;
+
+    let ambient = vec3f(0.03) * albedo * ambient_occlusion;
+    let color = ambient + light;
+
+    return color;
 }
 
-struct PbrMaterial {
-    base_color_factor: vec4f,
-    roughness_factor: f32,
-    metallic_factor: f32,
-    occlusion_strength: f32,
-    normal_scale: f32,
+fn brdf_lambert_cook(
+    roughness: f32,
+    metalness: f32,
+    F0: vec3f,
+    albedo: vec3f,
+    N: vec3f,
+    V: vec3f,
+    L: vec3f,
+    H: vec3f,
+) -> vec3f {
+    // diffuse/specular distribution
+    let F = fresnel_schlick(F0, V, H);
+    let ks = F;
+    let kd = (vec3f(1.0) - ks) * (1.0 - metalness);
+
+    // diffuse (lambert)
+    let lambert = albedo / PI;
+
+    // specular (cook torrance)
+    let cook_torrance_num = distribution_trowbridge_ggx(roughness, N, H) * geometry_smith(roughness, N, V, L) * F;
+    var cook_torrance_denom = 4.0 * safe_dot(V, N) * safe_dot(L, N);
+    let cook_torrance = safe_division_vec3(cook_torrance_num, vec3f(cook_torrance_denom));
+
+    return kd * lambert + cook_torrance;
 }
 
-struct PbrLights {
-    main_light_dir: vec3f,
+fn distribution_trowbridge_ggx(roughness: f32, N: vec3f, H: vec3f) -> f32 {
+    let alpha = roughness;
+    let alpha2 = alpha * alpha;
+    let ndoth = safe_dot(N, H);
+    let ndoth2 = ndoth * ndoth;
+
+    let num = alpha2;
+    let denom_part = (ndoth2 * (alpha2 - 1.0) + 1.0);
+    let denom = PI * denom_part * denom_part;
+
+    return safe_division_f32(num, denom);
+}
+
+fn geometry_schlick_ggx(roughness: f32, N: vec3f, X: vec3f) -> f32 {
+    let k = roughness / 2.0;
+    let ndotx = safe_dot(N, X);
+
+    let num = ndotx;
+    var denom = ndotx * (1.0 - k) + k;
+
+    return safe_division_f32(num, denom);
+}
+
+fn geometry_smith(roughness: f32, N: vec3f, V: vec3f, L: vec3f) -> f32 {
+    return geometry_schlick_ggx(roughness, N, V) * geometry_schlick_ggx(roughness, N, L);
+}
+
+fn fresnel_schlick(F0: vec3f, V: vec3f, H: vec3f) -> vec3f {
+    return F0 + (vec3f(1.0) - F0) * pow(1 - safe_dot(V, H), 5.0);
+}
+
+// helpers
+
+fn safe_dot(a: vec3f, b: vec3f) -> f32 {
+    return max(dot(a, b), 0.0);
+}
+
+fn safe_division_f32(num: f32, denom: f32) -> f32 {
+    return num / max(denom, 0.000001);
+}
+
+fn safe_division_vec3(num: vec3f, denom: vec3f) -> vec3f {
+    return num / max(denom, vec3f(0.000001));
 }

@@ -1,13 +1,13 @@
 use gbase::{
     filesystem,
-    glam::{vec3, Quat},
-    input, load_b, log,
+    glam::{vec3, Quat, Vec3},
+    input::{self, key_pressed, mouse_button_pressed},
+    load_b, log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GlbLoader, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache,
-    Transform3D,
+    AssetCache, AssetHandle, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -17,6 +17,11 @@ pub async fn run() {
 }
 
 struct App {
+    image_cache: AssetCache<Image, GpuImage>,
+    mesh_cache: AssetCache<Mesh, GpuMesh>,
+    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
+    pixel_cache: PixelCache,
+
     depth_buffer: render::DepthBuffer,
     pbr_renderer: gbase_utils::PbrRenderer,
     gizmo_renderer: gbase_utils::GizmoRenderer,
@@ -28,17 +33,31 @@ struct App {
 
     ak47_mesh_handle: AssetHandle<Mesh>,
     ak47_material: Arc<GpuMaterial>,
-
     helmet_mesh_handle: AssetHandle<Mesh>,
     helmet_material: Arc<GpuMaterial>,
-
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
+    sphere_mesh_handle: gbase_utils::AssetHandle<Mesh>,
+    sphere_material: Arc<GpuMaterial>,
+}
 
-    image_cache: AssetCache<Image, GpuImage>,
-    mesh_cache: AssetCache<Mesh, GpuMesh>,
-    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
-    pixel_cache: PixelCache,
+fn load_simple_mesh(
+    bytes: &[u8],
+    mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+    image_cache: &mut AssetCache<Image, GpuImage>,
+    pixel_cache: &mut PixelCache,
+    pbr_renderer: &PbrRenderer,
+) -> (AssetHandle<Mesh>, Arc<GpuMaterial>) {
+    let ak47_prim = gbase_utils::parse_glb(bytes)[0].clone();
+    let ak47_mesh = ak47_prim
+        .mesh
+        .extract_attributes(pbr_renderer.required_attributes().clone());
+    let ak47_mesh_handle = mesh_cache.allocate(ak47_mesh);
+    let ak47_material = ak47_prim
+        .material
+        .clone()
+        .to_material(image_cache, pixel_cache);
+    (ak47_mesh_handle, Arc::new(ak47_material))
 }
 
 impl Callbacks for App {
@@ -46,7 +65,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            .vsync(false)
+            // .vsync(false)
             .device_features(wgpu::Features::POLYGON_MODE_LINE)
     }
 
@@ -63,41 +82,37 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx);
 
-        let mut glb_loader = GlbLoader::new();
-
-        log::warn!("load ak");
-        let ak47_prim = glb_loader.parse_glb(
-            ctx,
+        let (ak47_mesh_handle, ak47_material) = load_simple_mesh(
+            &load_b!("models/ak47.glb").unwrap(),
+            &mut mesh_cache,
             &mut image_cache,
-            &filesystem::load_b!("models/ak47.glb").unwrap(),
-        )[0]
-        .clone();
-        let ak47_mesh = ak47_prim
-            .mesh
-            .extract_attributes(pbr_renderer.required_attributes().clone());
-        let ak47_mesh_handle = mesh_cache.allocate(ak47_mesh);
-        let ak47_material = ak47_prim
-            .material
-            .clone()
-            .to_material(&mut image_cache, &mut pixel_cache)
-            .into();
+            &mut pixel_cache,
+            &pbr_renderer,
+        );
 
-        log::warn!("load helmet");
-        let helmet_prim = glb_loader.parse_glb(
-            ctx,
+        let (helmet_mesh_handle, helmet_material) = load_simple_mesh(
+            &load_b!("models/helmet.glb").unwrap(),
+            &mut mesh_cache,
             &mut image_cache,
-            &filesystem::load_b!("models/helmet.glb").unwrap(),
-        )[0]
-        .clone();
-        let helmet_mesh = helmet_prim
-            .mesh
-            .extract_attributes(pbr_renderer.required_attributes().clone());
-        let helmet_mesh_handle = mesh_cache.allocate(helmet_mesh);
-        let helmet_material = helmet_prim
-            .material
-            .clone()
-            .to_material(&mut image_cache, &mut pixel_cache)
-            .into();
+            &mut pixel_cache,
+            &pbr_renderer,
+        );
+
+        let (cube_mesh_handle, cube_material) = load_simple_mesh(
+            &load_b!("models/cube.glb").unwrap(),
+            &mut mesh_cache,
+            &mut image_cache,
+            &mut pixel_cache,
+            &pbr_renderer,
+        );
+
+        let (sphere_mesh_handle, sphere_material) = load_simple_mesh(
+            &load_b!("models/sphere.glb").unwrap(),
+            &mut mesh_cache,
+            &mut image_cache,
+            &mut pixel_cache,
+            &pbr_renderer,
+        );
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
@@ -117,26 +132,10 @@ impl Callbacks for App {
 
         let lights_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
             PbrLightUniforms {
-                main_light_dir: vec3(0.0, -1.0, 1.0).normalize(),
+                main_light_dir: vec3(0.0, 1.0, 1.0).normalize(),
             },
         ))
         .build(ctx);
-
-        log::warn!("load cube");
-        let cube_prim = glb_loader.parse_glb(
-            ctx,
-            &mut image_cache,
-            &filesystem::load_b!("models/cube.glb").unwrap(),
-        )[0]
-        .clone();
-        let cube_mesh = cube_prim
-            .mesh
-            .extract_attributes(pbr_renderer.required_attributes().clone());
-        let cube_material = cube_prim
-            .material
-            .to_material(&mut image_cache, &mut pixel_cache)
-            .into();
-        let cube_mesh_handle = mesh_cache.allocate(cube_mesh);
 
         Self {
             pbr_renderer,
@@ -162,12 +161,17 @@ impl Callbacks for App {
 
             cube_mesh_handle,
             cube_material,
+
+            sphere_mesh_handle,
+            sphere_material,
         }
     }
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
-        self.camera.flying_controls(ctx);
+        if mouse_button_pressed(ctx, input::MouseButton::Left) {
+            self.camera.flying_controls(ctx);
+        }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
             log::warn!("RESTART");
@@ -187,35 +191,35 @@ impl Callbacks for App {
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
 
-        let elems = 10000u32;
-        for x in 0..(elems.isqrt()) {
-            for z in 0..(elems.isqrt()) {
-                let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
-                    .with_rot(Quat::from_rotation_y(
-                        (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
-                    ));
-
-                self.pbr_renderer.add_mesh(
-                    self.cube_mesh_handle.clone(),
-                    self.cube_material.clone(),
-                    transform,
-                );
-
-                // if (x + z) % 2 == 0 {
-                //     self.pbr_renderer.add_mesh(
-                //         self.ak47_mesh_handle.clone(),
-                //         self.ak47_material.clone(),
-                //         transform,
-                //     );
-                // } else {
-                //     self.pbr_renderer.add_mesh(
-                //         self.helmet_mesh_handle.clone(),
-                //         self.helmet_material.clone(),
-                //         transform,
-                //     );
-                // }
-            }
-        }
+        // let elems = 10000u32;
+        // for x in 0..(elems.isqrt()) {
+        //     for z in 0..(elems.isqrt()) {
+        //         let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
+        //             .with_rot(Quat::from_rotation_y(
+        //                 (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
+        //             ));
+        //
+        //         // self.pbr_renderer.add_mesh(
+        //         //     self.cube_mesh_handle.clone(),
+        //         //     self.cube_material.clone(),
+        //         //     transform,
+        //         // );
+        //
+        //         if (x + z) % 2 == 0 {
+        //             self.pbr_renderer.add_mesh(
+        //                 self.ak47_mesh_handle.clone(),
+        //                 self.ak47_material.clone(),
+        //                 transform,
+        //             );
+        //         } else {
+        //             self.pbr_renderer.add_mesh(
+        //                 self.helmet_mesh_handle.clone(),
+        //                 self.helmet_material.clone(),
+        //                 transform,
+        //             );
+        //         }
+        //     }
+        // }
 
         // let plane_mesh = gbase_utils::MeshBuilder::quad().build();
         // self.mesh_renderer.add_mesh(
@@ -246,11 +250,22 @@ impl Callbacks for App {
         //     // );
         // }
 
+        // self.pbr_renderer.add_mesh(
+        //     self.cube_mesh_handle.clone(),
+        //     self.cube_material.clone(),
+        //     Transform3D::default(),
+        // );
+
+        let t = time::time_since_start(ctx);
         self.pbr_renderer.add_mesh(
-            self.cube_mesh_handle.clone(),
-            self.cube_material.clone(),
-            Transform3D::default(),
+            self.helmet_mesh_handle.clone(),
+            self.helmet_material.clone(),
+            Transform3D::default()
+                .with_pos(vec3(0.0, 0.0, 0.0))
+                .with_scale(Vec3::ONE * 5.0)
+                .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
         );
+
         // self.pbr_renderer.add_mesh(
         //     self.helmet_mesh_handle.clone(),
         //     self.helmet_material.clone(),
@@ -262,6 +277,7 @@ impl Callbacks for App {
         //     &mut self.gizmo_renderer,
         //     &mut self.mesh_cache,
         // );
+
         self.pbr_renderer.render(
             ctx,
             screen_view,

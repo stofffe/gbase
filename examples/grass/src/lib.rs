@@ -37,11 +37,13 @@ pub struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     pbr_renderer: gbase_utils::PbrRenderer,
 
+    shader_cache: AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     mesh_cache: AssetCache<render::Mesh, render::GpuMesh>,
     image_cache: AssetCache<render::Image, render::GpuImage>,
     pixel_cache: PixelCache,
 
     plane_mesh: AssetHandle<render::Mesh>,
+    sphere_mesh: AssetHandle<render::Mesh>,
     plane_material: Arc<GpuMaterial>,
 
     paused: bool,
@@ -56,11 +58,16 @@ impl Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
             .window_attributes(Window::default_attributes().with_maximized(true))
-            // .device_features(wgpu::Features::POLYGON_MODE_LINE)
-            .vsync(false)
+        // .device_features(wgpu::Features::POLYGON_MODE_LINE)
+        // .vsync(false)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
+        let mut shader_cache = AssetCache::new();
+        let mut mesh_cache = AssetCache::new();
+        let mut image_cache = AssetCache::new();
+        let mut pixel_cache = PixelCache::new();
+
         // Framebuffer
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
@@ -89,15 +96,15 @@ impl Callbacks for App {
         .build(ctx);
         let light_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
             gbase_utils::PbrLightUniforms {
-                main_light_dir: vec3(0.0, -1.0, 1.0).normalize(),
+                main_light_dir: vec3(0.0, -1.0, 10.0).normalize(),
             },
         ))
         .build(ctx);
 
         // Renderers
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx);
-        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer);
+        let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx, &mut shader_cache);
+        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &mut shader_cache);
         let pbr_renderer = gbase_utils::PbrRenderer::new(ctx);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -106,10 +113,6 @@ impl Callbacks for App {
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
-
-        let mut mesh_cache = AssetCache::new();
-        let mut image_cache = AssetCache::new();
-        let mut pixel_cache = PixelCache::new();
 
         let plane_mesh = mesh_cache.allocate(
             MeshBuilder::quad()
@@ -131,7 +134,16 @@ impl Callbacks for App {
             .to_material(&mut image_cache, &mut pixel_cache),
         );
 
+        let sphere_prim =
+            gbase_utils::parse_glb(&filesystem::load_b!("models/sphere.glb").unwrap())[0].clone();
+        let sphere_mesh = sphere_prim
+            .mesh
+            .extract_attributes(pbr_renderer.required_attributes().clone());
+        let sphere_mesh = mesh_cache.allocate(sphere_mesh);
+
         Self {
+            sphere_mesh,
+            shader_cache,
             mesh_cache,
             image_cache,
             pixel_cache,
@@ -159,6 +171,8 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        self.shader_cache.check_watched_files(ctx);
+        self.image_cache.check_watched_files(ctx);
         // log::warn!("RENDER");
 
         // update buffers
@@ -166,9 +180,66 @@ impl Callbacks for App {
         self.framebuffer.clear(ctx, wgpu::Color::BLUE);
         self.deferred_buffers.clear(ctx);
 
+        let t = time::time_since_start(ctx);
+        let light_pos = vec3(t.sin() * 30.0 + 20.0, 26.0, t.cos() * 30.0 + 20.0);
+        self.light_old_buffer.write(ctx, &light_pos);
+        self.gizmo_renderer.draw_sphere(
+            &Transform3D::default().with_pos(light_pos),
+            vec3(1.0, 1.0, 0.0),
+        );
+
         // Render
-        self.grass_renderer
-            .render(ctx, &self.camera, &self.deferred_buffers);
+        self.grass_renderer.render(
+            ctx,
+            &self.camera,
+            &self.deferred_buffers,
+            &mut self.shader_cache,
+        );
+
+        // self.pbr_renderer.add_mesh(
+        //     self.sphere_mesh.clone(),
+        //     self.plane_material.clone(),
+        //     Transform3D::default()
+        //         .with_pos(vec3(0.0, 15.0, 0.0))
+        //         .with_rot(Quat::from_rotation_x(-PI / 2.0))
+        //         .with_scale(Vec3::ONE * 5.0),
+        // );
+        self.pbr_renderer.add_mesh(
+            self.plane_mesh.clone(),
+            self.plane_material.clone(),
+            Transform3D::default()
+                // .with_pos(vec3(0.0, 0.0, 0.0))
+                .with_rot(Quat::from_rotation_x(-PI / 2.0))
+                .with_scale(Vec3::ONE * 100.0),
+        );
+        // self.pbr_renderer.render_bounding_boxes(
+        //     ctx,
+        //     &mut self.gizmo_renderer,
+        //     &mut self.mesh_cache,
+        // );
+        if input::key_pressed(ctx, KeyCode::KeyL) {
+            self.pbr_renderer.render(
+                ctx,
+                self.framebuffer.view_ref(),
+                self.framebuffer.format(),
+                &mut self.mesh_cache,
+                &mut self.image_cache,
+                &self.camera,
+                &self.camera_buffer,
+                &self.light_buffer,
+                &self.deferred_buffers.depth,
+            );
+        } else {
+            self.pbr_renderer.render_deferred(
+                ctx,
+                &self.deferred_buffers,
+                &mut self.mesh_cache,
+                &mut self.image_cache,
+                &self.camera,
+                &self.camera_buffer,
+                &self.light_buffer,
+            );
+        }
 
         //Mesh
         self.deferred_renderer.render(
@@ -178,32 +249,9 @@ impl Callbacks for App {
             &self.deferred_buffers,
             &self.camera_buffer,
             &self.light_old_buffer,
+            &mut self.shader_cache,
         );
 
-        self.pbr_renderer.add_mesh(
-            self.plane_mesh.clone(),
-            self.plane_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(0.0, 0.0, 0.0))
-                .with_rot(Quat::from_rotation_x(-PI / 2.0))
-                .with_scale(Vec3::ONE * 100.0),
-        );
-        self.pbr_renderer.render_bounding_boxes(
-            ctx,
-            &mut self.gizmo_renderer,
-            &mut self.mesh_cache,
-        );
-        self.pbr_renderer.render(
-            ctx,
-            self.framebuffer.view_ref(),
-            self.framebuffer.format(),
-            &mut self.mesh_cache,
-            &mut self.image_cache,
-            &self.camera,
-            &self.camera_buffer,
-            &self.light_buffer,
-            &self.deferred_buffers.depth,
-        );
         self.gizmo_renderer.render(
             ctx,
             self.framebuffer.view_ref(),

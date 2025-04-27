@@ -1,4 +1,7 @@
+use crate::{AssetCache, AssetHandle};
+
 use super::CameraUniform;
+use encase::ShaderSize;
 use gbase::{
     glam::Vec3,
     render::{self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule},
@@ -10,7 +13,8 @@ use gbase::{
 //
 
 pub struct DeferredRenderer {
-    shader: ArcShaderModule,
+    shader_handle: AssetHandle<render::ShaderBuilder>,
+
     pipeline_layout: ArcPipelineLayout,
     bindgroup_layout: ArcBindGroupLayout,
 
@@ -19,13 +23,21 @@ pub struct DeferredRenderer {
 }
 
 impl DeferredRenderer {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(
+        ctx: &mut Context,
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
+    ) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
-        let shader =
-            render::ShaderBuilder::new(include_str!("../assets/shaders/deferred.wgsl")).build(ctx);
+        let shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder {
+                label: None,
+                source: include_str!("../assets/shaders/deferred.wgsl").into(),
+            },
+            "../../utils/gbase_utils/assets/shaders/deferred.wgsl".into(),
+        );
         let debug_input = crate::DebugInput::new(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .label("deferred")
@@ -63,7 +75,7 @@ impl DeferredRenderer {
             .build(ctx);
 
         Self {
-            shader,
+            shader_handle,
             pipeline_layout,
             bindgroup_layout,
             vertex_buffer,
@@ -79,6 +91,7 @@ impl DeferredRenderer {
         buffers: &crate::DeferredBuffers,
         camera: &render::UniformBuffer<CameraUniform>,
         light: &render::UniformBuffer<Vec3>,
+        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) {
         self.debug_input.update_buffer(ctx);
 
@@ -105,11 +118,11 @@ impl DeferredRenderer {
             ])
             .build(ctx);
 
-        let pipeline =
-            render::RenderPipelineBuilder::new(self.shader.clone(), self.pipeline_layout.clone())
-                .single_target(render::ColorTargetState::new().format(view_format))
-                .buffers(vec![self.vertex_buffer.desc()])
-                .build(ctx);
+        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+            .single_target(render::ColorTargetState::new().format(view_format))
+            .buffers(vec![self.vertex_buffer.desc()])
+            .build(ctx);
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view).load())])

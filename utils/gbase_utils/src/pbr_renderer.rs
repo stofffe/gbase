@@ -1,23 +1,24 @@
-use crate::{AssetCache, AssetHandle, BoundingSphere, GizmoRenderer, Transform3D, WHITE};
+use crate::{
+    deferred_buffers, AssetCache, AssetHandle, BoundingSphere, DeferredBuffers, GizmoRenderer,
+    PixelCache, Transform3D, WHITE,
+};
 use encase::ShaderType;
 use gbase::{
-    glam::{Vec3, Vec4, Vec4Swizzles},
+    glam::{Vec3, Vec4Swizzles},
     log,
-    render::{
-        self, BindGroupBuilder, BindGroupLayoutBuilder, GpuImage, GpuMesh, Image, Mesh, RawBuffer,
-        ShaderBuilder, TextureBuilder, VertexBuffer, VertexTrait,
-    },
-    wgpu::{self, util::RenderEncoder},
-    Context,
+    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder},
+    wgpu, Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
 
 //
-// Mesh renderer
+// Pbr renderer
 //
 
 pub struct PbrRenderer {
-    shader_handle: AssetHandle<render::ShaderBuilder>,
+    forward_shader_handle: AssetHandle<render::ShaderBuilder>,
+    deferred_shader_handle: AssetHandle<render::ShaderBuilder>,
+
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
     vertex_attributes: BTreeSet<render::VertexAttributeId>,
@@ -32,12 +33,19 @@ pub struct PbrRenderer {
 impl PbrRenderer {
     pub fn new(ctx: &mut Context) -> Self {
         let mut shader_cache = AssetCache::new();
-        let shader_handle = shader_cache.allocate_reload(
+        let forward_shader_handle = shader_cache.allocate_reload(
             render::ShaderBuilder {
                 label: None,
                 source: include_str!("../assets/shaders/mesh.wgsl").into(),
             },
             "../../utils/gbase_utils/assets/shaders/mesh.wgsl".into(),
+        );
+        let deferred_shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder {
+                label: None,
+                source: include_str!("../assets/shaders/deferred_mesh.wgsl").into(),
+            },
+            "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl".into(),
         );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -108,7 +116,9 @@ impl PbrRenderer {
         .build(ctx);
 
         Self {
-            shader_handle,
+            forward_shader_handle,
+            deferred_shader_handle,
+
             pipeline_layout,
             bindgroup_layout,
             vertex_attributes,
@@ -118,7 +128,143 @@ impl PbrRenderer {
         }
     }
 
-    // TODO: should have internal vector<(mesh mat transform)>
+    #[allow(clippy::too_many_arguments)]
+    pub fn render_deferred(
+        &mut self,
+        ctx: &mut Context,
+        deferred_buffers: &DeferredBuffers,
+        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
+        image_cache: &mut AssetCache<Image, GpuImage>,
+
+        camera: &crate::Camera,
+        camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
+        lights: &render::UniformBuffer<PbrLightUniforms>,
+    ) {
+        if self.frame_meshes.is_empty() {
+            log::warn!("trying to render without any meshes");
+            return;
+        }
+
+        self.shader_cache.check_watched_files(ctx);
+
+        let shader = self
+            .shader_cache
+            .get_gpu(ctx, self.deferred_shader_handle.clone());
+        let mut buffers = Vec::new();
+        for attr in self.vertex_attributes.iter() {
+            buffers.push(render::VertexBufferLayout::from_vertex_formats(
+                wgpu::VertexStepMode::Vertex,
+                vec![attr.format()],
+            ));
+        }
+        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
+            .label("pbr")
+            .buffers(buffers)
+            .multiple_targets(deferred_buffers.targets().into())
+            // .polygon_mode(wgpu::PolygonMode::Line)
+            .cull_mode(wgpu::Face::Back)
+            .depth_stencil(deferred_buffers.depth.depth_stencil_state())
+            .build(ctx);
+
+        let frustum = camera.calculate_frustum(ctx);
+
+        self.frame_meshes.sort_by_key(|a| a.0.clone());
+
+        let mut instances = Vec::new();
+        let mut draws = Vec::new();
+        let mut ranges = Vec::new();
+
+        //
+        // Culling
+        //
+        self.frame_meshes.retain(|(handle, _, transform)| {
+            let gpu_mesh = mesh_cache.get_gpu(ctx, handle.clone());
+            frustum.sphere_inside(&gpu_mesh.bounds, transform)
+        });
+
+        //
+        // Grouping of draws
+        //
+        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
+        for (index, (mesh_handle, mat, transform)) in self.frame_meshes.iter().enumerate() {
+            instances.push(Instances {
+                model: transform.matrix().to_cols_array_2d(),
+                color_factor: mat.color_factor,
+                roughness_factor: mat.roughness_factor,
+                metallic_factor: mat.metallic_factor,
+                occlusion_strength: mat.occlusion_strength,
+                normal_scale: mat.normal_scale,
+            });
+
+            if let Some(prev) = &prev_mesh {
+                if prev == mesh_handle {
+                    continue;
+                }
+            }
+
+            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+
+            let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
+            let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
+            let metallic_roughness_texture =
+                image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
+            let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
+            let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
+                .entries(vec![
+                    // camera
+                    render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                    // lights
+                    render::BindGroupEntry::Buffer(lights.buffer()),
+                    // instances
+                    render::BindGroupEntry::Buffer(self.transforms.buffer()),
+                    // base color texture
+                    render::BindGroupEntry::Texture(base_color_texture.view()),
+                    // base color sampler
+                    render::BindGroupEntry::Sampler(base_color_texture.sampler()),
+                    // normal texture
+                    render::BindGroupEntry::Texture(normal_texture.view()),
+                    // normal sampler
+                    render::BindGroupEntry::Sampler(normal_texture.sampler()),
+                    // metallic roughness texture
+                    render::BindGroupEntry::Texture(metallic_roughness_texture.view()),
+                    // metallic roughness sampler
+                    render::BindGroupEntry::Sampler(metallic_roughness_texture.sampler()),
+                    // occlusion roughness texture
+                    render::BindGroupEntry::Texture(occlusion_texture.view()),
+                    // occlusion roughness sampler
+                    render::BindGroupEntry::Sampler(occlusion_texture.sampler()),
+                ])
+                .build(ctx);
+
+            draws.push((gpu_mesh, bindgroup));
+            ranges.push(index);
+            prev_mesh = Some(mesh_handle.clone());
+        }
+        ranges.push(self.frame_meshes.len());
+
+        self.transforms.write(ctx, &instances);
+
+        // TODO: using one render pass per draw call
+        let attachments = &deferred_buffers.color_attachments();
+        render::RenderPassBuilder::new()
+            .color_attachments(attachments)
+            .depth_stencil_attachment(deferred_buffers.depth.depth_render_attachment_load())
+            .build_run_submit(ctx, |mut pass| {
+                pass.set_pipeline(&pipeline);
+
+                for (i, range) in ranges.windows(2).enumerate() {
+                    let (from, to) = (range[0], range[1]);
+                    let (mesh, bindgroup) = draws[i].clone();
+
+                    mesh.bind_to_render_pass(&mut pass);
+                    pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+                    pass.draw_indexed(0..mesh.index_count.unwrap(), 0, from as u32..to as u32);
+                }
+            });
+
+        self.frame_meshes.clear();
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn render(
         &mut self,
@@ -138,9 +284,11 @@ impl PbrRenderer {
             return;
         }
 
-        self.shader_cache.check_watch(ctx);
+        self.shader_cache.check_watched_files(ctx);
 
-        let shader = self.shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let shader = self
+            .shader_cache
+            .get_gpu(ctx, self.forward_shader_handle.clone());
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -232,8 +380,6 @@ impl PbrRenderer {
             prev_mesh = Some(mesh_handle.clone());
         }
         ranges.push(self.frame_meshes.len());
-
-        log::info!("ranges {:#?}", ranges);
 
         self.transforms.write(ctx, &instances);
 
@@ -333,36 +479,52 @@ pub struct PbrMaterial {
 
 impl PbrMaterial {
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-    pub fn to_material(self, image_cache: &mut AssetCache<Image, GpuImage>) -> GpuMaterial {
+    pub fn to_material(
+        self,
+        // TODO: part of context?
+        image_cache: &mut AssetCache<Image, GpuImage>,
+        pixel_cache: &mut PixelCache,
+    ) -> GpuMaterial {
         const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
         const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
-        // TODO: NOT CACHED
         fn alloc(
             image_cache: &mut AssetCache<Image, GpuImage>,
+            pixel_cache: &mut PixelCache,
             tex: Option<Image>,
             default: [u8; 4],
         ) -> AssetHandle<Image> {
             if let Some(tex) = tex {
                 image_cache.allocate(tex)
             } else {
-                let image = Image {
-                    texture: TextureBuilder::new(render::TextureSource::Data(1, 1, default.into())),
-                    sampler: render::SamplerBuilder::new()
-                        .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
-                };
-                image_cache.allocate(image)
+                pixel_cache.allocate(image_cache, default)
             }
         }
-        let base_color_texture = alloc(image_cache, self.base_color_texture, BASE_COLOR_DEFAULT);
-        let normal_texture = alloc(image_cache, self.normal_texture, NORMAL_DEFAULT);
+        let base_color_texture = alloc(
+            image_cache,
+            pixel_cache,
+            self.base_color_texture,
+            BASE_COLOR_DEFAULT,
+        );
+        let normal_texture = alloc(
+            image_cache,
+            pixel_cache,
+            self.normal_texture,
+            NORMAL_DEFAULT,
+        );
         let metallic_roughness_texture = alloc(
             image_cache,
+            pixel_cache,
             self.metallic_roughness_texture,
             METALLIC_ROUGHNESS_DEFAULT,
         );
-        let occlusion_texture = alloc(image_cache, self.occlusion_texture, OCCLUSION_DEFAULT);
+        let occlusion_texture = alloc(
+            image_cache,
+            pixel_cache,
+            self.occlusion_texture,
+            OCCLUSION_DEFAULT,
+        );
 
         GpuMaterial {
             base_color_texture,
