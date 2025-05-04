@@ -21,6 +21,7 @@ struct PbrMaterial {
 
 struct PbrLights {
     main_light_dir: vec3f,
+    main_light_intensity: f32,
 }
 struct VertexInput {
     @builtin(instance_index) index: u32,
@@ -113,11 +114,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let unpacked_normal = normalize(normal_tex.xyz * 2.0 - 1.0); // [0,1] -> [-1,1]
     let normal = normalize(TBN * unpacked_normal);
 
+    // main light
     let color = pbr_lighting(
         normal,
         camera.pos - in.pos,
-        lights.main_light_dir,
-        vec3f(1.0), // light color
+        -lights.main_light_dir,
+        vec3f(1.0) * lights.main_light_intensity, // light color
         base_color_tex.rgb,
         emissive_tex.rgb,
         roughness,
@@ -164,10 +166,18 @@ fn pbr_lighting(
 
     let light = emission + brdf * radiance * ldotn;
 
-    let ambient = vec3f(0.03) * albedo * ambient_occlusion;
-    let color = ambient + light;
+    if true {
+    // return vec3f(albedo);
+    }
 
-    return color;
+    let ambient = vec3f(0.03) * albedo * ambient_occlusion;
+    let hdr_color = ambient + light;
+
+    var ldr_color = hdr_color / (hdr_color + vec3f(1.0));
+    // ldr_color = hdr_color;
+    // ldr_color = pow(ldr_color, vec3(1.0 / 2.2));
+
+    return ldr_color;
 }
 
 fn brdf_lambert_cook(

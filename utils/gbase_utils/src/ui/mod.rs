@@ -170,7 +170,7 @@ impl GUIRenderer {
             }
         }
 
-        self.debug(ctx);
+        // self.display_debug_info(ctx);
 
         //
         // Rendering
@@ -323,7 +323,7 @@ impl GUIRenderer {
     pub fn check_last_hot(&self, id: &str) -> bool {
         self.hot_last_frame == id
     }
-    fn debug(&mut self, ctx: &Context) {
+    pub fn display_debug_info(&mut self, ctx: &Context) {
         //
         // debug
         //

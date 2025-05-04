@@ -162,12 +162,12 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let clump_hash = closest_clump_hash;
     let clump_origin = closest_clump_pos;
 
-    if btn3_pressed() {
-        pos = mix(pos, clump_origin, 0.2);
-    }
-    if btn4_pressed() {
-        pos = mix(pos, clump_origin, 1.0);
-    }
+    // if btn3_pressed() {
+    //     pos = mix(pos, clump_origin, 0.2);
+    // }
+    // if btn4_pressed() {
+    //     pos = mix(pos, clump_origin, 1.0);
+    // }
     //pos = mix(pos, clump_origin, 0.3);
 
     // frustum cull
@@ -184,11 +184,16 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // facing angle
     //var facing = normalize(pos - clump_origin).xz;
     var facing_angle = 0.0;
+    if true {
+        // clump direction
+        let blade_clump_dir = (pos - clump_origin).xz;
+        facing_angle += atan2(blade_clump_dir.y, blade_clump_dir.x);
+        facing_angle += hash_to_range(blade_hash, -GRASS_MAX_ANGLE, GRASS_MAX_ANGLE);
+    } else {
+        // random
+        facing_angle += hash_to_range(blade_hash, -PI * 2.0, PI * 2.0);
+    }
 
-    let blade_clump_dir = (pos - clump_origin).xz;
-
-    facing_angle += atan2(blade_clump_dir.y, blade_clump_dir.x);
-    facing_angle += hash_to_range(blade_hash, -GRASS_MAX_ANGLE, GRASS_MAX_ANGLE);
     let facing = normalize(vec2<f32>(cos(facing_angle), sin(facing_angle)));
 
     // caluclate wind

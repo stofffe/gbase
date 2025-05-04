@@ -355,7 +355,6 @@ impl PbrRenderer {
             }
 
             let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
-
             let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
             let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
             let metallic_roughness_texture =
@@ -580,6 +579,7 @@ impl PbrMaterial {
 #[derive(ShaderType)]
 pub struct PbrLightUniforms {
     pub main_light_dir: Vec3,
+    pub main_light_insensity: f32,
 }
 
 //

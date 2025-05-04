@@ -27,9 +27,9 @@ pub struct App {
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     light_buffer: render::UniformBuffer<PbrLightUniforms>,
+    light: PbrLightUniforms,
 
     // light: Vec3,
-    light_old_buffer: render::UniformBuffer<Vec3>,
     deferred_buffers: gbase_utils::DeferredBuffers,
     deferred_renderer: gbase_utils::DeferredRenderer,
     grass_renderer: GrassRenderer,
@@ -90,16 +90,13 @@ impl Callbacks for App {
             .label("camera buf")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
-        let light_old_buffer = render::UniformBufferBuilder::new(
-            render::UniformBufferSource::Data(vec3(10.0, 10.0, -10.0)),
-        )
-        .build(ctx);
-        let light_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            gbase_utils::PbrLightUniforms {
-                main_light_dir: vec3(0.0, -1.0, 10.0).normalize(),
-            },
-        ))
-        .build(ctx);
+        // .build(ctx);
+        let light_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let light = gbase_utils::PbrLightUniforms {
+            main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
+            main_light_insensity: 1.0,
+        };
 
         // Renderers
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
@@ -157,12 +154,11 @@ impl Callbacks for App {
             pbr_renderer,
             plane_mesh,
             light_buffer,
+            light,
             plane_material,
             deferred_buffers,
             deferred_renderer,
             grass_renderer,
-
-            light_old_buffer,
 
             paused: false,
 
@@ -182,13 +178,8 @@ impl Callbacks for App {
         self.framebuffer.clear(ctx, wgpu::Color::BLUE);
         self.deferred_buffers.clear(ctx);
 
-        let t = time::time_since_start(ctx);
-        let light_pos = vec3(t.sin() * 30.0 + 20.0, 26.0, t.cos() * 30.0 + 20.0);
-        self.light_old_buffer.write(ctx, &light_pos);
-        self.gizmo_renderer.draw_sphere(
-            &Transform3D::default().with_pos(light_pos),
-            vec3(1.0, 1.0, 0.0),
-        );
+        self.light.main_light_insensity = 3.0;
+        self.light_buffer.write(ctx, &self.light);
 
         // Render
         self.grass_renderer.render(
@@ -250,7 +241,7 @@ impl Callbacks for App {
             self.framebuffer.format(),
             &self.deferred_buffers,
             &self.camera_buffer,
-            &self.light_old_buffer,
+            &self.light_buffer,
             &mut self.shader_cache,
         );
 
@@ -352,21 +343,3 @@ impl Callbacks for App {
         false
     }
 }
-
-// #[rustfmt::skip]
-// const CENTERED_QUAD_VERTICES: &[render::VertexFull] = &[
-//     render::VertexFull { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom left
-//     render::VertexFull { position: [ 0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom right
-//     render::VertexFull { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top right
-//
-//     render::VertexFull { position: [-0.5, -0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 1.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // bottom left
-//     render::VertexFull { position: [ 0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [1.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top right
-//     render::VertexFull { position: [-0.5,  0.5, 0.0], color: PLANE_COLOR, uv: [0.0, 0.0], normal: [0.0, 0.0, 1.0], tangent: [1.0, 0.0, 0.0, 1.0] }, // top left
-//
-// ];
-//
-// #[rustfmt::skip]
-// const CENTERED_QUAD_INDICES: &[u32] = &[
-//     0, 1, 2,
-//     3, 4, 5
-// ];

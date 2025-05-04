@@ -21,8 +21,13 @@ fn vs_main(in: VertexInput) -> FragmentInput {
 @group(0) @binding(3) var normal_tex: texture_2d<f32>;
 @group(0) @binding(4) var roughness_tex: texture_2d<f32>;
 @group(0) @binding(5) var<uniform> camera: Camera;
-@group(0) @binding(6) var<uniform> light: vec3<f32>;
+@group(0) @binding(6) var<uniform> light: PbrLights;
 @group(0) @binding(7) var<uniform> debug_input: DebugInput;
+
+struct PbrLights {
+    main_light_dir: vec3f,
+    main_light_intensity: f32,
+}
 
 struct DebugInput {
     btn1: u32,
@@ -89,8 +94,9 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     let color = pbr_lighting(
         normal,
         camera.pos - position,
-        light - position,
-        vec3f(1.0),
+        -light.main_light_dir,
+        vec3f(1.0) * light.main_light_intensity,
+        0.2,
         albedo,
         vec3f(0.0),
         roughness,
@@ -107,6 +113,9 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     }
     if btn3_pressed() {
         return vec4<f32>(position, 1.0);
+    }
+    if btn4_pressed() {
+        return vec4<f32>(ambient_occlusion);
     }
     return vec4f(color, 1.0);
 
@@ -174,6 +183,7 @@ fn pbr_lighting(
     view_dir: vec3f,
     light_dir: vec3f,
     light_color: vec3f,
+    ambient_light_intensity: f32,
     albedo: vec3f,
     emissivity: vec3f,
     roughness: f32,
@@ -193,8 +203,10 @@ fn pbr_lighting(
 
     let light = emission + brdf * radiance * ldotn;
 
-    let ambient = vec3f(0.03) * albedo * ambient_occlusion;
-    let color = ambient + light;
+    let ambient = vec3f(ambient_light_intensity) * albedo * ambient_occlusion;
+    let hdr_color = ambient + light;
+
+    var ldr_color = hdr_color / (hdr_color + vec3f(1.0));
 
     if btn8_pressed() {
         // specular (cook torrance)
@@ -205,7 +217,7 @@ fn pbr_lighting(
         return cook_torrance;
     }
 
-    return color;
+    return ldr_color;
 }
 
 fn brdf_lambert_cook(

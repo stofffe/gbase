@@ -1,13 +1,13 @@
 use gbase::{
-    filesystem,
     glam::{vec3, Quat, Vec3},
-    input::{self, key_pressed, mouse_button_pressed},
+    input::{self, mouse_button_pressed},
     load_b, log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D,
+    Alignment, AssetCache, AssetHandle, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer,
+    PixelCache, SizeKind, Transform3D, Widget, BLACK, BLUE, GRAY, RED, WHITE,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -30,6 +30,7 @@ struct App {
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
+    lights: PbrLightUniforms,
 
     ak47_mesh_handle: AssetHandle<Mesh>,
     ak47_material: Arc<GpuMaterial>,
@@ -48,16 +49,13 @@ fn load_simple_mesh(
     pixel_cache: &mut PixelCache,
     pbr_renderer: &PbrRenderer,
 ) -> (AssetHandle<Mesh>, Arc<GpuMaterial>) {
-    let ak47_prim = gbase_utils::parse_glb(bytes)[0].clone();
-    let ak47_mesh = ak47_prim
+    let prim = gbase_utils::parse_glb(bytes)[0].clone();
+    let mesh = prim
         .mesh
         .extract_attributes(pbr_renderer.required_attributes().clone());
-    let ak47_mesh_handle = mesh_cache.allocate(ak47_mesh);
-    let ak47_material = ak47_prim
-        .material
-        .clone()
-        .to_material(image_cache, pixel_cache);
-    (ak47_mesh_handle, Arc::new(ak47_material))
+    let mesh_handle = mesh_cache.allocate(mesh);
+    let material = prim.material.clone().to_material(image_cache, pixel_cache);
+    (mesh_handle, Arc::new(material))
 }
 
 impl Callbacks for App {
@@ -130,17 +128,18 @@ impl Callbacks for App {
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let lights_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            PbrLightUniforms {
-                main_light_dir: vec3(0.0, 1.0, 1.0).normalize(),
-            },
-        ))
-        .build(ctx);
+        let lights = PbrLightUniforms {
+            main_light_dir: vec3(0.0, -1.0, -1.0).normalize(),
+            main_light_insensity: 1.0,
+        };
+        let lights_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         Self {
             pbr_renderer,
             ui_renderer,
             gizmo_renderer,
+            lights,
             lights_buffer,
 
             camera,
@@ -190,6 +189,66 @@ impl Callbacks for App {
         self.depth_buffer.clear(ctx);
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.lights_buffer.write(ctx, &self.lights);
+
+        let outer = Widget::new()
+            .label("outer")
+            .width(SizeKind::PercentOfParent(1.0))
+            .height(SizeKind::PercentOfParent(1.0))
+            .direction(Direction::Column)
+            .gap(20.0)
+            .padding(20.0);
+
+        outer.layout(&mut self.ui_renderer, |renderer| {
+            let slider_row = Widget::new()
+                .height(SizeKind::Pixels(100.0))
+                .width(SizeKind::ChildrenSum)
+                .gap(20.0)
+                .cross_axis_alignment(Alignment::Center)
+                .direction(Direction::Row);
+            slider_row.layout(renderer, |renderer| {
+                Widget::new()
+                    .text("main light intensity")
+                    .text_color(WHITE)
+                    .height(SizeKind::TextSize)
+                    .width(SizeKind::TextSize)
+                    .text_font_size(60.0)
+                    .render(renderer);
+                let slider = Widget::new()
+                    .label("slider")
+                    .color(GRAY)
+                    .border_radius(10.0)
+                    .height(SizeKind::Pixels(100.0))
+                    .width(SizeKind::Pixels(500.0))
+                    .direction(Direction::Row);
+                slider.slider_layout(
+                    ctx,
+                    renderer,
+                    0.0,
+                    20.0,
+                    &mut self.lights.main_light_insensity,
+                    |renderer, res| {
+                        Widget::new()
+                            .width(SizeKind::PercentOfParent(res.pos))
+                            .render(renderer);
+                        Widget::new()
+                            .width(SizeKind::Pixels(10.0))
+                            .height(SizeKind::Grow)
+                            .color(BLACK)
+                            .border_radius(5.0)
+                            .render(renderer);
+                    },
+                );
+
+                Widget::new()
+                    .text(format!("({:.3})", self.lights.main_light_insensity))
+                    .text_color(WHITE)
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text_font_size(60.0)
+                    .render(renderer);
+            });
+        });
 
         // let elems = 10000u32;
         // for x in 0..(elems.isqrt()) {
@@ -221,41 +280,6 @@ impl Callbacks for App {
         //     }
         // }
 
-        // let plane_mesh = gbase_utils::MeshBuilder::quad().build();
-        // self.mesh_renderer.add_mesh(
-        //     GpuMesh::new(ctx, &plane_mesh).into(),
-        //     PbrMaterial::new_colored([1.0, 0.0, 0.0, 1.0])
-        //         .to_material(ctx)
-        //         .into(),
-        //     Transform3D::default().with_rot(Quat::from_rotation_x(-PI / 2.0)),
-        // );
-
-        // if input::key_just_pressed(ctx, input::KeyCode::F1) {
-        //     let cube_mesh = self.mesh_cache.get_mut(self.cube_mesh_handle.clone());
-        //     // let cube_mesh = self.assets.get_mesh_mut(self.cube_mesh_handle.clone());
-        //     let pos_verts = cube_mesh
-        //         .attributes
-        //         .get_mut(&render::VertexAttributeId::Position)
-        //         .unwrap();
-        //
-        //     let shifted = pos_verts
-        //         .as_type::<[f32; 3]>()
-        //         .iter()
-        //         .map(|&[x, y, z]| [x * 1.1, y * 1.1, z * 1.1])
-        //         .collect::<Vec<_>>();
-        //
-        //     // cube_mesh.add_attribute(
-        //     //     render::VertexAttributeId::Position,
-        //     //     render::VertexAttributeValues::Float32x3(shifted),
-        //     // );
-        // }
-
-        // self.pbr_renderer.add_mesh(
-        //     self.cube_mesh_handle.clone(),
-        //     self.cube_material.clone(),
-        //     Transform3D::default(),
-        // );
-
         let t = time::time_since_start(ctx);
         self.pbr_renderer.add_mesh(
             self.helmet_mesh_handle.clone(),
@@ -265,18 +289,6 @@ impl Callbacks for App {
                 .with_scale(Vec3::ONE * 5.0)
                 .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
         );
-
-        // self.pbr_renderer.add_mesh(
-        //     self.helmet_mesh_handle.clone(),
-        //     self.helmet_material.clone(),
-        //     Transform3D::default(),
-        // );
-
-        // self.pbr_renderer.render_bounding_boxes(
-        //     ctx,
-        //     &mut self.gizmo_renderer,
-        //     &mut self.mesh_cache,
-        // );
 
         self.pbr_renderer.render(
             ctx,
@@ -295,6 +307,7 @@ impl Callbacks for App {
             render::surface_format(ctx),
             &self.camera_buffer,
         );
+        // self.ui_renderer.display_debug_info(ctx);
         self.ui_renderer
             .render(ctx, screen_view, render::surface_format(ctx));
 

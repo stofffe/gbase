@@ -1,4 +1,4 @@
-use crate::{AssetCache, AssetHandle};
+use crate::{AssetCache, AssetHandle, PbrLightUniforms};
 
 use super::CameraUniform;
 use encase::ShaderSize;
@@ -90,7 +90,7 @@ impl DeferredRenderer {
         view_format: wgpu::TextureFormat,
         buffers: &crate::DeferredBuffers,
         camera: &render::UniformBuffer<CameraUniform>,
-        light: &render::UniformBuffer<Vec3>,
+        light: &render::UniformBuffer<PbrLightUniforms>,
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) {
         self.debug_input.update_buffer(ctx);
