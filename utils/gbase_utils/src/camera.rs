@@ -204,12 +204,13 @@ impl Camera {
     }
 }
 
-pub struct FrustumPlane {
+#[derive(ShaderType)]
+pub struct Plane {
     pub origin: Vec3,
     pub normal: Vec3,
 }
 
-impl FrustumPlane {
+impl Plane {
     pub fn point_in_front(&self, point: Vec3) -> bool {
         Vec3::dot(point - self.origin, self.normal) >= 0.0
     }
@@ -218,13 +219,14 @@ impl FrustumPlane {
     }
 }
 
+#[derive(ShaderType)]
 pub struct CameraFrustum {
-    pub near: FrustumPlane,
-    pub far: FrustumPlane,
-    pub left: FrustumPlane,
-    pub right: FrustumPlane,
-    pub bottom: FrustumPlane,
-    pub top: FrustumPlane,
+    pub near: Plane,
+    pub far: Plane,
+    pub left: Plane,
+    pub right: Plane,
+    pub bottom: Plane,
+    pub top: Plane,
 }
 
 pub struct BoundingSphere {
@@ -286,27 +288,27 @@ impl Camera {
                 let far_bottom = cam_forward * self.zfar - cam_up * half_far_height;
                 let far_top = cam_forward * self.zfar + cam_up * half_far_height;
 
-                let near = FrustumPlane {
+                let near = Plane {
                     origin: self.pos + self.znear * cam_forward,
                     normal: cam_forward.normalize(),
                 };
-                let far = FrustumPlane {
+                let far = Plane {
                     origin: self.pos + self.zfar * cam_forward,
                     normal: -cam_forward.normalize(),
                 };
-                let left = FrustumPlane {
+                let left = Plane {
                     origin: self.pos,
                     normal: Vec3::cross(far_left, cam_up).normalize(),
                 };
-                let right = FrustumPlane {
+                let right = Plane {
                     origin: self.pos,
                     normal: Vec3::cross(cam_up, far_right).normalize(),
                 };
-                let bottom = FrustumPlane {
+                let bottom = Plane {
                     origin: self.pos,
                     normal: Vec3::cross(cam_right, far_bottom).normalize(),
                 };
-                let top = FrustumPlane {
+                let top = Plane {
                     origin: self.pos,
                     normal: Vec3::cross(far_top, cam_right).normalize(),
                 };

@@ -7,7 +7,7 @@ use gbase::{
     render::{self, ArcBindGroup, ArcComputePipeline},
     Context,
 };
-use gbase_utils::{AssetCache, AssetHandle};
+use gbase_utils::{AssetCache, AssetHandle, CameraFrustum};
 use glam::{vec2, Vec2, Vec3Swizzles};
 use std::{mem::size_of, ops::Div};
 
@@ -41,6 +41,7 @@ impl GrassRenderer {
         ctx: &mut Context,
         // deferred_buffers: &gbase_utils::DeferredBuffers,
         camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>, // TODO: remove
+        frustum_buffer: &render::UniformBuffer<CameraFrustum>,
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) -> Self {
         let instances = [
@@ -104,6 +105,8 @@ impl GrassRenderer {
                     .compute(),
                 // camera
                 render::BindGroupLayoutEntry::new().uniform().compute(),
+                // camera frustum
+                render::BindGroupLayoutEntry::new().uniform().compute(),
                 // app info
                 render::BindGroupLayoutEntry::new().uniform().compute(),
                 // debug input
@@ -126,6 +129,8 @@ impl GrassRenderer {
                     render::BindGroupEntry::Sampler(perlin_noise_sampler.clone()),
                     // camera
                     render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                    // camera frustum
+                    render::BindGroupEntry::Buffer(frustum_buffer.buffer()),
                     // app info
                     render::BindGroupEntry::Buffer(app_info.buffer()),
                     // debug input
@@ -147,6 +152,8 @@ impl GrassRenderer {
                     render::BindGroupEntry::Sampler(perlin_noise_sampler),
                     // camera
                     render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                    // camera frustum
+                    render::BindGroupEntry::Buffer(frustum_buffer.buffer()),
                     // app info
                     render::BindGroupEntry::Buffer(app_info.buffer()),
                     // debug input

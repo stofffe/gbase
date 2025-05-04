@@ -3,16 +3,16 @@
 @group(0) @binding(2) var<uniform> tile: Tile;
 @group(0) @binding(3) var perlin_tex: texture_2d<f32>;
 @group(0) @binding(4) var perlin_sam: sampler;
-@group(0) @binding(5) var<uniform> camera: CameraUniform;
-@group(0) @binding(6) var<uniform> app_info: AppInfo;
-@group(0) @binding(7) var<uniform> debug_input: DebugInput;
+@group(0) @binding(5) var<uniform> camera: Camera;
+@group(0) @binding(6) var<uniform> camera_frustum: CameraFrustum;
+@group(0) @binding(7) var<uniform> app_info: AppInfo;
+@group(0) @binding(8) var<uniform> debug_input: DebugInput;
 
 struct Tile {
     pos: vec2<f32>,
     size: f32,
     blades_per_side: f32,
 }
-
 
 // instances tightly packed => size must be multiple of align
 struct GrassInstance {
@@ -27,7 +27,7 @@ struct GrassInstance {
     width: f32,
 }
 
-struct CameraUniform {
+struct Camera {
     pos: vec3<f32>,
     facing: vec3<f32>,
 
@@ -40,11 +40,37 @@ struct CameraUniform {
     inv_view_proj: mat4x4<f32>,
 }
 
+struct Plane {
+    origin: vec3f,
+    normal: vec3f,
+}
+struct CameraFrustum {
+    near: Plane,
+    far: Plane,
+    left: Plane,
+    right: Plane,
+    bottom: Plane,
+    top: Plane,
+}
+fn frustum_sphere_inside(
+    frustum: CameraFrustum,
+    origin: vec3f,
+    radius: f32,
+) -> bool {
+    let inside_near = dot(origin - frustum.near.origin, frustum.near.normal) + radius >= 0.0;
+    let inside_far = dot(origin - frustum.far.origin, frustum.far.normal) + radius >= 0.0;
+    let inside_left = dot(origin - frustum.left.origin, frustum.left.normal) + radius >= 0.0;
+    let inside_right = dot(origin - frustum.right.origin, frustum.right.normal) + radius >= 0.0;
+    let inside_bottom = dot(origin - frustum.bottom.origin, frustum.bottom.normal) + radius >= 0.0;
+    let inside_top = dot(origin - frustum.top.origin, frustum.top.normal) + radius >= 0.0;
+    return inside_near && inside_far
+        && inside_left && inside_right
+        && inside_bottom && inside_top;
+}
 
 struct AppInfo {
     time_passed: f32,
 }
-
 
 const ENABLE_INPUT = true;
 struct DebugInput {
@@ -170,14 +196,29 @@ fn cs_main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // }
     //pos = mix(pos, clump_origin, 0.3);
 
-    // frustum cull
-    // simple dot check, TODO imporve
+    //
+    // Culling
+    //
+
+    // remove behind
     if dot(camera.facing, pos - camera.pos) < 0.0 {
         return;
     }
+
     // distance cull
     // cull 3/4 grass blades at distance
     if length(pos - camera.pos) > GRASS_CULL_DIST && (x % 2 == 0u || z % 2 == 0u) {
+        return;
+    }
+
+    // frustum cull
+    let bounding_sphere_origin = pos;
+    let bounding_sphere_radius = GRASS_MAX_HEIGHT;
+    if !frustum_sphere_inside(
+        camera_frustum,
+        bounding_sphere_origin,
+        bounding_sphere_radius,
+    ) {
         return;
     }
 

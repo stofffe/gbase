@@ -176,7 +176,7 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> Fragm
     }
 
     let dist_factor = saturate(length(camera.pos - in.pos) / SPECULAR_BLEND_MAX_DIST);
-    normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
+    // normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
     // normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
     let roughness = ease_out(dist_factor) * 10.8;

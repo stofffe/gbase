@@ -8,11 +8,12 @@ use gbase::{
     Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache, Transform3D,
+    AssetCache, AssetHandle, CameraFrustum, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache,
+    Transform3D,
 };
 use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass_renderer::GrassRenderer;
-use std::{f32::consts::PI, sync::Arc};
+use std::{f32::consts::PI, fmt::write, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -26,6 +27,7 @@ const PLANE_COLOR: [f32; 4] = [0.0, 0.4, 0.0, 1.0];
 pub struct App {
     camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    frustum_buffer: render::UniformBuffer<CameraFrustum>,
     light_buffer: render::UniformBuffer<PbrLightUniforms>,
     light: PbrLightUniforms,
 
@@ -58,8 +60,8 @@ impl Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
             .window_attributes(Window::default_attributes().with_maximized(true))
-        // .device_features(wgpu::Features::POLYGON_MODE_LINE)
-        // .vsync(false)
+            // .device_features(wgpu::Features::POLYGON_MODE_LINE)
+            .vsync(false)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
@@ -90,18 +92,24 @@ impl Callbacks for App {
             .label("camera buf")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
-        // .build(ctx);
-        let light_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let frustum_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+            .label("frustum")
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx);
+        frustum_buffer.write(ctx, &camera.calculate_frustum(ctx)); // TODO: remove
+                                                                   // .build(ctx);
         let light = gbase_utils::PbrLightUniforms {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
         };
+        let light_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         // Renderers
         let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
         let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx, &mut shader_cache);
-        let grass_renderer = GrassRenderer::new(ctx, &camera_buffer, &mut shader_cache);
+        let grass_renderer =
+            GrassRenderer::new(ctx, &camera_buffer, &frustum_buffer, &mut shader_cache);
         let pbr_renderer = gbase_utils::PbrRenderer::new(ctx);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -149,6 +157,7 @@ impl Callbacks for App {
 
             camera,
             camera_buffer,
+            frustum_buffer,
             gui_renderer,
             gizmo_renderer,
             pbr_renderer,
@@ -175,6 +184,8 @@ impl Callbacks for App {
 
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.frustum_buffer
+            .write(ctx, &self.camera.calculate_frustum(ctx));
         self.framebuffer.clear(ctx, wgpu::Color::BLUE);
         self.deferred_buffers.clear(ctx);
 
@@ -251,6 +262,7 @@ impl Callbacks for App {
             self.framebuffer.format(),
             &self.camera_buffer,
         );
+        self.gui_renderer.display_debug_info(ctx);
         self.gui_renderer
             .render(ctx, self.framebuffer.view_ref(), self.framebuffer.format());
         self.framebuffer_renderer.render(
