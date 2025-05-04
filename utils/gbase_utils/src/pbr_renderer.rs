@@ -202,6 +202,7 @@ impl PbrRenderer {
                 metallic_factor: mat.metallic_factor,
                 occlusion_strength: mat.occlusion_strength,
                 normal_scale: mat.normal_scale,
+                emissive_factor: mat.emissive_factor,
             });
 
             if let Some(prev) = &prev_mesh {
@@ -282,11 +283,10 @@ impl PbrRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        view: &wgpu::TextureView,
-        view_format: wgpu::TextureFormat,
         mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
         image_cache: &mut AssetCache<Image, GpuImage>,
-
+        view: &wgpu::TextureView,
+        view_format: wgpu::TextureFormat,
         camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
@@ -346,6 +346,7 @@ impl PbrRenderer {
                 metallic_factor: mat.metallic_factor,
                 occlusion_strength: mat.occlusion_strength,
                 normal_scale: mat.normal_scale,
+                emissive_factor: mat.emissive_factor,
             });
 
             if let Some(prev) = &prev_mesh {
@@ -599,4 +600,6 @@ pub struct Instances {
     metallic_factor: f32,
     occlusion_strength: f32,
     normal_scale: f32,
+    emissive_factor: [f32; 3],
+    // pad?
 }

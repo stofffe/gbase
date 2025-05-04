@@ -160,8 +160,16 @@ struct VertexOutput {
     @location(2) p: f32,
 }
 
+struct FragmentOutput {
+    @location(0) position: vec4f,
+    @location(1) albedo: vec4f,
+    @location(2) normal: vec4f,
+    @location(3) roughness: vec4f,
+}
+
 @fragment
-fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @location(0) vec4f {
+fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> FragmentOutput {
+
     var normal = in.normal;
     if !front_facing {
         normal = -normal;
@@ -171,28 +179,20 @@ fn fs_main(in: VertexOutput, @builtin(front_facing) front_facing: bool) -> @loca
     // normal = mix(normal, TERRAIN_NORMAL, ease_out(dist_factor));
     // normal = (normal + 1.0) / 2.0; // [-1,1] -> [0,1]
 
-    // let roughness = ease_out(dist_factor) * 5.0;
+    let roughness = ease_out(dist_factor) * 0.8;
     // let roughness = ()1.0 - smoothstep()
-    let roughness = 0.2;
+    // let roughness = 0.0;
 
     // interpolate color based of length
     let color = mix(BASE_COLOR, TIP_COLOR, ease_in(in.p)); // better interpolation function?
 
-    let final_color = pbr_lighting(
-        normal,
-        camera.pos - in.pos,
-        vec3f(1.0, 1.0, 1.0),
-        vec3f(1.0),
-        1.0,
-        color,
-        vec3f(0.0),
-        roughness,
-        0.0,
-        1.0,
-    );
+    var out: FragmentOutput;
+    out.position = vec4f(in.pos, 1.0);
+    out.normal = vec4f(normal, 1.0);
+    out.albedo = vec4f(color, 1.0);
+    out.roughness = vec4f(AMBIENT_OCCLUSION, roughness, METALNESS, 1.0); // ao, rough, metal, ?
 
-    return vec4f(final_color, 1.0);
-// return out;
+    return out;
 }
 
 //
@@ -235,121 +235,3 @@ fn hash_to_unorm(hash: u32) -> f32 {
 fn hash_to_range(hash: u32, low: f32, high: f32) -> f32 {
     return low + (high - low) * hash_to_unorm(hash);
 } //fn rot_x(angle: f32) -> mat3x3f {
-
-//
-// PBR
-//
-
-// directional lights
-fn pbr_lighting(
-    normal: vec3f,
-    view_dir: vec3f,
-    light_dir: vec3f,
-    light_color: vec3f,
-    ambient_light_intensity: f32,
-    albedo: vec3f,
-    emissivity: vec3f,
-    roughness: f32,
-    metalness: f32,
-    ambient_occlusion: f32,
-) -> vec3f {
-    let N = normalize(normal);
-    let V = normalize(view_dir);
-    let L = normalize(light_dir);
-    let H = normalize(V + L);
-    let F0 = mix(vec3f(0.04), albedo, metalness);
-
-    let emission = emissivity;
-    let radiance = light_color; // falloff when using point light
-    let brdf = brdf_lambert_cook(roughness, metalness, F0, albedo, N, V, L, H);
-    let ldotn = safe_dot(L, N);
-
-    let light = emission + brdf * radiance * ldotn;
-
-    let ambient = vec3f(ambient_light_intensity) * albedo * ambient_occlusion;
-    let hdr_color = ambient + light;
-
-    var ldr_color = hdr_color / (hdr_color + vec3f(1.0));
-
-    if btn8_pressed() {
-        // specular (cook torrance)
-        let F = fresnel_schlick(F0, V, H);
-        let cook_torrance_num = distribution_trowbridge_ggx(roughness, N, H) * geometry_smith(roughness, N, V, L) * F;
-        var cook_torrance_denom = 4.0 * safe_dot(V, N) * safe_dot(L, N);
-        let cook_torrance = safe_division_vec3(cook_torrance_num, vec3f(cook_torrance_denom));
-        return cook_torrance;
-    }
-
-    return ldr_color;
-}
-
-fn brdf_lambert_cook(
-    roughness: f32,
-    metalness: f32,
-    F0: vec3f,
-    albedo: vec3f,
-    N: vec3f,
-    V: vec3f,
-    L: vec3f,
-    H: vec3f,
-) -> vec3f {
-    // diffuse/specular distribution
-    let F = fresnel_schlick(F0, V, H);
-    let ks = F;
-    let kd = (vec3f(1.0) - ks) * (1.0 - metalness);
-
-    // diffuse (lambert)
-    let lambert = albedo / PI;
-
-    // specular (cook torrance)
-    let cook_torrance_num = distribution_trowbridge_ggx(roughness, N, H) * geometry_smith(roughness, N, V, L) * F;
-    var cook_torrance_denom = 4.0 * safe_dot(V, N) * safe_dot(L, N);
-    let cook_torrance = safe_division_vec3(cook_torrance_num, vec3f(cook_torrance_denom));
-
-    return kd * lambert + cook_torrance;
-}
-
-fn distribution_trowbridge_ggx(roughness: f32, N: vec3f, H: vec3f) -> f32 {
-    let alpha = roughness;
-    let alpha2 = alpha * alpha;
-    let ndoth = safe_dot(N, H);
-    let ndoth2 = ndoth * ndoth;
-
-    let num = alpha2;
-    let denom_part = (ndoth2 * (alpha2 - 1.0) + 1.0);
-    let denom = PI * denom_part * denom_part;
-
-    return safe_division_f32(num, denom);
-}
-
-fn geometry_schlick_ggx(roughness: f32, N: vec3f, X: vec3f) -> f32 {
-    let k = roughness / 2.0;
-    let ndotx = safe_dot(N, X);
-
-    let num = ndotx;
-    var denom = ndotx * (1.0 - k) + k;
-
-    return safe_division_f32(num, denom);
-}
-
-fn geometry_smith(roughness: f32, N: vec3f, V: vec3f, L: vec3f) -> f32 {
-    return geometry_schlick_ggx(roughness, N, V) * geometry_schlick_ggx(roughness, N, L);
-}
-
-fn fresnel_schlick(F0: vec3f, V: vec3f, H: vec3f) -> vec3f {
-    return F0 + (vec3f(1.0) - F0) * pow(1 - safe_dot(V, H), 5.0);
-}
-
-// helpers
-
-fn safe_dot(a: vec3f, b: vec3f) -> f32 {
-    return max(dot(a, b), 0.0);
-}
-
-fn safe_division_f32(num: f32, denom: f32) -> f32 {
-    return num / max(denom, 0.000001);
-}
-
-fn safe_division_vec3(num: vec3f, denom: vec3f) -> vec3f {
-    return num / max(denom, vec3f(0.000001));
-}

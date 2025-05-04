@@ -57,6 +57,7 @@ struct Instance {
     metallic_factor: f32,
     occlusion_strength: f32,
     normal_scale: f32,
+    emissive_factor: vec3f,
 }
 
 @vertex
@@ -100,34 +101,44 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let normal_tex = textureSample(normal_texture, normal_sampler, in.uv);
+    let instance = instances[in.index];
+
     let base_color_tex = decode_gamma_correction(textureSample(base_color_texture, base_color_sampler, in.uv));
+    let normal_tex = textureSample(normal_texture, normal_sampler, in.uv);
     let roughness_tex = textureSample(metallic_roughness_texture, metallic_roughness_sampler, in.uv);
     let occlusion_tex = textureSample(occlusion_texture, occlusion_sampler, in.uv);
     let emissive_tex = decode_gamma_correction(textureSample(emissive_texture, emissive_sampler, in.uv));
 
-    let roughness = roughness_tex.g;
-    let metalness = roughness_tex.b;
-    let occlusion = occlusion_tex.r;
+    let albedo = base_color_tex.xyz * in.color * instance.color_factor.xyz;
+    let emissive = emissive_tex.xyz * instance.emissive_factor;
+
+    let roughness = roughness_tex.g * instance.roughness_factor;
+    let metalness = roughness_tex.b * instance.metallic_factor;
+    let occlusion = 1.0 + instance.occlusion_strength * (occlusion_tex.r - 1.0);
 
     let TBN = mat3x3f(in.T, in.B, in.N);
-    let unpacked_normal = normalize(normal_tex.xyz * 2.0 - 1.0); // [0,1] -> [-1,1]
+    let unpacked_normal = normalize(normal_tex.xyz * 2.0 - 1.0) * instance.normal_scale; // [0,1] -> [-1,1]
     let normal = normalize(TBN * unpacked_normal);
+
+    let light_dir = -lights.main_light_dir;
+    let view_dir = camera.pos - in.pos;
+    let light_color = vec3f(1.0) * lights.main_light_intensity;
 
     // main light
     let color = pbr_lighting(
         normal,
-        camera.pos - in.pos,
-        -lights.main_light_dir,
-        vec3f(1.0) * lights.main_light_intensity, // light color
-        base_color_tex.rgb,
-        emissive_tex.rgb,
+        view_dir,
+        light_dir,
+        light_color,
+        albedo,
+        emissive,
         roughness,
         metalness,
         occlusion,
     );
 
     if true {
+    // return vec4f(instance.color_factor);
     // return vec4f(roughness, roughness, roughness, 1.0);
     // return vec4f(metalness, mtalness, metalness, 1.0);
     }
@@ -166,9 +177,9 @@ fn pbr_lighting(
 
     let light = emission + brdf * radiance * ldotn;
 
-    if true {
-    // return vec3f(albedo);
-    }
+    // if true {
+    //     return vec3f(albedo);
+    // }
 
     let ambient = vec3f(0.03) * albedo * ambient_occlusion;
     let hdr_color = ambient + light;

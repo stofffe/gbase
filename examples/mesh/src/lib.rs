@@ -292,10 +292,10 @@ impl Callbacks for App {
 
         self.pbr_renderer.render(
             ctx,
-            screen_view,
-            render::surface_format(ctx),
             &mut self.mesh_cache,
             &mut self.image_cache,
+            screen_view,
+            render::surface_format(ctx),
             &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,

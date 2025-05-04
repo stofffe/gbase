@@ -77,7 +77,7 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
     let compute_pipeline =
         render::ComputePipelineBuilder::new(shader, compute_pipeline_layoyt).build(ctx);
 
-    render::ComputePassBuilder::new().build_run_new_encoder(ctx, |mut pass| {
+    render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
         pass.set_pipeline(&compute_pipeline);
         pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
         pass.dispatch_workgroups(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM);

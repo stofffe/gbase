@@ -32,8 +32,7 @@ pub struct App {
     light: PbrLightUniforms,
 
     // light: Vec3,
-    deferred_buffers: gbase_utils::DeferredBuffers,
-    deferred_renderer: gbase_utils::DeferredRenderer,
+    depth_buffer: render::DepthBuffer,
     grass_renderer: GrassRenderer,
     gui_renderer: gbase_utils::GUIRenderer,
     gizmo_renderer: gbase_utils::GizmoRenderer,
@@ -45,7 +44,6 @@ pub struct App {
     pixel_cache: PixelCache,
 
     plane_mesh: AssetHandle<render::Mesh>,
-    sphere_mesh: AssetHandle<render::Mesh>,
     plane_material: Arc<GpuMaterial>,
 
     paused: bool,
@@ -106,10 +104,12 @@ impl Callbacks for App {
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         // Renderers
-        let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx, &mut shader_cache);
-        let grass_renderer =
-            GrassRenderer::new(ctx, &camera_buffer, &frustum_buffer, &mut shader_cache);
+        // let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
+        // let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx, &mut shader_cache);
+        let depth_buffer = render::DepthBufferBuilder::new()
+            .screen_size(ctx)
+            .build(ctx);
+        let grass_renderer = GrassRenderer::new(ctx, &mut shader_cache);
         let pbr_renderer = gbase_utils::PbrRenderer::new(ctx);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -141,15 +141,7 @@ impl Callbacks for App {
             .to_material(&mut image_cache, &mut pixel_cache),
         );
 
-        let sphere_prim =
-            gbase_utils::parse_glb(&filesystem::load_b!("models/sphere.glb").unwrap())[0].clone();
-        let sphere_mesh = sphere_prim
-            .mesh
-            .extract_attributes(pbr_renderer.required_attributes().clone());
-        let sphere_mesh = mesh_cache.allocate(sphere_mesh);
-
         Self {
-            sphere_mesh,
             shader_cache,
             mesh_cache,
             image_cache,
@@ -165,8 +157,7 @@ impl Callbacks for App {
             light_buffer,
             light,
             plane_material,
-            deferred_buffers,
-            deferred_renderer,
+            depth_buffer,
             grass_renderer,
 
             paused: false,
@@ -180,80 +171,50 @@ impl Callbacks for App {
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         self.shader_cache.check_watched_files(ctx);
         self.image_cache.check_watched_files(ctx);
-        // log::warn!("RENDER");
 
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.frustum_buffer
             .write(ctx, &self.camera.calculate_frustum(ctx));
-        self.framebuffer.clear(ctx, wgpu::Color::BLUE);
-        self.deferred_buffers.clear(ctx);
+        self.framebuffer.clear(ctx, wgpu::Color::BLACK);
+        self.depth_buffer.clear(ctx);
 
-        self.light.main_light_insensity = 3.0;
+        // self.light.main_light_insensity = 3.0;
         self.light_buffer.write(ctx, &self.light);
 
         // Render
-        self.grass_renderer.render(
-            ctx,
-            &self.camera,
-            &self.deferred_buffers,
-            &mut self.shader_cache,
-        );
 
-        // self.pbr_renderer.add_mesh(
-        //     self.sphere_mesh.clone(),
-        //     self.plane_material.clone(),
-        //     Transform3D::default()
-        //         .with_pos(vec3(0.0, 15.0, 0.0))
-        //         .with_rot(Quat::from_rotation_x(-PI / 2.0))
-        //         .with_scale(Vec3::ONE * 5.0),
-        // );
         self.pbr_renderer.add_mesh(
             self.plane_mesh.clone(),
             self.plane_material.clone(),
             Transform3D::default()
-                // .with_pos(vec3(0.0, 0.0, 0.0))
+                .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
-                .with_scale(Vec3::ONE * 100.0),
+                .with_scale(Vec3::ONE * 1000.0),
         );
-        // self.pbr_renderer.render_bounding_boxes(
-        //     ctx,
-        //     &mut self.gizmo_renderer,
-        //     &mut self.mesh_cache,
-        // );
-        if input::key_pressed(ctx, KeyCode::KeyL) {
-            self.pbr_renderer.render(
-                ctx,
-                self.framebuffer.view_ref(),
-                self.framebuffer.format(),
-                &mut self.mesh_cache,
-                &mut self.image_cache,
-                &self.camera,
-                &self.camera_buffer,
-                &self.light_buffer,
-                &self.deferred_buffers.depth,
-            );
-        } else {
-            self.pbr_renderer.render_deferred(
-                ctx,
-                &self.deferred_buffers,
-                &mut self.mesh_cache,
-                &mut self.image_cache,
-                &self.camera,
-                &self.camera_buffer,
-                &self.light_buffer,
-            );
-        }
-
-        //Mesh
-        self.deferred_renderer.render(
+        self.pbr_renderer.render(
             ctx,
+            &mut self.mesh_cache,
+            &mut self.image_cache,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
-            &self.deferred_buffers,
+            &self.camera,
             &self.camera_buffer,
             &self.light_buffer,
+            &self.depth_buffer,
+        );
+
+        self.grass_renderer.render(
+            ctx,
             &mut self.shader_cache,
+            &self.camera,
+            &self.camera_buffer,
+            &self.frustum_buffer,
+            grass_renderer::RenderMode::Forward {
+                view: self.framebuffer.view_ref(),
+                view_format: self.framebuffer.format(),
+                depth_buffer: &self.depth_buffer,
+            },
         );
 
         self.gizmo_renderer.render(
@@ -278,34 +239,13 @@ impl Callbacks for App {
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize(ctx, new_size);
-        // self.deferred_buffers.resize(ctx, new_size);
         self.framebuffer.resize(ctx, new_size);
-        // self.deferred_renderer.rebuild_bindgroup(
-        //     ctx,
-        //     &self.deferred_buffers,
-        //     &self.camera_buffer,
-        //     &self.light_buffer,
-        // );
+        self.depth_buffer.resize(ctx, new_size);
+        self.gui_renderer.resize(ctx, new_size);
     }
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
-        // hot reload
-        // #[cfg(debug_assertions)]
-        // if input::key_just_pressed(ctx, KeyCode::KeyR) {
-        //     self.grass_renderer =
-        //         GrassRenderer::new(ctx, &self.deferred_buffers, &self.camera_buffer);
-        //     self.deferred_renderer = gbase_utils::DeferredRenderer::new(
-        //         ctx,
-        //         self.framebuffer.format(),
-        //         &self.deferred_buffers,
-        //         &self.camera_buffer,
-        //         &self.light_buffer,
-        //     );
-        //     // self.mesh_renderer = gbase_utils::MeshRenderer::new(ctx, &self.deferred_buffers);
-        //     println!("reload");
-        // }
-
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
