@@ -1,3 +1,6 @@
+mod bloom;
+
+use bloom::Tonemap;
 use gbase::{
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
@@ -17,6 +20,10 @@ pub async fn run() {
 }
 
 struct App {
+    hdr_framebuffer: render::FrameBuffer,
+    ldr_framebuffer: render::FrameBuffer,
+    framebuffer_renderer: gbase_utils::TextureRenderer,
+
     image_cache: AssetCache<Image, GpuImage>,
     mesh_cache: AssetCache<Mesh, GpuMesh>,
     shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
@@ -38,8 +45,8 @@ struct App {
     helmet_material: Arc<GpuMaterial>,
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
-    sphere_mesh_handle: gbase_utils::AssetHandle<Mesh>,
-    sphere_material: Arc<GpuMaterial>,
+
+    tonemap: Tonemap,
 }
 
 fn load_simple_mesh(
@@ -71,8 +78,20 @@ impl Callbacks for App {
     fn new(ctx: &mut Context) -> Self {
         let mut image_cache = AssetCache::new();
         let mut mesh_cache = AssetCache::new();
-        let shader_cache = AssetCache::new();
+        let mut shader_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
+
+        let hdr_framebuffer = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .format(wgpu::TextureFormat::Rgba16Float)
+            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+            .build(ctx);
+        let ldr_framebuffer = render::FrameBufferBuilder::new()
+            .screen_size(ctx)
+            .format(wgpu::TextureFormat::Rgba8Unorm)
+            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+            .build(ctx);
+        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
@@ -104,14 +123,6 @@ impl Callbacks for App {
             &pbr_renderer,
         );
 
-        let (sphere_mesh_handle, sphere_material) = load_simple_mesh(
-            &load_b!("models/sphere.glb").unwrap(),
-            &mut mesh_cache,
-            &mut image_cache,
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
-
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
                 .pos(vec3(0.0, 0.0, 3.0));
@@ -135,7 +146,15 @@ impl Callbacks for App {
         let lights_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
+        let tonemap = Tonemap::new(ctx, &mut shader_cache);
+
         Self {
+            hdr_framebuffer,
+            ldr_framebuffer,
+            depth_buffer,
+            framebuffer_renderer,
+            tonemap,
+
             pbr_renderer,
             ui_renderer,
             gizmo_renderer,
@@ -144,8 +163,6 @@ impl Callbacks for App {
 
             camera,
             camera_buffer,
-
-            depth_buffer,
 
             image_cache,
             mesh_cache,
@@ -160,10 +177,80 @@ impl Callbacks for App {
 
             cube_mesh_handle,
             cube_material,
-
-            sphere_mesh_handle,
-            sphere_material,
         }
+    }
+
+    #[no_mangle]
+    fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        self.mesh_cache.check_watched_files(ctx);
+        self.image_cache.check_watched_files(ctx);
+        self.shader_cache.check_watched_files(ctx);
+
+        self.hdr_framebuffer.clear(ctx, wgpu::Color::BLACK);
+        self.depth_buffer.clear(ctx);
+
+        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.lights_buffer.write(ctx, &self.lights);
+
+        let t = time::time_since_start(ctx);
+        self.pbr_renderer.add_mesh(
+            self.helmet_mesh_handle.clone(),
+            self.helmet_material.clone(),
+            Transform3D::default()
+                .with_pos(vec3(0.0, 0.0, 0.0))
+                .with_scale(Vec3::ONE * 5.0)
+                .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
+        );
+
+        self.pbr_renderer.render(
+            ctx,
+            &mut self.mesh_cache,
+            &mut self.image_cache,
+            self.hdr_framebuffer.view_ref(),
+            self.hdr_framebuffer.format(),
+            &self.camera,
+            &self.camera_buffer,
+            &self.lights_buffer,
+            &self.depth_buffer,
+        );
+        self.gizmo_renderer.render(
+            ctx,
+            self.hdr_framebuffer.view_ref(),
+            self.hdr_framebuffer.format(),
+            &self.camera_buffer,
+        );
+
+        // self.ui_renderer.display_debug_info(ctx);
+        self.ui_renderer.render(
+            ctx,
+            self.hdr_framebuffer.view_ref(),
+            self.hdr_framebuffer.format(),
+        );
+
+        self.tonemap.tonemap(
+            ctx,
+            &mut self.shader_cache,
+            &self.hdr_framebuffer,
+            &self.ldr_framebuffer,
+        );
+
+        self.framebuffer_renderer.render(
+            ctx,
+            self.ldr_framebuffer.view(),
+            screen_view,
+            render::surface_format(ctx),
+        );
+
+        false
+    }
+
+    #[no_mangle]
+    fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+        self.depth_buffer.resize(ctx, new_size);
+        self.ui_renderer.resize(ctx, new_size);
+        self.gizmo_renderer.resize(ctx, new_size);
+        self.hdr_framebuffer.resize(ctx, new_size);
+        self.ldr_framebuffer.resize(ctx, new_size);
     }
 
     #[no_mangle]
@@ -176,20 +263,6 @@ impl Callbacks for App {
             log::warn!("RESTART");
             *self = Self::new(ctx);
         }
-
-        false
-    }
-
-    #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        self.mesh_cache.check_watched_files(ctx);
-        self.image_cache.check_watched_files(ctx);
-        self.shader_cache.check_watched_files(ctx);
-
-        self.depth_buffer.clear(ctx);
-
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
-        self.lights_buffer.write(ctx, &self.lights);
 
         let outer = Widget::new()
             .label("outer")
@@ -250,75 +323,7 @@ impl Callbacks for App {
             });
         });
 
-        // let elems = 10000u32;
-        // for x in 0..(elems.isqrt()) {
-        //     for z in 0..(elems.isqrt()) {
-        //         let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
-        //             .with_rot(Quat::from_rotation_y(
-        //                 (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
-        //             ));
-        //
-        //         // self.pbr_renderer.add_mesh(
-        //         //     self.cube_mesh_handle.clone(),
-        //         //     self.cube_material.clone(),
-        //         //     transform,
-        //         // );
-        //
-        //         if (x + z) % 2 == 0 {
-        //             self.pbr_renderer.add_mesh(
-        //                 self.ak47_mesh_handle.clone(),
-        //                 self.ak47_material.clone(),
-        //                 transform,
-        //             );
-        //         } else {
-        //             self.pbr_renderer.add_mesh(
-        //                 self.helmet_mesh_handle.clone(),
-        //                 self.helmet_material.clone(),
-        //                 transform,
-        //             );
-        //         }
-        //     }
-        // }
-
-        let t = time::time_since_start(ctx);
-        self.pbr_renderer.add_mesh(
-            self.helmet_mesh_handle.clone(),
-            self.helmet_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(0.0, 0.0, 0.0))
-                .with_scale(Vec3::ONE * 5.0)
-                .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
-        );
-
-        self.pbr_renderer.render(
-            ctx,
-            &mut self.mesh_cache,
-            &mut self.image_cache,
-            screen_view,
-            render::surface_format(ctx),
-            &self.camera,
-            &self.camera_buffer,
-            &self.lights_buffer,
-            &self.depth_buffer,
-        );
-        self.gizmo_renderer.render(
-            ctx,
-            screen_view,
-            render::surface_format(ctx),
-            &self.camera_buffer,
-        );
-        // self.ui_renderer.display_debug_info(ctx);
-        self.ui_renderer
-            .render(ctx, screen_view, render::surface_format(ctx));
-
         false
-    }
-
-    #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
-        self.depth_buffer.resize(ctx, new_size);
-        self.ui_renderer.resize(ctx, new_size);
-        self.gizmo_renderer.resize(ctx, new_size);
     }
 }
 
@@ -328,3 +333,33 @@ impl App {
         Self::init_ctx().init_logging();
     }
 }
+
+// let elems = 10000u32;
+// for x in 0..(elems.isqrt()) {
+//     for z in 0..(elems.isqrt()) {
+//         let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
+//             .with_rot(Quat::from_rotation_y(
+//                 (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
+//             ));
+//
+//         // self.pbr_renderer.add_mesh(
+//         //     self.cube_mesh_handle.clone(),
+//         //     self.cube_material.clone(),
+//         //     transform,
+//         // );
+//
+//         if (x + z) % 2 == 0 {
+//             self.pbr_renderer.add_mesh(
+//                 self.ak47_mesh_handle.clone(),
+//                 self.ak47_material.clone(),
+//                 transform,
+//             );
+//         } else {
+//             self.pbr_renderer.add_mesh(
+//                 self.helmet_mesh_handle.clone(),
+//                 self.helmet_material.clone(),
+//                 transform,
+//             );
+//         }
+//     }
+// }

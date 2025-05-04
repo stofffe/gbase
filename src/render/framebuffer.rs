@@ -159,6 +159,12 @@ impl FrameBuffer {
     pub fn format(&self) -> wgpu::TextureFormat {
         self.texture().format()
     }
+    pub fn width(&self) -> u32 {
+        self.texture.width()
+    }
+    pub fn height(&self) -> u32 {
+        self.texture.height()
+    }
 
     pub fn clear(&self, ctx: &Context, color: wgpu::Color) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);

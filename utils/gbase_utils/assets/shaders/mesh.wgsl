@@ -171,22 +171,17 @@ fn pbr_lighting(
     let F0 = mix(vec3f(0.04), albedo, metalness);
 
     let emission = emissivity;
-    let radiance = light_color; // falloff when using point light
+    let radiance = light_color; // TODO: falloff when using point light
     let brdf = brdf_lambert_cook(roughness, metalness, F0, albedo, N, V, L, H);
     let ldotn = safe_dot(L, N);
 
     let light = emission + brdf * radiance * ldotn;
 
-    // if true {
-    //     return vec3f(albedo);
-    // }
-
     let ambient = vec3f(0.03) * albedo * ambient_occlusion;
     let hdr_color = ambient + light;
 
-    var ldr_color = hdr_color / (hdr_color + vec3f(1.0));
-    // ldr_color = hdr_color;
-    // ldr_color = pow(ldr_color, vec3(1.0 / 2.2));
+    // let ldr_color = tone_mapping_reinhard(hdr_color);
+    let ldr_color = hdr_color;
 
     return ldr_color;
 }
@@ -264,4 +259,8 @@ fn safe_division_vec3(num: vec3f, denom: vec3f) -> vec3f {
 
 fn decode_gamma_correction(in: vec4f) -> vec4f {
     return pow(in, vec4f(2.2));
+}
+
+fn tone_mapping_reinhard(color: vec3f) -> vec3f {
+    return color / (color + vec3f(1.0));
 }

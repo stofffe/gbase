@@ -1,9 +1,11 @@
 mod grass_renderer;
 
 use gbase::{
-    filesystem, glam, input, log,
+    filesystem,
+    glam::{vec2, vec3, vec4, Quat, Vec3},
+    input, log,
     render::{self, MeshBuilder},
-    time, wgpu,
+    wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     Callbacks, Context,
 };
@@ -11,18 +13,16 @@ use gbase_utils::{
     AssetCache, AssetHandle, CameraFrustum, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache,
     Transform3D,
 };
-use glam::{vec2, vec3, vec4, Quat, Vec3, Vec4};
 use grass_renderer::GrassRenderer;
-use std::{f32::consts::PI, fmt::write, sync::Arc};
+use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
     gbase::run::<App>().await;
 }
 
-const CAMERA_MOVE_SPEED: f32 = 15.0;
-const PLANE_SIZE: f32 = 500.0;
-const PLANE_COLOR: [f32; 4] = [0.0, 0.4, 0.0, 1.0];
+const PLANE_SIZE: f32 = 1000.0;
+const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 pub struct App {
     camera: gbase_utils::Camera,
@@ -31,7 +31,6 @@ pub struct App {
     light_buffer: render::UniformBuffer<PbrLightUniforms>,
     light: PbrLightUniforms,
 
-    // light: Vec3,
     depth_buffer: render::DepthBuffer,
     grass_renderer: GrassRenderer,
     gui_renderer: gbase_utils::GUIRenderer,
@@ -104,8 +103,6 @@ impl Callbacks for App {
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         // Renderers
-        // let deferred_buffers = gbase_utils::DeferredBuffers::new(ctx);
-        // let deferred_renderer = gbase_utils::DeferredRenderer::new(ctx, &mut shader_cache);
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
@@ -127,12 +124,12 @@ impl Callbacks for App {
         let plane_material = Arc::new(
             PbrMaterial {
                 base_color_texture: None,
-                color_factor: [0.3, 1.0, 0.2, 1.0],
+                color_factor: PLANE_COLOR,
                 metallic_roughness_texture: None,
                 roughness_factor: 1.0,
                 metallic_factor: 0.0,
                 occlusion_texture: None,
-                occlusion_strength: 0.0,
+                occlusion_strength: 1.0,
                 normal_texture: None,
                 normal_scale: 1.0,
                 emissive_texture: None,
@@ -179,18 +176,16 @@ impl Callbacks for App {
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        // self.light.main_light_insensity = 3.0;
         self.light_buffer.write(ctx, &self.light);
 
         // Render
-
         self.pbr_renderer.add_mesh(
             self.plane_mesh.clone(),
             self.plane_material.clone(),
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
-                .with_scale(Vec3::ONE * 1000.0),
+                .with_scale(Vec3::ONE * PLANE_SIZE),
         );
         self.pbr_renderer.render(
             ctx,
@@ -262,34 +257,11 @@ impl Callbacks for App {
             return false;
         }
 
-        // self.plane_transform.pos.x = self.camera.pos.x;
-        // self.plane_transform.pos.z = self.camera.pos.z;
-
         self.camera.flying_controls(ctx);
 
         // debug camera pos
         if input::key_pressed(ctx, KeyCode::KeyC) {
             log::info!("{}", self.camera.pos);
-        }
-
-        // debug text
-        if input::key_pressed(ctx, KeyCode::KeyF) {
-            let avg_ms = time::frame_time(ctx) * 1000.0;
-            let avg_fps = 1.0 / time::frame_time(ctx);
-            let strings = [format!("fps {avg_fps:.5}"), format!("ms  {avg_ms:.5}")];
-
-            const DEBUG_HEIGH: f32 = 0.05;
-            const DEBUG_COLOR: Vec4 = vec4(1.0, 1.0, 1.0, 1.0);
-            for (i, text) in strings.iter().enumerate() {
-                // self.gui_renderer.text(
-                //     text,
-                //     vec2(0.0, DEBUG_HEIGH * i as f32),
-                //     vec2(0.5, 0.5),
-                //     DEBUG_HEIGH,
-                //     DEBUG_COLOR,
-                //     false,
-                // );
-            }
         }
 
         false
