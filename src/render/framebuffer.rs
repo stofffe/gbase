@@ -124,6 +124,10 @@ impl FrameBuffer {
         }
     }
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        if self.size() != new_size {
+            return;
+        }
+
         let device = render::device(ctx);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: self.label.as_deref(), // TODO:
@@ -164,6 +168,9 @@ impl FrameBuffer {
     }
     pub fn height(&self) -> u32 {
         self.texture.height()
+    }
+    pub fn size(&self) -> winit::dpi::PhysicalSize<u32> {
+        winit::dpi::PhysicalSize::new(self.width(), self.height())
     }
 
     pub fn clear(&self, ctx: &Context, color: wgpu::Color) {

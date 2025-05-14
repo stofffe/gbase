@@ -1,6 +1,6 @@
 mod bloom;
 
-use bloom::Tonemap;
+use bloom::{Bloom, Tonemap};
 use gbase::{
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
@@ -9,8 +9,9 @@ use gbase::{
     time, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, AssetCache, AssetHandle, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer,
-    PixelCache, SizeKind, Transform3D, Widget, BLACK, BLUE, GRAY, RED, WHITE,
+    Alignment, AssetCache, AssetHandle, Direction, GaussianFilterParams, GpuMaterial,
+    PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget, BLACK, BLUE, GRAY,
+    RED, WHITE,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -20,7 +21,8 @@ pub async fn run() {
 }
 
 struct App {
-    hdr_framebuffer: render::FrameBuffer,
+    hdr_framebuffer_1: render::FrameBuffer,
+    hdr_framebuffer_2: render::FrameBuffer,
     ldr_framebuffer: render::FrameBuffer,
     framebuffer_renderer: gbase_utils::TextureRenderer,
 
@@ -46,7 +48,8 @@ struct App {
     cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
 
-    tonemap: Tonemap,
+    tonemap: bloom::Tonemap,
+    bloom: bloom::Bloom,
 }
 
 fn load_simple_mesh(
@@ -81,15 +84,22 @@ impl Callbacks for App {
         let mut shader_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
 
-        let hdr_framebuffer = render::FrameBufferBuilder::new()
+        let hdr_framebuffer_builder = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba16Float)
-            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-            .build(ctx);
+            .usage(
+                wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::STORAGE_BINDING,
+            );
+        let hdr_framebuffer = hdr_framebuffer_builder.clone().label("hdr 1").build(ctx);
+        let hdr_framebuffer_2 = hdr_framebuffer_builder.label("hdr 2").build(ctx);
+
         let ldr_framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+            .label("ldr")
             .build(ctx);
         let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
 
@@ -146,14 +156,17 @@ impl Callbacks for App {
         let lights_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let tonemap = Tonemap::new(ctx, &mut shader_cache);
+        let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
+        let bloom = bloom::Bloom::new(ctx, &mut shader_cache);
 
         Self {
-            hdr_framebuffer,
+            hdr_framebuffer_1: hdr_framebuffer,
+            hdr_framebuffer_2,
             ldr_framebuffer,
             depth_buffer,
             framebuffer_renderer,
             tonemap,
+            bloom,
 
             pbr_renderer,
             ui_renderer,
@@ -186,7 +199,7 @@ impl Callbacks for App {
         self.image_cache.check_watched_files(ctx);
         self.shader_cache.check_watched_files(ctx);
 
-        self.hdr_framebuffer.clear(ctx, wgpu::Color::BLACK);
+        self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
@@ -198,16 +211,15 @@ impl Callbacks for App {
             self.helmet_material.clone(),
             Transform3D::default()
                 .with_pos(vec3(0.0, 0.0, 0.0))
-                .with_scale(Vec3::ONE * 5.0)
-                .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
+                .with_scale(Vec3::ONE * 5.0), // .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
         );
 
         self.pbr_renderer.render(
             ctx,
             &mut self.mesh_cache,
             &mut self.image_cache,
-            self.hdr_framebuffer.view_ref(),
-            self.hdr_framebuffer.format(),
+            self.hdr_framebuffer_1.view_ref(),
+            self.hdr_framebuffer_1.format(),
             &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,
@@ -215,22 +227,28 @@ impl Callbacks for App {
         );
         self.gizmo_renderer.render(
             ctx,
-            self.hdr_framebuffer.view_ref(),
-            self.hdr_framebuffer.format(),
+            self.hdr_framebuffer_1.view_ref(),
+            self.hdr_framebuffer_1.format(),
             &self.camera_buffer,
         );
 
-        // self.ui_renderer.display_debug_info(ctx);
-        self.ui_renderer.render(
+        self.bloom.render(
             ctx,
-            self.hdr_framebuffer.view_ref(),
-            self.hdr_framebuffer.format(),
+            &mut self.shader_cache,
+            &self.hdr_framebuffer_1,
+            &self.hdr_framebuffer_2,
         );
+
+        let final_hdr_buffer = &self.hdr_framebuffer_2;
+
+        self.ui_renderer.display_debug_info(ctx);
+        self.ui_renderer
+            .render(ctx, final_hdr_buffer.view_ref(), final_hdr_buffer.format());
 
         self.tonemap.tonemap(
             ctx,
             &mut self.shader_cache,
-            &self.hdr_framebuffer,
+            final_hdr_buffer,
             &self.ldr_framebuffer,
         );
 
@@ -249,7 +267,8 @@ impl Callbacks for App {
         self.depth_buffer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
-        self.hdr_framebuffer.resize(ctx, new_size);
+        self.hdr_framebuffer_1.resize(ctx, new_size);
+        self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
     }
 
