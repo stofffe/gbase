@@ -124,7 +124,7 @@ impl FrameBuffer {
         }
     }
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
-        if self.size() != new_size {
+        if self.size() == new_size {
             return;
         }
 
