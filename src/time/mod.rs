@@ -56,11 +56,12 @@ impl TimeContext {
         let (new_ms, old_ms) = (self.delta_time, self.frame_times[self.frame_index]);
         self.frame_times[self.frame_index] = new_ms;
         self.frame_index = (self.frame_index + 1) % MS_AVERAGE_SAMPLED_TICKS;
-        self.frame_time_sum += new_ms - old_ms;
+        self.frame_time_sum += new_ms;
+        self.frame_time_sum -= old_ms;
         self.frame_time_avg = self.frame_time_sum / MS_AVERAGE_SAMPLED_TICKS as f32;
 
         // time since start
-        self.time_since_start = Instant::now().duration_since(self.start_time).as_secs_f32();
+        self.time_since_start = now.duration_since(self.start_time).as_secs_f32();
 
         self.last_time = now;
     }
@@ -85,45 +86,12 @@ pub fn delta_time(ctx: &Context) -> f32 {
     ctx.time.delta_time
 }
 
-/// Returns the frame time (in seconds) for the last 500ms
+/// Returns the frame time (in seconds) for the last 100 frames
 pub fn frame_time(ctx: &Context) -> f32 {
     ctx.time.frame_time_avg
 }
 
-/// Returns the frame time (in seconds) for the last 500ms
+/// Returns the frame time (in seconds) for the last 100 frames
 pub fn fps(ctx: &Context) -> f32 {
     1.0 / ctx.time.frame_time_avg
 }
-
-// /// Returns the current time at the start of the current frame
-// pub fn current_time(ctx: &Context) -> instant::Instant {
-//     ctx.time.current_time
-// }
-
-// target fps
-// let goal = 1f32 / 60f32;
-// let time_to_target = goal - self.last_dt;
-// if time_to_target > 0.0 {
-// spin_sleep::sleep(time::Duration::from_secs_f32(time_to_target));
-// std::thread::sleep(time::Duration::from_secs_f32(time_to_target));
-// println!(
-//     "ms {}, target {}, sleep {}, elapsed {}",
-//     self.last_ms,
-//     goal,
-//     time_to_target,
-//     now.elapsed().as_secs_f32()
-// );
-// }
-// println!("elapsed {}", now.elapsed().as_secs_f32());
-// self.current_time = instant::Instant::now();
-
-// frame target
-// if let Some(frame_target) = self.frame_target {
-//     let ms_per_frame = Duration::from_secs_f32(1.0 / frame_target);
-//     let time_to_sleep = self.last_time + ms_per_frame - now;
-//     // println!("MS {:?}", ms_per_frame);
-//     // println!("TO SLEEP {:?}", time_to_sleep);
-//     // TODO wasm support
-//     spin_sleep::sleep(time_to_sleep);
-//     // thread::sleep(time_to_sleep);
-// }

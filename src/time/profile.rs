@@ -2,30 +2,71 @@ use crate::{render, Context};
 
 use super::Instant;
 
-pub struct ProfileTimer {
-    name: &'static str,
+// pub struct ProfileTimer {
+//     name: &'static str,
+//     start: Instant,
+// }
+//
+// impl ProfileTimer {
+//     pub fn new(name: &'static str) -> Self {
+//         let start = Instant::now();
+//         Self { name, start }
+//     }
+//
+//     pub fn log(self) {
+//         drop(self);
+//     }
+// }
+//
+// impl Drop for ProfileTimer {
+//     fn drop(&mut self) {
+//         let time = self.start.elapsed().as_secs_f64() * 1000.0;
+//         log::info!("[PROFILE] {:.5} ms: {}", time, self.name);
+//     }
+// }
+
+#[derive(Clone, Debug)]
+pub struct ProfileResult {
+    pub label: &'static str,
+    pub time_ms: f32,
+}
+
+pub struct CpuProfileTimer {
+    label: &'static str,
     start: Instant,
 }
 
-impl ProfileTimer {
-    pub fn new(name: &'static str) -> Self {
+impl CpuProfileTimer {
+    pub fn new(label: &'static str) -> Self {
         let start = Instant::now();
-        Self { name, start }
-    }
-
-    pub fn log(self) {
-        drop(self);
+        Self { label, start }
     }
 }
 
-impl Drop for ProfileTimer {
-    fn drop(&mut self) {
-        let time = self.start.elapsed().as_secs_f64() * 1000.0;
-        log::info!("[PROFILE] {:.5} ms: {}", time, self.name);
+pub struct CpuProfiler {
+    times: Vec<ProfileResult>,
+}
+
+impl CpuProfiler {
+    pub fn new() -> Self {
+        Self { times: Vec::new() }
+    }
+
+    pub fn profile(&mut self, timer: CpuProfileTimer) {
+        self.times.push(ProfileResult {
+            label: timer.label,
+            time_ms: timer.start.elapsed().as_secs_f32() * 1000.0,
+        });
+    }
+
+    pub fn readback(&mut self) -> Vec<ProfileResult> {
+        let times = self.times.clone();
+        self.times.clear();
+        times
     }
 }
 
-pub struct TimestampQueryPool {
+pub struct GpuProfiler {
     times: Vec<(&'static str, u32, u32)>,
     next_free_timestamp: u32,
     capacity: u32,
@@ -35,7 +76,7 @@ pub struct TimestampQueryPool {
     timestamp_readback_buffer: wgpu::Buffer,
 }
 
-impl TimestampQueryPool {
+impl GpuProfiler {
     pub fn new(ctx: &Context, capacity: u32) -> Self {
         let timestamp_query_set = render::device(ctx).create_query_set(&wgpu::QuerySetDescriptor {
             label: None,
@@ -118,7 +159,7 @@ impl TimestampQueryPool {
         res
     }
 
-    pub fn compute_pass(&mut self, label: &'static str) -> wgpu::ComputePassTimestampWrites<'_> {
+    pub fn profile_compute(&mut self, label: &'static str) -> wgpu::ComputePassTimestampWrites<'_> {
         debug_assert!(
             self.next_free_timestamp + 1 < self.capacity,
             "max capacity of timestamp query set reached: {}",
@@ -136,7 +177,7 @@ impl TimestampQueryPool {
         timestamp_writes
     }
 
-    pub fn render_pass(&mut self, label: &'static str) -> wgpu::RenderPassTimestampWrites<'_> {
+    pub fn profile_render(&mut self, label: &'static str) -> wgpu::RenderPassTimestampWrites<'_> {
         debug_assert!(
             self.next_free_timestamp + 1 < self.capacity,
             "max capacity of timestamp query set reached: {}",

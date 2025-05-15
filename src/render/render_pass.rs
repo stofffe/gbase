@@ -195,8 +195,8 @@ impl<'a> RenderPassBuilder<'a> {
         self.depth_stencil_attachment = Some(value);
         self
     }
-    pub fn timestamp_writes(mut self, value: wgpu::RenderPassTimestampWrites<'a>) -> Self {
-        self.timestamp_writes = Some(value);
+    pub fn timestamp_writes(mut self, value: Option<wgpu::RenderPassTimestampWrites<'a>>) -> Self {
+        self.timestamp_writes = value;
         self
     }
     pub fn occlusion_query_set(mut self, value: &'a wgpu::QuerySet) -> Self {

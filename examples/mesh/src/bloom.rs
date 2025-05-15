@@ -48,7 +48,7 @@ impl Tonemap {
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
-        timestamp_pool: Option<&mut time::TimestampQueryPool>,
+        timestamp_pool: Option<&mut time::GpuProfiler>,
     ) {
         debug_assert!(hdr_framebuffer.format() == wgpu::TextureFormat::Rgba16Float);
         debug_assert!(ldr_framebuffer.format() == wgpu::TextureFormat::Rgba8Unorm);
@@ -67,7 +67,7 @@ impl Tonemap {
             render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone()).build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(timestamp_pool.map(|t| t.compute_pass("tonemap")))
+            .timestamp_writes(timestamp_pool.map(|t| t.profile_compute("tonemap")))
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&pipeline);
                 pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
@@ -204,7 +204,7 @@ impl Bloom {
         input_buffer: &render::FrameBuffer,
         output_buffer: &render::FrameBuffer,
 
-        timestamp_pool: Option<&mut time::TimestampQueryPool>,
+        timestamp_pool: Option<&mut time::GpuProfiler>,
     ) {
         debug_assert!(input_buffer.format() == wgpu::TextureFormat::Rgba16Float);
         debug_assert!(output_buffer.format() == wgpu::TextureFormat::Rgba16Float);
@@ -238,7 +238,11 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(timestamp_pool.as_mut().map(|t| t.compute_pass("extract")))
+            .timestamp_writes(
+                timestamp_pool
+                    .as_mut()
+                    .map(|t| t.profile_compute("extract")),
+            )
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&extract_pipeline);
                 pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
@@ -286,7 +290,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(timestamp_pool.as_mut().map(|t| t.compute_pass("blur")))
+            .timestamp_writes(timestamp_pool.as_mut().map(|t| t.profile_compute("blur")))
             .build_run(&mut encoder, |mut pass| {
                 for _ in 0..3 {
                     pass.set_pipeline(&blur_horizontal_pipeline);
@@ -331,7 +335,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(timestamp_pool.map(|t| t.compute_pass("combine")))
+            .timestamp_writes(timestamp_pool.map(|t| t.profile_compute("combine")))
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&combine_pipeline);
                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);

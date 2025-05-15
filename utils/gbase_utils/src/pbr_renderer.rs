@@ -7,7 +7,7 @@ use gbase::{
     glam::{Vec3, Vec4Swizzles},
     log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder},
-    wgpu, Context,
+    time, wgpu, Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -291,6 +291,7 @@ impl PbrRenderer {
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
+        mut gpu_profiler: Option<&mut time::GpuProfiler>,
     ) {
         if self.frame_meshes.is_empty() {
             log::warn!("trying to render without any meshes");
@@ -404,6 +405,7 @@ impl PbrRenderer {
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
+            .timestamp_writes(gpu_profiler.as_mut().map(|t| t.profile_render("pbr")))
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run_submit(ctx, |mut pass| {
                 pass.set_pipeline(&pipeline);
