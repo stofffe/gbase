@@ -187,3 +187,30 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
         self.buffer.slice(bounds)
     }
 }
+
+/// DEBUG
+///
+/// Reads a mapped buffer
+///
+/// Panics if buffer is not mapped
+pub fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
+    ctx: &Context,
+    buffer: &wgpu::Buffer,
+) -> Vec<T> {
+    debug_assert!(buffer.usage().contains(wgpu::BufferUsages::MAP_READ));
+
+    let device = render::device(ctx);
+
+    let buffer_slice = buffer.slice(..);
+    let (sc, rc) = std::sync::mpsc::channel();
+    buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
+        sc.send(res).unwrap();
+    });
+    device.poll(wgpu::MaintainBase::Wait);
+    let _ = rc.recv().unwrap();
+    let data = buffer_slice.get_mapped_range();
+    let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+    drop(data);
+    buffer.unmap();
+    result
+}

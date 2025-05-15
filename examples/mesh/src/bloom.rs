@@ -1,7 +1,9 @@
+use std::time::Instant;
+
 use gbase::{
-    filesystem,
+    filesystem, log,
     render::{self, FrameBuffer, FrameBufferBuilder, UniformBufferBuilder},
-    wgpu, Context,
+    time, wgpu, Context,
 };
 use gbase_utils::{AssetCache, AssetHandle, GaussianFilterParams};
 
@@ -94,6 +96,11 @@ pub struct Bloom {
 
     buffer1: FrameBuffer,
     buffer2: FrameBuffer,
+
+    timestamp_query: time::TimestampQueryPool,
+    // timestamp_query_set: wgpu::QuerySet,
+    // timestamp_query_buffer: wgpu::Buffer,
+    // timestamp_readback_buffer: wgpu::Buffer,
 }
 
 impl Bloom {
@@ -176,7 +183,11 @@ impl Bloom {
             .screen_size(ctx)
             .build(ctx);
 
+        let timestamp_query = time::TimestampQueryPool::new(ctx, 6);
+
         Self {
+            timestamp_query,
+
             extract_pipeline_layout,
             extract_bindgroup_layout,
             extract_shader_handle,
@@ -210,6 +221,9 @@ impl Bloom {
         //
         // extract
         //
+
+        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
+
         let extract_bindgroup =
             render::BindGroupBuilder::new(self.extract_bindgroup_layout.clone())
                 .entries(vec![
@@ -227,13 +241,17 @@ impl Bloom {
         )
         .build(ctx);
 
-        render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-            pass.set_pipeline(&extract_pipeline);
-            pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
-            pass.dispatch_workgroups(output_buffer.width(), output_buffer.height(), 1);
-        });
-
-        // return
+        render::ComputePassBuilder::new()
+            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("extract"))
+            .build_run(&mut encoder, |mut pass| {
+                pass.set_pipeline(&extract_pipeline);
+                pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
+                pass.dispatch_workgroups(
+                    self.buffer1.width().div_ceil(16),
+                    self.buffer1.height().div_ceil(16),
+                    1,
+                );
+            });
 
         //
         // blur
@@ -271,20 +289,27 @@ impl Bloom {
         .entry_point("vertical")
         .build(ctx);
 
-        let width = output_buffer.width().div_ceil(16);
-        let height = output_buffer.height().div_ceil(16);
-        for _ in 0..5 {
-            render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&blur_horizontal_pipeline);
-                pass.set_bind_group(0, Some(blur_horizontal_bindgroup.as_ref()), &[]);
-                pass.dispatch_workgroups(width, height, 1);
+        render::ComputePassBuilder::new()
+            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("blur"))
+            .build_run(&mut encoder, |mut pass| {
+                for _ in 0..3 {
+                    pass.set_pipeline(&blur_horizontal_pipeline);
+                    pass.set_bind_group(0, Some(blur_horizontal_bindgroup.as_ref()), &[]);
+                    pass.dispatch_workgroups(
+                        self.buffer2.width().div_ceil(16),
+                        self.buffer2.height().div_ceil(16),
+                        1,
+                    );
+
+                    pass.set_pipeline(&blur_vertical_pipeline);
+                    pass.set_bind_group(0, Some(blur_vertical_bindgroup.as_ref()), &[]);
+                    pass.dispatch_workgroups(
+                        self.buffer1.width().div_ceil(16),
+                        self.buffer1.height().div_ceil(16),
+                        1,
+                    );
+                }
             });
-            render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&blur_vertical_pipeline);
-                pass.set_bind_group(0, Some(blur_vertical_bindgroup.as_ref()), &[]);
-                pass.dispatch_workgroups(width, height, 1);
-            });
-        }
 
         //
         // combine
@@ -309,46 +334,26 @@ impl Bloom {
         )
         .build(ctx);
 
-        render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-            pass.set_pipeline(&combine_pipeline);
-            pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);
-            pass.dispatch_workgroups(output_buffer.width(), output_buffer.height(), 1);
-        });
-    }
+        render::ComputePassBuilder::new()
+            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("combine"))
+            .build_run(&mut encoder, |mut pass| {
+                pass.set_pipeline(&combine_pipeline);
+                pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);
+                pass.dispatch_workgroups(
+                    output_buffer.width().div_ceil(16),
+                    output_buffer.height().div_ceil(16),
+                    1,
+                );
+            });
 
-    // pub fn extract_bright_pixels(
-    //     &self,
-    //     ctx: &mut Context,
-    //     shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-    //     input_buffer: &render::FrameBuffer,
-    //     output_buffer: &render::FrameBuffer,
-    // ) {
-    //     debug_assert!(input_buffer.format() == wgpu::TextureFormat::Rgba16Float);
-    //     debug_assert!(output_buffer.format() == wgpu::TextureFormat::Rgba16Float);
-    //
-    //     let bindgroup = render::BindGroupBuilder::new(self.extract_bindgroup_layout.clone())
-    //         .entries(vec![
-    //             // in
-    //             render::BindGroupEntry::Texture(input_buffer.view()),
-    //             // out
-    //             render::BindGroupEntry::Texture(output_buffer.view()),
-    //             // params
-    //         ])
-    //         .build(ctx);
-    //
-    //     let shader = shader_cache.get_gpu(ctx, self.extract_shader_handle.clone());
-    //     let pipeline =
-    //         render::ComputePipelineBuilder::new(shader, self.extract_pipeline_layout.clone())
-    //             .build(ctx);
-    //
-    //     render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-    //         pass.set_pipeline(&pipeline);
-    //         pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-    //         pass.dispatch_workgroups(output_buffer.width(), output_buffer.height(), 1);
-    //     });
-    // }
-    //
-    // pub fn blur_bright_pixels() {}
+        encoder.submit(ctx);
+
+        let timestamps = self.timestamp_query.readback(ctx);
+
+        for (label, time) in timestamps {
+            log::info!("{label}: {time} ms");
+        }
+    }
 }
 
 // pub struct GaussianBlur {

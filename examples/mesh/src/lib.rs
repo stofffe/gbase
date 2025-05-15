@@ -73,8 +73,12 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            // .vsync(false)
-            .device_features(wgpu::Features::POLYGON_MODE_LINE)
+            .vsync(false)
+            .device_features(
+                wgpu::Features::POLYGON_MODE_LINE
+                    | wgpu::Features::TIMESTAMP_QUERY
+                    | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
+            )
     }
 
     #[no_mangle]
@@ -98,7 +102,11 @@ impl Callbacks for App {
         let ldr_framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba8Unorm)
-            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+            .usage(
+                wgpu::TextureUsages::STORAGE_BINDING
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            )
             .label("ldr")
             .build(ctx);
         let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
@@ -195,6 +203,8 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        // time::ProfileTimer::new("render");
+
         self.mesh_cache.check_watched_files(ctx);
         self.image_cache.check_watched_files(ctx);
         self.shader_cache.check_watched_files(ctx);
@@ -239,17 +249,18 @@ impl Callbacks for App {
             &self.hdr_framebuffer_2,
         );
 
-        let final_hdr_buffer = &self.hdr_framebuffer_2;
-
-        self.ui_renderer.display_debug_info(ctx);
-        self.ui_renderer
-            .render(ctx, final_hdr_buffer.view_ref(), final_hdr_buffer.format());
-
         self.tonemap.tonemap(
             ctx,
             &mut self.shader_cache,
-            final_hdr_buffer,
+            &self.hdr_framebuffer_2,
             &self.ldr_framebuffer,
+        );
+
+        self.ui_renderer.display_debug_info(ctx);
+        self.ui_renderer.render(
+            ctx,
+            self.ldr_framebuffer.view_ref(),
+            self.ldr_framebuffer.format(),
         );
 
         self.framebuffer_renderer.render(
@@ -274,6 +285,8 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
+        // time::ProfileTimer::new("update");
+
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
@@ -350,6 +363,7 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
+        // render::set_vsync(_ctx, false);
     }
 }
 

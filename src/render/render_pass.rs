@@ -1,4 +1,10 @@
+use std::ops::{Deref, DerefMut};
+
 use crate::{render, Context};
+
+//
+// Command encoder
+//
 
 pub struct EncoderBuilder<'a> {
     label: Option<&'a str>,
@@ -13,7 +19,42 @@ impl EncoderBuilder<'_> {
         let device = render::device(ctx);
         device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: self.label })
     }
+
+    pub fn build_new(self, ctx: &Context) -> Encoder {
+        let device = render::device(ctx);
+        let encoder =
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: self.label });
+        Encoder { encoder }
+    }
 }
+
+pub struct Encoder {
+    encoder: wgpu::CommandEncoder,
+}
+
+impl Encoder {
+    pub fn submit(self, ctx: &Context) {
+        let queue = render::queue(ctx);
+        queue.submit([self.encoder.finish()]);
+    }
+}
+
+impl Deref for Encoder {
+    type Target = wgpu::CommandEncoder;
+    fn deref(&self) -> &Self::Target {
+        &self.encoder
+    }
+}
+
+impl DerefMut for Encoder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.encoder
+    }
+}
+
+//
+// Render pass
+//
 
 #[derive(Debug, Clone)]
 pub struct RenderPassColorAttachment<'a> {

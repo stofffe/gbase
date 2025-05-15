@@ -3,7 +3,7 @@
 
 const THRESHOLD = 1.0;
 
-@compute @workgroup_size(1, 1, 1)
+@compute @workgroup_size(16, 16, 1)
 fn extract(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dim = vec2<u32>(textureDimensions(in_texture));
     if (global_id.x >= dim.x || global_id.y >= dim.y) {
