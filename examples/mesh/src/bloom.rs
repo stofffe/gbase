@@ -48,6 +48,7 @@ impl Tonemap {
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
+        timestamp_pool: Option<&mut time::TimestampQueryPool>,
     ) {
         debug_assert!(hdr_framebuffer.format() == wgpu::TextureFormat::Rgba16Float);
         debug_assert!(ldr_framebuffer.format() == wgpu::TextureFormat::Rgba8Unorm);
@@ -65,11 +66,13 @@ impl Tonemap {
         let pipeline =
             render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone()).build(ctx);
 
-        render::ComputePassBuilder::new().build_run_submit(ctx, |mut pass| {
-            pass.set_pipeline(&pipeline);
-            pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-            pass.dispatch_workgroups(ldr_framebuffer.width(), ldr_framebuffer.height(), 1);
-        });
+        render::ComputePassBuilder::new()
+            .timestamp_writes(timestamp_pool.map(|t| t.compute_pass("tonemap")))
+            .build_run_submit(ctx, |mut pass| {
+                pass.set_pipeline(&pipeline);
+                pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
+                pass.dispatch_workgroups(ldr_framebuffer.width(), ldr_framebuffer.height(), 1);
+            });
     }
 }
 
@@ -283,11 +286,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(
-                timestamp_pool
-                    .as_mut()
-                    .map(|t| t.timestamp_writes_compute("blur")),
-            )
+            .timestamp_writes(timestamp_pool.as_mut().map(|t| t.compute_pass("blur")))
             .build_run(&mut encoder, |mut pass| {
                 for _ in 0..3 {
                     pass.set_pipeline(&blur_horizontal_pipeline);
@@ -332,7 +331,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(timestamp_pool.map(|t| t.timestamp_writes_compute("combine")))
+            .timestamp_writes(timestamp_pool.map(|t| t.compute_pass("combine")))
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&combine_pipeline);
                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);

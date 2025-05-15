@@ -169,7 +169,7 @@ impl Callbacks for App {
         let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
         let bloom = bloom::Bloom::new(ctx, &mut shader_cache);
 
-        let timestamp_query_pool = time::TimestampQueryPool::new(ctx, 6);
+        let timestamp_query_pool = time::TimestampQueryPool::new(ctx, 10);
 
         Self {
             hdr_framebuffer_1,
@@ -260,6 +260,7 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_2,
             &self.ldr_framebuffer,
+            Some(&mut self.timestamp_query_pool),
         );
 
         // self.ui_renderer.display_debug_info(ctx);
@@ -303,9 +304,6 @@ impl Callbacks for App {
         }
 
         let timestamps = self.timestamp_query_pool.readback(ctx);
-        // for (label, ms) in timestamps {
-        //     log::info!("{}: {}", label, ms);
-        // }
 
         let outer = Widget::new()
             .label("outer")

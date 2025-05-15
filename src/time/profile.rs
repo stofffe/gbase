@@ -79,10 +79,13 @@ impl TimestampQueryPool {
             return Vec::new();
         }
 
+        let timestamp_count = self.next_free_timestamp;
+        let readback_size = timestamp_count as u64 * std::mem::size_of::<u64>() as u64;
+
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         encoder.resolve_query_set(
             &self.timestamp_query_set,
-            0..6,
+            0..timestamp_count,
             &self.timestamp_query_buffer,
             0,
         );
@@ -91,13 +94,14 @@ impl TimestampQueryPool {
             0,
             &self.timestamp_readback_buffer,
             0,
-            self.timestamp_query_buffer.size(),
+            readback_size,
         );
 
         let queue = render::queue(ctx);
         queue.submit([encoder.finish()]);
 
-        let timestamps = render::read_buffer_sync::<u64>(ctx, &self.timestamp_readback_buffer);
+        let timestamps =
+            render::read_buffer_sync::<u64>(ctx, &self.timestamp_readback_buffer, 0, readback_size);
 
         let mut res = Vec::new();
 

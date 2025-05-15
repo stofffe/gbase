@@ -196,12 +196,14 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
 pub fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
     ctx: &Context,
     buffer: &wgpu::Buffer,
+    offset: u64,
+    size: u64,
 ) -> Vec<T> {
     debug_assert!(buffer.usage().contains(wgpu::BufferUsages::MAP_READ));
 
     let device = render::device(ctx);
 
-    let buffer_slice = buffer.slice(..);
+    let buffer_slice = buffer.slice(offset..offset + size);
     let (sc, rc) = std::sync::mpsc::channel();
     buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
         sc.send(res).unwrap();
