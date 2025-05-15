@@ -114,10 +114,7 @@ impl TimestampQueryPool {
         res
     }
 
-    pub fn timestamp_writes_compute(
-        &mut self,
-        label: &'static str,
-    ) -> wgpu::ComputePassTimestampWrites<'_> {
+    pub fn compute_pass(&mut self, label: &'static str) -> wgpu::ComputePassTimestampWrites<'_> {
         debug_assert!(
             self.next_free_timestamp + 1 < self.capacity,
             "max capacity of timestamp query set reached: {}",
@@ -135,10 +132,7 @@ impl TimestampQueryPool {
         timestamp_writes
     }
 
-    pub fn timestamp_writes_render(
-        &mut self,
-        label: &'static str,
-    ) -> wgpu::RenderPassTimestampWrites<'_> {
+    pub fn render_pass(&mut self, label: &'static str) -> wgpu::RenderPassTimestampWrites<'_> {
         debug_assert!(
             self.next_free_timestamp + 1 < self.capacity,
             "max capacity of timestamp query set reached: {}",

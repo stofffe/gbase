@@ -2,7 +2,7 @@ mod bloom;
 
 use bloom::{Bloom, Tonemap};
 use gbase::{
-    glam::{vec3, Quat, Vec3},
+    glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b, log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
@@ -50,6 +50,8 @@ struct App {
 
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
+
+    timestamp_query_pool: time::TimestampQueryPool,
 }
 
 fn load_simple_mesh(
@@ -73,7 +75,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(gbase::LogLevel::Info)
-            .vsync(false)
+            // .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -96,7 +98,7 @@ impl Callbacks for App {
                     | wgpu::TextureUsages::TEXTURE_BINDING
                     | wgpu::TextureUsages::STORAGE_BINDING,
             );
-        let hdr_framebuffer = hdr_framebuffer_builder.clone().label("hdr 1").build(ctx);
+        let hdr_framebuffer_1 = hdr_framebuffer_builder.clone().label("hdr 1").build(ctx);
         let hdr_framebuffer_2 = hdr_framebuffer_builder.label("hdr 2").build(ctx);
 
         let ldr_framebuffer = render::FrameBufferBuilder::new()
@@ -167,14 +169,17 @@ impl Callbacks for App {
         let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
         let bloom = bloom::Bloom::new(ctx, &mut shader_cache);
 
+        let timestamp_query_pool = time::TimestampQueryPool::new(ctx, 6);
+
         Self {
-            hdr_framebuffer_1: hdr_framebuffer,
+            hdr_framebuffer_1,
             hdr_framebuffer_2,
             ldr_framebuffer,
             depth_buffer,
             framebuffer_renderer,
             tonemap,
             bloom,
+            timestamp_query_pool,
 
             pbr_renderer,
             ui_renderer,
@@ -247,6 +252,7 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_1,
             &self.hdr_framebuffer_2,
+            Some(&mut self.timestamp_query_pool),
         );
 
         self.tonemap.tonemap(
@@ -256,7 +262,7 @@ impl Callbacks for App {
             &self.ldr_framebuffer,
         );
 
-        self.ui_renderer.display_debug_info(ctx);
+        // self.ui_renderer.display_debug_info(ctx);
         self.ui_renderer.render(
             ctx,
             self.ldr_framebuffer.view_ref(),
@@ -295,6 +301,11 @@ impl Callbacks for App {
             log::warn!("RESTART");
             *self = Self::new(ctx);
         }
+
+        let timestamps = self.timestamp_query_pool.readback(ctx);
+        // for (label, ms) in timestamps {
+        //     log::info!("{}: {}", label, ms);
+        // }
 
         let outer = Widget::new()
             .label("outer")
@@ -353,6 +364,20 @@ impl Callbacks for App {
                     .text_font_size(60.0)
                     .render(renderer);
             });
+            Widget::new()
+                .width(SizeKind::TextSize)
+                .height(SizeKind::TextSize)
+                .text(format!("total ms: {}", time::delta_time(ctx) * 1000.0))
+                .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                .render(renderer);
+            for (label, time) in timestamps {
+                Widget::new()
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text(format!("{}: {}", label, time))
+                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .render(renderer);
+            }
         });
 
         false

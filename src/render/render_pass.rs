@@ -258,8 +258,8 @@ impl<'a> ComputePassBuilder<'a> {
         self.label = Some(value);
         self
     }
-    pub fn timestamp_writes(mut self, value: wgpu::ComputePassTimestampWrites<'a>) -> Self {
-        self.timestamp_writes = Some(value);
+    pub fn timestamp_writes(mut self, value: Option<wgpu::ComputePassTimestampWrites<'a>>) -> Self {
+        self.timestamp_writes = value;
         self
     }
 }

@@ -1,11 +1,9 @@
-use std::time::Instant;
-
 use gbase::{
     filesystem, log,
-    render::{self, FrameBuffer, FrameBufferBuilder, UniformBufferBuilder},
+    render::{self, FrameBuffer, FrameBufferBuilder},
     time, wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, GaussianFilterParams};
+use gbase_utils::{AssetCache, AssetHandle};
 
 pub struct Tonemap {
     pipeline_layout: render::ArcPipelineLayout,
@@ -96,11 +94,6 @@ pub struct Bloom {
 
     buffer1: FrameBuffer,
     buffer2: FrameBuffer,
-
-    timestamp_query: time::TimestampQueryPool,
-    // timestamp_query_set: wgpu::QuerySet,
-    // timestamp_query_buffer: wgpu::Buffer,
-    // timestamp_readback_buffer: wgpu::Buffer,
 }
 
 impl Bloom {
@@ -183,11 +176,7 @@ impl Bloom {
             .screen_size(ctx)
             .build(ctx);
 
-        let timestamp_query = time::TimestampQueryPool::new(ctx, 6);
-
         Self {
-            timestamp_query,
-
             extract_pipeline_layout,
             extract_bindgroup_layout,
             extract_shader_handle,
@@ -211,12 +200,16 @@ impl Bloom {
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
         input_buffer: &render::FrameBuffer,
         output_buffer: &render::FrameBuffer,
+
+        timestamp_pool: Option<&mut time::TimestampQueryPool>,
     ) {
         debug_assert!(input_buffer.format() == wgpu::TextureFormat::Rgba16Float);
         debug_assert!(output_buffer.format() == wgpu::TextureFormat::Rgba16Float);
 
         self.buffer1.resize(ctx, input_buffer.size());
         self.buffer2.resize(ctx, input_buffer.size());
+
+        let mut timestamp_pool = timestamp_pool;
 
         //
         // extract
@@ -242,7 +235,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("extract"))
+            .timestamp_writes(timestamp_pool.as_mut().map(|t| t.compute_pass("extract")))
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&extract_pipeline);
                 pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
@@ -290,7 +283,11 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("blur"))
+            .timestamp_writes(
+                timestamp_pool
+                    .as_mut()
+                    .map(|t| t.timestamp_writes_compute("blur")),
+            )
             .build_run(&mut encoder, |mut pass| {
                 for _ in 0..3 {
                     pass.set_pipeline(&blur_horizontal_pipeline);
@@ -335,7 +332,7 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(self.timestamp_query.timestamp_writes_compute("combine"))
+            .timestamp_writes(timestamp_pool.map(|t| t.timestamp_writes_compute("combine")))
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&combine_pipeline);
                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);
@@ -347,12 +344,6 @@ impl Bloom {
             });
 
         encoder.submit(ctx);
-
-        let timestamps = self.timestamp_query.readback(ctx);
-
-        for (label, time) in timestamps {
-            log::info!("{label}: {time} ms");
-        }
     }
 }
 
