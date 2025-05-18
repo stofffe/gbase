@@ -74,6 +74,8 @@ pub struct GpuProfiler {
     timestamp_query_set: wgpu::QuerySet,
     timestamp_query_buffer: wgpu::Buffer,
     timestamp_readback_buffer: wgpu::Buffer,
+
+    enabled: bool,
 }
 
 impl GpuProfiler {
@@ -102,6 +104,7 @@ impl GpuProfiler {
 
         let times = Vec::with_capacity(capacity as usize);
         let previous_timestamp = 0;
+        let enabled = false;
 
         Self {
             times,
@@ -111,12 +114,18 @@ impl GpuProfiler {
             timestamp_query_set,
             timestamp_query_buffer,
             timestamp_readback_buffer,
+
+            enabled,
         }
     }
 
     pub fn readback(&mut self, ctx: &Context) -> Vec<(&'static str, f32)> {
         if self.times.is_empty() {
-            log::warn!("trying to read back empty timestamp query set");
+            log::warn!("trying to read back empty gpu profiler");
+            return Vec::new();
+        }
+        if !self.enabled {
+            log::warn!("trying to read back disabled gpu profiler");
             return Vec::new();
         }
 
@@ -159,7 +168,14 @@ impl GpuProfiler {
         res
     }
 
-    pub fn profile_compute(&mut self, label: &'static str) -> wgpu::ComputePassTimestampWrites<'_> {
+    pub fn profile_compute(
+        &mut self,
+        label: &'static str,
+    ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        if !self.enabled {
+            return None;
+        }
+
         debug_assert!(
             self.next_free_timestamp + 1 < self.capacity,
             "max capacity of timestamp query set reached: {}",
@@ -174,7 +190,7 @@ impl GpuProfiler {
         };
         self.times.push((label, start, end));
         self.next_free_timestamp += 2;
-        timestamp_writes
+        Some(timestamp_writes)
     }
 
     pub fn profile_render(&mut self, label: &'static str) -> wgpu::RenderPassTimestampWrites<'_> {
@@ -193,5 +209,9 @@ impl GpuProfiler {
         self.times.push((label, start, end));
         self.next_free_timestamp += 2;
         timestamp_writes
+    }
+
+    pub fn option(&mut self) -> Option<&mut Self> {
+        Some(self)
     }
 }

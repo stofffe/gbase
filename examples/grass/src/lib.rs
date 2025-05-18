@@ -197,6 +197,7 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.light_buffer,
             &self.depth_buffer,
+            None,
         );
 
         self.grass_renderer.render(

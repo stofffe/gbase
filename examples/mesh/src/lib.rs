@@ -242,8 +242,7 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
-            // None,
-            Some(&mut self.gpu_profiler),
+            self.gpu_profiler.option(),
         );
         self.gizmo_renderer.render(
             ctx,
@@ -257,8 +256,7 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_1,
             &self.hdr_framebuffer_2,
-            // None,
-            Some(&mut self.gpu_profiler),
+            self.gpu_profiler.option(),
         );
 
         self.tonemap.tonemap(
@@ -266,8 +264,7 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_2,
             &self.ldr_framebuffer,
-            // None,
-            Some(&mut self.gpu_profiler),
+            self.gpu_profiler.option(),
         );
 
         // self.ui_renderer.display_debug_info(ctx);
