@@ -6,7 +6,7 @@ use gbase::{
     input::{self, mouse_button_pressed},
     load_b, log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
-    time, wgpu, Callbacks, Context,
+    time, tracing, wgpu, Callbacks, Context,
 };
 use gbase_utils::{
     Alignment, AssetCache, AssetHandle, Direction, GaussianFilterParams, GpuMaterial,
@@ -75,7 +75,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Info)
+            .log_level(tracing::Level::INFO)
             .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE

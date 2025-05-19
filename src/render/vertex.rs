@@ -78,6 +78,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct VertexBuffer<T: VertexTrait> {
     buffer: ArcBuffer,
     capacity: usize,

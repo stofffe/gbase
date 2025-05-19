@@ -170,7 +170,7 @@ impl Default for Transform2D {
     }
 }
 
-#[derive(ShaderType)]
+#[derive(ShaderType, Debug)]
 pub struct TransformUniform {
     matrix: Mat4,
 }

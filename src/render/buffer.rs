@@ -163,6 +163,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct UniformBuffer<T: ShaderType + WriteInto> {
     buffer: ArcBuffer,
     ty: PhantomData<T>,

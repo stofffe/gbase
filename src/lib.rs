@@ -28,8 +28,10 @@ pub use notify;
 pub use wgpu;
 pub use winit;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use env_logger;
+pub use tracing;
+
+// #[cfg(not(target_arch = "wasm32"))]
+// pub use env_logger;
 #[cfg(not(target_arch = "wasm32"))]
 pub use pollster;
 

@@ -87,6 +87,7 @@ impl RenderContext {
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or(surface_capabilities.formats[0]);
+        log::error!("surface format {:?}", surface_format);
         let window_size = window.inner_size();
 
         let surface_config = wgpu::SurfaceConfiguration {

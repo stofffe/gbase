@@ -5,7 +5,7 @@ use gbase::{
     glam::{vec2, vec3, vec4, Quat, Vec3},
     input, log,
     render::{self, MeshBuilder},
-    wgpu,
+    tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     Callbacks, Context,
 };
@@ -55,11 +55,12 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Info)
+            .log_level(tracing::Level::INFO)
             .window_attributes(Window::default_attributes().with_maximized(true))
             // .device_features(wgpu::Features::POLYGON_MODE_LINE)
             .vsync(false)
     }
+
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let mut shader_cache = AssetCache::new();

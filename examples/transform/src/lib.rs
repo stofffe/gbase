@@ -1,8 +1,9 @@
 use gbase::{
     filesystem,
     glam::{Quat, Vec3},
+    log::{self, info},
     render::{self, ArcBindGroup, ArcRenderPipeline, Vertex, VertexTrait as _},
-    wgpu, Callbacks, Context,
+    tracing, wgpu, Callbacks, Context,
 };
 use gbase_utils::Transform3D;
 
@@ -11,6 +12,7 @@ pub async fn run() {
     gbase::run::<App>().await;
 }
 
+#[derive(Debug)]
 struct App {
     vertex_buffer: render::VertexBuffer<render::Vertex>,
     pipeline: ArcRenderPipeline,
@@ -20,6 +22,11 @@ struct App {
     transform_bindgroup: ArcBindGroup,
 }
 impl Callbacks for App {
+    #[no_mangle]
+    fn init_ctx() -> gbase::ContextBuilder {
+        gbase::ContextBuilder::new().log_level(tracing::Level::TRACE)
+    }
+    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/transform.wgsl").unwrap();
@@ -70,6 +77,8 @@ impl Callbacks for App {
             pipeline,
         }
     }
+
+    #[no_mangle]
     fn update(&mut self, ctx: &mut Context) -> bool {
         // Transform movement
         let t = gbase::time::time_since_start(ctx);
@@ -81,7 +90,10 @@ impl Callbacks for App {
         false
     }
 
+    #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
+
         let mut encoder = render::create_encoder(ctx, None);
         let queue = render::queue(ctx);
 
@@ -122,3 +134,8 @@ const TRIANGLE_VERTICES: &[Vertex] = &[
     Vertex { position: [ 0.5, -0.5, 0.0] },
     Vertex { position: [ 0.0,  0.5, 0.0] },
 ];
+
+#[no_mangle]
+fn hot_reload() {
+    App::init_ctx().init_logging();
+}

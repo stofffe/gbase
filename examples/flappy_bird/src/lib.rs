@@ -7,7 +7,7 @@ use gbase::{
     audio, collision, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random, render, time, wgpu,
+    load_b, random, render, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     Callbacks, Context,
 };
@@ -271,7 +271,7 @@ impl Callbacks for App {
                 Window::default_attributes()
                     .with_inner_size(PhysicalSize::new(BACKGROUND.w * 4, BACKGROUND.h * 4)),
             )
-            .log_level(gbase::LogLevel::Warn)
+            .log_level(tracing::Level::WARN)
     }
 
     #[no_mangle]

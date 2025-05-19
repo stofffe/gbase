@@ -4,6 +4,7 @@ use crate::{audio, filesystem, input, random, render, time, Context};
 use crate::hot_reload::{self, DllCallbacks};
 
 use std::path::PathBuf;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
 use winit::{
     event::{self, DeviceEvent, WindowEvent},
@@ -343,17 +344,18 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
 #[derive(Debug, Clone)]
 pub struct ContextBuilder {
     window_attributes: winit::window::WindowAttributes,
-    assets_path: PathBuf,
-    log_level: LogLevel,
-    vsync: bool, // can be set later
     device_features: wgpu::Features,
+    // tracing subscribers
+    assets_path: PathBuf,      // can be set later
+    log_level: tracing::Level, // can be set later
+    vsync: bool,               // can be set later
 }
 
 #[allow(clippy::new_without_default)]
 impl ContextBuilder {
     pub fn new() -> Self {
         Self {
-            log_level: LogLevel::Info,
+            log_level: tracing::Level::INFO,
             assets_path: PathBuf::from("assets"),
             vsync: true,
             device_features: wgpu::Features::default(),
@@ -366,7 +368,7 @@ impl ContextBuilder {
         self
     }
 
-    pub fn log_level(mut self, log_level: LogLevel) -> Self {
+    pub fn log_level(mut self, log_level: tracing::Level) -> Self {
         self.log_level = log_level;
         self
     }
@@ -405,42 +407,32 @@ impl ContextBuilder {
     ///
     /// Panics if called multiple times
     pub fn init_logging(&self) {
-        let log_level = self.log_level;
-
-        if let LogLevel::None = log_level {
-            return;
-        }
-
         #[cfg(target_arch = "wasm32")]
         {
-            let log_level = match log_level {
-                LogLevel::Info => log::Level::Info,
-                LogLevel::Warn => log::Level::Warn,
-                LogLevel::Error => log::Level::Error,
-                LogLevel::Debug => log::Level::Debug,
-                LogLevel::Trace => log::Level::Trace,
-                LogLevel::None => panic!("unreachable"),
-            };
-            std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-            console_log::init_with_level(log_level).expect("Couldn't initialize logger");
+            console_error_panic_hook::set_once();
+
+            let wasm_layer = tracing_wasm::WASMLayer::new(
+                tracing_wasm::WASMLayerConfigBuilder::new()
+                    .set_max_level(self.log_level)
+                    .build(),
+            );
+            let subscriber = tracing_subscriber::registry().with(wasm_layer);
+            subscriber.init();
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let log_level = match log_level {
-                LogLevel::Info => log::LevelFilter::Info,
-                LogLevel::Warn => log::LevelFilter::Warn,
-                LogLevel::Error => log::LevelFilter::Error,
-                LogLevel::Debug => log::LevelFilter::Debug,
-                LogLevel::Trace => log::LevelFilter::Trace,
-                LogLevel::None => panic!("unreachable"),
-            };
-            match env_logger::Builder::new()
-                .filter_level(log_level)
-                .try_init()
-            {
-                Ok(_) => log::info!("Sucessfully initialized logging"),
-                Err(err) => log::error!("Error initalizing logging: {}", err),
+            let filter_layer = tracing_subscriber::filter::LevelFilter::from(self.log_level);
+            let format_layer = tracing_subscriber::fmt::layer();
+            // let tracy_layer = tracing_tracy::TracyLayer::default();
+
+            let subscriber = tracing_subscriber::registry()
+                .with(filter_layer)
+                .with(format_layer);
+            // .with(tracy_layer);
+            match subscriber.try_init() {
+                Ok(_) => tracing::info!("sucessfully initialized tracing subscriber"),
+                Err(err) => tracing::error!("could not initialize tracing subscriber: {}", err),
             }
         }
     }
