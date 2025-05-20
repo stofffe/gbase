@@ -46,7 +46,7 @@ impl BindGroupLayoutBuilder {
             return bindgroup_layout.clone();
         }
 
-        log::info!("Create cached bindgroup layout");
+        tracing::info!("Create cached bindgroup layout");
         let bindgrouo_layout = self.build_uncached(ctx);
         ctx.render
             .cache
@@ -231,11 +231,11 @@ impl BindGroupBuilder {
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroup {
         if let Some(bindgroup) = ctx.render.cache.bindgroups.get(&self) {
-            // log::info!("Fetch cached bindgroup");
+            // tracing::info!("Fetch cached bindgroup");
             return bindgroup.clone();
         }
 
-        log::info!("Create cached bindgroup");
+        tracing::info!("Create cached bindgroup");
         let bindgroup = self.build_uncached(ctx);
         ctx.render.cache.bindgroups.insert(self, bindgroup.clone());
         bindgroup

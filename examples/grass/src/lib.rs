@@ -3,7 +3,7 @@ mod grass_renderer;
 use gbase::{
     filesystem,
     glam::{vec2, vec3, vec4, Quat, Vec3},
-    input, log,
+    input,
     render::{self, MeshBuilder},
     tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
@@ -263,7 +263,7 @@ impl Callbacks for App {
 
         // debug camera pos
         if input::key_pressed(ctx, KeyCode::KeyC) {
-            log::info!("{}", self.camera.pos);
+            tracing::info!("{}", self.camera.pos);
         }
 
         false

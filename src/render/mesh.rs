@@ -1,6 +1,5 @@
 use crate::{
     glam::Vec3,
-    log,
     render::{self, VertexBufferLayout},
     wgpu, Context,
 };
@@ -41,7 +40,7 @@ impl Mesh {
     pub fn set_attribute(&mut self, id: VertexAttributeId, values: VertexAttributeValues) {
         if let Some(vertex_count) = self.vertex_count() {
             if vertex_count != values.len() as u32 {
-                log::warn!("inserting attribute with different vertex count");
+                tracing::warn!("inserting attribute with different vertex count");
             }
         }
         self.attributes.insert(id, values);
@@ -119,19 +118,19 @@ impl Mesh {
             if !self.attributes.contains_key(&attr) {
                 match attr {
                     VertexAttributeId::Normal => {
-                        log::warn!(
+                        tracing::warn!(
                             "normal attribute could not be found, generating for each vertex"
                         );
                         self.generate_normals();
                     }
                     VertexAttributeId::Tangent => {
-                        log::warn!(
+                        tracing::warn!(
                             "tangent attribute could not be found, generating for each vertex"
                         );
                         self.generate_tangents();
                     }
                     VertexAttributeId::Color(i) => {
-                        log::warn!(
+                        tracing::warn!(
                         "color attribute could not be found, generating [1,1,1] for each vertex"
                     );
                         self.generate_colors(i, [1.0, 1.0, 1.0]);
@@ -169,7 +168,7 @@ impl Mesh {
     }
     pub fn generate_colors(&mut self, color_index: u32, color: [f32; 3]) {
         let Some(count) = self.vertex_count() else {
-            log::error!("trying to generate colors for mesh without vertices");
+            tracing::error!("trying to generate colors for mesh without vertices");
             return;
         };
 

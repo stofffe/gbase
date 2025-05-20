@@ -1,4 +1,3 @@
-use gbase::log;
 use gbase::{
     filesystem,
     input::{self, KeyCode},
@@ -20,7 +19,7 @@ impl Callbacks for App {
         let str_path = "tmp/string";
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("write string");
-            log::warn!("{:?}", filesystem::load_str(ctx, str_path));
+            tracing::warn!("{:?}", filesystem::load_str(ctx, str_path));
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
             println!("load string");
@@ -30,7 +29,7 @@ impl Callbacks for App {
         let bytes_path = "tmp/bytes";
         if input::key_just_pressed(ctx, KeyCode::Digit3) {
             println!("write bytes");
-            log::warn!("{:?}", filesystem::load_bytes(ctx, bytes_path));
+            tracing::warn!("{:?}", filesystem::load_bytes(ctx, bytes_path));
         }
         if input::key_just_pressed(ctx, KeyCode::Digit4) {
             println!("load bytes");

@@ -1,8 +1,7 @@
 use encase::ShaderType;
 use gbase::{
-    log,
     render::{self},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 
 pub struct SobelFilter {
@@ -83,7 +82,7 @@ impl SobelFilter {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         if texture.texture().size() != self.copy_texture.texture().size() {
-            log::warn!("in and out texture of box blur must have same size");
+            tracing::warn!("in and out texture of box blur must have same size");
             self.copy_texture
                 .resize(ctx, gbase::winit::dpi::PhysicalSize::new(width, height));
         }

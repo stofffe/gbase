@@ -1,4 +1,3 @@
-use gbase::log;
 use gbase::{
     audio::{self, SoundSource},
     filesystem,
@@ -29,7 +28,7 @@ impl Callbacks for App {
             gbase::hot_reload::hot_restart(ctx);
         }
         if input::key_just_pressed(ctx, KeyCode::Space) {
-            log::info!("play boom");
+            tracing::info!("play boom");
             audio::play_audio_source(ctx, &self.sound);
         }
         false

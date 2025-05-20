@@ -15,15 +15,15 @@ impl Callbacks for App {
     }
     fn update(&mut self, ctx: &mut Context) -> bool {
         if input::key_just_pressed(ctx, KeyCode::KeyA) {
-            log::info!("A pressed");
+            tracing::info!("A pressed");
         }
         if input::key_released(ctx, KeyCode::KeyA) {
-            log::info!("A released");
+            tracing::info!("A released");
         }
         if input::key_pressed(ctx, KeyCode::Space) {
-            log::info!("mouse pos: {:?}", input::mouse_pos(ctx));
-            // log::info!("mouse delta: {:?}", input::mouse_delta(ctx));
-            // log::info!("scroll delta: {:?}", input::scroll_delta(ctx));
+            tracing::info!("mouse pos: {:?}", input::mouse_pos(ctx));
+            // tracing::info!("mouse delta: {:?}", input::mouse_delta(ctx));
+            // tracing::info!("scroll delta: {:?}", input::scroll_delta(ctx));
         }
         false
     }

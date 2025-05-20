@@ -5,9 +5,8 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     glam::{Vec3, Vec4Swizzles},
-    log,
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder},
-    time, wgpu, Context,
+    time, tracing, wgpu, Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -149,7 +148,7 @@ impl PbrRenderer {
         lights: &render::UniformBuffer<PbrLightUniforms>,
     ) {
         if self.frame_meshes.is_empty() {
-            log::warn!("trying to render without any meshes");
+            tracing::warn!("trying to render without any meshes");
             return;
         }
 
@@ -294,7 +293,7 @@ impl PbrRenderer {
         mut gpu_profiler: Option<&mut time::GpuProfiler>,
     ) {
         if self.frame_meshes.is_empty() {
-            log::warn!("trying to render without any meshes");
+            tracing::warn!("trying to render without any meshes");
             return;
         }
 

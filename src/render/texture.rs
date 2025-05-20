@@ -79,11 +79,11 @@ impl SamplerBuilder {
     }
     pub fn build(self, ctx: &mut Context) -> ArcSampler {
         if let Some(sampler) = ctx.render.cache.samplers.get(&self) {
-            // log::info!("Fetch cached sampler");
+            // tracing::info!("Fetch cached sampler");
             return sampler.clone();
         }
 
-        log::info!("Create cached sampler");
+        tracing::info!("Create cached sampler");
         let sampler = self.build_uncached(ctx);
         ctx.render.cache.samplers.insert(self, sampler.clone());
         sampler
@@ -322,11 +322,11 @@ impl TextureViewBuilder {
 
     pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {
         if let Some(view) = ctx.render.cache.texture_views.get(&self) {
-            log::info!("Fetched cached texture view");
+            tracing::info!("Fetched cached texture view");
             return view.clone();
         }
 
-        log::info!("Create cached texture view");
+        tracing::info!("Create cached texture view");
         let view = self.build_uncached(ctx);
         ctx.render.cache.texture_views.insert(self, view.clone());
         view

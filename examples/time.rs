@@ -16,18 +16,18 @@ impl Callbacks for App {
         Self { timer }
     }
     fn update(&mut self, _ctx: &mut Context) -> bool {
-        // log::info!("time since start {}", time::time_since_start(ctx));
-        // log::info!("current time {:?}", time::current_time(ctx));
-        // log::info!("delta time {}", time::delta_time(ctx));
-        // log::info!("frame time {}", time::frame_time(ctx));
-        // log::info!("fps {}", time::fps(ctx));
+        // tracing::info!("time since start {}", time::time_since_start(ctx));
+        // tracing::info!("current time {:?}", time::current_time(ctx));
+        // tracing::info!("delta time {}", time::delta_time(ctx));
+        // tracing::info!("frame time {}", time::frame_time(ctx));
+        // tracing::info!("fps {}", time::fps(ctx));
 
         if self.timer.just_ticked() {
-            log::info!("timer just ticked");
+            tracing::info!("timer just ticked");
             self.timer.reset();
         }
         if self.timer.ticked() {
-            log::info!("timer has ticked");
+            tracing::info!("timer has ticked");
         }
 
         false

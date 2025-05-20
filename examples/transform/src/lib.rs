@@ -1,7 +1,6 @@
 use gbase::{
     filesystem,
     glam::{Quat, Vec3},
-    log::{self, info},
     render::{self, ArcBindGroup, ArcRenderPipeline, Vertex, VertexTrait as _},
     tracing, wgpu, Callbacks, Context,
 };

@@ -2,9 +2,9 @@ mod cloud_renderer;
 mod noise;
 
 use gbase::{
-    filesystem, glam, input, log,
+    filesystem, glam, input,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder, UniformBufferBuilder},
-    time, wgpu,
+    time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
     Context,
 };
@@ -116,7 +116,7 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(gbase::LogLevel::Warn)
+            .log_level(gbase::tracing::Level::WARN)
             .window_attributes(Window::default_attributes().with_maximized(true))
             .vsync(false)
     }
@@ -391,8 +391,8 @@ impl App {
             let content =
                 serde_json::to_string(&self.cloud_params).expect("could not serialze params");
             match filesystem::store_str(ctx, &file_name, &content) {
-                Ok(_) => log::info!("Sucessfully updated params {}", index),
-                Err(err) => log::error!("could not write params: {}", err),
+                Ok(_) => tracing::info!("Sucessfully updated params {}", index),
+                Err(err) => tracing::error!("could not write params: {}", err),
             }
 
             self.write_param_index = false;
@@ -412,7 +412,7 @@ impl App {
                     };
                     self.cloud_params = params;
                 }
-                Err(err) => log::error!("could not load params {}: {}", index, err),
+                Err(err) => tracing::error!("could not load params {}: {}", index, err),
             }
 
             self.load_param_index = false;

@@ -3,9 +3,8 @@ use std::collections::HashMap;
 use crate::{texture_builder_from_image_bytes, AssetCache, AssetHandle, PbrMaterial};
 use gbase::{
     glam::Mat4,
-    log,
     render::{self, GpuImage, Image, SamplerBuilder, TextureBuilder},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 
 const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
@@ -34,9 +33,9 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
     }
 
     while let Some((node, transform)) = node_stack.pop() {
-        // log::info!("visiting {}", node.name().unwrap_or("---"));
+        // tracing::info!("visiting {}", node.name().unwrap_or("---"));
         if node.camera().is_some() {
-            log::error!("camera decoding not supported");
+            tracing::error!("camera decoding not supported");
         }
 
         // TODO: not used rn
@@ -98,16 +97,16 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                         ),
                         gltf::Semantic::Joints(_) => {
                             // TODO: gotta check u16x4 vs u32x4
-                            log::warn!("joints not supported in gltf");
+                            tracing::warn!("joints not supported in gltf");
                         }
                         gltf::Semantic::Weights(_) => {
                             // f32x4
-                            log::warn!("weigths not supported in gltf");
+                            tracing::warn!("weigths not supported in gltf");
                         } // extras?
                     }
                 }
                 if !mesh.validate() {
-                    log::error!("mesh validation failed");
+                    tracing::error!("mesh validation failed");
                 }
 
                 // parse indices
@@ -165,7 +164,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                         panic!("image source URI not supported");
                     };
 
-                    // log::info!("loading image with mime type {}", mime_type);
+                    // tracing::info!("loading image with mime type {}", mime_type);
                     assert!(
                         mime_type == "image/jpeg" || mime_type == "image/png",
                         "mime type must be image/jpeg or image/png got {}",
@@ -534,7 +533,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                     emissive_factor,
                 };
 
-                // log::info!("{:#?}", new_transform.to_scale_rotation_translation());
+                // tracing::info!("{:#?}", new_transform.to_scale_rotation_translation());
 
                 meshes.push(GltfPrimitive {
                     mesh,

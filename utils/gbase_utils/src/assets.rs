@@ -1,6 +1,6 @@
 use gbase::{
-    log,
     render::{self, ArcHandle, GpuImage, Image},
+    tracing,
     wgpu::{self},
     Context,
 };
@@ -144,7 +144,7 @@ where
 
                 let gpu_typ = cpu_typ.convert(ctx);
                 self.gpu_cache.insert(id.clone(), gpu_typ);
-                log::info!("create cached gpu buffer");
+                tracing::info!("create cached gpu buffer");
             }
             // get cached or update buffer
             Some(gpu_typ) => {
@@ -152,7 +152,7 @@ where
                 if *changed {
                     *changed = false;
                     *gpu_typ = cpu_typ.convert(ctx);
-                    log::info!("update cached gpu buffer");
+                    tracing::info!("update cached gpu buffer");
                 }
             }
         }
@@ -164,7 +164,7 @@ where
         let modified = match fs::metadata(&path) {
             Ok(metadata) => metadata.modified().expect("could not get metadata"),
             Err(err) => {
-                log::warn!("could not get metadata for {}: {}", path, err);
+                tracing::warn!("could not get metadata for {}: {}", path, err);
                 SystemTime::now()
             }
         };
@@ -178,7 +178,7 @@ where
     pub fn check_watched_files(&mut self, ctx: &mut Context) {
         for i in 0..self.reload.len() {
             let Ok(md) = fs::metadata(&self.reload[i].path) else {
-                log::warn!("could not get metadata for {}", &self.reload[i].path);
+                tracing::warn!("could not get metadata for {}", &self.reload[i].path);
                 continue;
             };
 
@@ -190,7 +190,7 @@ where
                 self.get_mut(self.reload[i].handle.clone())
                     .reload(ctx, bytes);
 
-                log::info!("reload {}", self.reload[i].path);
+                tracing::info!("reload {}", self.reload[i].path);
             }
         }
     }
@@ -205,7 +205,7 @@ impl Asset<render::Mesh, render::GpuMesh> for render::Mesh {
     }
 
     fn reload(&mut self, _ctx: &mut Context, _data: Vec<u8>) {
-        log::warn!("meshes can not currently be hot reloaded");
+        tracing::warn!("meshes can not currently be hot reloaded");
     }
 }
 
@@ -223,7 +223,7 @@ impl Asset<Image, render::GpuImage> for Image {
         let img = image::load_from_memory(&data);
 
         let Ok(img) = img else {
-            log::error!("could not decode image bytes");
+            tracing::error!("could not decode image bytes");
             return;
         };
 
@@ -245,7 +245,7 @@ impl Asset<render::ShaderBuilder, wgpu::ShaderModule> for render::ShaderBuilder 
         {
             let debug_builder = self.clone().source(source.clone());
             if let Err(err) = debug_builder.build_err(ctx) {
-                log::error!("could not reload shader: {}", err);
+                tracing::error!("could not reload shader: {}", err);
                 return;
             }
         }

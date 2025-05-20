@@ -121,11 +121,11 @@ impl GpuProfiler {
 
     pub fn readback(&mut self, ctx: &Context) -> Vec<(&'static str, f32)> {
         if self.times.is_empty() {
-            log::warn!("trying to read back empty gpu profiler");
+            tracing::warn!("trying to read back empty gpu profiler");
             return Vec::new();
         }
         if !self.enabled {
-            log::warn!("trying to read back disabled gpu profiler");
+            tracing::warn!("trying to read back disabled gpu profiler");
             return Vec::new();
         }
 
@@ -213,5 +213,9 @@ impl GpuProfiler {
 
     pub fn option(&mut self) -> Option<&mut Self> {
         Some(self)
+    }
+
+    pub fn timestamp_writes(&self) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
+        None
     }
 }

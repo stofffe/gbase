@@ -23,15 +23,11 @@ pub use bytemuck;
 pub use encase;
 
 pub use glam;
-pub use log;
 pub use notify;
+pub use tracing;
 pub use wgpu;
 pub use winit;
 
-pub use tracing;
-
-// #[cfg(not(target_arch = "wasm32"))]
-// pub use env_logger;
 #[cfg(not(target_arch = "wasm32"))]
 pub use pollster;
 

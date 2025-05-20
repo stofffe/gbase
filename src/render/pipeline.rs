@@ -42,11 +42,11 @@ impl PipelineLayoutBuilder {
     }
     pub fn build(&self, ctx: &mut Context) -> ArcPipelineLayout {
         if let Some(pipeline_layout) = ctx.render.cache.pipeline_layouts.get(self) {
-            log::info!("Fetch cached pipeline layout");
+            tracing::info!("Fetch cached pipeline layout");
             return pipeline_layout.clone();
         }
 
-        log::info!("Create cached pipeline layout");
+        tracing::info!("Create cached pipeline layout");
         let pipeline_layout = self.build_uncached(ctx);
         ctx.render
             .cache
@@ -203,7 +203,7 @@ impl RenderPipelineBuilder {
             location += buf.attributes.len() as u32;
         }
 
-        // log::warn!("buffers {:#?}", buffers);
+        // tracing::warn!("buffers {:#?}", buffers);
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: self.label.as_deref(),
@@ -260,11 +260,11 @@ impl RenderPipelineBuilder {
     }
     pub fn build(self, ctx: &mut Context) -> ArcRenderPipeline {
         if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(&self) {
-            // log::info!("Fetch cached render pipeline");
+            // tracing::info!("Fetch cached render pipeline");
             return render_pipeline.clone();
         }
 
-        log::info!("Create cached render pipeline");
+        tracing::info!("Create cached render pipeline");
         let render_pipeline = self.build_uncached(ctx);
         ctx.render
             .cache
@@ -366,11 +366,11 @@ impl ComputePipelineBuilder {
 
     pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {
         if let Some(compute_pipeline) = ctx.render.cache.compute_pipelines.get(self) {
-            // log::info!("Fetch cached compute pipeline");
+            // tracing::info!("Fetch cached compute pipeline");
             return compute_pipeline.clone();
         }
 
-        log::info!("Create cached compute pipeline");
+        tracing::info!("Create cached compute pipeline");
         let compute_pipeline = self.build_uncached(ctx);
         ctx.render
             .cache

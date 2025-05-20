@@ -4,7 +4,7 @@ use bloom::{Bloom, Tonemap};
 use gbase::{
     glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, log,
+    load_b,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
     time, tracing, wgpu, Callbacks, Context,
 };
@@ -304,7 +304,7 @@ impl Callbacks for App {
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
-            log::warn!("RESTART");
+            tracing::warn!("RESTART");
             *self = Self::new(ctx);
         }
 

@@ -4,6 +4,7 @@ use crate::{audio, filesystem, input, random, render, time, Context};
 use crate::hot_reload::{self, DllCallbacks};
 
 use std::path::PathBuf;
+use tracing::instrument::WithSubscriber;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
 use winit::{
@@ -171,7 +172,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
         let App::Initialized { ref mut ctx, .. } = self else {
-            log::warn!("app not initialized while receiving about to wait event -> skipping");
+            tracing::warn!("app not initialized while receiving about to wait event -> skipping");
             return;
         };
 
@@ -185,7 +186,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         event: event::DeviceEvent,
     ) {
         let App::Initialized { ref mut ctx, .. } = self else {
-            log::warn!("app not initialized while receiving device event -> skipping");
+            tracing::warn!("app not initialized while receiving device event -> skipping");
             return;
         };
 
@@ -211,7 +212,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             callbacks,
         } = self
         else {
-            log::warn!("app not initialized while receiving window event -> skipping");
+            tracing::warn!("app not initialized while receiving window event -> skipping");
             return;
         };
 
@@ -247,7 +248,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                     (PhysicalKey::Code(code), true) => ctx.input.keyboard.set_key(code),
                     (PhysicalKey::Code(code), false) => ctx.input.keyboard.release_key(code),
                     (PhysicalKey::Unidentified(code), _) => {
-                        log::error!("pressed/released unidentified key {:?}", code)
+                        tracing::error!("pressed/released unidentified key {:?}", code)
                     }
                 };
             }
@@ -302,7 +303,7 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
     let output = match output {
         Ok(val) => val,
         Err(SurfaceError::Timeout) => {
-            log::error!("timed out getting surface");
+            tracing::error!("timed out getting surface");
             return true;
         }
         Err(SurfaceError::Lost | SurfaceError::Outdated) => {
@@ -310,7 +311,7 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
             return false;
         }
         Err(err) => {
-            log::warn!("{}", err);
+            tracing::warn!("{}", err);
             return false;
         }
     };
@@ -345,7 +346,6 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
 pub struct ContextBuilder {
     window_attributes: winit::window::WindowAttributes,
     device_features: wgpu::Features,
-    // tracing subscribers
     assets_path: PathBuf,      // can be set later
     log_level: tracing::Level, // can be set later
     vsync: bool,               // can be set later
@@ -424,15 +424,15 @@ impl ContextBuilder {
         {
             let filter_layer = tracing_subscriber::filter::LevelFilter::from(self.log_level);
             let format_layer = tracing_subscriber::fmt::layer();
-            // let tracy_layer = tracing_tracy::TracyLayer::default();
-
             let subscriber = tracing_subscriber::registry()
                 .with(filter_layer)
                 .with(format_layer);
-            // .with(tracy_layer);
+
             match subscriber.try_init() {
                 Ok(_) => tracing::info!("sucessfully initialized tracing subscriber"),
-                Err(err) => tracing::error!("could not initialize tracing subscriber: {}", err),
+                Err(err) => {
+                    tracing::error!("could not initialize tracing subscriber: {}", err)
+                }
             }
         }
     }

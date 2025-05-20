@@ -1,4 +1,4 @@
-use gbase::{log, render, wgpu, Context};
+use gbase::{render, tracing, wgpu, Context};
 
 pub struct GammaCorrection {
     pipeline: render::ArcComputePipeline,
@@ -64,7 +64,7 @@ impl GammaCorrection {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
 
         if texture.texture().size() != self.copy_texture.texture().size() {
-            log::warn!("in and out texture of box blur must have same size");
+            tracing::warn!("in and out texture of box blur must have same size");
             self.copy_texture
                 .resize(ctx, gbase::winit::dpi::PhysicalSize::new(width, height));
         }

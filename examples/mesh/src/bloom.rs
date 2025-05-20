@@ -1,5 +1,5 @@
 use gbase::{
-    filesystem, log,
+    filesystem,
     render::{self, FrameBuffer, FrameBufferBuilder},
     time, wgpu, Context,
 };

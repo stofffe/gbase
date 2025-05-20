@@ -1,6 +1,6 @@
 use gbase::{
     input::{self, KeyCode},
-    log, Callbacks, Context,
+    Callbacks, Context,
 };
 
 pub fn main() {
@@ -20,8 +20,8 @@ impl Callbacks for App {
             println!("print");
         }
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
-            log::error!("log error");
-            log::info!("log info");
+            tracing::error!("log error");
+            tracing::info!("log info");
         }
 
         false

@@ -1,9 +1,8 @@
 use encase::ShaderType;
 
 use gbase::{
-    log,
     render::{self, FrameBufferBuilder},
-    wgpu, winit, Context,
+    tracing, wgpu, winit, Context,
 };
 
 pub struct BoxFilter {
@@ -91,7 +90,7 @@ impl BoxFilter {
 
         // Recreate copy buffer if necessary
         if framebuffer.texture().size() != self.copy_texture.texture().size() {
-            log::warn!("in and out texture of gaussian blur must have same size and format");
+            tracing::warn!("in and out texture of gaussian blur must have same size and format");
             self.copy_texture
                 .resize(ctx, winit::dpi::PhysicalSize::new(width, height));
         }
@@ -217,7 +216,7 @@ impl BoxFilterParams {
 //         let mut encoder = render::EncoderBuilder::new().build(ctx);
 //
 //         if texture.texture().size() != self.copy_texture.texture().size() {
-//             log::warn!("in and out texture of box blur must have same size");
+//             tracing::warn!("in and out texture of box blur must have same size");
 //             self.copy_texture.resize(ctx, width, height);
 //         }
 //

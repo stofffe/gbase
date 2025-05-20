@@ -1,6 +1,6 @@
 use gbase::{
     glam::{uvec2, vec2, vec4, UVec2, Vec2, Vec4},
-    log, render, wgpu, Context,
+    render, wgpu, Context,
 };
 use std::collections::HashMap;
 
