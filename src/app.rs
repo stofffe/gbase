@@ -1,10 +1,13 @@
-use crate::{audio, filesystem, input, random, render, time, Context};
+use crate::{
+    audio, filesystem, input, random,
+    render::{self, device},
+    time, Context,
+};
 
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
 use std::path::PathBuf;
-use tracing::instrument::WithSubscriber;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
 use winit::{
@@ -113,8 +116,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let time = time::TimeContext::default();
             let filesystem = filesystem::FileSystemContext::new();
             let audio = audio::AudioContext::new();
-            let render =
-                render::RenderContext::new(window, builder.vsync, builder.device_features).await;
+            let render = render::RenderContext::new(window, &builder).await;
             let random = random::RandomContext::new();
 
             let ctx = Context {
@@ -328,6 +330,10 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
 
     output.present();
 
+    ctx.render
+        .gpu_profiler
+        .readback(&ctx.render.device, &ctx.render.queue);
+
     // input
     ctx.input.keyboard.store_keys();
     ctx.input.keyboard.store_modifiers();
@@ -344,11 +350,13 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
 /// Build the context for running an application
 #[derive(Debug, Clone)]
 pub struct ContextBuilder {
-    window_attributes: winit::window::WindowAttributes,
-    device_features: wgpu::Features,
-    assets_path: PathBuf,      // can be set later
-    log_level: tracing::Level, // can be set later
-    vsync: bool,               // can be set later
+    pub(crate) window_attributes: winit::window::WindowAttributes,
+    pub(crate) device_features: wgpu::Features,
+    pub(crate) log_level: tracing::Level,
+    pub(crate) assets_path: PathBuf,       // can be set later
+    pub(crate) vsync_enabled: bool,        // can be set later
+    pub(crate) gpu_profiler_enabled: bool, // can be set later
+    pub(crate) gpu_profiler_capacity: u32, // can be set later
 }
 
 #[allow(clippy::new_without_default)]
@@ -357,9 +365,11 @@ impl ContextBuilder {
         Self {
             log_level: tracing::Level::INFO,
             assets_path: PathBuf::from("assets"),
-            vsync: true,
+            vsync_enabled: true,
             device_features: wgpu::Features::default(),
             window_attributes: WindowAttributes::default(),
+            gpu_profiler_enabled: false,
+            gpu_profiler_capacity: 64,
         }
     }
 
@@ -373,8 +383,8 @@ impl ContextBuilder {
         self
     }
 
-    pub fn vsync(mut self, vsync: bool) -> Self {
-        self.vsync = vsync;
+    pub fn vsync(mut self, enabled: bool) -> Self {
+        self.vsync_enabled = enabled;
         self
     }
 
@@ -427,6 +437,9 @@ impl ContextBuilder {
             let subscriber = tracing_subscriber::registry()
                 .with(filter_layer)
                 .with(format_layer);
+
+            #[cfg(feature = "trace_tracy")]
+            let subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
 
             match subscriber.try_init() {
                 Ok(_) => tracing::info!("sucessfully initialized tracing subscriber"),

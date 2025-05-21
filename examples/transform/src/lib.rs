@@ -23,7 +23,9 @@ struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().log_level(tracing::Level::TRACE)
+        gbase::ContextBuilder::new()
+            .log_level(tracing::Level::TRACE)
+            .device_features(wgpu::Features::TIMESTAMP_QUERY)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {

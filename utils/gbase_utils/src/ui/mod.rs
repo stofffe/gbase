@@ -187,9 +187,11 @@ impl GUIRenderer {
 
         self.instance_buffer.write(ctx, &self.instances);
         self.app_info_buffer.write(ctx, &AppInfoUniform::new(ctx));
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
-            .build_run_submit(ctx, |mut render_pass| {
+            .timestamp_writes(render::gpu_profiler(ctx).profile_render_pass("ui"))
+            .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
@@ -197,6 +199,7 @@ impl GUIRenderer {
                 render_pass.set_bind_group(0, Some(self.bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..self.instances.len() as u32);
             });
+        render::queue(ctx).submit([encoder.finish()]);
 
         //
         // Clear for next frame

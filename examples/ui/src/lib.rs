@@ -15,7 +15,7 @@ pub struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(true)
+        gbase::ContextBuilder::new().vsync(true).device_features(wgpu::Features::TIMESTAMP_QUERY)
     }
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {

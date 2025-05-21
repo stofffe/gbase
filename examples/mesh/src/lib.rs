@@ -50,9 +50,6 @@ struct App {
 
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
-
-    gpu_profiler: time::GpuProfiler,
-    cpu_profiler: time::CpuProfiler,
 }
 
 fn load_simple_mesh(
@@ -77,11 +74,7 @@ impl Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
             .vsync(false)
-            .device_features(
-                wgpu::Features::POLYGON_MODE_LINE
-                    | wgpu::Features::TIMESTAMP_QUERY
-                    | wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS,
-            )
+            .device_features(wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::TIMESTAMP_QUERY)
     }
 
     #[no_mangle]
@@ -170,9 +163,6 @@ impl Callbacks for App {
         let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
         let bloom = bloom::Bloom::new(ctx, &mut shader_cache);
 
-        let gpu_profiler = time::GpuProfiler::new(ctx, 10);
-        let cpu_profiler = time::CpuProfiler::new();
-
         Self {
             hdr_framebuffer_1,
             hdr_framebuffer_2,
@@ -181,8 +171,6 @@ impl Callbacks for App {
             framebuffer_renderer,
             tonemap,
             bloom,
-            gpu_profiler,
-            cpu_profiler,
 
             pbr_renderer,
             ui_renderer,
@@ -242,7 +230,6 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
-            self.gpu_profiler.option(),
         );
         self.gizmo_renderer.render(
             ctx,
@@ -256,7 +243,6 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_1,
             &self.hdr_framebuffer_2,
-            self.gpu_profiler.option(),
         );
 
         self.tonemap.tonemap(
@@ -264,7 +250,6 @@ impl Callbacks for App {
             &mut self.shader_cache,
             &self.hdr_framebuffer_2,
             &self.ldr_framebuffer,
-            self.gpu_profiler.option(),
         );
 
         // self.ui_renderer.display_debug_info(ctx);
@@ -281,7 +266,6 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        self.cpu_profiler.profile(timer);
         false
     }
 
@@ -308,14 +292,8 @@ impl Callbacks for App {
             *self = Self::new(ctx);
         }
 
-        self.cpu_profiler.profile(timer);
-
         // render::device(ctx).poll(wgpu::MaintainBase::Wait);
-        let timer = time::CpuProfileTimer::new("gpu readback");
-        let timestamps_gpu = self.gpu_profiler.readback(ctx);
-        self.cpu_profiler.profile(timer);
-
-        let timestamps_cpu = self.cpu_profiler.readback();
+        // let timestamps_gpu = render::gpu_profiler(ctx).readback(ctx);
 
         let outer = Widget::new()
             .label("outer")
@@ -380,19 +358,16 @@ impl Callbacks for App {
                 .text(format!("total ms: {}", time::delta_time(ctx) * 1000.0))
                 .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                 .render(renderer);
-            for (label, time) in timestamps_gpu {
+
+            let space_pressed = input::key_pressed(ctx, input::KeyCode::Space);
+            render::gpu_profiler(ctx).enable(space_pressed);
+
+            let timestamps_gpu = render::gpu_profiler(ctx).readback_times();
+            for res in timestamps_gpu {
                 Widget::new()
                     .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)
-                    .text(format!("{:.5} {} (gpu)", time, label))
-                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
-                    .render(renderer);
-            }
-            for res in timestamps_cpu {
-                Widget::new()
-                    .width(SizeKind::TextSize)
-                    .height(SizeKind::TextSize)
-                    .text(format!("{:.5} {} (cpu)", res.time_ms, res.label))
+                    .text(format!("{:.5} {} (gpu)", res.time, res.label))
                     .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                     .render(renderer);
             }

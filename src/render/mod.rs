@@ -5,6 +5,7 @@ mod cache;
 mod framebuffer;
 mod mesh;
 mod pipeline;
+mod profiler;
 mod render_pass;
 mod shader;
 mod texture;
@@ -16,32 +17,34 @@ pub use cache::*;
 pub use framebuffer::*;
 pub use mesh::*;
 pub use pipeline::*;
+pub use profiler::*;
 pub use render_pass::*;
 pub use shader::*;
 pub use texture::*;
 pub use vertex::*;
 
-use crate::Context;
+use crate::{Context, ContextBuilder};
 use std::sync::Arc;
 
 pub(crate) struct RenderContext {
-    surface: Arc<wgpu::Surface<'static>>,
-    device: Arc<wgpu::Device>,
-    adapter: Arc<wgpu::Adapter>,
-    queue: Arc<wgpu::Queue>,
-    surface_config: wgpu::SurfaceConfiguration,
+    pub(crate) surface: Arc<wgpu::Surface<'static>>,
+    pub(crate) device: Arc<wgpu::Device>,
+    pub(crate) adapter: Arc<wgpu::Adapter>,
+    pub(crate) queue: Arc<wgpu::Queue>,
+    pub(crate) surface_config: wgpu::SurfaceConfiguration,
 
-    window: Arc<winit::window::Window>,
-    window_size: winit::dpi::PhysicalSize<u32>,
+    pub(crate) window: Arc<winit::window::Window>,
+    pub(crate) window_size: winit::dpi::PhysicalSize<u32>,
 
-    cache: RenderCache,
+    pub(crate) cache: RenderCache,
+
+    pub(crate) gpu_profiler: profiler::GpuProfiler,
 }
 
 impl RenderContext {
     pub(crate) async fn new(
         window: winit::window::Window,
-        vsync: bool,
-        device_features: wgpu::Features,
+        context_builder: &ContextBuilder,
     ) -> Self {
         let window = Arc::new(window);
 
@@ -70,7 +73,7 @@ impl RenderContext {
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
-                    required_features: device_features,
+                    required_features: context_builder.device_features,
                     required_limits: adapter.limits(),
                     label: None,
                     memory_hints: wgpu::MemoryHints::Performance,
@@ -95,7 +98,7 @@ impl RenderContext {
             format: surface_format,
             width: window_size.width.max(1),
             height: window_size.height.max(1),
-            present_mode: if vsync {
+            present_mode: if context_builder.vsync_enabled {
                 wgpu::PresentMode::AutoVsync
             } else {
                 wgpu::PresentMode::AutoNoVsync
@@ -111,6 +114,12 @@ impl RenderContext {
 
         let cache = RenderCache::empty();
 
+        let gpu_profiler = profiler::GpuProfiler::new(
+            &device,
+            context_builder.gpu_profiler_enabled,
+            context_builder.gpu_profiler_capacity,
+        );
+
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -118,11 +127,11 @@ impl RenderContext {
             surface: Arc::new(surface),
 
             surface_config,
-
             window_size,
             window,
 
             cache,
+            gpu_profiler,
         }
     }
 
@@ -155,6 +164,10 @@ impl RenderContext {
 }
 
 // Getter functions for render and window operations
+
+pub fn gpu_profiler(ctx: &mut Context) -> &mut GpuProfiler {
+    &mut ctx.render.gpu_profiler
+}
 
 pub fn aspect_ratio(ctx: &Context) -> f32 {
     ctx.render.aspect_ratio()

@@ -1,8 +1,8 @@
 use crate::{render, Context};
-use bytemuck::NoUninit;
+use bytemuck::{AnyBitPattern, NoUninit};
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
-use std::{marker::PhantomData, ops::RangeBounds};
+use std::{marker::PhantomData, ops::RangeBounds, sync::Arc};
 use wgpu::util::DeviceExt;
 
 //
@@ -195,18 +195,18 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
 ///
 /// Panics if buffer is not mapped
 pub fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
-    ctx: &Context,
+    device: &wgpu::Device,
     buffer: &wgpu::Buffer,
     offset: u64,
     size: u64,
 ) -> Vec<T> {
     debug_assert!(buffer.usage().contains(wgpu::BufferUsages::MAP_READ));
-    let device = render::device(ctx);
     let buffer_slice = buffer.slice(offset..offset + size);
     buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
     device.poll(wgpu::MaintainBase::Wait);
     let data = buffer_slice.get_mapped_range();
     let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
+    drop(data);
     buffer.unmap();
     result
 }

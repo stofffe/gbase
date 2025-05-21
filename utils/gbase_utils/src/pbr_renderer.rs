@@ -290,7 +290,6 @@ impl PbrRenderer {
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
-        mut gpu_profiler: Option<&mut time::GpuProfiler>,
     ) {
         if self.frame_meshes.is_empty() {
             tracing::warn!("trying to render without any meshes");
@@ -401,12 +400,13 @@ impl PbrRenderer {
 
         self.transforms.write(ctx, &instances);
 
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
-            .timestamp_writes(gpu_profiler.as_mut().map(|t| t.profile_render("pbr")))
+            .timestamp_writes(render::gpu_profiler(ctx).profile_render_pass("pbr"))
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-            .build_run_submit(ctx, |mut pass| {
+            .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&pipeline);
 
                 for (i, range) in ranges.windows(2).enumerate() {
@@ -418,6 +418,8 @@ impl PbrRenderer {
                     pass.draw_indexed(0..mesh.index_count.unwrap(), 0, from as u32..to as u32);
                 }
             });
+
+        render::queue(ctx).submit([encoder.finish()]);
 
         self.frame_meshes.clear();
     }
