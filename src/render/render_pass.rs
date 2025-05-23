@@ -195,12 +195,18 @@ impl<'a> RenderPassBuilder<'a> {
         self.depth_stencil_attachment = Some(value);
         self
     }
-    pub fn timestamp_writes(mut self, value: Option<wgpu::RenderPassTimestampWrites<'a>>) -> Self {
-        self.timestamp_writes = value;
-        self
-    }
+    // pub fn timestamp_writes(mut self, value: Option<wgpu::RenderPassTimestampWrites<'a>>) -> Self {
+    //     self.timestamp_writes = value;
+    //     self
+    // }
     pub fn occlusion_query_set(mut self, value: &'a wgpu::QuerySet) -> Self {
         self.occlusion_query_set = Some(value);
+        self
+    }
+
+    // TODO: send label and do this in build instead?
+    pub fn trace_gpu(mut self, ctx: &'a mut Context, label: &'static str) -> Self {
+        self.timestamp_writes = ctx.render.gpu_profiler.profile_render_pass(label);
         self
     }
 }
@@ -258,8 +264,12 @@ impl<'a> ComputePassBuilder<'a> {
         self.label = Some(value);
         self
     }
-    pub fn timestamp_writes(mut self, value: Option<wgpu::ComputePassTimestampWrites<'a>>) -> Self {
-        self.timestamp_writes = value;
+    // pub fn timestamp_writes(mut self, value: Option<wgpu::ComputePassTimestampWrites<'a>>) -> Self {
+    //     self.timestamp_writes = value;
+    //     self
+    // }
+    pub fn trace_gpu(mut self, ctx: &'a mut Context, label: &'static str) -> Self {
+        self.timestamp_writes = ctx.render.gpu_profiler.profile_compute_pass(label);
         self
     }
 }

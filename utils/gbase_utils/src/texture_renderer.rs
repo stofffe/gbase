@@ -76,6 +76,7 @@ impl TextureRenderer {
                 .build(ctx);
 
         render::RenderPassBuilder::new()
+            .label("texture renderer")
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
             )])

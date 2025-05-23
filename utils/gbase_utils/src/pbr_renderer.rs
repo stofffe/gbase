@@ -403,8 +403,9 @@ impl PbrRenderer {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
+            .label("pbr")
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
-            .timestamp_writes(render::gpu_profiler(ctx).profile_render_pass("pbr"))
+            .trace_gpu(ctx, "pbr")
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&pipeline);

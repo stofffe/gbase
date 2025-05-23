@@ -67,7 +67,8 @@ impl Tonemap {
 
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::ComputePassBuilder::new()
-            .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("tonemap"))
+            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("tonemap"))
+            .trace_gpu(ctx, "tonemap")
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&pipeline);
                 pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
@@ -236,7 +237,9 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("extract"))
+            .label("extract")
+            .trace_gpu(ctx, "extract")
+            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("extract"))
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&extract_pipeline);
                 pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
@@ -284,7 +287,9 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("blur"))
+            .label("blur")
+            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("blur"))
+            .trace_gpu(ctx, "blur")
             .build_run(&mut encoder, |mut pass| {
                 for _ in 0..3 {
                     pass.set_pipeline(&blur_horizontal_pipeline);
@@ -329,7 +334,9 @@ impl Bloom {
         .build(ctx);
 
         render::ComputePassBuilder::new()
-            .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("combine"))
+            .label("combine")
+            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("combine"))
+            .trace_gpu(ctx, "combine")
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&combine_pipeline);
                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);

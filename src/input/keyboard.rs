@@ -12,6 +12,13 @@ pub(crate) struct KeyboardContext {
     previous_pressed_modifiers: HashSet<KeyModifier>,
 }
 
+impl KeyboardContext {
+    pub(crate) fn post_update(&mut self) {
+        self.store_keys();
+        self.store_modifiers();
+    }
+}
+
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Clone, Copy)]
 pub enum KeyModifier {
     LShift,

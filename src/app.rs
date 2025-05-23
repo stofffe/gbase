@@ -224,11 +224,11 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 #[cfg(feature = "hot_reload")]
                 {
                     if ctx.hot_reload.should_reload() {
-                        log::info!("Hot reload");
+                        tracing::info!("Hot reload");
                         callbacks.hot_reload(ctx);
                     }
                     if ctx.hot_reload.should_restart() {
-                        log::info!("Hot restart");
+                        tracing::info!("Hot restart");
                         callbacks.hot_restart(ctx);
                     }
                 }
@@ -289,10 +289,9 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 /// Functions implemented on App
 fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool {
     // time
-    ctx.time.update_time();
-
+    ctx.time.pre_update();
     #[cfg(feature = "hot_reload")]
-    ctx.hot_reload.reset();
+    ctx.hot_reload.pre_update();
 
     // update
     if callbacks.update(ctx) {
@@ -330,15 +329,15 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
 
     output.present();
 
-    ctx.render
-        .gpu_profiler
-        .readback(&ctx.render.device, &ctx.render.queue);
-
     // input
-    ctx.input.keyboard.store_keys();
-    ctx.input.keyboard.store_modifiers();
-    ctx.input.mouse.store_buttons();
-    ctx.input.mouse.set_mouse_delta((0.0, 0.0));
+    ctx.input.post_update();
+    ctx.time.post_update();
+
+    ctx.render.gpu_profiler.readback(
+        &ctx.render.device,
+        &ctx.render.queue,
+        ctx.time.profiler.clone(),
+    );
 
     false
 }
@@ -353,8 +352,9 @@ pub struct ContextBuilder {
     pub(crate) window_attributes: winit::window::WindowAttributes,
     pub(crate) device_features: wgpu::Features,
     pub(crate) log_level: tracing::Level,
-    pub(crate) assets_path: PathBuf,       // can be set later
-    pub(crate) vsync_enabled: bool,        // can be set later
+    pub(crate) assets_path: PathBuf, // can be set later
+    pub(crate) vsync_enabled: bool,  // can be set later
+
     pub(crate) gpu_profiler_enabled: bool, // can be set later
     pub(crate) gpu_profiler_capacity: u32, // can be set later
 }
@@ -368,9 +368,21 @@ impl ContextBuilder {
             vsync_enabled: true,
             device_features: wgpu::Features::default(),
             window_attributes: WindowAttributes::default(),
+
             gpu_profiler_enabled: false,
             gpu_profiler_capacity: 64,
         }
+    }
+
+    pub fn gpu_profiler_enabled(mut self, enabled: bool) -> Self {
+        self.gpu_profiler_enabled = enabled;
+        self.device_features |= wgpu::Features::TIMESTAMP_QUERY;
+        self
+    }
+
+    pub fn gpu_profiler_capacity(mut self, capacity: u32) -> Self {
+        self.gpu_profiler_capacity = capacity;
+        self
     }
 
     pub fn assets_path(mut self, path: impl Into<PathBuf>) -> Self {

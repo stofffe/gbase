@@ -1,3 +1,5 @@
+use crate::time;
+
 #[derive(Debug, Clone)]
 pub struct GpuProfileQuery {
     pub label: &'static str,
@@ -75,8 +77,13 @@ impl GpuProfiler {
             enabled,
         }
     }
-    pub(crate) fn readback(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        self.readback_times.clear();
+
+    pub(crate) fn readback(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        profiler: time::Profiler,
+    ) {
         if !self.enabled {
             return;
         }
@@ -118,16 +125,22 @@ impl GpuProfiler {
             let timestamp_diff = timestamps[query.timestamp_end as usize]
                 - timestamps[query.timestamp_start as usize];
             let time_ns = timestamp_diff as f32 * queue.get_timestamp_period();
-            let time_ms = time_ns / 1_000_000.0;
+            let time_s = time_ns / 1_000_000_000.0;
             res.push(GpuProfileResult {
                 label: query.label,
-                time: time_ms,
+                time: time_s,
             });
         }
 
         self.readback_times = res;
         self.next_free_timestamp = 0;
         self.new_times.clear();
+
+        // copy to profiler
+        let mut profiler = profiler;
+        for res in self.readback_times.iter() {
+            profiler.add_sample(res.label, res.time);
+        }
     }
 
     pub fn enable(&mut self, enabled: bool) {

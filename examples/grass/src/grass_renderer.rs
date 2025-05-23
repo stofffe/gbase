@@ -3,7 +3,7 @@ use gbase::{
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
     render::{
-        self, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
+        self, device, queue, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
         RenderPassColorAttachment,
     },
     wgpu, Context,
@@ -62,26 +62,31 @@ impl GrassRenderer {
             render::RawBufferBuilder::new(render::RawBufferSource::Size(
                 GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
             ))
+            .label("instance buffer 1")
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
             .build(ctx),
             render::RawBufferBuilder::new(render::RawBufferSource::Size(
                 GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
             ))
+            .label("instance buffer 2")
             .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
             .build(ctx),
         ];
 
         let instance_count =
             render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
+                .label("instance count")
                 .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
                 .build(ctx);
 
         #[rustfmt::skip]
         let indirect_buffer = [
             render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
+                .label("indirect buffer 1")
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
                 .build(ctx),
             render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
+                .label("indirect buffer 2")
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
                 .build(ctx),
         ];
@@ -93,8 +98,9 @@ impl GrassRenderer {
         .build(ctx)
         .with_default_sampler_and_view(ctx);
 
-        let tile_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let tile_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+            .label("tiles")
+            .build(ctx);
         let app_info = gbase_utils::AppInfo::new(ctx);
         let debug_input = gbase_utils::DebugInput::new(ctx);
 
@@ -262,8 +268,10 @@ impl GrassRenderer {
 
         for (i, tile) in tiles.into_iter().enumerate() {
             let mut encoder = render::EncoderBuilder::new().build(ctx);
+            encoder.push_debug_group(&format!("grass tile {i} buffer write"));
             // Alternate buffers to allow for GPU pipelining
             let i_cur = i % 2;
+
             self.instance_count.write(ctx, &[0u32]);
             self.tile_buffer.write(
                 ctx,
@@ -273,8 +281,11 @@ impl GrassRenderer {
                     blades_per_side: BLADES_PER_SIDE as f32,
                 },
             );
+
+            encoder.pop_debug_group();
+
             let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("compute pass"),
+                label: Some(&format!("grass compute {}", i)),
                 timestamp_writes: None,
             });
 
@@ -416,6 +427,7 @@ impl GrassRenderer {
                     .build(ctx);
 
                     render::RenderPassBuilder::new()
+                        .label(&format!("grass render {}", i))
                         .color_attachments(&[Some(RenderPassColorAttachment::new(view))])
                         .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
                         .build_run(&mut encoder, |mut render_pass| {

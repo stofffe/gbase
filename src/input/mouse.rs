@@ -16,6 +16,13 @@ pub(crate) struct MouseContext {
 }
 
 impl MouseContext {
+    pub(crate) fn post_update(&mut self) {
+        self.store_buttons();
+        self.set_mouse_delta((0.0, 0.0));
+    }
+}
+
+impl MouseContext {
     /// Returns true if Button is down
     /// Accepts repeating
     pub(crate) fn button_pressed(&self, keycode: MouseButton) -> bool {

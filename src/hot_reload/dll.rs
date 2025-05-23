@@ -90,9 +90,9 @@ fn load_dll<T>() -> DllApi<T> {
     let new_callback = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
         Ok(f) => *f,
         Err(err) => {
-            log::error!("could not find function new");
-            log::error!("TIP: make sure callbacks are defined in library and not main.rs");
-            log::error!("TIP: make sure functions are marked with #[no_mangle]");
+            tracing::error!("could not find function new");
+            tracing::error!("TIP: make sure callbacks are defined in library and not main.rs");
+            tracing::error!("TIP: make sure functions are marked with #[no_mangle]");
             panic!("{}", err);
         }
     };
@@ -100,28 +100,28 @@ fn load_dll<T>() -> DllApi<T> {
     let update_callback = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
         Ok(f) => Some(*f),
         Err(err) => {
-            log::warn!("could not find function update: {}", err);
+            tracing::warn!("could not find function update: {}", err);
             None
         }
     };
     let render_callback = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
         Ok(f) => Some(*f),
         Err(err) => {
-            log::warn!("could not find function render: {}", err);
+            tracing::warn!("could not find function render: {}", err);
             None
         }
     };
     let resize_callback = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
         Ok(f) => Some(*f),
         Err(err) => {
-            log::warn!("could not find function resize: {}", err);
+            tracing::warn!("could not find function resize: {}", err);
             None
         }
     };
     let reload_callback = match unsafe { lib.symbol::<ReloadFunc>("hot_reload") } {
         Ok(f) => Some(*f),
         Err(err) => {
-            log::warn!("could not find function hot_reload: {}", err);
+            tracing::warn!("could not find function hot_reload: {}", err);
             None
         }
     };

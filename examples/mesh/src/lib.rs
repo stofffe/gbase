@@ -13,7 +13,7 @@ use gbase_utils::{
     PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget, BLACK, BLUE, GRAY,
     RED, WHITE,
 };
-use std::{f32::consts::PI, sync::Arc};
+use std::{f32::consts::PI, sync::Arc, time::Instant};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -75,6 +75,7 @@ impl Callbacks for App {
             .log_level(tracing::Level::INFO)
             .vsync(false)
             .device_features(wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::TIMESTAMP_QUERY)
+            .gpu_profiler_enabled(true)
     }
 
     #[no_mangle]
@@ -198,8 +199,23 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
+    fn update(&mut self, ctx: &mut Context) -> bool {
+        if mouse_button_pressed(ctx, input::MouseButton::Left) {
+            self.camera.flying_controls(ctx);
+        }
+
+        if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
+            tracing::warn!("RESTART");
+            *self = Self::new(ctx);
+        }
+
+        false
+    }
+
+    #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        let timer = time::CpuProfileTimer::new("render");
+        let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
+        // let timer = time::CpuProfileTimer::new("render");
 
         self.mesh_cache.check_watched_files(ctx);
         self.image_cache.check_watched_files(ctx);
@@ -211,7 +227,7 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.lights_buffer.write(ctx, &self.lights);
 
-        let t = time::time_since_start(ctx);
+        // let t = time::time_since_start(ctx);
         self.pbr_renderer.add_mesh(
             self.helmet_mesh_handle.clone(),
             self.helmet_material.clone(),
@@ -220,30 +236,40 @@ impl Callbacks for App {
                 .with_scale(Vec3::ONE * 5.0), // .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
         );
 
-        self.pbr_renderer.render(
-            ctx,
-            &mut self.mesh_cache,
-            &mut self.image_cache,
-            self.hdr_framebuffer_1.view_ref(),
-            self.hdr_framebuffer_1.format(),
-            &self.camera,
-            &self.camera_buffer,
-            &self.lights_buffer,
-            &self.depth_buffer,
-        );
-        self.gizmo_renderer.render(
-            ctx,
-            self.hdr_framebuffer_1.view_ref(),
-            self.hdr_framebuffer_1.format(),
-            &self.camera_buffer,
-        );
+        {
+            let _timer = time::ProfileTimer::new(ctx, "render");
+            self.pbr_renderer.render(
+                ctx,
+                &mut self.mesh_cache,
+                &mut self.image_cache,
+                self.hdr_framebuffer_1.view_ref(),
+                self.hdr_framebuffer_1.format(),
+                &self.camera,
+                &self.camera_buffer,
+                &self.lights_buffer,
+                &self.depth_buffer,
+            );
+        }
 
+        time::ProfileTimer::scoped(ctx, "gizmo", |ctx| {
+            self.gizmo_renderer.render(
+                ctx,
+                self.hdr_framebuffer_1.view_ref(),
+                self.hdr_framebuffer_1.format(),
+                &self.camera_buffer,
+            );
+        });
+
+        let start = Instant::now();
         self.bloom.render(
             ctx,
             &mut self.shader_cache,
             &self.hdr_framebuffer_1,
             &self.hdr_framebuffer_2,
         );
+        if input::key_pressed(ctx, input::KeyCode::KeyB) {
+            time::profiler(ctx).add_sample("bloom", start.elapsed().as_secs_f32());
+        }
 
         self.tonemap.tonemap(
             ctx,
@@ -252,12 +278,98 @@ impl Callbacks for App {
             &self.ldr_framebuffer,
         );
 
-        // self.ui_renderer.display_debug_info(ctx);
-        self.ui_renderer.render(
-            ctx,
-            self.ldr_framebuffer.view_ref(),
-            self.ldr_framebuffer.format(),
-        );
+        {
+            let _guard = tracing::span!(tracing::Level::TRACE, "ui update").entered();
+            let outer = Widget::new()
+                .label("outer")
+                .width(SizeKind::PercentOfParent(1.0))
+                .height(SizeKind::PercentOfParent(1.0))
+                .direction(Direction::Column)
+                .gap(20.0)
+                .padding(20.0);
+
+            outer.layout(&mut self.ui_renderer, |renderer| {
+                let slider_row = Widget::new()
+                    .height(SizeKind::Pixels(100.0))
+                    .width(SizeKind::ChildrenSum)
+                    .gap(20.0)
+                    .cross_axis_alignment(Alignment::Center)
+                    .direction(Direction::Row);
+                slider_row.layout(renderer, |renderer| {
+                    Widget::new()
+                        .text("main light intensity")
+                        .text_color(WHITE)
+                        .height(SizeKind::TextSize)
+                        .width(SizeKind::TextSize)
+                        .text_font_size(60.0)
+                        .render(renderer);
+                    let slider = Widget::new()
+                        .label("slider")
+                        .color(GRAY)
+                        .border_radius(10.0)
+                        .height(SizeKind::Pixels(100.0))
+                        .width(SizeKind::Pixels(500.0))
+                        .direction(Direction::Row);
+                    slider.slider_layout(
+                        ctx,
+                        renderer,
+                        0.0,
+                        20.0,
+                        &mut self.lights.main_light_insensity,
+                        |renderer, res| {
+                            Widget::new()
+                                .width(SizeKind::PercentOfParent(res.pos))
+                                .render(renderer);
+                            Widget::new()
+                                .width(SizeKind::Pixels(10.0))
+                                .height(SizeKind::Grow)
+                                .color(BLACK)
+                                .border_radius(5.0)
+                                .render(renderer);
+                        },
+                    );
+
+                    Widget::new()
+                        .text(format!("({:.3})", self.lights.main_light_insensity))
+                        .text_color(WHITE)
+                        .width(SizeKind::TextSize)
+                        .height(SizeKind::TextSize)
+                        .text_font_size(60.0)
+                        .render(renderer);
+                });
+                Widget::new()
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text(format!("total ms: {}", time::frame_time(ctx) * 1000.0))
+                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .render(renderer);
+
+                for (label, time) in time::profiler(ctx).extract() {
+                    Widget::new()
+                        .width(SizeKind::TextSize)
+                        .height(SizeKind::TextSize)
+                        .text(format!("{:.5} {} (cpu)", time * 1000.0, label))
+                        .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                        .render(renderer);
+                }
+
+                // for res in render::gpu_profiler(ctx).readback_times() {
+                //     Widget::new()
+                //         .width(SizeKind::TextSize)
+                //         .height(SizeKind::TextSize)
+                //         .text(format!("{:.5} {} (gpu)", res.time, res.label))
+                //         .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                //         .render(renderer);
+                // }
+            });
+
+            let _ui = tracing::span!(tracing::Level::TRACE, "ui update").entered();
+            self.ui_renderer.render(
+                ctx,
+                self.ldr_framebuffer.view_ref(),
+                self.ldr_framebuffer.format(),
+            );
+        }
 
         self.framebuffer_renderer.render(
             ctx,
@@ -277,103 +389,6 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
-    }
-
-    #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
-        let timer = time::CpuProfileTimer::new("update");
-
-        if mouse_button_pressed(ctx, input::MouseButton::Left) {
-            self.camera.flying_controls(ctx);
-        }
-
-        if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
-            tracing::warn!("RESTART");
-            *self = Self::new(ctx);
-        }
-
-        // render::device(ctx).poll(wgpu::MaintainBase::Wait);
-        // let timestamps_gpu = render::gpu_profiler(ctx).readback(ctx);
-
-        let outer = Widget::new()
-            .label("outer")
-            .width(SizeKind::PercentOfParent(1.0))
-            .height(SizeKind::PercentOfParent(1.0))
-            .direction(Direction::Column)
-            .gap(20.0)
-            .padding(20.0);
-
-        outer.layout(&mut self.ui_renderer, |renderer| {
-            let slider_row = Widget::new()
-                .height(SizeKind::Pixels(100.0))
-                .width(SizeKind::ChildrenSum)
-                .gap(20.0)
-                .cross_axis_alignment(Alignment::Center)
-                .direction(Direction::Row);
-            slider_row.layout(renderer, |renderer| {
-                Widget::new()
-                    .text("main light intensity")
-                    .text_color(WHITE)
-                    .height(SizeKind::TextSize)
-                    .width(SizeKind::TextSize)
-                    .text_font_size(60.0)
-                    .render(renderer);
-                let slider = Widget::new()
-                    .label("slider")
-                    .color(GRAY)
-                    .border_radius(10.0)
-                    .height(SizeKind::Pixels(100.0))
-                    .width(SizeKind::Pixels(500.0))
-                    .direction(Direction::Row);
-                slider.slider_layout(
-                    ctx,
-                    renderer,
-                    0.0,
-                    20.0,
-                    &mut self.lights.main_light_insensity,
-                    |renderer, res| {
-                        Widget::new()
-                            .width(SizeKind::PercentOfParent(res.pos))
-                            .render(renderer);
-                        Widget::new()
-                            .width(SizeKind::Pixels(10.0))
-                            .height(SizeKind::Grow)
-                            .color(BLACK)
-                            .border_radius(5.0)
-                            .render(renderer);
-                    },
-                );
-
-                Widget::new()
-                    .text(format!("({:.3})", self.lights.main_light_insensity))
-                    .text_color(WHITE)
-                    .width(SizeKind::TextSize)
-                    .height(SizeKind::TextSize)
-                    .text_font_size(60.0)
-                    .render(renderer);
-            });
-            Widget::new()
-                .width(SizeKind::TextSize)
-                .height(SizeKind::TextSize)
-                .text(format!("total ms: {}", time::delta_time(ctx) * 1000.0))
-                .text_color(vec4(1.0, 1.0, 1.0, 1.0))
-                .render(renderer);
-
-            let space_pressed = input::key_pressed(ctx, input::KeyCode::Space);
-            render::gpu_profiler(ctx).enable(space_pressed);
-
-            let timestamps_gpu = render::gpu_profiler(ctx).readback_times();
-            for res in timestamps_gpu {
-                Widget::new()
-                    .width(SizeKind::TextSize)
-                    .height(SizeKind::TextSize)
-                    .text(format!("{:.5} {} (gpu)", res.time, res.label))
-                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
-                    .render(renderer);
-            }
-        });
-
-        false
     }
 }
 

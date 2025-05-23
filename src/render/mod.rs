@@ -131,6 +131,7 @@ impl RenderContext {
             window,
 
             cache,
+
             gpu_profiler,
         }
     }

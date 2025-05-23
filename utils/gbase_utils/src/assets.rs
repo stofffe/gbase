@@ -71,6 +71,7 @@ impl<T: 'static> Clone for AssetHandle<T> {
     }
 }
 
+#[derive(Debug)]
 struct ReloadHandle<T: 'static> {
     path: String,
     modified: SystemTime,
@@ -86,6 +87,7 @@ pub trait Asset<T: 'static, G: 'static> {
     fn reload(&mut self, ctx: &mut Context, data: Vec<u8>);
 }
 
+#[derive(Debug)]
 pub struct AssetCache<T: 'static, G: 'static> {
     cpu_cache: HashMap<AssetHandle<T>, (T, bool)>,
     gpu_cache: HashMap<AssetHandle<T>, ArcHandle<G>>,

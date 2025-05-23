@@ -22,14 +22,20 @@ pub(crate) struct HotReloadContext {
     force_reload: bool,
     force_restart: bool,
 
-    #[allow(dead_code)]
     dll_watcher: notify::FsEventWatcher, // keep reference alive
     dll_change_channel: mpsc::Receiver<Result<notify::Event, notify::Error>>,
 }
 
 impl HotReloadContext {
+    pub(crate) fn pre_update(&mut self) {
+        self.force_reload = false;
+        self.force_restart = false;
+    }
+}
+
+impl HotReloadContext {
     pub(crate) fn new() -> Self {
-        log::info!("Hot Reload is enabled");
+        tracing::info!("Hot Reload is enabled");
 
         let (tx, rx) = mpsc::channel();
 
@@ -61,11 +67,6 @@ impl HotReloadContext {
     }
     pub(crate) fn should_restart(&self) -> bool {
         self.force_restart
-    }
-
-    pub(crate) fn reset(&mut self) {
-        self.force_reload = false;
-        self.force_restart = false;
     }
 }
 

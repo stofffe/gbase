@@ -94,6 +94,7 @@ impl GizmoRenderer {
                 .build(ctx);
 
         render::RenderPassBuilder::new()
+            .label("gizmos")
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(self.depth_buffer.depth_render_attachment_clear())
             .build_run_submit(ctx, |mut pass| {
