@@ -268,7 +268,7 @@ impl Callbacks for App {
             &self.hdr_framebuffer_2,
         );
         if input::key_pressed(ctx, input::KeyCode::KeyB) {
-            time::profiler(ctx).add_sample("bloom", start.elapsed().as_secs_f32());
+            time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
         }
 
         self.tonemap.tonemap(
@@ -344,23 +344,23 @@ impl Callbacks for App {
                     .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                     .render(renderer);
 
-                for (label, time) in time::profiler(ctx).extract() {
+                for (label, time) in time::profiler(ctx).get_cpu_samples() {
                     Widget::new()
                         .width(SizeKind::TextSize)
                         .height(SizeKind::TextSize)
-                        .text(format!("{:.5} {} (cpu)", time * 1000.0, label))
+                        .text(format!("CPU: {:.5} {}", time * 1000.0, label))
                         .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                         .render(renderer);
                 }
 
-                // for res in render::gpu_profiler(ctx).readback_times() {
-                //     Widget::new()
-                //         .width(SizeKind::TextSize)
-                //         .height(SizeKind::TextSize)
-                //         .text(format!("{:.5} {} (gpu)", res.time, res.label))
-                //         .text_color(vec4(1.0, 1.0, 1.0, 1.0))
-                //         .render(renderer);
-                // }
+                for (label, time) in time::profiler(ctx).get_gpu_samples() {
+                    Widget::new()
+                        .width(SizeKind::TextSize)
+                        .height(SizeKind::TextSize)
+                        .text(format!("GPU: {:.5} {}", time * 1000.0, label))
+                        .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                        .render(renderer);
+                }
             });
 
             let _ui = tracing::span!(tracing::Level::TRACE, "ui update").entered();

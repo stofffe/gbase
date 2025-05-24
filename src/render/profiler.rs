@@ -82,7 +82,7 @@ impl GpuProfiler {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        profiler: time::Profiler,
+        profiler: time::ProfilerWrapper,
     ) {
         if !self.enabled {
             return;
@@ -139,7 +139,7 @@ impl GpuProfiler {
         // copy to profiler
         let mut profiler = profiler;
         for res in self.readback_times.iter() {
-            profiler.add_sample(res.label, res.time);
+            profiler.add_gpu_sample(res.label, res.time);
         }
     }
 

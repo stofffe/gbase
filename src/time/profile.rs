@@ -8,28 +8,33 @@ use std::{
 const SAMPLES: usize = 20;
 
 #[derive(Clone)]
-pub struct Profiler {
-    inner: Arc<Mutex<ProfilerInner>>,
+pub struct ProfilerWrapper {
+    inner: Arc<Mutex<Profiler>>,
 }
 
 // TODO: replace duration
 
-impl Profiler {
+impl ProfilerWrapper {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(ProfilerInner::new())),
+            inner: Arc::new(Mutex::new(Profiler::new())),
         }
     }
-
-    pub fn add_sample(&mut self, label: &'static str, time: f32) {
-        self.inner.lock().unwrap().add_sample(label, time);
-    }
-
     pub fn finish(&mut self) {
         self.inner.lock().unwrap().finish();
     }
-    pub fn extract(&self) -> Vec<(&'static str, f32)> {
-        self.inner.lock().unwrap().get_samples()
+
+    pub fn add_cpu_sample(&mut self, label: &'static str, time: f32) {
+        self.inner.lock().unwrap().add_cpu_sample(label, time);
+    }
+    pub fn get_cpu_samples(&self) -> Vec<(&'static str, f32)> {
+        self.inner.lock().unwrap().get_cpu_samples()
+    }
+    pub fn add_gpu_sample(&mut self, label: &'static str, time: f32) {
+        self.inner.lock().unwrap().add_gpu_sample(label, time);
+    }
+    pub fn get_gpu_samples(&self) -> Vec<(&'static str, f32)> {
+        self.inner.lock().unwrap().get_gpu_samples()
     }
     pub fn add_total_frame_time_sample(&mut self, time: f32) {
         self.inner.lock().unwrap().add_total_frame_time_sample(time);
@@ -40,54 +45,63 @@ impl Profiler {
 }
 
 /// Averages profiling samples over time
-struct ProfilerInner {
-    samples: HashMap<&'static str, VecDeque<f32>>,
-    recent: HashSet<&'static str>,
+struct Profiler {
+    cpu_samples: HashMap<&'static str, VecDeque<f32>>,
+    cpu_recent: HashSet<&'static str>,
+
+    gpu_samples: HashMap<&'static str, VecDeque<f32>>,
+    gpu_recent: HashSet<&'static str>,
 
     total_frame_time: VecDeque<f32>,
 }
 
-impl ProfilerInner {
+impl Profiler {
     pub fn new() -> Self {
         Self {
-            samples: HashMap::new(),
-            recent: HashSet::new(),
+            cpu_samples: HashMap::new(),
+            cpu_recent: HashSet::new(),
+            gpu_samples: HashMap::new(),
+            gpu_recent: HashSet::new(),
             total_frame_time: VecDeque::new(),
         }
     }
 
-    fn add_sample(&mut self, label: &'static str, time: f32) {
-        let queue = self.samples.entry(label).or_default();
+    fn finish(&mut self) {
+        // cpu
+        let mut filtered_samples = HashMap::new();
+        for (label, value) in self.cpu_samples.drain() {
+            if self.cpu_recent.contains(&label) {
+                filtered_samples.insert(label, value);
+            }
+        }
+        self.cpu_samples = filtered_samples;
+        self.cpu_recent.clear();
+
+        // gpu
+        let mut filtered_samples = HashMap::new();
+        for (label, value) in self.gpu_samples.drain() {
+            if self.gpu_recent.contains(&label) {
+                filtered_samples.insert(label, value);
+            }
+        }
+        self.gpu_samples = filtered_samples;
+        self.gpu_recent.clear();
+    }
+
+    // cpu
+    fn add_cpu_sample(&mut self, label: &'static str, time: f32) {
+        let queue = self.cpu_samples.entry(label).or_default();
         queue.push_back(time);
         if queue.len() > SAMPLES {
             queue.pop_front();
         }
 
-        self.recent.insert(label);
+        self.cpu_recent.insert(label);
     }
-
-    fn add_total_frame_time_sample(&mut self, time: f32) {
-        self.total_frame_time.push_back(time);
-        if self.total_frame_time.len() > SAMPLES {
-            self.total_frame_time.pop_front();
-        }
-    }
-
-    fn finish(&mut self) {
-        let mut filtered_samples = HashMap::new();
-        for (label, value) in self.samples.drain() {
-            if self.recent.contains(&label) {
-                filtered_samples.insert(label, value);
-            }
-        }
-        self.samples = filtered_samples;
-        self.recent.clear();
-    }
-
-    fn get_samples(&self) -> Vec<(&'static str, f32)> {
+    fn get_cpu_samples(&self) -> Vec<(&'static str, f32)> {
         let mut filtered_samples = Vec::new();
-        for (&label, queue) in self.samples.iter() {
-            if self.recent.contains(label) {
+        for (&label, queue) in self.cpu_samples.iter() {
+            if self.cpu_recent.contains(label) {
                 let average = queue.iter().sum::<f32>() / queue.len() as f32;
                 filtered_samples.push((label, average));
             }
@@ -96,13 +110,42 @@ impl ProfilerInner {
         filtered_samples
     }
 
+    // gpu
+    fn add_gpu_sample(&mut self, label: &'static str, time: f32) {
+        let queue = self.gpu_samples.entry(label).or_default();
+        queue.push_back(time);
+        if queue.len() > SAMPLES {
+            queue.pop_front();
+        }
+
+        self.gpu_recent.insert(label);
+    }
+    fn get_gpu_samples(&self) -> Vec<(&'static str, f32)> {
+        let mut filtered_samples = Vec::new();
+        for (&label, queue) in self.gpu_samples.iter() {
+            if self.gpu_recent.contains(label) {
+                let average = queue.iter().sum::<f32>() / queue.len() as f32;
+                filtered_samples.push((label, average));
+            }
+        }
+        filtered_samples.sort_by_key(|(label, _)| *label);
+        filtered_samples
+    }
+
+    // total frame time
+    fn add_total_frame_time_sample(&mut self, time: f32) {
+        self.total_frame_time.push_back(time);
+        if self.total_frame_time.len() > SAMPLES {
+            self.total_frame_time.pop_front();
+        }
+    }
     fn get_total_frame_time(&self) -> f32 {
         self.total_frame_time.iter().sum::<f32>() / self.total_frame_time.len() as f32
     }
 }
 
 pub struct ProfileTimer {
-    profiler: Profiler,
+    profiler: ProfilerWrapper,
     label: &'static str,
     start: Instant,
 }
@@ -129,47 +172,6 @@ impl ProfileTimer {
 impl Drop for ProfileTimer {
     fn drop(&mut self) {
         self.profiler
-            .add_sample(self.label, self.start.elapsed().as_secs_f32());
+            .add_cpu_sample(self.label, self.start.elapsed().as_secs_f32());
     }
 }
-
-// #[derive(Clone, Debug)]
-// pub struct ProfileResult {
-//     pub label: &'static str,
-//     pub time_ms: f32,
-// }
-//
-// pub struct CpuProfileTimer {
-//     label: &'static str,
-//     start: Instant,
-// }
-//
-// impl CpuProfileTimer {
-//     pub fn new(label: &'static str) -> Self {
-//         let start = Instant::now();
-//         Self { label, start }
-//     }
-// }
-//
-// pub struct CpuProfiler {
-//     times: Vec<ProfileResult>,
-// }
-//
-// impl CpuProfiler {
-//     pub fn new() -> Self {
-//         Self { times: Vec::new() }
-//     }
-//
-//     pub fn profile(&mut self, timer: CpuProfileTimer) {
-//         self.times.push(ProfileResult {
-//             label: timer.label,
-//             time_ms: timer.start.elapsed().as_secs_f32() * 1000.0,
-//         });
-//     }
-//
-//     pub fn readback(&mut self) -> Vec<ProfileResult> {
-//         let times = self.times.clone();
-//         self.times.clear();
-//         times
-//     }
-// }

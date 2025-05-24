@@ -17,7 +17,7 @@ pub(crate) struct TimeContext {
     delta_time: f32,
     time_since_start: f32,
 
-    pub(crate) profiler: Profiler,
+    pub(crate) profiler: ProfilerWrapper,
 }
 
 impl Default for TimeContext {
@@ -30,7 +30,7 @@ impl Default for TimeContext {
 
             time_since_start: 0.0,
 
-            profiler: Profiler::new(),
+            profiler: ProfilerWrapper::new(),
         }
     }
 }
@@ -57,7 +57,7 @@ impl TimeContext {
 // Commands
 //
 
-pub fn profiler(ctx: &Context) -> Profiler {
+pub fn profiler(ctx: &Context) -> ProfilerWrapper {
     ctx.time.profiler.clone()
 }
 
@@ -79,11 +79,9 @@ pub fn delta_time(ctx: &Context) -> f32 {
 /// Returns the frame time (in seconds) for the last 100 frames
 pub fn frame_time(ctx: &Context) -> f32 {
     ctx.time.profiler.get_total_frame_time()
-    // ctx.time.frame_time_avg
 }
 
 /// Returns the frame time (in seconds) for the last 100 frames
 pub fn fps(ctx: &Context) -> f32 {
     1.0 / frame_time(ctx)
-    // 1.0 / ctx.time.frame_time_avg
 }
