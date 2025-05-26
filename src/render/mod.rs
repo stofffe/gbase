@@ -70,6 +70,8 @@ impl RenderContext {
             .await
             .expect("could not create adapter");
 
+        // tracing::error!("Using backend: {:?}", adapter.get_info().backend);
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor {
@@ -90,7 +92,7 @@ impl RenderContext {
             .copied()
             .find(|f| f.is_srgb())
             .unwrap_or(surface_capabilities.formats[0]);
-        tracing::error!("surface format {:?}", surface_format);
+        // tracing::error!("surface format {:?}", surface_format);
         let window_size = window.inner_size();
 
         let surface_config = wgpu::SurfaceConfiguration {

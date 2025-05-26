@@ -212,7 +212,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                                         }
                                     }),
                             )
-                            .address_mode(
+                            .address_mode_separate(
                                 match samp.wrap_s() {
                                     gltf::texture::WrappingMode::ClampToEdge => {
                                         wgpu::AddressMode::ClampToEdge
@@ -282,7 +282,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                                         }
                                     }),
                             )
-                            .address_mode(
+                            .address_mode_separate(
                                 match samp.wrap_s() {
                                     gltf::texture::WrappingMode::ClampToEdge => {
                                         wgpu::AddressMode::ClampToEdge
@@ -353,7 +353,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                                         }
                                     }),
                             )
-                            .address_mode(
+                            .address_mode_separate(
                                 match samp.wrap_s() {
                                     gltf::texture::WrappingMode::ClampToEdge => {
                                         wgpu::AddressMode::ClampToEdge
@@ -422,7 +422,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                                         }
                                     }),
                             )
-                            .address_mode(
+                            .address_mode_separate(
                                 match samp.wrap_s() {
                                     gltf::texture::WrappingMode::ClampToEdge => {
                                         wgpu::AddressMode::ClampToEdge
@@ -486,7 +486,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                                         }
                                     }),
                             )
-                            .address_mode(
+                            .address_mode_separate(
                                 match samp.wrap_s() {
                                     gltf::texture::WrappingMode::ClampToEdge => {
                                         wgpu::AddressMode::ClampToEdge

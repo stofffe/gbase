@@ -121,7 +121,7 @@ impl ColorTargetState {
             write_mask: wgpu::ColorWrites::ALL,
         }
     }
-    pub fn from_framebuffer(framebuffer: render::FrameBuffer) -> Self {
+    pub fn from_framebuffer(framebuffer: &render::FrameBuffer) -> Self {
         Self {
             format: framebuffer.format(),
             blend: None,
@@ -312,8 +312,8 @@ impl RenderPipelineBuilder {
         self.vertex_entry_point = Some(value);
         self
     }
-    pub fn fragment_entry_point(mut self, value: String) -> Self {
-        self.fragment_entry_point = Some(value);
+    pub fn fragment_entry_point(mut self, value: impl Into<String>) -> Self {
+        self.fragment_entry_point = Some(value.into());
         self
     }
 

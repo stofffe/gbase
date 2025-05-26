@@ -1,12 +1,11 @@
 mod bloom;
 
-use bloom::{Bloom, Tonemap};
 use gbase::{
     glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
-    time, tracing, wgpu, Callbacks, Context,
+    time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
     Alignment, AssetCache, AssetHandle, Direction, GaussianFilterParams, GpuMaterial,
@@ -74,8 +73,13 @@ impl Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
             .vsync(false)
-            .device_features(wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::TIMESTAMP_QUERY)
-            .gpu_profiler_enabled(true)
+            .device_features(
+                wgpu::Features::POLYGON_MODE_LINE
+                    | wgpu::Features::TIMESTAMP_QUERY
+                    | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
+            )
+            .window_attributes(winit::window::Window::default_attributes().with_maximized(true))
+            .gpu_profiler_enabled(false)
     }
 
     #[no_mangle]
@@ -85,14 +89,18 @@ impl Callbacks for App {
         let mut shader_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
 
+        let hdr_format = if render::device(ctx)
+            .features()
+            .contains(wgpu::Features::RG11B10UFLOAT_RENDERABLE)
+        {
+            wgpu::TextureFormat::Rg11b10Ufloat
+        } else {
+            wgpu::TextureFormat::Rgba16Float
+        };
         let hdr_framebuffer_builder = render::FrameBufferBuilder::new()
             .screen_size(ctx)
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .usage(
-                wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::STORAGE_BINDING,
-            );
+            .format(hdr_format)
+            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
         let hdr_framebuffer_1 = hdr_framebuffer_builder.clone().label("hdr 1").build(ctx);
         let hdr_framebuffer_2 = hdr_framebuffer_builder.label("hdr 2").build(ctx);
 
@@ -140,7 +148,7 @@ impl Callbacks for App {
 
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
-                .pos(vec3(0.0, 0.0, 3.0));
+                .pos(vec3(0.0, 0.0, 8.0));
         let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
             camera.uniform(ctx),
         ))
@@ -162,7 +170,7 @@ impl Callbacks for App {
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
-        let bloom = bloom::Bloom::new(ctx, &mut shader_cache);
+        let bloom = bloom::Bloom::new(ctx, &mut shader_cache, hdr_format);
 
         Self {
             hdr_framebuffer_1,
@@ -340,7 +348,14 @@ impl Callbacks for App {
                 Widget::new()
                     .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)
-                    .text(format!("total ms: {}", time::frame_time(ctx) * 1000.0))
+                    .text(format!("{:.5} fps", time::fps(ctx)))
+                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .render(renderer);
+
+                Widget::new()
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text(format!("{:.5} ms", time::frame_time(ctx) * 1000.0))
                     .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                     .render(renderer);
 

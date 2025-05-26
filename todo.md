@@ -10,8 +10,12 @@ Engine
 [x] sprite transforms
 [x] random wrapper (hash/rand)
 [x] add gamma correction by default?
+[x] hot_reload callback?
 [x] upgrade to wgpu 24
-[] use glam in core, input, window...
+[x] add proper BRDF to pbr
+    [x] add HDR?
+[x] fix mesh example
+    [x] new glb loader
 [/] catch wgpu panics
     [x] shaders
     [] bindgroups
@@ -19,22 +23,59 @@ Engine
     ...
 [/] fix logging not working in dlls
     - have to call init logging in hot reload callback
+[] use glam in core, input, window...
 [] combine full screen post processing into one with uniform args
 [] explore drop on commandencoder to not miss submitting
-[] hot_reload callback?
 [] look into scale factor dpi
-[] convert all builder to use lifetimes?
+[] convert all builder to use lifetimes? (cant cache with lifetimes)
 [] feature based derives? #\[cfg_attr = "serde", derive(...)\]
 [] move collisions to utils?
 [] helper crate with re exported macros
-[] fix mesh example
-    [] new glb loader
-    [] use mega entity instead?
 [] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
 [] modify framebuffer from main and automatically apply gamma correction if needed (only necessary if format does not support srgb)
 [] double frambuffer for post processing
 [] make format of frambuffer a generic thing
 [] make format and or dimension of texture a generic thing
+[] custom offset instance buffers
+[] file system with caching for READ ONLY buffers/textures
+[] make buffer usage more uniform
+[] make screen view a buffer
+[] look into submitting all command encoders at once
+[] add sinlge pixel images + full screen quad as cached stuff in context?
+[] rework deferred
+[] add ability to reuse encoders for all renderers
+[] pbr renderer not caching textures? 
+[] learn about mip mapping
+[] remove average fps from time module?
+[] use norify for hot reload
+
+[] bloom
+    [] move pixel cache to ctx
+    [] add temp buffer creation stuff, pooling
+    [] replace extract with karis
+    [] combine last upsample and combine shaders
+    [] add threshold/blur radius params
+
+[] profiling
+    [x] cpu with mutex?
+    [x] put profiling in ctx
+    [] async timestamp query readback?
+    [] connect cpu to tracing?
+    [] separate gpu and cpu profiling
+[x] move to tracing
+    [x] tracing wasm
+    [x] tracy
+[] remove vsync, log level, (asset path) from init_ctx()
+    some are needed for wasm (log level)
+
+
+Gltf
+[] use same texture if metal/rough and occlusion use the same
+[x] have list of required attr and add/remove if necessary
+[] auto generate
+    [] normals
+    [] tangents
+    [x] color
 
 Post processing
 [] bloom
@@ -46,7 +87,7 @@ Flappy bird
 [x] sound
 [x] circle collisions
 [x] highscore
-[] use entites
+[x] use entites
 
 Clouds
 [x] ray box intersection
@@ -66,7 +107,7 @@ Clouds
 Links
     
 Gizmos
-[] only create unit shapes and apply transform
+[/] only create unit shapes and apply transform
     - currently taking radius and stuff into account
 
 UI
@@ -101,3 +142,34 @@ Example template
 
 Hot reload command:
     nmap <c-p> <cmd>silent exec "! cd examples/hot_reload && make compile"<cr
+
+Idea for vertex buffer
+Assign id to cache wgpu::Buffers
+Use single buffer for multiple vertex attributes
+
+Asset vs Render type
+
+Asset<From, To> {
+    data T,
+    changed: bool,
+    source: path | bytes
+}
+
+Asset
+    Image
+        Texture builder
+        Sampler builder
+    Mesh
+    Font
+    Audio
+    Cpu Shader
+        ShaderBuilder
+
+Render type
+    Buffers
+    Pipelines
+    Bindgroup/Bindgroup layout
+    Texture
+    Sampler
+    Texture view
+    Shader

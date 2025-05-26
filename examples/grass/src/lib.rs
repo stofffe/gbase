@@ -5,13 +5,13 @@ use gbase::{
     glam::{vec2, vec3, vec4, Quat, Vec3},
     input,
     render::{self, MeshBuilder},
-    tracing, wgpu,
+    time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     Callbacks, Context,
 };
 use gbase_utils::{
-    AssetCache, AssetHandle, CameraFrustum, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache,
-    Transform3D,
+    Alignment, AssetCache, AssetHandle, CameraFrustum, Direction, GpuMaterial, PbrLightUniforms,
+    PbrMaterial, PixelCache, SizeKind, Transform3D, Widget, GRAY, WHITE,
 };
 use grass_renderer::GrassRenderer;
 use std::{f32::consts::PI, sync::Arc};
@@ -56,8 +56,9 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
+            .gpu_profiler_enabled(false)
             .window_attributes(Window::default_attributes().with_maximized(true))
-            // .device_features(wgpu::Features::POLYGON_MODE_LINE)
+            .device_features(wgpu::Features::TIMESTAMP_QUERY)
             .vsync(false)
     }
 
@@ -219,7 +220,47 @@ impl Callbacks for App {
             self.framebuffer.format(),
             &self.camera_buffer,
         );
-        self.gui_renderer.display_debug_info(ctx);
+        // self.gui_renderer.display_debug_info(ctx);
+        let outer = Widget::new()
+            .label("outer")
+            .width(SizeKind::PercentOfParent(1.0))
+            .height(SizeKind::PercentOfParent(1.0))
+            .direction(Direction::Column)
+            .gap(20.0)
+            .padding(20.0);
+        outer.layout(&mut self.gui_renderer, |renderer| {
+            Widget::new()
+                .width(SizeKind::TextSize)
+                .height(SizeKind::TextSize)
+                .text(format!("{:.5} fps", time::fps(ctx)))
+                .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                .render(renderer);
+
+            Widget::new()
+                .width(SizeKind::TextSize)
+                .height(SizeKind::TextSize)
+                .text(format!("{:.5} ms", time::frame_time(ctx) * 1000.0))
+                .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                .render(renderer);
+
+            for (label, time) in time::profiler(ctx).get_cpu_samples() {
+                Widget::new()
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text(format!("CPU: {:.5} {}", time * 1000.0, label))
+                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .render(renderer);
+            }
+
+            for (label, time) in time::profiler(ctx).get_gpu_samples() {
+                Widget::new()
+                    .width(SizeKind::TextSize)
+                    .height(SizeKind::TextSize)
+                    .text(format!("GPU: {:.5} {}", time * 1000.0, label))
+                    .text_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .render(renderer);
+            }
+        });
         self.gui_renderer
             .render(ctx, self.framebuffer.view_ref(), self.framebuffer.format());
         self.framebuffer_renderer.render(

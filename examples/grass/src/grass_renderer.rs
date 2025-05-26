@@ -2,6 +2,7 @@ use encase::ShaderType;
 use gbase::{
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
+    input,
     render::{
         self, device, queue, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
         RenderPassColorAttachment,
@@ -13,7 +14,7 @@ use std::{mem::size_of, ops::Div};
 
 const TILE_SIZE: f32 = 128.0;
 const TILES_PER_SIDE: i32 = 3;
-const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 50; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 pub enum RenderMode<'a> {
@@ -30,8 +31,8 @@ pub enum RenderMode<'a> {
 pub struct GrassRenderer {
     instances: [render::RawBuffer<GrassInstanceGPU>; 2],
     indirect_buffer: [render::RawBuffer<DrawIndirectArgs>; 2],
-    instance_count: render::RawBuffer<u32>,
-    tile_buffer: render::UniformBuffer<Tile>,
+    instance_count: [render::RawBuffer<u32>; 2],
+    tile_buffer: [render::UniformBuffer<Tile>; 2],
 
     instance_pipeline_layout: ArcPipelineLayout,
     instance_bindgroup_layout: ArcBindGroupLayout,
@@ -73,11 +74,16 @@ impl GrassRenderer {
             .build(ctx),
         ];
 
-        let instance_count =
+        let instance_count = [
             render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
-                .label("instance count")
+                .label("instance count 1")
                 .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
-                .build(ctx);
+                .build(ctx),
+            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
+                .label("instance count 2")
+                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+                .build(ctx),
+        ];
 
         #[rustfmt::skip]
         let indirect_buffer = [
@@ -95,12 +101,18 @@ impl GrassRenderer {
             &filesystem::load_b!("textures/perlin_noise.png").unwrap(),
         )
         .unwrap()
+        .label("perlin noise")
         .build(ctx)
         .with_default_sampler_and_view(ctx);
 
-        let tile_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
-            .label("tiles")
-            .build(ctx);
+        let tile_buffer = [
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+                .label("tiles 1")
+                .build(ctx),
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+                .label("tiles 2")
+                .build(ctx),
+        ];
         let app_info = gbase_utils::AppInfo::new(ctx);
         let debug_input = gbase_utils::DebugInput::new(ctx);
 
@@ -270,10 +282,14 @@ impl GrassRenderer {
             let mut encoder = render::EncoderBuilder::new().build(ctx);
             encoder.push_debug_group(&format!("grass tile {i} buffer write"));
             // Alternate buffers to allow for GPU pipelining
-            let i_cur = i % 2;
 
-            self.instance_count.write(ctx, &[0u32]);
-            self.tile_buffer.write(
+            let mut i_cur = i % 2;
+            if input::key_pressed(ctx, input::KeyCode::KeyP) {
+                i_cur = 0;
+            }
+
+            self.instance_count[i_cur].write(ctx, &[0u32]);
+            self.tile_buffer[i_cur].write(
                 ctx,
                 &Tile {
                     pos: tile,
@@ -299,9 +315,9 @@ impl GrassRenderer {
                         // instances
                         render::BindGroupEntry::Buffer(self.instances[0].buffer()),
                         // instance count
-                        render::BindGroupEntry::Buffer(self.instance_count.buffer()),
+                        render::BindGroupEntry::Buffer(self.instance_count[0].buffer()),
                         // tile
-                        render::BindGroupEntry::Buffer(self.tile_buffer.buffer()),
+                        render::BindGroupEntry::Buffer(self.tile_buffer[0].buffer()),
                         // perlin texture
                         render::BindGroupEntry::Texture(self.perlin_noise_texture.view()),
                         // perlin texture sampler
@@ -322,9 +338,9 @@ impl GrassRenderer {
                         // instances
                         render::BindGroupEntry::Buffer(self.instances[1].buffer()),
                         // instance count
-                        render::BindGroupEntry::Buffer(self.instance_count.buffer()),
+                        render::BindGroupEntry::Buffer(self.instance_count[1].buffer()),
                         // tile
-                        render::BindGroupEntry::Buffer(self.tile_buffer.buffer()),
+                        render::BindGroupEntry::Buffer(self.tile_buffer[1].buffer()),
                         // perlin texture
                         render::BindGroupEntry::Texture(self.perlin_noise_texture.view()),
                         // perlin texture sampler
@@ -363,7 +379,7 @@ impl GrassRenderer {
                         // indirect buffer
                         render::BindGroupEntry::Buffer(self.indirect_buffer[0].buffer()),
                         // instance count
-                        render::BindGroupEntry::Buffer(self.instance_count.buffer()),
+                        render::BindGroupEntry::Buffer(self.instance_count[0].buffer()),
                     ])
                     .build(ctx),
                 render::BindGroupBuilder::new(self.draw_bindgroup_layout.clone())
@@ -372,7 +388,7 @@ impl GrassRenderer {
                         // indirect buffer
                         render::BindGroupEntry::Buffer(self.indirect_buffer[1].buffer()),
                         // instance count
-                        render::BindGroupEntry::Buffer(self.instance_count.buffer()),
+                        render::BindGroupEntry::Buffer(self.instance_count[1].buffer()),
                     ])
                     .build(ctx),
             ];

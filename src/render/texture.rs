@@ -31,6 +31,7 @@ pub struct SamplerBuilder {
     address_mode_w: wgpu::AddressMode,
     mag_filter: wgpu::FilterMode,
     min_filter: wgpu::FilterMode,
+    mip_map_filter: wgpu::FilterMode,
     lod_min_clamp_u32: u32, // 1 => 0.1
     lod_max_clamp_u32: u32,
     anisotropy_clamp: u16,
@@ -47,6 +48,7 @@ impl SamplerBuilder {
             address_mode_w: wgpu::AddressMode::Repeat,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
+            mip_map_filter: wgpu::FilterMode::Linear,
             lod_min_clamp_u32: 0,
             lod_max_clamp_u32: 0,
             anisotropy_clamp: 1,
@@ -67,7 +69,7 @@ impl SamplerBuilder {
             address_mode_w: self.address_mode_w,
             mag_filter: self.mag_filter,
             min_filter: self.min_filter,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: self.mip_map_filter,
             lod_min_clamp: lod_min_clamp_f32,
             lod_max_clamp: lod_max_clamp_f32,
             anisotropy_clamp: self.anisotropy_clamp,
@@ -100,7 +102,18 @@ impl SamplerBuilder {
         self.mag_filter = mag;
         self
     }
-    pub fn address_mode(
+    pub fn mip_map_filer(mut self, filter: wgpu::FilterMode) -> Self {
+        self.mip_map_filter = filter;
+        self
+    }
+    pub fn address_mode(mut self, mode: wgpu::AddressMode) -> Self {
+        self.address_mode_u = mode;
+        self.address_mode_v = mode;
+        self.address_mode_w = mode;
+        self
+    }
+
+    pub fn address_mode_separate(
         mut self,
         u: wgpu::AddressMode,
         v: wgpu::AddressMode,
@@ -322,7 +335,7 @@ impl TextureViewBuilder {
 
     pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {
         if let Some(view) = ctx.render.cache.texture_views.get(&self) {
-            tracing::info!("Fetched cached texture view");
+            // tracing::info!("Fetched cached texture view");
             return view.clone();
         }
 

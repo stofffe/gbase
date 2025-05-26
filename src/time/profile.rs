@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-const SAMPLES: usize = 20;
+const SAMPLES: usize = 25;
 
 #[derive(Clone)]
 pub struct ProfilerWrapper {

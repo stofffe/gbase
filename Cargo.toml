@@ -40,7 +40,7 @@ web-sys = { version = "0.3.64", features = [
 
 [features]
 # default = ["trace_tracy"]
-default = ["hot_reload"]
+default = []
 hot_reload = ["dep:dlopen"]
 trace = []
 trace_tracy = ["dep:tracing-tracy"]

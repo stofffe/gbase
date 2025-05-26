@@ -1,9 +1,9 @@
 use gbase::{
     filesystem,
     render::{self, FrameBuffer, FrameBufferBuilder},
-    time, wgpu, Context,
+    wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle};
+use gbase_utils::{AssetCache, AssetHandle, BLACK};
 
 pub struct Tonemap {
     pipeline_layout: render::ArcPipelineLayout,
@@ -49,9 +49,6 @@ impl Tonemap {
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
     ) {
-        debug_assert!(hdr_framebuffer.format() == wgpu::TextureFormat::Rgba16Float);
-        debug_assert!(ldr_framebuffer.format() == wgpu::TextureFormat::Rgba8Unorm);
-
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // in
@@ -79,44 +76,81 @@ impl Tonemap {
     }
 }
 
-// bloom steps
-// in: HDR texture
-// extract highlights
-// blur hightlights
-// combine highlights with in
-
 pub struct Bloom {
     extract_pipeline_layout: render::ArcPipelineLayout,
     extract_bindgroup_layout: render::ArcBindGroupLayout,
     extract_shader_handle: AssetHandle<render::ShaderBuilder>,
 
-    blur_pipeline_layout: render::ArcPipelineLayout,
-    blur_bindgroup_layout: render::ArcBindGroupLayout,
-    blur_shader_handle: AssetHandle<render::ShaderBuilder>,
+    downsample_pipeline_layout: render::ArcPipelineLayout,
+    downsample_bindgroup_layout: render::ArcBindGroupLayout,
+    downsample_shader_handle: AssetHandle<render::ShaderBuilder>,
+
+    upsample_pipeline_layout: render::ArcPipelineLayout,
+    upsample_bindgroup_layout: render::ArcBindGroupLayout,
+    upsample_shader_handle: AssetHandle<render::ShaderBuilder>,
 
     combine_pipeline_layout: render::ArcPipelineLayout,
     combine_bindgroup_layout: render::ArcBindGroupLayout,
     combine_shader_handle: AssetHandle<render::ShaderBuilder>,
 
-    buffer1: FrameBuffer,
-    buffer2: FrameBuffer,
+    downsampling_buffer: FrameBuffer,
+    upsampling_buffer: FrameBuffer,
+
+    vertices: render::VertexBuffer<render::VertexUV>,
+    indices: render::IndexBuffer,
+
+    black_pixel: render::GpuImage,
 }
+
+#[rustfmt::skip]
+const CENTERED_QUAD_VERTICES: &[render::VertexUV] = &[
+    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
+    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+
+    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
+    render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
+
+];
+
+#[rustfmt::skip]
+const CENTERED_QUAD_INDICES: &[u32] = &[
+    0, 1, 2,
+    3, 4, 5
+];
+
+const MIP_LEVELS: u32 = 5;
 
 impl Bloom {
     pub fn new(
         ctx: &mut Context,
         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
+        buffer_format: wgpu::TextureFormat,
     ) -> Self {
+        let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            CENTERED_QUAD_VERTICES.to_vec(),
+        ))
+        .build(ctx);
+        let indices = render::IndexBufferBuilder::new(render::IndexBufferSource::Data(
+            CENTERED_QUAD_INDICES.to_vec(),
+        ))
+        .build(ctx);
+
+        //
+        // Extract
+        //
+
         let extract_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
-                // in
+                // texture
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
-                    .compute(),
-                // out
+                    .fragment(),
+                // sampler
                 render::BindGroupLayoutEntry::new()
-                    .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
-                    .compute(),
+                    .sampler_filtering()
+                    .fragment(),
             ])
             .build(ctx);
         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -127,40 +161,94 @@ impl Bloom {
             "assets/shaders/bloom_extract.wgsl".into(),
         );
 
-        let blur_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+        //
+        // Downsample
+        //
+
+        let downsample_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
-                // in
+                // texture
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
-                    .compute(),
-                // out
+                    .fragment(),
+                // sampler
                 render::BindGroupLayoutEntry::new()
-                    .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
-                    .compute(),
+                    .sampler_filtering()
+                    .fragment(),
             ])
             .build(ctx);
-        let blur_pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![blur_bindgroup_layout.clone()])
+        let downsample_pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
-        let blur_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder::new(filesystem::load_s!("shaders/bloom_blur.wgsl").unwrap()),
-            "assets/shaders/bloom_blur.wgsl".into(),
+        let downsample_shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder::new(
+                filesystem::load_s!("shaders/bloom_downsample.wgsl").unwrap(),
+            ),
+            "assets/shaders/bloom_downsample.wgsl".into(),
         );
+
+        //
+        // Upsample
+        //
+
+        let upsample_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![
+                // texture
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // previous
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
+            ])
+            .build(ctx);
+        let upsample_pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![upsample_bindgroup_layout.clone()])
+            .build(ctx);
+        let upsample_shader_handle = shader_cache.allocate_reload(
+            render::ShaderBuilder::new(filesystem::load_s!("shaders/bloom_upsample.wgsl").unwrap()),
+            "assets/shaders/bloom_upsample.wgsl".into(),
+        );
+
+        //
+        // Combine
+        //
 
         let combine_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // in
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
-                    .compute(),
-                // bloom
+                    .fragment(),
+                // bloom 0
                 render::BindGroupLayoutEntry::new()
                     .texture_float_filterable()
-                    .compute(),
-                // out
+                    .fragment(),
+                // bloom 1
                 render::BindGroupLayoutEntry::new()
-                    .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
-                    .compute(),
+                    .texture_float_filterable()
+                    .fragment(),
+                // bloom 2
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // bloom 3
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // bloom 4
+                render::BindGroupLayoutEntry::new()
+                    .texture_float_filterable()
+                    .fragment(),
+                // sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
             ])
             .build(ctx);
         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -171,32 +259,50 @@ impl Bloom {
             "assets/shaders/bloom_combine.wgsl".into(),
         );
 
-        let buffer1 = FrameBufferBuilder::new()
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+        let downsampling_buffer = FrameBufferBuilder::new()
+            .label("downsampling")
+            .format(buffer_format)
+            .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT)
+            .mip_level_count(MIP_LEVELS)
             .screen_size(ctx)
             .build(ctx);
-        let buffer2 = FrameBufferBuilder::new()
-            .format(wgpu::TextureFormat::Rgba16Float)
-            .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+        let upsampling_buffer = FrameBufferBuilder::new()
+            .label("upsampling")
+            .format(buffer_format)
+            .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT)
+            .mip_level_count(MIP_LEVELS)
             .screen_size(ctx)
             .build(ctx);
+
+        let image = render::Image::new_pixel_texture([0, 0, 0, 0]);
+        let texture = image.texture.clone().build(ctx);
+        let sampler = image.sampler.clone().build(ctx);
+        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        let black_pixel = render::GpuImage::new(texture, view, sampler);
 
         Self {
             extract_pipeline_layout,
             extract_bindgroup_layout,
             extract_shader_handle,
 
-            blur_pipeline_layout,
-            blur_bindgroup_layout,
-            blur_shader_handle,
+            downsample_pipeline_layout,
+            downsample_bindgroup_layout,
+            downsample_shader_handle,
+
+            upsample_pipeline_layout,
+            upsample_bindgroup_layout,
+            upsample_shader_handle,
 
             combine_pipeline_layout,
             combine_bindgroup_layout,
             combine_shader_handle,
 
-            buffer1,
-            buffer2,
+            downsampling_buffer,
+            upsampling_buffer,
+
+            vertices,
+            indices,
+            black_pixel,
         }
     }
 
@@ -207,164 +313,226 @@ impl Bloom {
         input_buffer: &render::FrameBuffer,
         output_buffer: &render::FrameBuffer,
     ) {
-        debug_assert!(input_buffer.format() == wgpu::TextureFormat::Rgba16Float);
-        debug_assert!(output_buffer.format() == wgpu::TextureFormat::Rgba16Float);
+        self.downsampling_buffer.resize(ctx, input_buffer.size());
+        self.upsampling_buffer.resize(ctx, input_buffer.size());
 
-        self.buffer1.resize(ctx, input_buffer.size());
-        self.buffer2.resize(ctx, input_buffer.size());
+        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
+
+        let mut downsample_views = Vec::new();
+        let mut upsample_views = Vec::new();
+        for i in 0..MIP_LEVELS {
+            downsample_views.push(
+                render::TextureViewBuilder::new(self.downsampling_buffer.texture())
+                    .base_mip_level(i)
+                    .mip_level_count(1)
+                    .build(ctx),
+            );
+            upsample_views.push(
+                render::TextureViewBuilder::new(self.upsampling_buffer.texture())
+                    .base_mip_level(i)
+                    .mip_level_count(1)
+                    .build(ctx),
+            );
+        }
 
         //
         // extract
         //
 
-        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
-
+        let extract_sampler = render::SamplerBuilder::new().build(ctx);
         let extract_bindgroup =
             render::BindGroupBuilder::new(self.extract_bindgroup_layout.clone())
                 .entries(vec![
-                    // in
+                    // texture
                     render::BindGroupEntry::Texture(input_buffer.view()),
-                    // out
-                    render::BindGroupEntry::Texture(self.buffer1.view()),
+                    // sampler
+                    render::BindGroupEntry::Sampler(extract_sampler.clone()),
                 ])
                 .build(ctx);
 
         let extract_shader = shader_cache.get_gpu(ctx, self.extract_shader_handle.clone());
-        let extract_pipeline = render::ComputePipelineBuilder::new(
+        let extract_pipeline = render::RenderPipelineBuilder::new(
             extract_shader,
             self.extract_pipeline_layout.clone(),
         )
+        .label("extract")
+        .buffers(vec![self.vertices.desc()])
+        .single_target(render::ColorTargetState::from_framebuffer(
+            &self.downsampling_buffer,
+        ))
         .build(ctx);
 
-        render::ComputePassBuilder::new()
+        render::RenderPassBuilder::new()
             .label("extract")
             .trace_gpu(ctx, "extract")
-            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("extract"))
+            .color_attachments(&[Some(render::RenderPassColorAttachment::new(
+                &downsample_views[0],
+            ))])
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&extract_pipeline);
+                pass.set_vertex_buffer(0, self.vertices.slice(..));
+                pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
-                pass.dispatch_workgroups(
-                    self.buffer1.width().div_ceil(16),
-                    self.buffer1.height().div_ceil(16),
-                    1,
-                );
+                pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
 
         //
-        // blur
+        // downsample
         //
-        let blur_horizontal_bindgroup =
-            render::BindGroupBuilder::new(self.blur_bindgroup_layout.clone())
-                .entries(vec![
-                    // in
-                    render::BindGroupEntry::Texture(self.buffer1.view()),
-                    // out
-                    render::BindGroupEntry::Texture(self.buffer2.view()),
-                ])
-                .build(ctx);
-        let blur_horizontal_shader = shader_cache.get_gpu(ctx, self.blur_shader_handle.clone());
-        let blur_horizontal_pipeline = render::ComputePipelineBuilder::new(
-            blur_horizontal_shader,
-            self.blur_pipeline_layout.clone(),
+
+        let downsample_sampler = render::SamplerBuilder::new()
+            .mip_map_filer(wgpu::FilterMode::Linear)
+            .address_mode(wgpu::AddressMode::ClampToEdge)
+            .build(ctx);
+        let downsample_shader = shader_cache.get_gpu(ctx, self.downsample_shader_handle.clone());
+        let downsample_pipeline = render::RenderPipelineBuilder::new(
+            downsample_shader.clone(),
+            self.downsample_pipeline_layout.clone(),
         )
-        .entry_point("horizontal")
+        .label("downsample")
+        .buffers(vec![self.vertices.desc()])
+        .single_target(render::ColorTargetState::from_framebuffer(
+            &self.downsampling_buffer,
+        ))
         .build(ctx);
-        let blur_vertical_bindgroup =
-            render::BindGroupBuilder::new(self.blur_bindgroup_layout.clone())
-                .entries(vec![
-                    // in
-                    render::BindGroupEntry::Texture(self.buffer2.view()),
-                    // out
-                    render::BindGroupEntry::Texture(self.buffer1.view()),
-                ])
-                .build(ctx);
-        let blur_vertical_shader = shader_cache.get_gpu(ctx, self.blur_shader_handle.clone());
-        let blur_vertical_pipeline = render::ComputePipelineBuilder::new(
-            blur_vertical_shader,
-            self.blur_pipeline_layout.clone(),
+        for i in 1..MIP_LEVELS as usize {
+            let downsample_bindgroup =
+                render::BindGroupBuilder::new(self.downsample_bindgroup_layout.clone())
+                    .label("downsample")
+                    .entries(vec![
+                        // texture
+                        render::BindGroupEntry::Texture(downsample_views[i - 1].clone()),
+                        // sampler
+                        render::BindGroupEntry::Sampler(downsample_sampler.clone()),
+                    ])
+                    .build(ctx);
+            render::RenderPassBuilder::new()
+                .label(&format!("downsample {} -> {}", i - 1, i))
+                .color_attachments(&[Some(render::RenderPassColorAttachment::new(
+                    &downsample_views[i],
+                ))])
+                .build_run(&mut encoder, |mut pass| {
+                    pass.set_pipeline(&downsample_pipeline);
+                    pass.set_vertex_buffer(0, self.vertices.slice(..));
+                    pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.set_bind_group(0, Some(downsample_bindgroup.as_ref()), &[]);
+                    pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+                });
+        }
+
+        //
+        // upsample
+        //
+
+        let upsample_sampler = render::SamplerBuilder::new()
+            .mip_map_filer(wgpu::FilterMode::Linear)
+            .address_mode(wgpu::AddressMode::ClampToEdge)
+            .build(ctx);
+        let upsample_shader = shader_cache.get_gpu(ctx, self.upsample_shader_handle.clone());
+        let upsample_pipeline = render::RenderPipelineBuilder::new(
+            upsample_shader.clone(),
+            self.upsample_pipeline_layout.clone(),
         )
-        .entry_point("vertical")
+        .label("upsample")
+        .buffers(vec![self.vertices.desc()])
+        .single_target(render::ColorTargetState::from_framebuffer(
+            &self.upsampling_buffer,
+        ))
         .build(ctx);
 
-        render::ComputePassBuilder::new()
-            .label("blur")
-            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("blur"))
-            .trace_gpu(ctx, "blur")
-            .build_run(&mut encoder, |mut pass| {
-                for _ in 0..3 {
-                    pass.set_pipeline(&blur_horizontal_pipeline);
-                    pass.set_bind_group(0, Some(blur_horizontal_bindgroup.as_ref()), &[]);
-                    pass.dispatch_workgroups(
-                        self.buffer2.width().div_ceil(16),
-                        self.buffer2.height().div_ceil(16),
-                        1,
-                    );
-
-                    pass.set_pipeline(&blur_vertical_pipeline);
-                    pass.set_bind_group(0, Some(blur_vertical_bindgroup.as_ref()), &[]);
-                    pass.dispatch_workgroups(
-                        self.buffer1.width().div_ceil(16),
-                        self.buffer1.height().div_ceil(16),
-                        1,
-                    );
-                }
-            });
+        for i in (0..MIP_LEVELS as usize).rev() {
+            let upsample_bindgroup =
+                render::BindGroupBuilder::new(self.upsample_bindgroup_layout.clone())
+                    .label("upsample")
+                    .entries(vec![
+                        // texture
+                        render::BindGroupEntry::Texture(downsample_views[i].clone()),
+                        //previous
+                        render::BindGroupEntry::Texture(if i + 1 == MIP_LEVELS as usize {
+                            self.black_pixel.view() // TODO: temp
+                        } else {
+                            upsample_views[i + 1].clone()
+                        }),
+                        // sampler
+                        render::BindGroupEntry::Sampler(upsample_sampler.clone()),
+                    ])
+                    .build(ctx);
+            render::RenderPassBuilder::new()
+                .label(&format!("upsample {}", i))
+                .color_attachments(&[Some(
+                    render::RenderPassColorAttachment::new(&upsample_views[i])
+                        .clear(wgpu::Color::BLACK),
+                )])
+                .build_run(&mut encoder, |mut pass| {
+                    pass.set_pipeline(&upsample_pipeline);
+                    pass.set_vertex_buffer(0, self.vertices.slice(..));
+                    pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
+                    pass.set_bind_group(0, Some(upsample_bindgroup.as_ref()), &[]);
+                    pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+                });
+        }
 
         //
         // combine
         //
 
+        let combine_sampler = render::SamplerBuilder::new()
+            .address_mode(wgpu::AddressMode::ClampToEdge)
+            .build(ctx);
         let combine_bindgroup =
             render::BindGroupBuilder::new(self.combine_bindgroup_layout.clone())
                 .entries(vec![
                     // in
                     render::BindGroupEntry::Texture(input_buffer.view()),
-                    // bloom
-                    render::BindGroupEntry::Texture(self.buffer1.view()),
-                    // out
-                    render::BindGroupEntry::Texture(output_buffer.view()),
+                    // bloom 0
+                    render::BindGroupEntry::Texture(upsample_views[0].clone()),
+                    // bloom 1
+                    render::BindGroupEntry::Texture(upsample_views[1].clone()),
+                    // bloom 2
+                    render::BindGroupEntry::Texture(upsample_views[2].clone()),
+                    // bloom 3
+                    render::BindGroupEntry::Texture(upsample_views[3].clone()),
+                    // bloom 4
+                    render::BindGroupEntry::Texture(upsample_views[4].clone()),
+                    // sampler
+                    render::BindGroupEntry::Sampler(combine_sampler.clone()),
                 ])
                 .build(ctx);
 
         let combine_shader = shader_cache.get_gpu(ctx, self.combine_shader_handle.clone());
-        let combine_pipeline = render::ComputePipelineBuilder::new(
+        let combine_pipeline = render::RenderPipelineBuilder::new(
             combine_shader,
             self.combine_pipeline_layout.clone(),
         )
+        .buffers(vec![self.vertices.desc()])
+        .single_target(render::ColorTargetState::from_framebuffer(output_buffer))
         .build(ctx);
 
-        render::ComputePassBuilder::new()
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(output_buffer.view_ref())
+                    .clear(wgpu::Color::BLACK),
+            )])
             .label("combine")
-            // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("combine"))
             .trace_gpu(ctx, "combine")
             .build_run(&mut encoder, |mut pass| {
                 pass.set_pipeline(&combine_pipeline);
+                pass.set_vertex_buffer(0, self.vertices.slice(..));
+                pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);
-                pass.dispatch_workgroups(
-                    output_buffer.width().div_ceil(16),
-                    output_buffer.height().div_ceil(16),
-                    1,
-                );
+                pass.draw_indexed(0..self.indices.len(), 0, 0..1);
             });
 
         encoder.submit(ctx);
     }
 }
 
-// pub struct GaussianBlur {
-//     pipeline_layout: render::ArcPipelineLayout,
-//     bindgroup_layout: render::ArcBindGroupLayout,
-//     shader_handle: AssetHandle<render::ShaderBuilder>,
-//
-//     params_buffer: render::UniformBuffer<GaussianFilterParams>,
-// }
-//
-// impl GaussianBlur {
+// impl Bloom {
 //     pub fn new(
 //         ctx: &mut Context,
 //         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
 //     ) -> Self {
-//         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
+//         let extract_bindgroup_layout = render::BindGroupLayoutBuilder::new()
 //             .entries(vec![
 //                 // in
 //                 render::BindGroupLayoutEntry::new()
@@ -374,92 +542,248 @@ impl Bloom {
 //                 render::BindGroupLayoutEntry::new()
 //                     .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
 //                     .compute(),
-//                 // params
-//                 render::BindGroupLayoutEntry::new().uniform().compute(),
 //             ])
 //             .build(ctx);
-//         let pipeline_layout = render::PipelineLayoutBuilder::new()
-//             .bind_groups(vec![bindgroup_layout.clone()])
+//         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
+//             .bind_groups(vec![extract_bindgroup_layout.clone()])
 //             .build(ctx);
-//         let shader_handle = shader_cache.allocate_reload(
-//             render::ShaderBuilder::new(filesystem::load_s!("shaders/gaussian_blur.wgsl").unwrap()),
-//             "assets/shaders/gaussian_blur.wgsl".into(),
+//         let extract_shader_handle = shader_cache.allocate_reload(
+//             render::ShaderBuilder::new(filesystem::load_s!("shaders/bloom_extract.wgsl").unwrap()),
+//             "assets/shaders/bloom_extract.wgsl".into(),
 //         );
 //
-//         let params_buffer =
-//             UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+//         let blur_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+//             .entries(vec![
+//                 // in
+//                 render::BindGroupLayoutEntry::new()
+//                     .texture_float_filterable()
+//                     .compute(),
+//                 // out
+//                 render::BindGroupLayoutEntry::new()
+//                     .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
+//                     .compute(),
+//             ])
+//             .build(ctx);
+//         let blur_pipeline_layout = render::PipelineLayoutBuilder::new()
+//             .bind_groups(vec![blur_bindgroup_layout.clone()])
+//             .build(ctx);
+//         let blur_shader_handle = shader_cache.allocate_reload(
+//             render::ShaderBuilder::new(filesystem::load_s!("shaders/bloom_blur.wgsl").unwrap()),
+//             "assets/shaders/bloom_blur.wgsl".into(),
+//         );
+//
+//         let combine_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+//             .entries(vec![
+//                 // in
+//                 render::BindGroupLayoutEntry::new()
+//                     .texture_float_filterable()
+//                     .compute(),
+//                 // bloom
+//                 render::BindGroupLayoutEntry::new()
+//                     .texture_float_filterable()
+//                     .compute(),
+//                 // out
+//                 render::BindGroupLayoutEntry::new()
+//                     .storage_texture_2d_write(wgpu::TextureFormat::Rgba16Float)
+//                     .compute(),
+//             ])
+//             .build(ctx);
+//         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
+//             .bind_groups(vec![combine_bindgroup_layout.clone()])
+//             .build(ctx);
+//         let combine_shader_handle = shader_cache.allocate_reload(
+//             render::ShaderBuilder::new(filesystem::load_s!("shaders/bloom_combine.wgsl").unwrap()),
+//             "assets/shaders/bloom_combine.wgsl".into(),
+//         );
+//
+//         let buffer1 = FrameBufferBuilder::new()
+//             .format(wgpu::TextureFormat::Rgba16Float)
+//             .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+//             .screen_size(ctx)
+//             .build(ctx);
+//         let buffer2 = FrameBufferBuilder::new()
+//             .format(wgpu::TextureFormat::Rgba16Float)
+//             .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+//             .screen_size(ctx)
+//             .build(ctx);
+//
+//         let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+//             CENTERED_QUAD_VERTICES.to_vec(),
+//         ))
+//         .build(ctx);
+//         let indices = render::IndexBufferBuilder::new(render::IndexBufferSource::Data(
+//             CENTERED_QUAD_INDICES.to_vec(),
+//         ))
+//         .build(ctx);
 //
 //         Self {
-//             pipeline_layout,
-//             bindgroup_layout,
-//             shader_handle,
+//             extract_pipeline_layout,
+//             extract_bindgroup_layout,
+//             extract_shader_handle,
 //
-//             params_buffer,
+//             blur_pipeline_layout,
+//             blur_bindgroup_layout,
+//             blur_shader_handle,
+//
+//             combine_pipeline_layout,
+//             combine_bindgroup_layout,
+//             combine_shader_handle,
+//
+//             buffer1,
+//             buffer2,
+//
+//             vertices,
+//             indices,
 //         }
 //     }
 //
-//     pub fn blur_dual_pass(
-//         &self,
+//     pub fn render(
+//         &mut self,
 //         ctx: &mut Context,
 //         shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-//
 //         input_buffer: &render::FrameBuffer,
 //         output_buffer: &render::FrameBuffer,
-//
-//         params: GaussianFilterParams,
 //     ) {
 //         debug_assert!(input_buffer.format() == wgpu::TextureFormat::Rgba16Float);
 //         debug_assert!(output_buffer.format() == wgpu::TextureFormat::Rgba16Float);
 //
-//         self.params_buffer.write(ctx, &params);
-//         let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+//         self.buffer1.resize(ctx, input_buffer.size());
+//         self.buffer2.resize(ctx, input_buffer.size());
 //
-//         // horizontal
-//         let bindgroup_h = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-//             .entries(vec![
-//                 // in
-//                 render::BindGroupEntry::Texture(input_buffer.view()),
-//                 // out
-//                 render::BindGroupEntry::Texture(output_buffer.view()),
-//                 // params
-//                 render::BindGroupEntry::Buffer(self.params_buffer.buffer()),
-//             ])
-//             .build(ctx);
-//         let pipeline_h =
-//             render::ComputePipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())
-//                 .entry_point("horizontal")
+//         //
+//         // extract
+//         //
+//
+//         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
+//
+//         let extract_bindgroup =
+//             render::BindGroupBuilder::new(self.extract_bindgroup_layout.clone())
+//                 .entries(vec![
+//                     // in
+//                     render::BindGroupEntry::Texture(input_buffer.view()),
+//                     // out
+//                     render::BindGroupEntry::Texture(self.buffer1.view()),
+//                 ])
 //                 .build(ctx);
 //
-//         // vertical
-//         let bindgroup_v = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-//             .entries(vec![
-//                 // in
-//                 render::BindGroupEntry::Texture(output_buffer.view()),
-//                 // out
-//                 render::BindGroupEntry::Texture(input_buffer.view()),
-//                 // params
-//                 render::BindGroupEntry::Buffer(self.params_buffer.buffer()),
-//             ])
-//             .build(ctx);
-//         let pipeline_v = render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone())
-//             .entry_point("vertical")
-//             .build(ctx);
+//         let extract_shader = shader_cache.get_gpu(ctx, self.extract_shader_handle.clone());
+//         let extract_pipeline = render::ComputePipelineBuilder::new(
+//             extract_shader,
+//             self.extract_pipeline_layout.clone(),
+//         )
+//         .build(ctx);
 //
-//         let width = output_buffer.width().div_ceil(16);
-//         let height = output_buffer.height().div_ceil(16);
+//         render::ComputePassBuilder::new()
+//             .label("extract")
+//             .trace_gpu(ctx, "extract")
+//             // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("extract"))
+//             .build_run(&mut encoder, |mut pass| {
+//                 pass.set_pipeline(&extract_pipeline);
+//                 pass.set_bind_group(0, Some(extract_bindgroup.as_ref()), &[]);
+//                 pass.dispatch_workgroups(
+//                     self.buffer1.width().div_ceil(16),
+//                     self.buffer1.height().div_ceil(16),
+//                     1,
+//                 );
+//             });
 //
-//         let mut encoder = render::EncoderBuilder::new().build(ctx);
-//         render::ComputePassBuilder::new().build_run(&mut encoder, |mut pass| {
-//             pass.set_pipeline(&pipeline_h);
-//             pass.set_bind_group(0, Some(bindgroup_h.as_ref()), &[]);
-//             pass.dispatch_workgroups(width, height, 1);
-//         });
-//         render::ComputePassBuilder::new().build_run(&mut encoder, |mut pass| {
-//             pass.set_pipeline(&pipeline_v);
-//             pass.set_bind_group(0, Some(bindgroup_v.as_ref()), &[]);
-//             pass.dispatch_workgroups(width, height, 1);
-//         });
-//         let queue = render::queue(ctx);
-//         queue.submit(Some(encoder.finish()));
+//         //
+//         // blur
+//         //
+//         let blur_horizontal_bindgroup =
+//             render::BindGroupBuilder::new(self.blur_bindgroup_layout.clone())
+//                 .entries(vec![
+//                     // in
+//                     render::BindGroupEntry::Texture(self.buffer1.view()),
+//                     // out
+//                     render::BindGroupEntry::Texture(self.buffer2.view()),
+//                 ])
+//                 .build(ctx);
+//         let blur_horizontal_shader = shader_cache.get_gpu(ctx, self.blur_shader_handle.clone());
+//         let blur_horizontal_pipeline = render::ComputePipelineBuilder::new(
+//             blur_horizontal_shader,
+//             self.blur_pipeline_layout.clone(),
+//         )
+//         .entry_point("horizontal")
+//         .build(ctx);
+//         let blur_vertical_bindgroup =
+//             render::BindGroupBuilder::new(self.blur_bindgroup_layout.clone())
+//                 .entries(vec![
+//                     // in
+//                     render::BindGroupEntry::Texture(self.buffer2.view()),
+//                     // out
+//                     render::BindGroupEntry::Texture(self.buffer1.view()),
+//                 ])
+//                 .build(ctx);
+//         let blur_vertical_shader = shader_cache.get_gpu(ctx, self.blur_shader_handle.clone());
+//         let blur_vertical_pipeline = render::ComputePipelineBuilder::new(
+//             blur_vertical_shader,
+//             self.blur_pipeline_layout.clone(),
+//         )
+//         .entry_point("vertical")
+//         .build(ctx);
+//
+//         render::ComputePassBuilder::new()
+//             .label("blur")
+//             // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("blur"))
+//             .trace_gpu(ctx, "blur")
+//             .build_run(&mut encoder, |mut pass| {
+//                 for _ in 0..5 {
+//                     pass.set_pipeline(&blur_horizontal_pipeline);
+//                     pass.set_bind_group(0, Some(blur_horizontal_bindgroup.as_ref()), &[]);
+//                     pass.dispatch_workgroups(
+//                         self.buffer2.width().div_ceil(16),
+//                         self.buffer2.height().div_ceil(16),
+//                         1,
+//                     );
+//
+//                     pass.set_pipeline(&blur_vertical_pipeline);
+//                     pass.set_bind_group(0, Some(blur_vertical_bindgroup.as_ref()), &[]);
+//                     pass.dispatch_workgroups(
+//                         self.buffer1.width().div_ceil(16),
+//                         self.buffer1.height().div_ceil(16),
+//                         1,
+//                     );
+//                 }
+//             });
+//
+//         //
+//         // combine
+//         //
+//
+//         let combine_bindgroup =
+//             render::BindGroupBuilder::new(self.combine_bindgroup_layout.clone())
+//                 .entries(vec![
+//                     // in
+//                     render::BindGroupEntry::Texture(input_buffer.view()),
+//                     // bloom
+//                     render::BindGroupEntry::Texture(self.buffer1.view()),
+//                     // out
+//                     render::BindGroupEntry::Texture(output_buffer.view()),
+//                 ])
+//                 .build(ctx);
+//
+//         let combine_shader = shader_cache.get_gpu(ctx, self.combine_shader_handle.clone());
+//         let combine_pipeline = render::ComputePipelineBuilder::new(
+//             combine_shader,
+//             self.combine_pipeline_layout.clone(),
+//         )
+//         .build(ctx);
+//
+//         render::ComputePassBuilder::new()
+//             .label("combine")
+//             // .timestamp_writes(render::gpu_profiler(ctx).profile_compute_pass("combine"))
+//             .trace_gpu(ctx, "combine")
+//             .build_run(&mut encoder, |mut pass| {
+//                 pass.set_pipeline(&combine_pipeline);
+//                 pass.set_bind_group(0, Some(combine_bindgroup.as_ref()), &[]);
+//                 pass.dispatch_workgroups(
+//                     output_buffer.width().div_ceil(16),
+//                     output_buffer.height().div_ceil(16),
+//                     1,
+//                 );
+//             });
+//
+//         encoder.submit(ctx);
 //     }
 // }

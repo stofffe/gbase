@@ -7,6 +7,7 @@ pub struct FrameBufferBuilder {
     usage: wgpu::TextureUsages,
     format: wgpu::TextureFormat,
     size: wgpu::Extent3d,
+    mip_level_count: u32,
 }
 
 impl FrameBufferBuilder {
@@ -22,6 +23,7 @@ impl FrameBufferBuilder {
                 height: 0,
                 depth_or_array_layers: 0,
             },
+            mip_level_count: 1,
         }
     }
     pub fn build(self, ctx: &Context) -> FrameBuffer {
@@ -31,7 +33,7 @@ impl FrameBufferBuilder {
             size: self.size,
             format: self.format,
             usage: self.usage,
-            mip_level_count: 1,
+            mip_level_count: self.mip_level_count,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             view_formats: &[],
@@ -66,8 +68,8 @@ impl FrameBufferBuilder {
         self.usage = usage;
         self
     }
-    pub fn view(mut self, usage: wgpu::TextureUsages) -> Self {
-        self.usage = usage;
+    pub fn mip_level_count(mut self, mip_level_count: u32) -> Self {
+        self.mip_level_count = mip_level_count;
         self
     }
     pub fn size(mut self, width: u32, height: u32) -> Self {
@@ -127,6 +129,7 @@ impl FrameBuffer {
         if self.size() == new_size {
             return;
         }
+        self.texture.destroy(); // TODO: needed?
 
         let device = render::device(ctx);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
