@@ -17,28 +17,28 @@ pub struct AssetCache {
     cache: HashMap<AssetHandle<DynAsset>, DynAsset>,
     render_cache: HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
 
-    load_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
-    load_dirty: HashSet<AssetHandle<DynAsset>>,
-
     // async loading
+    currently_loading: HashSet<AssetHandle<DynAsset>>,
     load_sender: mpsc::Sender<(AssetHandle<DynAsset>, DynAsset)>,
     load_receiver: mpsc::Receiver<(AssetHandle<DynAsset>, DynAsset)>,
 
     // reloading
-    reload_functions: HashMap<TypeId, DynAssetLoadFn>,
     reload_handles: HashMap<PathBuf, Vec<AssetHandle<DynAsset>>>,
+    reload_functions: HashMap<TypeId, DynAssetLoadFn>,
     reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
     reload_receiver: mpsc::Receiver<PathBuf>,
     reload_sender: mpsc::Sender<PathBuf>,
 
     // writing
+    write_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
     write_functions: HashMap<TypeId, DynAssetWriteFn>,
+    write_dirty: HashSet<AssetHandle<DynAsset>>,
 }
 
 impl AssetCache {
     pub fn new() -> Self {
         let (reload_sender, reload_receiver) = mpsc::channel();
-        let (loaded_sender, loaded_receiver) = mpsc::channel();
+        let (load_sender, load_receiver) = mpsc::channel();
         let sender_copy = reload_sender.clone();
 
         let reload_watcher = notify_debouncer_mini::new_debouncer(
@@ -60,19 +60,28 @@ impl AssetCache {
         Self {
             cache: HashMap::new(),
             render_cache: HashMap::new(),
-            load_dirty: HashSet::new(),
+
+            currently_loading: HashSet::new(),
+            load_sender,
+            load_receiver,
+
             reload_handles: HashMap::new(),
-            load_handles: HashMap::new(),
-
-            write_functions: HashMap::new(),
-
             reload_functions: HashMap::new(),
-            reload_receiver,
-            reload_sender,
             reload_watcher,
+            reload_sender,
+            reload_receiver,
 
-            load_sender: loaded_sender,
-            load_receiver: loaded_receiver,
+            write_handles: HashMap::new(),
+            write_functions: HashMap::new(),
+            write_dirty: HashSet::new(),
+        }
+    }
+
+    /// Wait for all async assets to be loaded
+    pub fn wait(&mut self) {
+        while !self.currently_loading.is_empty() {
+            std::thread::sleep(Duration::from_millis(100));
+            self.poll_loaded();
         }
     }
 
@@ -102,7 +111,7 @@ impl AssetCache {
         self.render_cache.remove(&handle.clone().as_any());
 
         // set dirty
-        self.load_dirty.insert(handle.clone().as_any());
+        self.write_dirty.insert(handle.clone().as_any());
 
         // get value and convert to T
         self.cache.get_mut(&handle.as_any()).map(|asset| {
@@ -127,6 +136,10 @@ impl AssetCache {
             let data = T::load(&path);
             self.cache.insert(handle.clone().as_any(), Box::new(data));
         } else {
+            // add to currently loading
+            self.currently_loading.insert(handle.as_any());
+
+            // load async
             let path_clone = path.clone();
             let handle_clone = handle.clone();
             let loaded_sender_clone = self.load_sender.clone();
@@ -208,7 +221,7 @@ impl AssetCache {
     pub fn write<T: Asset + WriteableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
         let path = fs::canonicalize(path).unwrap();
         // map handle to path
-        self.load_handles.insert(handle.as_any(), path.clone());
+        self.write_handles.insert(handle.as_any(), path.clone());
 
         // store reload function
         self.write_functions
@@ -259,15 +272,21 @@ impl AssetCache {
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
         for (handle, asset) in self.load_receiver.try_iter() {
+            // insert in cache
             self.cache.insert(handle.clone(), asset);
+
+            // remove from currently loaded
+            self.currently_loading.remove(&handle.as_any());
+
+            // invalidate render cache
             self.render_cache.remove(&handle);
         }
     }
 
     // check if any files are scheduled for writing to disk
     pub fn poll_write(&mut self) {
-        for handle in self.load_dirty.drain() {
-            if let Some(path) = self.load_handles.get(&handle) {
+        for handle in self.write_dirty.drain() {
+            if let Some(path) = self.write_handles.get(&handle) {
                 let asset = self.cache.get_mut(&handle);
 
                 // write if loaded

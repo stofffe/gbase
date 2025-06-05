@@ -49,6 +49,7 @@ impl Callbacks for App {
             Path::new("assets/textures/texture.jpeg"),
             true,
         );
+
         let texture = asset::get_mut(ctx, texture_handle.clone()).unwrap();
         texture.texture = texture
             .texture
@@ -61,6 +62,8 @@ impl Callbacks for App {
         ]);
         let mesh_handle = asset::insert(ctx, mesh);
 
+        asset::wait(ctx);
+
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -71,6 +74,8 @@ impl Callbacks for App {
         }
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        asset::wait(ctx);
+
         let mesh =
             asset::convert_asset::<render::GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
         let shader =

@@ -29,6 +29,10 @@ impl AssetContext {
 // Commands
 //
 
+pub fn wait(ctx: &mut Context) {
+    ctx.assets.asset_cache.wait();
+}
+
 pub fn insert<T: Asset + 'static>(ctx: &mut Context, asset: T) -> AssetHandle<T> {
     ctx.assets.asset_cache.insert(asset)
 }
