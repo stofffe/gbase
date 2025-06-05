@@ -16,7 +16,9 @@ impl EncoderBuilder<'_> {
     }
 
     pub fn build(self, ctx: &Context) -> wgpu::CommandEncoder {
-        let device = render::device(ctx);
+        self.build_inner(&ctx.render.device)
+    }
+    pub fn build_inner(self, device: &wgpu::Device) -> wgpu::CommandEncoder {
         device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: self.label })
     }
 
@@ -176,6 +178,29 @@ impl<'a> RenderPassBuilder<'a> {
         });
         (run_func)(render_pass);
         render::queue(ctx).submit(Some(encoder.finish()));
+    }
+
+    pub fn build_run_submit_inner(
+        self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        run_func: impl FnOnce(wgpu::RenderPass<'_>),
+    ) {
+        let mut encoder = render::EncoderBuilder::new().build_inner(device);
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: self.label,
+            color_attachments: &self
+                .color_attachments
+                .iter()
+                .map(|att| att.clone().map(RenderPassColorAttachment::into))
+                .collect::<Vec<_>>(),
+            depth_stencil_attachment: self.depth_stencil_attachment,
+            timestamp_writes: self.timestamp_writes,
+            occlusion_query_set: self.occlusion_query_set,
+        });
+        (run_func)(render_pass);
+
+        queue.submit(Some(encoder.finish()));
     }
 }
 

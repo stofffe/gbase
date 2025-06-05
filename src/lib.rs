@@ -2,14 +2,14 @@
 #![allow(clippy::new_without_default)]
 
 mod app;
+pub mod asset;
 pub mod audio;
-pub mod collision;
+pub mod collision; // TODO: move to utils?
 pub mod filesystem;
 pub mod input;
 pub mod random;
 pub mod render;
 pub mod time;
-pub mod window;
 
 #[cfg(feature = "hot_reload")]
 pub mod hot_reload;
@@ -37,11 +37,11 @@ pub use pollster;
 pub struct Context {
     pub(crate) input: input::InputContext,
     pub(crate) time: time::TimeContext,
-    #[allow(dead_code)]
-    pub(crate) filesystem: filesystem::FileSystemContext,
+    pub filesystem: filesystem::FileSystemContext,
     pub(crate) audio: audio::AudioContext,
-    pub(crate) render: render::RenderContext,
+    pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
+    pub(crate) assets: asset::AssetContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,

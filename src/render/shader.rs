@@ -19,15 +19,24 @@ impl ShaderBuilder {
         }
     }
 
-    /// Create shader module
-    ///
-    /// panics if source is invalid
-    pub fn build(&self, ctx: &Context) -> ArcShaderModule {
+    pub(crate) fn build_inner_2(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         let mut shader_code = String::with_capacity(self.source.len());
 
         shader_code.push_str(&self.source);
 
-        let device = render::device(ctx);
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(shader_code.into()),
+        });
+
+        module
+    }
+
+    pub(crate) fn build_inner(&self, device: &wgpu::Device) -> ArcShaderModule {
+        let mut shader_code = String::with_capacity(self.source.len());
+
+        shader_code.push_str(&self.source);
+
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label.as_deref(),
             source: wgpu::ShaderSource::Wgsl(shader_code.into()),
@@ -36,22 +45,35 @@ impl ShaderBuilder {
         ArcShaderModule::new(module)
     }
 
-    /// Create shader module
-    ///
-    /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
-        let device = render::device(ctx);
+    pub(crate) fn build_inner_err(
+        &self,
+        device: &wgpu::Device,
+    ) -> Result<ArcShaderModule, wgpu::Error> {
         device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let shader = self.build(ctx);
+        let shader = self.build_inner(device);
         pollster::block_on(async {
-            let device = render::device(ctx);
             if let Some(err) = device.pop_error_scope().await {
                 Err(err)
             } else {
                 Ok(shader)
             }
         })
+    }
+
+    /// Create shader module
+    ///
+    /// panics if source is invalid
+    pub fn build(&self, ctx: &Context) -> ArcShaderModule {
+        self.build_inner(&ctx.render.device)
+    }
+
+    /// Create shader module
+    ///
+    /// Not supported on WASM (blocking call)
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
+        self.build_inner_err(&ctx.render.device)
     }
 }
 

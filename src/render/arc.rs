@@ -1,8 +1,11 @@
 // from GGEZ https://github.com/ggez/ggez
 
-use std::sync::{
-    atomic::{AtomicU64, Ordering::SeqCst},
-    Arc,
+use std::{
+    any::Any,
+    sync::{
+        atomic::{AtomicU64, Ordering::SeqCst},
+        Arc,
+    },
 };
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -12,7 +15,7 @@ static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 /// Beyond allowing for Clone, they also allow different GPU resources to be
 /// unique identified via `id` - primarily used when caching (see the other `gpu` modules).
 #[derive(Debug)]
-pub struct ArcHandle<T: 'static> {
+pub struct ArcHandle<T: ?Sized + 'static> {
     pub handle: Arc<T>,
     id: u64,
 }
@@ -65,6 +68,30 @@ impl<T: 'static> std::ops::Deref for ArcHandle<T> {
 impl<T: 'static> AsRef<T> for ArcHandle<T> {
     fn as_ref(&self) -> &T {
         self.handle.as_ref()
+    }
+}
+
+// Convert from and to any
+
+impl<T: Any + Send + Sync + 'static> ArcHandle<T> {
+    pub fn upcast(self) -> ArcHandle<dyn Any + Send + Sync> {
+        ArcHandle {
+            handle: self.handle as Arc<dyn Any + Send + Sync>,
+            id: self.id,
+        }
+    }
+}
+impl ArcHandle<dyn Any + Sync + Send> {
+    pub fn downcast<G: Send + Sync>(&self) -> Option<ArcHandle<G>> {
+        if let Ok(handle) = self.handle.clone().downcast::<G>() {
+            Some(ArcHandle {
+                handle,
+                id: self.id,
+            })
+        } else {
+            tracing::error!("could not downcast handle");
+            None
+        }
     }
 }
 

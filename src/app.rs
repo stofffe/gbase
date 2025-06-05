@@ -1,5 +1,5 @@
 use crate::{
-    audio, filesystem, input, random,
+    asset, audio, filesystem, input, random,
     render::{self, device},
     time, Context,
 };
@@ -118,6 +118,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(window, &builder).await;
             let random = random::RandomContext::new();
+            let assets = asset::AssetContext::new();
 
             let ctx = Context {
                 input,
@@ -126,6 +127,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 audio,
                 render,
                 random,
+                assets,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),
@@ -339,6 +341,10 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
         ctx.time.profiler.clone(),
     );
 
+    ctx.assets.asset_cache.poll_reload();
+    ctx.assets.asset_cache.poll_write();
+    ctx.assets.asset_cache.poll_loaded();
+
     false
 }
 
@@ -366,7 +372,7 @@ impl ContextBuilder {
             log_level: tracing::Level::INFO,
             assets_path: PathBuf::from("assets"),
             vsync_enabled: true,
-            device_features: wgpu::Features::default(),
+            device_features: wgpu::Features::default() | wgpu::Features::TIMESTAMP_QUERY,
             window_attributes: WindowAttributes::default(),
 
             gpu_profiler_enabled: false,
@@ -376,7 +382,7 @@ impl ContextBuilder {
 
     pub fn gpu_profiler_enabled(mut self, enabled: bool) -> Self {
         self.gpu_profiler_enabled = enabled;
-        self.device_features |= wgpu::Features::TIMESTAMP_QUERY;
+        // self.device_features |= wgpu::Features::TIMESTAMP_QUERY;
         self
     }
 

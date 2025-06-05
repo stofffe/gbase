@@ -26,11 +26,11 @@ pub use vertex::*;
 use crate::{Context, ContextBuilder};
 use std::sync::Arc;
 
-pub(crate) struct RenderContext {
+pub struct RenderContext {
     pub(crate) surface: Arc<wgpu::Surface<'static>>,
-    pub(crate) device: Arc<wgpu::Device>,
+    pub device: Arc<wgpu::Device>,
     pub(crate) adapter: Arc<wgpu::Adapter>,
-    pub(crate) queue: Arc<wgpu::Queue>,
+    pub queue: Arc<wgpu::Queue>,
     pub(crate) surface_config: wgpu::SurfaceConfiguration,
 
     pub(crate) window: Arc<winit::window::Window>,

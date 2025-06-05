@@ -1,3 +1,5 @@
+use wgpu::core::device;
+
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
@@ -324,7 +326,7 @@ impl BoundingBox {
 // GPU
 //
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GpuMesh {
     pub attribute_buffer: render::ArcBuffer,
     pub attribute_ranges: BTreeMap<VertexAttributeId, (u64, u64)>,
@@ -336,6 +338,9 @@ pub struct GpuMesh {
 
 impl GpuMesh {
     pub fn new(ctx: &Context, mesh: &Mesh) -> Self {
+        Self::new_inner(&ctx.render.device, mesh)
+    }
+    pub fn new_inner(device: &wgpu::Device, mesh: &Mesh) -> Self {
         // layout attributes sequentially in the buffer
         let mut cursor = 0;
         let mut combined_bytes = Vec::new();
@@ -355,12 +360,12 @@ impl GpuMesh {
             let buffer =
                 render::RawBufferBuilder::new(render::RawBufferSource::Data(indices.clone()))
                     .usage(wgpu::BufferUsages::INDEX)
-                    .build(ctx);
+                    .build_inner(device);
             index_buffer = Some(buffer.buffer());
         }
 
-        let buffer =
-            render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes)).build(ctx);
+        let buffer = render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes))
+            .build_inner(device);
 
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();
