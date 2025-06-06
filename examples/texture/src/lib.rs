@@ -1,6 +1,7 @@
 use gbase::{
     asset::{self, AssetHandle},
     render::{self, ArcPipelineLayout, GpuImage, Image},
+    tracing,
     wgpu::{self},
     Callbacks, Context,
 };

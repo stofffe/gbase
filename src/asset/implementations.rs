@@ -1,8 +1,7 @@
-use super::{Asset, ConvertableRenderAsset, LoadableAsset, RenderAsset, WriteableAsset};
-use crate::render::{self, GpuImage};
-use std::{
-    fs,
-    path::{Path, PathBuf},
+use super::{Asset, ConvertableRenderAsset, LoadableAsset, RenderAsset};
+use crate::{
+    filesystem,
+    render::{self, GpuImage},
 };
 
 // TODO: move this logic to respective types
@@ -38,22 +37,7 @@ impl Asset for render::ShaderBuilder {}
 
 impl LoadableAsset for render::ShaderBuilder {
     async fn load(path: &std::path::Path) -> Self {
-        #[cfg(target_arch = "wasm32")]
-        let source = {
-            let url = format!("http://localhost:8000/{}", path.to_str().unwrap());
-            let source = reqwest::Client::new()
-                .get(url)
-                .send()
-                .await
-                .expect("request failed")
-                .text()
-                .await
-                .expect("failed to read response");
-            source
-        };
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let source = { fs::read_to_string(path).expect("could not read file") };
+        let source = filesystem::load_str(path).await;
 
         Self {
             label: Some(path.to_str().unwrap().to_string()),
@@ -95,22 +79,7 @@ impl Asset for render::Image {}
 
 impl LoadableAsset for render::Image {
     async fn load(path: &std::path::Path) -> Self {
-        #[cfg(target_arch = "wasm32")]
-        let bytes = {
-            let url = format!("http://localhost:8000/{}", path.to_str().unwrap());
-            let bytes = reqwest::Client::new()
-                .get(url)
-                .send()
-                .await
-                .expect("request failed")
-                .bytes()
-                .await
-                .expect("failed to read response");
-            bytes
-        };
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let bytes = fs::read(path).expect("could not read file");
+        let bytes = filesystem::load_bytes(path).await;
 
         let img = image::load_from_memory(&bytes)
             .expect("could not load image")

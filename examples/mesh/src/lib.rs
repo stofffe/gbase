@@ -1,16 +1,15 @@
 mod bloom;
 
 use gbase::{
-    glam::{vec3, vec4, Quat, Vec3},
+    glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
     render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, AssetCache, AssetHandle, Direction, GaussianFilterParams, GpuMaterial,
-    PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget, BLACK, BLUE, GRAY,
-    RED, WHITE,
+    Alignment, AssetCache, AssetHandle, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer,
+    PixelCache, SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
 };
 use std::{f32::consts::PI, sync::Arc, time::Instant};
 

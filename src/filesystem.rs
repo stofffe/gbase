@@ -1,5 +1,5 @@
-use crate::{asset, Context};
-use std::fs;
+use crate::Context;
+use std::path::Path;
 
 pub struct FileSystemContext {}
 
@@ -9,11 +9,67 @@ impl FileSystemContext {
     }
 }
 
+// TODO: store orign/abs path to asset dir in filesystem
+
+pub async fn load_bytes(path: impl AsRef<Path>) -> Vec<u8> {
+    // cache address
+    #[cfg(target_arch = "wasm32")]
+    let bytes = {
+        let window = web_sys::window().expect("could not get window");
+        let location = window.location();
+        let origin = location.origin().expect("could not get origin");
+
+        let url = format!("{}/{}", origin, path.as_ref().to_str().unwrap());
+        tracing::info!("URL {}", url);
+        let bytes = reqwest::Client::new()
+            .get(url)
+            .send()
+            .await
+            .expect("request failed")
+            .bytes()
+            .await
+            .expect("failed to read response");
+        bytes.to_vec()
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let bytes = std::fs::read(path).unwrap();
+
+    bytes
+}
+
+pub async fn load_str(path: impl AsRef<Path>) -> String {
+    // cache address
+    #[cfg(target_arch = "wasm32")]
+    let text = {
+        let window = web_sys::window().expect("could not get window");
+        let location = window.location();
+        let origin = location.origin().expect("could not get origin");
+
+        let url = format!("{}/{}", origin, path.as_ref().to_str().unwrap());
+        tracing::info!("URL {}", url);
+        let bytes = reqwest::Client::new()
+            .get(url)
+            .send()
+            .await
+            .expect("request failed")
+            .text()
+            .await
+            .expect("failed to read response");
+        bytes
+    };
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let text = std::fs::read_to_string(path).unwrap();
+
+    text
+}
+
 //
 // Commands
 //
 
-pub fn store_bytes(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
+pub fn store_bytes_tmp(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -30,7 +86,7 @@ pub fn store_bytes(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()
     Ok(())
 }
 
-pub fn load_bytes(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
+pub fn load_bytes_tmp(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -49,7 +105,7 @@ pub fn load_bytes(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     Ok(fs::read(path)?)
 }
 
-pub fn store_str(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
+pub fn store_str_tmp(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]
@@ -66,7 +122,7 @@ pub fn store_str(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn load_str(_ctx: &Context, path: &str) -> anyhow::Result<String> {
+pub fn load_str_tmp(_ctx: &Context, path: &str) -> anyhow::Result<String> {
     let path = tmp_path_format(path);
 
     #[cfg(target_arch = "wasm32")]

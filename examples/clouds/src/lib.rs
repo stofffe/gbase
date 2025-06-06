@@ -390,7 +390,7 @@ impl App {
         if self.write_param_index {
             let content =
                 serde_json::to_string(&self.cloud_params).expect("could not serialze params");
-            match filesystem::store_str(ctx, &file_name, &content) {
+            match filesystem::store_str_tmp(ctx, &file_name, &content) {
                 Ok(_) => tracing::info!("Sucessfully updated params {}", index),
                 Err(err) => tracing::error!("could not write params: {}", err),
             }
@@ -401,7 +401,7 @@ impl App {
         }
 
         if self.load_param_index && !self.params_changed {
-            match filesystem::load_str(ctx, &file_name) {
+            match filesystem::load_str_tmp(ctx, &file_name) {
                 Ok(content) => {
                     let params = match serde_json::from_str(&content) {
                         Ok(params) => params,
