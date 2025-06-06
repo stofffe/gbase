@@ -14,6 +14,7 @@ impl RenderAsset for render::GpuMesh {}
 impl ConvertableRenderAsset for render::GpuMesh {
     type SourceAsset = render::Mesh;
     type Params = ();
+    type Error = bool;
 
     fn convert(
         device: &wgpu::Device,
@@ -21,8 +22,8 @@ impl ConvertableRenderAsset for render::GpuMesh {
         _render_cache: &mut render::RenderCache,
         source: &Self::SourceAsset,
         _params: &Self::Params,
-    ) -> Self {
-        render::GpuMesh::new_inner(device, source)
+    ) -> Result<Self, Self::Error> {
+        Ok(render::GpuMesh::new_inner(device, source))
     }
 }
 
@@ -46,6 +47,7 @@ impl RenderAsset for wgpu::ShaderModule {}
 impl ConvertableRenderAsset for wgpu::ShaderModule {
     type SourceAsset = render::ShaderBuilder;
     type Params = ();
+    type Error = wgpu::Error;
 
     fn convert(
         device: &wgpu::Device,
@@ -53,8 +55,9 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         _render_cache: &mut render::RenderCache,
         source: &Self::SourceAsset,
         _params: &Self::Params,
-    ) -> Self {
-        source.build_inner_2(device)
+    ) -> Result<Self, Self::Error> {
+        // Ok(source.build_inner_2(device))
+        source.build_inner_err_2(device)
     }
 }
 
@@ -85,6 +88,7 @@ impl RenderAsset for render::GpuImage {}
 impl ConvertableRenderAsset for render::GpuImage {
     type SourceAsset = render::Image;
     type Params = ();
+    type Error = bool;
 
     fn convert(
         device: &wgpu::Device,
@@ -92,10 +96,10 @@ impl ConvertableRenderAsset for render::GpuImage {
         render_cache: &mut render::RenderCache,
         source: &Self::SourceAsset,
         _params: &Self::Params,
-    ) -> Self {
+    ) -> Result<Self, Self::Error> {
         let sampler = source.sampler.build_inner(render_cache, device);
         let texture = source.texture.build_inner(device, queue);
         let view = render::TextureViewBuilder::new(texture.clone()).build_inner(render_cache);
-        GpuImage::new(texture, view, sampler)
+        Ok(GpuImage::new(texture, view, sampler))
     }
 }

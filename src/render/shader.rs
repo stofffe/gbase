@@ -18,6 +18,21 @@ impl ShaderBuilder {
             label: None,
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn build_inner_err_2(
+        &self,
+        device: &wgpu::Device,
+    ) -> Result<wgpu::ShaderModule, wgpu::Error> {
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let shader = self.build_inner_2(device);
+        pollster::block_on(async {
+            if let Some(err) = device.pop_error_scope().await {
+                Err(err)
+            } else {
+                Ok(shader)
+            }
+        })
+    }
 
     pub(crate) fn build_inner_2(&self, device: &wgpu::Device) -> wgpu::ShaderModule {
         let mut shader_code = String::with_capacity(self.source.len());

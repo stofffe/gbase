@@ -68,7 +68,7 @@ pub struct LoadedAssetBuilder<T: Asset + LoadableAsset> {
     path: PathBuf,
     ty: PhantomData<T>,
 
-    on_load: Option<Box<dyn Fn(&mut T) + Send + Sync>>,
+    on_load: Option<TypedAssetOnLoadFn<T>>,
 }
 
 impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
@@ -98,7 +98,7 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
     pub fn build(self, ctx: &mut Context) -> AssetHandle<T> {
         ctx.assets
             .asset_cache
-            .load_new::<T>(self.handle, &self.path, self.on_load)
+            .load::<T>(self.handle, &self.path, self.on_load)
     }
 }
 
@@ -122,42 +122,6 @@ pub fn get_mut<T: Asset + 'static>(ctx: &mut Context, handle: AssetHandle<T>) ->
     ctx.assets.asset_cache.get_mut(handle)
 }
 
-pub fn insert<T: Asset + 'static>(ctx: &mut Context, asset: T) -> AssetHandle<T> {
-    ctx.assets.asset_cache.insert(asset)
-}
-
-pub fn load<T: Asset + LoadableAsset + 'static>(
-    ctx: &mut Context,
-    path: &std::path::Path,
-    sync: bool,
-) -> AssetHandle<T> {
-    ctx.assets.asset_cache.load(path, sync)
-}
-
-pub fn load_watch<T: Asset + LoadableAsset + 'static>(
-    ctx: &mut Context,
-    path: &std::path::Path,
-    sync: bool,
-) -> AssetHandle<T> {
-    ctx.assets.asset_cache.load_watch(path, sync)
-}
-
-pub fn load_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
-    ctx: &mut Context,
-    path: &std::path::Path,
-    sync: bool,
-) -> AssetHandle<T> {
-    ctx.assets.asset_cache.load_write(path, sync)
-}
-
-pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
-    ctx: &mut Context,
-    path: &std::path::Path,
-    sync: bool,
-) -> AssetHandle<T> {
-    ctx.assets.asset_cache.load_watch_write(path, sync)
-}
-
 pub fn convert_asset<G: ConvertableRenderAsset>(
     ctx: &mut Context,
     handle: AssetHandle<G::SourceAsset>,
@@ -171,3 +135,38 @@ pub fn convert_asset<G: ConvertableRenderAsset>(
         params,
     )
 }
+// pub fn insert<T: Asset + 'static>(ctx: &mut Context, asset: T) -> AssetHandle<T> {
+//     ctx.assets.asset_cache.insert(asset)
+// }
+
+// pub fn load<T: Asset + LoadableAsset + 'static>(
+//     ctx: &mut Context,
+//     path: &std::path::Path,
+//     sync: bool,
+// ) -> AssetHandle<T> {
+//     ctx.assets.asset_cache.load(path, sync)
+// }
+//
+// pub fn load_watch<T: Asset + LoadableAsset + 'static>(
+//     ctx: &mut Context,
+//     path: &std::path::Path,
+//     sync: bool,
+// ) -> AssetHandle<T> {
+//     ctx.assets.asset_cache.load_watch(path, sync)
+// }
+//
+// pub fn load_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
+//     ctx: &mut Context,
+//     path: &std::path::Path,
+//     sync: bool,
+// ) -> AssetHandle<T> {
+//     ctx.assets.asset_cache.load_write(path, sync)
+// }
+//
+// pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
+//     ctx: &mut Context,
+//     path: &std::path::Path,
+//     sync: bool,
+// ) -> AssetHandle<T> {
+//     ctx.assets.asset_cache.load_watch_write(path, sync)
+// }

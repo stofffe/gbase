@@ -1,9 +1,6 @@
-use std::path::Path;
-
 use gbase::{
     asset::{self, AssetHandle},
     render::{self, ArcPipelineLayout, GpuImage, Image},
-    tracing,
     wgpu::{self},
     Callbacks, Context,
 };
@@ -73,14 +70,12 @@ impl Callbacks for App {
         }
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        asset::wait_all(ctx);
-
         let mesh =
             asset::convert_asset::<render::GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
         let shader =
             asset::convert_asset::<wgpu::ShaderModule>(ctx, self.shader_handle.clone(), &())
-                .unwrap()
-                .clone();
+                .unwrap();
+
         let texture =
             asset::convert_asset::<GpuImage>(ctx, self.texture_handle.clone(), &()).unwrap();
 
