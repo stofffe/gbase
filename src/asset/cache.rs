@@ -27,7 +27,6 @@ pub struct AssetCache {
     reload_functions: HashMap<TypeId, DynAssetLoadFn>,
     reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
     reload_receiver: mpsc::Receiver<PathBuf>,
-    reload_sender: mpsc::Sender<PathBuf>,
     reload_on_load: HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
 
     // writing
@@ -72,7 +71,6 @@ impl AssetCache {
             reload_handles: HashMap::new(),
             reload_functions: HashMap::new(),
             reload_watcher,
-            reload_sender,
             reload_receiver,
             reload_on_load: HashMap::new(),
 
@@ -81,21 +79,6 @@ impl AssetCache {
             write_dirty: HashSet::new(),
 
             convert_last_valid: HashMap::new(),
-        }
-    }
-
-    /// Wait for all async assets to be loaded
-    pub fn wait_all(&mut self) {
-        while !self.currently_loading.is_empty() {
-            std::thread::sleep(Duration::from_millis(100));
-            self.poll_loaded();
-        }
-    }
-
-    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
-        while self.currently_loading.contains(&handle.as_any()) {
-            std::thread::sleep(Duration::from_millis(100));
-            self.poll_loaded();
         }
     }
 
@@ -237,38 +220,36 @@ impl AssetCache {
         handle: AssetHandle<G::SourceAsset>,
         params: &G::Params,
     ) -> Option<ArcHandle<G>> {
-        let not_in_cache = !self.render_cache.contains_key(&handle.clone().as_any());
-        if not_in_cache {
-            // convert asset and insert if successful
-            if let Some(asset) = self.get(handle.clone()) {
-                match G::convert(device, queue, render_cache, asset, params) {
-                    Ok(converted) => {
-                        self.render_cache
-                            .insert(handle.clone().as_any(), ArcHandle::new(converted).upcast());
-                    }
-                    Err(err) => {
-                        tracing::warn!("could not convert {}", err);
-                    }
-                };
-            }
+        let Some(source_asset) = self.get(handle.clone()) else {
+            return None;
+        };
+
+        let render_asset_exists = self.render_cache.contains_key(&handle.clone().as_any());
+        if !render_asset_exists {
+            match G::convert(device, queue, render_cache, source_asset, params) {
+                Ok(render_asset) => {
+                    let render_asset_handle = ArcHandle::new(render_asset).upcast();
+                    self.render_cache
+                        .insert(handle.clone().as_any(), render_asset_handle.clone());
+                    self.convert_last_valid
+                        .insert(handle.as_any(), render_asset_handle);
+                }
+                Err(err) => {
+                    tracing::warn!("could not convert {}", err);
+                }
+            };
         }
 
-        // get value and convert to G
-        match self
-            .render_cache
+        // try current value
+        self.render_cache
             .get(&handle.as_any())
             .map(|a| a.downcast::<G>().expect("could not downcast"))
-        {
-            Some(render_asset) => {
+            .or_else(|| {
+                // try last valid
                 self.convert_last_valid
-                    .insert(handle.as_any(), render_asset.clone().upcast());
-                Some(render_asset)
-            }
-            None => self
-                .convert_last_valid
-                .get(&handle.as_any())
-                .map(|a| a.downcast::<G>().unwrap()),
-        }
+                    .get(&handle.as_any())
+                    .map(|a| a.downcast::<G>().expect("could not downcast"))
+            })
     }
 
     //
@@ -342,74 +323,18 @@ impl AssetCache {
         }
     }
 
-    pub fn force_reload(&self, path: PathBuf) {
-        self.reload_sender.send(path).expect("could not send path");
+    /// Wait for all async assets to be loaded
+    pub fn wait_all(&mut self) {
+        while !self.currently_loading.is_empty() {
+            std::thread::sleep(Duration::from_millis(100));
+            self.poll_loaded();
+        }
     }
 
-    // /// Load a file
-    // pub fn load<T: Asset + LoadableAsset>(&mut self, path: &Path, sync: bool) -> AssetHandle<T> {
-    //     let path = fs::canonicalize(path).unwrap();
-    //     let handle = AssetHandle::<T>::new();
-    //
-    //     if sync {
-    //         let data = T::load(&path);
-    //         self.cache.insert(handle.clone().as_any(), Box::new(data));
-    //     } else {
-    //         // add to currently loading
-    //         self.currently_loading.insert(handle.as_any());
-    //
-    //         // load async
-    //         let path_clone = path.clone();
-    //         let handle_clone = handle.clone();
-    //         let loaded_sender_clone = self.load_sender.clone();
-    //         std::thread::spawn(move || {
-    //             let data = T::load(&path_clone);
-    //             loaded_sender_clone
-    //                 .send((handle_clone.as_any(), Box::new(data)))
-    //                 .expect("could not send");
-    //         });
-    //     }
-    //
-    //     handle
-    // }
-
-    // /// Load a file
-    // ///
-    // /// Register asset for being watched for hot reloads
-    // pub fn load_watch<T: Asset + LoadableAsset>(
-    //     &mut self,
-    //     path: &Path,
-    //     sync: bool,
-    // ) -> AssetHandle<T> {
-    //     let handle = self.load(path, sync);
-    //     self.watch(handle.clone(), path);
-    //     handle
-    // }
-    //
-    // /// Load a file
-    // ///
-    // /// Register asset for being written to disk when updated
-    // pub fn load_write<T: Asset + LoadableAsset + WriteableAsset>(
-    //     &mut self,
-    //     path: &Path,
-    //     sync: bool,
-    // ) -> AssetHandle<T> {
-    //     let handle = self.load(path, sync);
-    //     self.write(handle.clone(), path);
-    //     handle
-    // }
-    // /// Load a file
-    // ///
-    // /// Register asset for being watched for hot reloads
-    // /// Register asset for being written to disk when updated
-    // pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset>(
-    //     &mut self,
-    //     path: &Path,
-    //     sync: bool,
-    // ) -> AssetHandle<T> {
-    //     let handle = self.load(path, sync);
-    //     self.watch(handle.clone(), path);
-    //     self.write(handle.clone(), path);
-    //     handle
-    // }
+    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
+        while self.currently_loading.contains(&handle.as_any()) {
+            std::thread::sleep(Duration::from_millis(100));
+            self.poll_loaded();
+        }
+    }
 }

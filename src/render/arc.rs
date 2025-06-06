@@ -34,7 +34,7 @@ impl<T: 'static> ArcHandle<T> {
     }
 }
 
-impl<T: 'static> Clone for ArcHandle<T> {
+impl<T: ?Sized + 'static> Clone for ArcHandle<T> {
     fn clone(&self) -> Self {
         ArcHandle {
             handle: Arc::clone(&self.handle),
