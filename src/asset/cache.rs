@@ -4,7 +4,7 @@ use std::{
     collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{mpsc, Arc},
     time::Duration,
 };
 
@@ -28,6 +28,7 @@ pub struct AssetCache {
     reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
     reload_receiver: mpsc::Receiver<PathBuf>,
     reload_sender: mpsc::Sender<PathBuf>,
+    reload_on_load: HashMap<AssetHandle<DynAsset>, Box<dyn Fn(&mut DynAsset) + Send + Sync>>,
 
     // writing
     write_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
@@ -70,6 +71,7 @@ impl AssetCache {
             reload_watcher,
             reload_sender,
             reload_receiver,
+            reload_on_load: HashMap::new(),
 
             write_handles: HashMap::new(),
             write_functions: HashMap::new(),
@@ -78,8 +80,15 @@ impl AssetCache {
     }
 
     /// Wait for all async assets to be loaded
-    pub fn wait(&mut self) {
+    pub fn wait_all(&mut self) {
         while !self.currently_loading.is_empty() {
+            std::thread::sleep(Duration::from_millis(100));
+            self.poll_loaded();
+        }
+    }
+
+    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
+        while self.currently_loading.contains(&handle.as_any()) {
             std::thread::sleep(Duration::from_millis(100));
             self.poll_loaded();
         }
@@ -125,7 +134,48 @@ impl AssetCache {
     // Reloading
     //
 
+    // TODO: use loader api for reloading to make it simpler?
     // TODO: investigate using watch and write manually main, maybe store path in asset handle also
+    pub fn load_new<T: Asset + LoadableAsset>(
+        &mut self,
+        handle: AssetHandle<T>,
+        path: &Path,
+        on_load: Option<Box<dyn Fn(&mut T) + Send + Sync>>,
+    ) -> AssetHandle<T> {
+        let path = fs::canonicalize(path).unwrap();
+
+        if let Some(on_load) = on_load {
+            // Wrap the callback to accept DynAsset and downcast internally
+            let wrapped_callback: Box<dyn Fn(&mut DynAsset) + Send + Sync> =
+                Box::new(move |dyn_asset| {
+                    // Downcast DynAsset to the concrete type T
+                    let asset = (dyn_asset.as_mut() as &mut dyn Any)
+                        .downcast_mut::<T>()
+                        .expect("Failed to downcast DynAsset to T in on_load callback");
+                    on_load(asset);
+                });
+
+            self.reload_on_load
+                .insert(handle.clone().as_any(), wrapped_callback);
+        }
+
+        // add to currently loading
+        self.currently_loading.insert(handle.as_any());
+
+        // load async
+        let path_clone = path.clone();
+        let handle_clone = handle.clone();
+        let loaded_sender_clone = self.load_sender.clone();
+        std::thread::spawn(move || {
+            let data = T::load(&path_clone);
+            //TODO: better to run on load here
+            loaded_sender_clone
+                .send((handle_clone.as_any(), Box::new(data)))
+                .expect("could not send");
+        });
+
+        handle
+    }
 
     /// Load a file
     pub fn load<T: Asset + LoadableAsset>(&mut self, path: &Path, sync: bool) -> AssetHandle<T> {
@@ -151,46 +201,6 @@ impl AssetCache {
             });
         }
 
-        handle
-    }
-
-    /// Load a file
-    ///
-    /// Register asset for being watched for hot reloads
-    pub fn load_watch<T: Asset + LoadableAsset>(
-        &mut self,
-        path: &Path,
-        sync: bool,
-    ) -> AssetHandle<T> {
-        let handle = self.load(path, sync);
-        self.watch(handle.clone(), path);
-        handle
-    }
-
-    /// Load a file
-    ///
-    /// Register asset for being written to disk when updated
-    pub fn load_write<T: Asset + LoadableAsset + WriteableAsset>(
-        &mut self,
-        path: &Path,
-        sync: bool,
-    ) -> AssetHandle<T> {
-        let handle = self.load(path, sync);
-        self.write(handle.clone(), path);
-        handle
-    }
-    /// Load a file
-    ///
-    /// Register asset for being watched for hot reloads
-    /// Register asset for being written to disk when updated
-    pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset>(
-        &mut self,
-        path: &Path,
-        sync: bool,
-    ) -> AssetHandle<T> {
-        let handle = self.load(path, sync);
-        self.watch(handle.clone(), path);
-        self.write(handle.clone(), path);
         handle
     }
 
@@ -271,7 +281,12 @@ impl AssetCache {
 
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
-        for (handle, asset) in self.load_receiver.try_iter() {
+        for (handle, mut asset) in self.load_receiver.try_iter() {
+            // callback first
+            if let Some(on_load) = self.reload_on_load.get(&handle) {
+                on_load(&mut asset);
+            }
+
             // insert in cache
             self.cache.insert(handle.clone(), asset);
 
@@ -309,12 +324,19 @@ impl AssetCache {
                 for handle in handles {
                     println!("reload {:?}", path);
 
-                    // create/overwrite current value
+                    // load new fn
                     let loader_fn = self
                         .reload_functions
                         .get(&handle.ty_id)
                         .expect("could not get loader fn");
-                    let asset = loader_fn(&path);
+                    let mut asset = loader_fn(&path);
+
+                    // run on load
+                    if let Some(on_load) = self.reload_on_load.get(handle) {
+                        on_load(&mut asset);
+                    }
+
+                    // insert into cache
                     self.cache.insert(handle.clone(), asset);
 
                     // invalidate render cache
@@ -326,5 +348,45 @@ impl AssetCache {
 
     pub fn force_reload(&self, path: PathBuf) {
         self.reload_sender.send(path).expect("could not send path");
+    }
+
+    /// Load a file
+    ///
+    /// Register asset for being watched for hot reloads
+    pub fn load_watch<T: Asset + LoadableAsset>(
+        &mut self,
+        path: &Path,
+        sync: bool,
+    ) -> AssetHandle<T> {
+        let handle = self.load(path, sync);
+        self.watch(handle.clone(), path);
+        handle
+    }
+
+    /// Load a file
+    ///
+    /// Register asset for being written to disk when updated
+    pub fn load_write<T: Asset + LoadableAsset + WriteableAsset>(
+        &mut self,
+        path: &Path,
+        sync: bool,
+    ) -> AssetHandle<T> {
+        let handle = self.load(path, sync);
+        self.write(handle.clone(), path);
+        handle
+    }
+    /// Load a file
+    ///
+    /// Register asset for being watched for hot reloads
+    /// Register asset for being written to disk when updated
+    pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset>(
+        &mut self,
+        path: &Path,
+        sync: bool,
+    ) -> AssetHandle<T> {
+        let handle = self.load(path, sync);
+        self.watch(handle.clone(), path);
+        self.write(handle.clone(), path);
+        handle
     }
 }

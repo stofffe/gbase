@@ -9,10 +9,10 @@ pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 
 pub trait Asset: Any + Send + Sync {}
 
-pub trait LoadableAsset {
+pub trait LoadableAsset: Asset {
     fn load(path: &Path) -> Self;
 }
-pub trait WriteableAsset {
+pub trait WriteableAsset: LoadableAsset {
     fn write(&mut self, _path: &Path);
 }
 

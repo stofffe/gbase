@@ -3,6 +3,7 @@ use std::path::Path;
 use gbase::{
     asset::{self, AssetHandle},
     render::{self, ArcPipelineLayout, GpuImage, Image},
+    tracing,
     wgpu::{self},
     Callbacks, Context,
 };
@@ -23,7 +24,7 @@ struct App {
 
 impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(false)
+        gbase::ContextBuilder::new().vsync(true)
     }
     fn new(ctx: &mut Context) -> Self {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -43,26 +44,24 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let shader_handle = asset::load_watch(ctx, Path::new("assets/shaders/texture.wgsl"), false);
-        let texture_handle = asset::load_watch::<render::Image>(
-            ctx,
-            Path::new("assets/textures/texture.jpeg"),
-            true,
-        );
-
-        let texture = asset::get_mut(ctx, texture_handle.clone()).unwrap();
-        texture.texture = texture
-            .texture
-            .clone()
-            .format(wgpu::TextureFormat::Rgba8Unorm);
+        let shader_handle = asset::AssetBuilder::load("assets/shaders/texture.wgsl")
+            .watch(ctx)
+            .build(ctx);
+        let texture_handle =
+            asset::AssetBuilder::load::<render::Image>("assets/textures/texture.jpeg")
+                .on_load(|img| {
+                    img.texture = img.texture.clone().format(wgpu::TextureFormat::Rgba8Unorm)
+                })
+                .watch(ctx)
+                .build(ctx);
 
         let mesh = render::MeshBuilder::quad().build().extract_attributes([
             render::VertexAttributeId::Position,
             render::VertexAttributeId::Uv(0),
         ]);
-        let mesh_handle = asset::insert(ctx, mesh);
+        let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
 
-        asset::wait(ctx);
+        asset::wait_all(ctx);
 
         Self {
             pipeline_layout,
@@ -74,7 +73,7 @@ impl Callbacks for App {
         }
     }
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        asset::wait(ctx);
+        asset::wait_all(ctx);
 
         let mesh =
             asset::convert_asset::<render::GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
