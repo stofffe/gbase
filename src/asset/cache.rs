@@ -1,6 +1,5 @@
-use futures_channel::mpsc;
-
 use crate::render::{self, ArcHandle};
+use futures_channel::mpsc;
 use std::{
     any::{Any, TypeId},
     collections::{HashMap, HashSet},
@@ -22,29 +21,13 @@ pub struct AssetCache {
     load_sender: mpsc::UnboundedSender<(AssetHandle<DynAsset>, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(AssetHandle<DynAsset>, DynAsset)>,
     currently_loading: HashSet<AssetHandle<DynAsset>>,
+    reload_on_load: HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
 
     // convert
     convert_last_valid: HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
 
-    // reloading
     #[cfg(not(target_arch = "wasm32"))]
-    reload_handles: HashMap<PathBuf, Vec<AssetHandle<DynAsset>>>,
-    #[cfg(not(target_arch = "wasm32"))]
-    reload_functions: HashMap<TypeId, DynAssetLoadFn>,
-    #[cfg(not(target_arch = "wasm32"))]
-    reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
-    #[cfg(not(target_arch = "wasm32"))]
-    reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
-    #[cfg(not(target_arch = "wasm32"))]
-    reload_on_load: HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
-
-    // writing
-    #[cfg(not(target_arch = "wasm32"))]
-    write_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
-    #[cfg(not(target_arch = "wasm32"))]
-    write_functions: HashMap<TypeId, DynAssetWriteFn>,
-    #[cfg(not(target_arch = "wasm32"))]
-    write_dirty: HashSet<AssetHandle<DynAsset>>,
+    pub(crate) ext: AssetCacheExt,
 }
 
 impl AssetCache {
@@ -81,24 +64,19 @@ impl AssetCache {
             load_sender,
             load_receiver,
             convert_last_valid: HashMap::new(),
-
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_handles: HashMap::new(),
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_functions: HashMap::new(),
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_watcher,
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_receiver,
-            #[cfg(not(target_arch = "wasm32"))]
             reload_on_load: HashMap::new(),
 
             #[cfg(not(target_arch = "wasm32"))]
-            write_handles: HashMap::new(),
-            #[cfg(not(target_arch = "wasm32"))]
-            write_functions: HashMap::new(),
-            #[cfg(not(target_arch = "wasm32"))]
-            write_dirty: HashSet::new(),
+            ext: AssetCacheExt {
+                reload_handles: HashMap::new(),
+                reload_functions: HashMap::new(),
+                reload_watcher,
+                reload_receiver,
+
+                write_handles: HashMap::new(),
+                write_functions: HashMap::new(),
+                write_dirty: HashSet::new(),
+            },
         }
     }
 
@@ -113,7 +91,6 @@ impl AssetCache {
     }
 
     // TODO: add get_or_default (e.g. 1x1 white pixel for image)
-    //
     // could return error union [Ok, Invalid, Loading]
     pub fn get<T: Asset + 'static>(&self, handle: AssetHandle<T>) -> Option<&T> {
         self.cache.get(&handle.as_any()).map(|asset| {
@@ -128,8 +105,9 @@ impl AssetCache {
         self.render_cache.remove(&handle.clone().as_any());
 
         // set dirty
+        // TODO: move inside
         #[cfg(not(target_arch = "wasm32"))]
-        self.write_dirty.insert(handle.clone().as_any());
+        self.ext.write_dirty.insert(handle.clone().as_any());
 
         // get value and convert to T
         self.cache.get_mut(&handle.as_any()).map(|asset| {
@@ -165,7 +143,6 @@ impl AssetCache {
                 on_load(asset);
             });
 
-            #[cfg(not(target_arch = "wasm32"))]
             self.reload_on_load
                 .insert(handle.clone().as_any(), wrapped_callback);
         }
@@ -199,6 +176,127 @@ impl AssetCache {
         handle
     }
 
+    //
+    // Render assets
+    //
+
+    pub fn convert<G: ConvertableRenderAsset>(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        render_cache: &mut render::RenderCache,
+        handle: AssetHandle<G::SourceAsset>,
+        params: &G::Params,
+    ) -> Option<ArcHandle<G>> {
+        let Some(source_asset) = self.get(handle.clone()) else {
+            return None;
+        };
+
+        let render_asset_exists = self.render_cache.contains_key(&handle.clone().as_any());
+        if !render_asset_exists {
+            match G::convert(device, queue, render_cache, source_asset, params) {
+                Ok(render_asset) => {
+                    let render_asset_handle = ArcHandle::new(render_asset).upcast();
+                    self.render_cache
+                        .insert(handle.clone().as_any(), render_asset_handle.clone());
+                    self.convert_last_valid
+                        .insert(handle.as_any(), render_asset_handle);
+                }
+                Err(err) => {
+                    tracing::warn!("could not convert {}", err);
+                }
+            };
+        }
+
+        self.render_cache
+            .get(&handle.as_any())
+            .map(|a| a.downcast::<G>().expect("could not downcast"))
+            .or_else(|| {
+                // try last valid
+                self.convert_last_valid
+                    .get(&handle.as_any())
+                    .map(|a| a.downcast::<G>().expect("could not downcast"))
+            })
+    }
+
+    //
+    // Polling
+    //
+
+    pub fn poll(&mut self) {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.ext.poll_reload(
+                &mut self.cache,
+                &mut self.render_cache,
+                &self.reload_on_load,
+            );
+            self.ext.poll_write(&mut self.cache);
+        }
+
+        self.poll_loaded();
+    }
+
+    // check if any files completed loading and update cache and invalidate render cache
+    pub fn poll_loaded(&mut self) {
+        while let Ok(Some((handle, mut asset))) = self.load_receiver.try_next() {
+            // callback first
+            if let Some(on_load) = self.reload_on_load.get(&handle) {
+                on_load(&mut asset);
+            }
+
+            // insert in cache
+            self.cache.insert(handle.clone(), asset);
+
+            // remove from currently loaded
+            self.currently_loading.remove(&handle.as_any());
+
+            // invalidate render cache
+            self.render_cache.remove(&handle);
+        }
+    }
+
+    pub fn all_loaded(&mut self) -> bool {
+        self.currently_loading.is_empty()
+    }
+    pub fn handle_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
+        self.currently_loading.contains(&handle.as_any())
+    }
+
+    /// Wait for all async assets to be loaded
+    pub fn wait_all(&mut self) {
+        // while !self.currently_loading.is_empty() {
+        //     std::thread::sleep(Duration::from_millis(100));
+        //     self.poll_loaded();
+        // }
+    }
+
+    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
+        // while self.currently_loading.contains(&handle.as_any()) {
+        //     std::thread::sleep(Duration::from_millis(100));
+        //     self.poll_loaded();
+        // }
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub struct AssetCacheExt {
+    // reloading
+    reload_handles: HashMap<PathBuf, Vec<AssetHandle<DynAsset>>>,
+    reload_functions: HashMap<TypeId, DynAssetLoadFn>,
+    reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
+    reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
+
+    // writing
+    write_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
+    write_functions: HashMap<TypeId, DynAssetWriteFn>,
+    write_dirty: HashSet<AssetHandle<DynAsset>>,
+}
+
+// TODO: check if canoicalize is necessary
+
+#[cfg(not(target_arch = "wasm32"))]
+impl AssetCacheExt {
     /// Register asset for being watched for hot reloads
     #[cfg(not(target_arch = "wasm32"))]
     pub fn watch<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
@@ -244,90 +342,11 @@ impl AssetCache {
             });
     }
 
-    //
-    // Render assets
-    //
-
-    // TODO: complete chaos
-    pub fn convert<G: ConvertableRenderAsset>(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_cache: &mut render::RenderCache,
-        handle: AssetHandle<G::SourceAsset>,
-        params: &G::Params,
-    ) -> Option<ArcHandle<G>> {
-        let Some(source_asset) = self.get(handle.clone()) else {
-            return None;
-        };
-
-        let render_asset_exists = self.render_cache.contains_key(&handle.clone().as_any());
-        if !render_asset_exists {
-            match G::convert(device, queue, render_cache, source_asset, params) {
-                Ok(render_asset) => {
-                    let render_asset_handle = ArcHandle::new(render_asset).upcast();
-                    self.render_cache
-                        .insert(handle.clone().as_any(), render_asset_handle.clone());
-                    self.convert_last_valid
-                        .insert(handle.as_any(), render_asset_handle);
-                }
-                Err(err) => {
-                    tracing::warn!("could not convert {}", err);
-                }
-            };
-        }
-
-        // try current value
-        // todo!()
-        self.render_cache
-            .get(&handle.as_any())
-            .map(|a| a.downcast::<G>().expect("could not downcast"))
-            .or_else(|| {
-                // try last valid
-                self.convert_last_valid
-                    .get(&handle.as_any())
-                    .map(|a| a.downcast::<G>().expect("could not downcast"))
-            })
-    }
-
-    //
-    // Polling
-    //
-
-    pub fn poll(&mut self) {
-        #[cfg(not(target_arch = "wasm32"))]
-        self.poll_reload();
-        #[cfg(not(target_arch = "wasm32"))]
-        self.poll_write();
-        self.poll_loaded();
-    }
-
-    // check if any files completed loading and update cache and invalidate render cache
-    pub fn poll_loaded(&mut self) {
-        while let Ok(Some((handle, mut asset))) = self.load_receiver.try_next() {
-            // callback first
-            #[cfg(not(target_arch = "wasm32"))]
-            if let Some(on_load) = self.reload_on_load.get(&handle) {
-                on_load(&mut asset);
-            }
-
-            // insert in cache
-            self.cache.insert(handle.clone(), asset);
-
-            // remove from currently loaded
-            self.currently_loading.remove(&handle.as_any());
-
-            // invalidate render cache
-            self.render_cache.remove(&handle);
-        }
-    }
-
     // check if any files are scheduled for writing to disk
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn poll_write(&mut self) {
+    pub fn poll_write(&mut self, cache: &mut HashMap<AssetHandle<DynAsset>, DynAsset>) {
         for handle in self.write_dirty.drain() {
             if let Some(path) = self.write_handles.get(&handle) {
-                let asset = self.cache.get_mut(&handle);
+                let asset = cache.get_mut(&handle);
 
                 // write if loaded
                 if let Some(asset) = asset {
@@ -343,8 +362,12 @@ impl AssetCache {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn poll_reload(&mut self) {
+    pub fn poll_reload(
+        &mut self,
+        cache: &mut HashMap<AssetHandle<DynAsset>, DynAsset>,
+        render_cache: &mut HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
+        on_load: &HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
+    ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
@@ -358,36 +381,17 @@ impl AssetCache {
                     let mut asset = loader_fn(&path);
 
                     // run on load
-                    if let Some(on_load) = self.reload_on_load.get(handle) {
+                    if let Some(on_load) = on_load.get(handle) {
                         on_load(&mut asset);
                     }
 
                     // insert into cache
-                    self.cache.insert(handle.clone(), asset);
+                    cache.insert(handle.clone(), asset);
 
                     // invalidate render cache
-                    self.render_cache.remove(handle);
+                    render_cache.remove(handle);
                 }
             }
         }
-    }
-
-    pub fn all_loaded(&mut self) -> bool {
-        self.currently_loading.is_empty()
-    }
-
-    /// Wait for all async assets to be loaded
-    pub fn wait_all(&mut self) {
-        // while !self.currently_loading.is_empty() {
-        //     std::thread::sleep(Duration::from_millis(100));
-        //     self.poll_loaded();
-        // }
-    }
-
-    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
-        // while self.currently_loading.contains(&handle.as_any()) {
-        //     std::thread::sleep(Duration::from_millis(100));
-        //     self.poll_loaded();
-        // }
     }
 }

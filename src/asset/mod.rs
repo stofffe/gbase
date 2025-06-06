@@ -76,6 +76,7 @@ impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
     pub fn write(self, ctx: &mut Context) -> Self {
         ctx.assets
             .asset_cache
+            .ext
             .write::<T>(self.handle.clone(), &self.path);
         self
     }
@@ -86,6 +87,7 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
         #[cfg(not(target_arch = "wasm32"))]
         ctx.assets
             .asset_cache
+            .ext
             .watch::<T>(self.handle.clone(), &self.path);
         self
     }
