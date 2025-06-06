@@ -70,22 +70,21 @@ impl<T: 'static> AsRef<T> for ArcHandle<T> {
         self.handle.as_ref()
     }
 }
-
 // Convert from and to any
 
-impl<T: Any + Send + Sync + 'static> ArcHandle<T> {
-    pub fn upcast(self) -> ArcHandle<dyn Any + Send + Sync> {
+impl<T: Any + 'static> ArcHandle<T> {
+    pub fn upcast(self) -> ArcHandle<dyn Any> {
         ArcHandle {
-            handle: self.handle as Arc<dyn Any + Send + Sync>,
+            handle: self.handle as Arc<dyn Any>,
             id: self.id,
         }
     }
 }
-impl ArcHandle<dyn Any + Sync + Send> {
-    pub fn downcast<G: Send + Sync>(&self) -> Option<ArcHandle<G>> {
-        if let Ok(handle) = self.handle.clone().downcast::<G>() {
+impl ArcHandle<dyn Any> {
+    pub fn downcast<G: Clone>(&self) -> Option<ArcHandle<G>> {
+        if let Some(handle) = self.handle.clone().downcast_ref::<G>() {
             Some(ArcHandle {
-                handle,
+                handle: handle.clone().into(),
                 id: self.id,
             })
         } else {

@@ -1,6 +1,9 @@
 use super::{Asset, ConvertableRenderAsset, LoadableAsset, RenderAsset, WriteableAsset};
 use crate::render::{self, GpuImage};
-use std::fs;
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 // TODO: move this logic to respective types
 
@@ -34,8 +37,24 @@ impl ConvertableRenderAsset for render::GpuMesh {
 impl Asset for render::ShaderBuilder {}
 
 impl LoadableAsset for render::ShaderBuilder {
-    fn load(path: &std::path::Path) -> Self {
-        let source = fs::read_to_string(path).expect("could not read file");
+    async fn load(path: &std::path::Path) -> Self {
+        #[cfg(target_arch = "wasm32")]
+        let source = {
+            let url = format!("http://localhost:8000/{}", path.to_str().unwrap());
+            let source = reqwest::Client::new()
+                .get(url)
+                .send()
+                .await
+                .expect("request failed")
+                .text()
+                .await
+                .expect("failed to read response");
+            source
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let source = { fs::read_to_string(path).expect("could not read file") };
+
         Self {
             label: Some(path.to_str().unwrap().to_string()),
             source,
@@ -56,8 +75,15 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         source: &Self::SourceAsset,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
-        // Ok(source.build_inner_2(device))
-        source.build_inner_err_2(device)
+        #[cfg(target_arch = "wasm32")]
+        {
+            Ok(source.build_inner_2(device))
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            source.build_inner_err_2(device)
+        }
     }
 }
 
@@ -68,9 +94,25 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 impl Asset for render::Image {}
 
 impl LoadableAsset for render::Image {
-    fn load(path: &std::path::Path) -> Self {
-        let data = fs::read(path).expect("could not read file");
-        let img = image::load_from_memory(&data)
+    async fn load(path: &std::path::Path) -> Self {
+        #[cfg(target_arch = "wasm32")]
+        let bytes = {
+            let url = format!("http://localhost:8000/{}", path.to_str().unwrap());
+            let bytes = reqwest::Client::new()
+                .get(url)
+                .send()
+                .await
+                .expect("request failed")
+                .bytes()
+                .await
+                .expect("failed to read response");
+            bytes
+        };
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let bytes = fs::read(path).expect("could not read file");
+
+        let img = image::load_from_memory(&bytes)
             .expect("could not load image")
             .to_rgba8();
         let texture = render::TextureBuilder::new(render::TextureSource::Data(

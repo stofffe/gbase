@@ -19,6 +19,8 @@ image = "0.25.6"
 dlopen = { version = "0.1.8", optional = true, features = [] }
 tracing-tracy = { version = "0.11.4", optional = true }
 
+futures-channel = "0.3.31" # temp
+
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
@@ -28,7 +30,6 @@ notify = { version = "7.0.0" }                         # TODO: use debouncer for
 # wasm
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.88"
-wasm-bindgen-futures = "0.4.38"
 console_error_panic_hook = "0.1.7"
 tracing-wasm = "0.2.1"
 instant = { version = "0.1.12", features = ["wasm-bindgen"] }
@@ -39,6 +40,8 @@ web-sys = { version = "0.3.64", features = [
     "GpuCanvasContext",
     "Storage",
 ] }
+wasm-bindgen-futures = "0.4.38"
+reqwest = "0.12.19"
 
 [features]
 # default = ["trace_tracy"]

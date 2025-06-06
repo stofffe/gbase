@@ -72,6 +72,7 @@ pub struct LoadedAssetBuilder<T: Asset + LoadableAsset> {
 }
 
 impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn write(self, ctx: &mut Context) -> Self {
         ctx.assets
             .asset_cache
@@ -82,6 +83,7 @@ impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
 
 impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
     pub fn watch(self, ctx: &mut Context) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
         ctx.assets
             .asset_cache
             .watch::<T>(self.handle.clone(), &self.path);
@@ -105,6 +107,10 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
 //
 // Commands
 //
+
+pub fn all_loaded(ctx: &mut Context) -> bool {
+    ctx.assets.asset_cache.all_loaded()
+}
 
 pub fn wait_all(ctx: &mut Context) {
     ctx.assets.asset_cache.wait_all();

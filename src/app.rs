@@ -341,9 +341,7 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
         ctx.time.profiler.clone(),
     );
 
-    ctx.assets.asset_cache.poll_reload();
-    ctx.assets.asset_cache.poll_write();
-    ctx.assets.asset_cache.poll_loaded();
+    ctx.assets.asset_cache.poll();
 
     false
 }

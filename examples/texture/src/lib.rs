@@ -20,9 +20,11 @@ struct App {
 }
 
 impl Callbacks for App {
+    #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new().vsync(true)
     }
+    #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -40,7 +42,6 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-
         let shader_handle = asset::AssetBuilder::load("assets/shaders/texture.wgsl")
             .watch(ctx)
             .build(ctx);
@@ -69,7 +70,11 @@ impl Callbacks for App {
             mesh_handle,
         }
     }
+    #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+        if !asset::all_loaded(ctx) {
+            return false;
+        }
         let mesh =
             asset::convert_asset::<render::GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
         let shader =
