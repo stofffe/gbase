@@ -121,8 +121,6 @@ impl AssetCache {
     // Reloading
     //
 
-    // TODO: use loader api for reloading to make it simpler?
-    // TODO: investigate using watch and write manually main, maybe store path in asset handle also
     pub fn load<T: Asset + LoadableAsset>(
         &mut self,
         handle: AssetHandle<T>,
@@ -130,8 +128,6 @@ impl AssetCache {
         on_load: Option<TypedAssetOnLoadFn<T>>,
     ) -> AssetHandle<T> {
         let path = path.to_path_buf();
-        #[cfg(not(target_arch = "wasm32"))]
-        let path = fs::canonicalize(path).unwrap();
 
         if let Some(on_load) = on_load {
             // Wrap the callback to accept DynAsset and downcast internally
@@ -300,19 +296,20 @@ impl AssetCacheExt {
     /// Register asset for being watched for hot reloads
     #[cfg(not(target_arch = "wasm32"))]
     pub fn watch<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
-        let path = fs::canonicalize(path).unwrap();
+        // need absolute path since notify uses them
+        let absolute_path = fs::canonicalize(path).unwrap();
 
         // start watching path
         self.reload_watcher
             .watcher()
             .watch(
-                &path,
+                &absolute_path,
                 notify_debouncer_mini::notify::RecursiveMode::Recursive,
             )
             .unwrap();
 
         // map path to handle
-        let handles = self.reload_handles.entry(path).or_default();
+        let handles = self.reload_handles.entry(absolute_path).or_default();
         handles.push(handle.as_any());
 
         // store reload function
@@ -324,7 +321,7 @@ impl AssetCacheExt {
     /// Register asset for being written to disk when updated
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write<T: Asset + WriteableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
-        let path = fs::canonicalize(path).unwrap();
+        let path = path.to_path_buf();
 
         // map handle to path
         self.write_handles.insert(handle.as_any(), path.clone());
@@ -369,6 +366,7 @@ impl AssetCacheExt {
         on_load: &HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
+            println!("1 reload {:?}", path);
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
                     println!("reload {:?}", path);
