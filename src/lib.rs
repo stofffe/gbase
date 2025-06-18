@@ -11,7 +11,12 @@ pub mod random;
 pub mod render;
 pub mod time;
 
-#[cfg(feature = "hot_reload")]
+#[cfg(all(feature = "hot_reload", target_arch = "wasm32"))]
+compile_error!("The 'hot_reload' feature is not supported on wasm32");
+#[cfg(all(feature = "trace_tracy", target_arch = "wasm32"))]
+compile_error!("The 'trace_tracy' feature is not supported on wasm32");
+
+#[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
 pub mod hot_reload;
 
 // exports
