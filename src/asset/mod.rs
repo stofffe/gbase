@@ -3,14 +3,10 @@ mod handle;
 mod implementations;
 mod types;
 
-use std::{
-    marker::PhantomData,
-    path::{Path, PathBuf},
-};
+use std::{marker::PhantomData, path::PathBuf};
 
 pub use cache::*;
 pub use handle::*;
-pub use implementations::*;
 pub use types::*;
 
 use crate::{render::ArcHandle, Context};

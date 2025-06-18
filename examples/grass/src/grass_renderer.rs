@@ -1,5 +1,6 @@
 use encase::ShaderType;
 use gbase::{
+    asset::{self, AssetHandle},
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
     input,
@@ -9,12 +10,12 @@ use gbase::{
     },
     wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle, CameraFrustum, DeferredBuffers};
+use gbase_utils::{CameraFrustum, DeferredBuffers};
 use std::{mem::size_of, ops::Div};
 
 const TILE_SIZE: f32 = 128.0;
 const TILES_PER_SIDE: i32 = 3;
-const BLADES_PER_SIDE: u32 = 16 * 50; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
+const BLADES_PER_SIDE: u32 = 16 * 30; // must be > 16 due to dispatch(B/16, B/16, 1) workgroups(16,16,1)
 const BLADES_PER_TILE: u32 = BLADES_PER_SIDE * BLADES_PER_SIDE;
 
 pub enum RenderMode<'a> {
@@ -54,11 +55,7 @@ pub struct GrassRenderer {
 }
 
 impl GrassRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        // deferred_buffers: &gbase_utils::DeferredBuffers,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let instances = [
             render::RawBufferBuilder::new(render::RawBufferSource::Size(
                 GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
@@ -145,13 +142,11 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: filesystem::load_s!("shaders/grass_compute_instance.wgsl").unwrap(),
-            },
-            "assets/shaders/grass_compute_instance.wgsl".into(),
-        );
+        let instance_shader_handle = asset::AssetBuilder::load::<render::ShaderBuilder>(
+            "assets/shaders/grass_compute_instance.wgsl",
+        )
+        .watch(ctx)
+        .build(ctx);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![instance_bindgroup_layout.clone()])
@@ -174,13 +169,11 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let draw_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: filesystem::load_s!("shaders/grass_compute_draw.wgsl").unwrap(),
-            },
-            "assets/shaders/grass_compute_draw.wgsl".into(),
-        );
+        let draw_shader_handle = asset::AssetBuilder::load::<render::ShaderBuilder>(
+            "assets/shaders/grass_compute_draw.wgsl",
+        )
+        .watch(ctx)
+        .build(ctx);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![draw_bindgroup_layout.clone()])
@@ -208,20 +201,15 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_deferred_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: include_str!("../assets/shaders/grass_deferred.wgsl").into(),
-            },
-            "assets/shaders/grass_deferred.wgsl".into(),
-        );
-        let render_forward_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: include_str!("../assets/shaders/grass.wgsl").into(),
-            },
-            "assets/shaders/grass.wgsl".into(),
-        );
+        let render_deferred_shader_handle = asset::AssetBuilder::load::<render::ShaderBuilder>(
+            "assets/shaders/grass_deferred.wgsl",
+        )
+        .watch(ctx)
+        .build(ctx);
+        let render_forward_shader_handle =
+            asset::AssetBuilder::load::<render::ShaderBuilder>("assets/shaders/grass.wgsl")
+                .watch(ctx)
+                .build(ctx);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout.clone()])
             .build(ctx);
@@ -255,13 +243,15 @@ impl GrassRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-
         camera: &gbase_utils::Camera,
         camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>,
         frustum_buffer: &render::UniformBuffer<CameraFrustum>,
         render_mode: RenderMode,
     ) {
+        if !asset::all_loaded(ctx) {
+            return;
+        }
+
         self.app_info.update_buffer(ctx);
         self.debug_input.update_buffer(ctx);
 
@@ -356,7 +346,9 @@ impl GrassRenderer {
                     ])
                     .build(ctx),
             ];
-            let instance_shader = shader_cache.get_gpu(ctx, self.instance_shader_handle.clone());
+            let instance_shader =
+                asset::convert_asset(ctx, self.instance_shader_handle.clone(), &()).unwrap(); // TODO:
+
             let instance_pipeline = render::ComputePipelineBuilder::new(
                 instance_shader,
                 self.instance_pipeline_layout.clone(),
@@ -393,7 +385,9 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let draw_compute_shader = shader_cache.get_gpu(ctx, self.draw_shader_handle.clone());
+            let draw_compute_shader =
+                asset::convert_asset(ctx, self.draw_shader_handle.clone(), &()).unwrap(); // TODO:
+
             let draw_pipeline = render::ComputePipelineBuilder::new(
                 draw_compute_shader,
                 self.draw_pipeline_layout.clone(),
@@ -431,7 +425,9 @@ impl GrassRenderer {
                     depth_buffer,
                 } => {
                     let render_shader =
-                        shader_cache.get_gpu(ctx, self.render_forward_shader_handle.clone());
+                        asset::convert_asset(ctx, self.render_forward_shader_handle.clone(), &())
+                            .unwrap();
+
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),
@@ -455,7 +451,8 @@ impl GrassRenderer {
                 }
                 RenderMode::Deferred { buffers } => {
                     let render_shader =
-                        shader_cache.get_gpu(ctx, self.render_deferred_shader_handle.clone());
+                        asset::convert_asset(ctx, self.render_deferred_shader_handle.clone(), &())
+                            .unwrap();
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),

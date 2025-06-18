@@ -1,7 +1,7 @@
 mod grass_renderer;
 
 use gbase::{
-    filesystem,
+    asset, filesystem,
     glam::{vec2, vec3, vec4, Quat, Vec3},
     input,
     render::{self, MeshBuilder},
@@ -10,8 +10,8 @@ use gbase::{
     Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, AssetCache, AssetHandle, CameraFrustum, Direction, GpuMaterial, PbrLightUniforms,
-    PbrMaterial, PixelCache, SizeKind, Transform3D, Widget, GRAY, WHITE,
+    CameraFrustum, Direction, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache, SizeKind,
+    Transform3D, Widget,
 };
 use grass_renderer::GrassRenderer;
 use std::{f32::consts::PI, sync::Arc};
@@ -37,12 +37,7 @@ pub struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     pbr_renderer: gbase_utils::PbrRenderer,
 
-    shader_cache: AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-    mesh_cache: AssetCache<render::Mesh, render::GpuMesh>,
-    image_cache: AssetCache<render::Image, render::GpuImage>,
-    pixel_cache: PixelCache,
-
-    plane_mesh: AssetHandle<render::Mesh>,
+    plane_mesh: asset::AssetHandle<render::Mesh>,
     plane_material: Arc<GpuMaterial>,
 
     paused: bool,
@@ -64,9 +59,7 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let mut shader_cache = AssetCache::new();
-        let mut mesh_cache = AssetCache::new();
-        let mut image_cache = AssetCache::new();
+        // let mut image_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
 
         // Framebuffer
@@ -108,7 +101,7 @@ impl Callbacks for App {
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let grass_renderer = GrassRenderer::new(ctx, &mut shader_cache);
+        let grass_renderer = GrassRenderer::new(ctx);
         let pbr_renderer = gbase_utils::PbrRenderer::new(ctx);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -118,11 +111,12 @@ impl Callbacks for App {
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let plane_mesh = mesh_cache.allocate(
+        let plane_mesh = asset::AssetBuilder::insert(
             MeshBuilder::quad()
                 .build()
                 .extract_attributes(pbr_renderer.required_attributes().clone()),
-        );
+        )
+        .build(ctx);
         let plane_material = Arc::new(
             PbrMaterial {
                 base_color_texture: None,
@@ -137,15 +131,10 @@ impl Callbacks for App {
                 emissive_texture: None,
                 emissive_factor: [0.0, 0.0, 0.0],
             }
-            .to_material(&mut image_cache, &mut pixel_cache),
+            .to_material(ctx, &mut pixel_cache), // TODO: remove this?
         );
 
         Self {
-            shader_cache,
-            mesh_cache,
-            image_cache,
-            pixel_cache,
-
             camera,
             camera_buffer,
             frustum_buffer,
@@ -168,9 +157,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        self.shader_cache.check_watched_files(ctx);
-        self.image_cache.check_watched_files(ctx);
-
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.frustum_buffer
@@ -191,8 +177,6 @@ impl Callbacks for App {
         );
         self.pbr_renderer.render(
             ctx,
-            &mut self.mesh_cache,
-            &mut self.image_cache,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
             &self.camera,
@@ -203,7 +187,7 @@ impl Callbacks for App {
 
         self.grass_renderer.render(
             ctx,
-            &mut self.shader_cache,
+            // &mut self.shader_cache,
             &self.camera,
             &self.camera_buffer,
             &self.frustum_buffer,

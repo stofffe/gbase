@@ -185,6 +185,7 @@ impl AssetCache {
         params: &G::Params,
     ) -> Option<ArcHandle<G>> {
         let Some(source_asset) = self.get(handle.clone()) else {
+            tracing::warn!("could not get source asset");
             return None;
         };
 

@@ -1,10 +1,8 @@
-use std::collections::HashMap;
-
-use crate::{texture_builder_from_image_bytes, AssetCache, AssetHandle, PbrMaterial};
+use crate::{texture_builder_from_image_bytes, PbrMaterial};
 use gbase::{
     glam::Mat4,
-    render::{self, GpuImage, Image, SamplerBuilder, TextureBuilder},
-    tracing, wgpu, Context,
+    render::{self, Image, SamplerBuilder},
+    tracing, wgpu,
 };
 
 const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];

@@ -16,6 +16,7 @@ pub struct DebugInput {
 impl DebugInput {
     pub fn new(ctx: &mut Context) -> Self {
         let buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+            .label("debug input")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 

@@ -1,15 +1,16 @@
 mod bloom;
 
 use gbase::{
+    asset,
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
-    render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder},
+    render::{self, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, AssetCache, AssetHandle, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer,
-    PixelCache, SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
+    Alignment, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
+    Transform3D, Widget, BLACK, GRAY, WHITE,
 };
 use std::{f32::consts::PI, sync::Arc, time::Instant};
 
@@ -24,11 +25,6 @@ struct App {
     ldr_framebuffer: render::FrameBuffer,
     framebuffer_renderer: gbase_utils::TextureRenderer,
 
-    image_cache: AssetCache<Image, GpuImage>,
-    mesh_cache: AssetCache<Mesh, GpuMesh>,
-    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
-    pixel_cache: PixelCache,
-
     depth_buffer: render::DepthBuffer,
     pbr_renderer: gbase_utils::PbrRenderer,
     gizmo_renderer: gbase_utils::GizmoRenderer,
@@ -39,11 +35,11 @@ struct App {
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
 
-    ak47_mesh_handle: AssetHandle<Mesh>,
+    ak47_mesh_handle: asset::AssetHandle<Mesh>,
     ak47_material: Arc<GpuMaterial>,
-    helmet_mesh_handle: AssetHandle<Mesh>,
+    helmet_mesh_handle: asset::AssetHandle<Mesh>,
     helmet_material: Arc<GpuMaterial>,
-    cube_mesh_handle: gbase_utils::AssetHandle<Mesh>,
+    cube_mesh_handle: asset::AssetHandle<Mesh>,
     cube_material: Arc<GpuMaterial>,
 
     tonemap: bloom::Tonemap,
@@ -51,18 +47,17 @@ struct App {
 }
 
 fn load_simple_mesh(
+    ctx: &mut Context,
     bytes: &[u8],
-    mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
-    image_cache: &mut AssetCache<Image, GpuImage>,
     pixel_cache: &mut PixelCache,
     pbr_renderer: &PbrRenderer,
-) -> (AssetHandle<Mesh>, Arc<GpuMaterial>) {
+) -> (asset::AssetHandle<Mesh>, Arc<GpuMaterial>) {
     let prim = gbase_utils::parse_glb(bytes)[0].clone();
     let mesh = prim
         .mesh
         .extract_attributes(pbr_renderer.required_attributes().clone());
-    let mesh_handle = mesh_cache.allocate(mesh);
-    let material = prim.material.clone().to_material(image_cache, pixel_cache);
+    let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
+    let material = prim.material.clone().to_material(ctx, pixel_cache);
     (mesh_handle, Arc::new(material))
 }
 
@@ -83,9 +78,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let mut image_cache = AssetCache::new();
-        let mut mesh_cache = AssetCache::new();
-        let mut shader_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
 
         let hdr_format = if render::device(ctx)
@@ -122,25 +114,22 @@ impl Callbacks for App {
         let pbr_renderer = PbrRenderer::new(ctx);
 
         let (ak47_mesh_handle, ak47_material) = load_simple_mesh(
+            ctx,
             &load_b!("models/ak47.glb").unwrap(),
-            &mut mesh_cache,
-            &mut image_cache,
             &mut pixel_cache,
             &pbr_renderer,
         );
 
         let (helmet_mesh_handle, helmet_material) = load_simple_mesh(
+            ctx,
             &load_b!("models/helmet.glb").unwrap(),
-            &mut mesh_cache,
-            &mut image_cache,
             &mut pixel_cache,
             &pbr_renderer,
         );
 
         let (cube_mesh_handle, cube_material) = load_simple_mesh(
+            ctx,
             &load_b!("models/cube.glb").unwrap(),
-            &mut mesh_cache,
-            &mut image_cache,
             &mut pixel_cache,
             &pbr_renderer,
         );
@@ -168,8 +157,8 @@ impl Callbacks for App {
         let lights_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let tonemap = bloom::Tonemap::new(ctx, &mut shader_cache);
-        let bloom = bloom::Bloom::new(ctx, &mut shader_cache, hdr_format);
+        let tonemap = bloom::Tonemap::new(ctx);
+        let bloom = bloom::Bloom::new(ctx, hdr_format);
 
         Self {
             hdr_framebuffer_1,
@@ -188,11 +177,6 @@ impl Callbacks for App {
 
             camera,
             camera_buffer,
-
-            image_cache,
-            mesh_cache,
-            shader_cache,
-            pixel_cache,
 
             ak47_mesh_handle,
             ak47_material,
@@ -221,12 +205,12 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
+        if !asset::all_loaded(ctx) {
+            return false;
+        }
+
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
         // let timer = time::CpuProfileTimer::new("render");
-
-        self.mesh_cache.check_watched_files(ctx);
-        self.image_cache.check_watched_files(ctx);
-        self.shader_cache.check_watched_files(ctx);
 
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
@@ -247,8 +231,6 @@ impl Callbacks for App {
             let _timer = time::ProfileTimer::new(ctx, "render");
             self.pbr_renderer.render(
                 ctx,
-                &mut self.mesh_cache,
-                &mut self.image_cache,
                 self.hdr_framebuffer_1.view_ref(),
                 self.hdr_framebuffer_1.format(),
                 &self.camera,
@@ -268,22 +250,14 @@ impl Callbacks for App {
         });
 
         let start = Instant::now();
-        self.bloom.render(
-            ctx,
-            &mut self.shader_cache,
-            &self.hdr_framebuffer_1,
-            &self.hdr_framebuffer_2,
-        );
+        self.bloom
+            .render(ctx, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
         if input::key_pressed(ctx, input::KeyCode::KeyB) {
             time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
         }
 
-        self.tonemap.tonemap(
-            ctx,
-            &mut self.shader_cache,
-            &self.hdr_framebuffer_2,
-            &self.ldr_framebuffer,
-        );
+        self.tonemap
+            .tonemap(ctx, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
 
         {
             let _guard = tracing::span!(tracing::Level::TRACE, "ui update").entered();

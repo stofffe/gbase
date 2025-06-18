@@ -81,7 +81,7 @@ pub fn store_bytes_tmp(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Resul
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(path, data)?;
+    std::fs::write(path, data)?;
 
     Ok(())
 }
@@ -102,7 +102,7 @@ pub fn load_bytes_tmp(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    Ok(fs::read(path)?)
+    Ok(std::fs::read(path)?)
 }
 
 pub fn store_str_tmp(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
@@ -117,7 +117,7 @@ pub fn store_str_tmp(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<(
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fs::write(path, data)?;
+    std::fs::write(path, data)?;
 
     Ok(())
 }
@@ -136,7 +136,7 @@ pub fn load_str_tmp(_ctx: &Context, path: &str) -> anyhow::Result<String> {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    Ok(fs::read_to_string(path)?)
+    Ok(std::fs::read_to_string(path)?)
 }
 
 #[cfg(target_arch = "wasm32")]

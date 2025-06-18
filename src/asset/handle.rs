@@ -36,6 +36,18 @@ impl<T: 'static> AssetHandle<T> {
     }
 }
 
+impl<T: 'static> PartialOrd for AssetHandle<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl<T: 'static> Ord for AssetHandle<T> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
 impl<T: 'static> PartialEq for AssetHandle<T> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id

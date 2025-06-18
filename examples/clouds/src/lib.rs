@@ -2,15 +2,14 @@ mod cloud_renderer;
 mod noise;
 
 use gbase::{
-    filesystem, glam, input,
-    render::{self, GpuImage, GpuMesh, Image, Mesh, ShaderBuilder, UniformBufferBuilder},
+    asset, filesystem, glam, input,
+    render::{self, GpuImage, Image, UniformBufferBuilder},
     time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
-    Context,
+    Callbacks, Context,
 };
 use gbase_utils::{
-    gaussian_filter, Alignment, AssetCache, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY,
-    GREEN, RED,
+    gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,
 };
 use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::{f32::consts::PI, fs, io::Write, sync::mpsc};
@@ -78,10 +77,6 @@ impl Default for CloudParameters {
 }
 
 pub struct App {
-    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
-    image_cache: AssetCache<Image, GpuImage>,
-    mesh_cache: AssetCache<Mesh, GpuMesh>,
-
     cloud_framebuffer: render::FrameBuffer,
     framebuffer_blitter: gbase_utils::TextureRenderer,
     depth_buffer: render::DepthBuffer,
@@ -123,9 +118,6 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut gbase::Context) -> Self {
-        let mut shader_cache = AssetCache::new();
-        let mut image_cache = AssetCache::new();
-        let mut mesh_cache = AssetCache::new();
         let cloud_framebuffer = render::FrameBufferBuilder::new()
             .usage(
                 wgpu::TextureUsages::TEXTURE_BINDING
@@ -159,20 +151,11 @@ impl gbase::Callbacks for App {
         ))
         .build(ctx);
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
-        let cloud_renderer = cloud_renderer::CloudRenderer::new(
-            ctx,
-            &mut shader_cache,
-            &mut image_cache,
-            &mut mesh_cache,
-        )
-        .expect("could not create cloud renderer");
+        let cloud_renderer =
+            cloud_renderer::CloudRenderer::new(ctx).expect("could not create cloud renderer");
         let gaussian_blur = gaussian_filter::GaussianFilter::new(ctx);
 
         Self {
-            shader_cache,
-            image_cache,
-            mesh_cache,
-
             cloud_framebuffer,
             depth_buffer,
             framebuffer_blitter,
@@ -204,19 +187,6 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn update(&mut self, ctx: &mut gbase::Context) -> bool {
-        // #[cfg(debug_assertions)]
-        // if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
-        //     println!("Reload cloud renderer");
-        //     if let Ok(r) = cloud_renderer::CloudRenderer::new(ctx) {
-        //         println!("Ok");
-        //         self.cloud_renderer = r;
-        //         self.debug_msg = String::from("Ok")
-        //     } else {
-        //         println!("Fail");
-        //         self.debug_msg = String::from("Fail");
-        //     }
-        // }
-
         #[cfg(feature = "hot_reload")]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR)
             && input::modifier_pressed(ctx, input::KeyModifier::LCtrl)
@@ -246,8 +216,9 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
-        self.shader_cache.check_watched_files(ctx);
-        self.image_cache.check_watched_files(ctx);
+        if !asset::all_loaded(ctx) {
+            return false;
+        }
 
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
@@ -269,9 +240,6 @@ impl gbase::Callbacks for App {
         self.cloud_renderer.render(
             ctx,
             self.cloud_framebuffer.view_ref(),
-            &mut self.shader_cache,
-            &mut self.image_cache,
-            &mut self.mesh_cache,
             &self.depth_buffer,
             &self.cloud_framebuffer,
             &self.camera_buffer,
@@ -327,6 +295,14 @@ impl gbase::Callbacks for App {
     fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
+    }
+}
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, ctx: &mut Context) {
+        Self::init_ctx().init_logging();
+        // self.cloud_renderer.reload_noise(ctx);
     }
 }
 

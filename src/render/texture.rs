@@ -120,11 +120,16 @@ impl SamplerBuilder {
         self.mip_map_filter = filter;
         self
     }
-    pub fn address_mode(mut self, mode: wgpu::AddressMode) -> Self {
+    pub fn with_address_mode(mut self, mode: wgpu::AddressMode) -> Self {
         self.address_mode_u = mode;
         self.address_mode_v = mode;
         self.address_mode_w = mode;
         self
+    }
+    pub fn set_address_mode(&mut self, mode: wgpu::AddressMode) {
+        self.address_mode_u = mode;
+        self.address_mode_v = mode;
+        self.address_mode_w = mode;
     }
 
     pub fn address_mode_separate(
@@ -271,9 +276,12 @@ impl TextureBuilder {
         self.usage = value;
         self
     }
-    pub fn format(mut self, value: wgpu::TextureFormat) -> Self {
+    pub fn with_format(mut self, value: wgpu::TextureFormat) -> Self {
         self.format = value;
         self
+    }
+    pub fn set_format(&mut self, value: wgpu::TextureFormat) {
+        self.format = value;
     }
     pub fn depth_or_array_layers(mut self, value: u32) -> Self {
         self.depth_or_array_layers = value;

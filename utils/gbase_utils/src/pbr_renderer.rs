@@ -1,12 +1,10 @@
-use crate::{
-    deferred_buffers, AssetCache, AssetHandle, BoundingSphere, DeferredBuffers, GizmoRenderer,
-    PixelCache, Transform3D, WHITE,
-};
+use crate::{BoundingSphere, DeferredBuffers, GizmoRenderer, PixelCache, Transform3D, WHITE};
 use encase::ShaderType;
 use gbase::{
+    asset,
     glam::{Vec3, Vec4Swizzles},
-    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer, ShaderBuilder},
-    time, tracing, wgpu, Context,
+    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
+    tracing, wgpu, Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -15,8 +13,8 @@ use std::{collections::BTreeSet, sync::Arc};
 //
 
 pub struct PbrRenderer {
-    forward_shader_handle: AssetHandle<render::ShaderBuilder>,
-    deferred_shader_handle: AssetHandle<render::ShaderBuilder>,
+    forward_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    deferred_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -24,28 +22,23 @@ pub struct PbrRenderer {
 
     transforms: RawBuffer<Instances>,
 
-    frame_meshes: Vec<(AssetHandle<render::Mesh>, Arc<GpuMaterial>, Transform3D)>,
-
-    shader_cache: AssetCache<ShaderBuilder, wgpu::ShaderModule>,
+    frame_meshes: Vec<(
+        asset::AssetHandle<render::Mesh>,
+        Arc<GpuMaterial>,
+        Transform3D,
+    )>,
 }
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context) -> Self {
-        let mut shader_cache = AssetCache::new();
-        let forward_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: include_str!("../assets/shaders/mesh.wgsl").into(),
-            },
-            "../../utils/gbase_utils/assets/shaders/mesh.wgsl".into(),
-        );
-        let deferred_shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: include_str!("../assets/shaders/deferred_mesh.wgsl").into(),
-            },
-            "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl".into(),
-        );
+        let forward_shader_handle =
+            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/mesh.wgsl")
+                .watch(ctx)
+                .build(ctx);
+        let deferred_shader_handle =
+            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl")
+                .watch(ctx)
+                .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -130,7 +123,6 @@ impl PbrRenderer {
             bindgroup_layout,
             vertex_attributes,
             frame_meshes: Vec::new(),
-            shader_cache,
             transforms,
         }
     }
@@ -140,8 +132,6 @@ impl PbrRenderer {
         &mut self,
         ctx: &mut Context,
         deferred_buffers: &DeferredBuffers,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
-        image_cache: &mut AssetCache<Image, GpuImage>,
 
         camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
@@ -152,11 +142,7 @@ impl PbrRenderer {
             return;
         }
 
-        self.shader_cache.check_watched_files(ctx);
-
-        let shader = self
-            .shader_cache
-            .get_gpu(ctx, self.deferred_shader_handle.clone());
+        let shader = asset::convert_asset(ctx, self.deferred_shader_handle.clone(), &()).unwrap();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -185,14 +171,15 @@ impl PbrRenderer {
         // Culling
         //
         self.frame_meshes.retain(|(handle, _, transform)| {
-            let gpu_mesh = mesh_cache.get_gpu(ctx, handle.clone());
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
+            // let gpu_mesh = mesh_cache.get_gpu(ctx, handle.clone());
             frustum.sphere_inside(&gpu_mesh.bounds, transform)
         });
 
         //
         // Grouping of draws
         //
-        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
+        let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_handle, mat, transform)) in self.frame_meshes.iter().enumerate() {
             instances.push(Instances {
                 model: transform.matrix().to_cols_array_2d(),
@@ -210,14 +197,20 @@ impl PbrRenderer {
                 }
             }
 
-            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
 
-            let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
-            let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
+            let base_color_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.base_color_texture.clone(), &()).unwrap();
+            let normal_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.normal_texture.clone(), &()).unwrap();
             let metallic_roughness_texture =
-                image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
-            let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
-            let emissive_texture = image_cache.get_gpu(ctx, mat.emissive_texture.clone());
+                asset::convert_asset::<GpuImage>(ctx, mat.metallic_roughness_texture.clone(), &())
+                    .unwrap();
+            let occlusion_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.occlusion_texture.clone(), &()).unwrap();
+            let emissive_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
+
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -282,8 +275,6 @@ impl PbrRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
-        image_cache: &mut AssetCache<Image, GpuImage>,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
         camera: &crate::Camera,
@@ -291,16 +282,16 @@ impl PbrRenderer {
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
     ) {
+        if !asset::all_loaded(ctx) {
+            return;
+        }
+
         if self.frame_meshes.is_empty() {
             tracing::warn!("trying to render without any meshes");
             return;
         }
 
-        self.shader_cache.check_watched_files(ctx);
-
-        let shader = self
-            .shader_cache
-            .get_gpu(ctx, self.forward_shader_handle.clone());
+        let shader = asset::convert_asset(ctx, self.forward_shader_handle.clone(), &()).unwrap();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -329,14 +320,14 @@ impl PbrRenderer {
         // Culling
         //
         self.frame_meshes.retain(|(handle, _, transform)| {
-            let gpu_mesh = mesh_cache.get_gpu(ctx, handle.clone());
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
             frustum.sphere_inside(&gpu_mesh.bounds, transform)
         });
 
         //
         // Grouping of draws
         //
-        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
+        let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_handle, mat, transform)) in self.frame_meshes.iter().enumerate() {
             instances.push(Instances {
                 model: transform.matrix().to_cols_array_2d(),
@@ -354,13 +345,18 @@ impl PbrRenderer {
                 }
             }
 
-            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
-            let base_color_texture = image_cache.get_gpu(ctx, mat.base_color_texture.clone());
-            let normal_texture = image_cache.get_gpu(ctx, mat.normal_texture.clone());
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
+            let base_color_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.base_color_texture.clone(), &()).unwrap();
+            let normal_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.normal_texture.clone(), &()).unwrap();
             let metallic_roughness_texture =
-                image_cache.get_gpu(ctx, mat.metallic_roughness_texture.clone());
-            let occlusion_texture = image_cache.get_gpu(ctx, mat.occlusion_texture.clone());
-            let emissive_texture = image_cache.get_gpu(ctx, mat.emissive_texture.clone());
+                asset::convert_asset::<GpuImage>(ctx, mat.metallic_roughness_texture.clone(), &())
+                    .unwrap();
+            let occlusion_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.occlusion_texture.clone(), &()).unwrap();
+            let emissive_texture =
+                asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -398,9 +394,10 @@ impl PbrRenderer {
         }
         ranges.push(self.frame_meshes.len());
 
+        let mut encoder = render::EncoderBuilder::new().build(ctx);
+
         self.transforms.write(ctx, &instances);
 
-        let mut encoder = render::EncoderBuilder::new().build(ctx);
         // TODO: using one render pass per draw call
         render::RenderPassBuilder::new()
             .label("pbr")
@@ -427,7 +424,7 @@ impl PbrRenderer {
 
     pub fn add_mesh(
         &mut self,
-        mesh: AssetHandle<render::Mesh>,
+        mesh: asset::AssetHandle<render::Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
@@ -435,14 +432,9 @@ impl PbrRenderer {
     }
 
     // temp?
-    pub fn render_bounding_boxes(
-        &self,
-        ctx: &mut Context,
-        gizmo_renderer: &mut GizmoRenderer,
-        mesh_cache: &mut AssetCache<render::Mesh, render::GpuMesh>,
-    ) {
+    pub fn render_bounding_boxes(&self, ctx: &mut Context, gizmo_renderer: &mut GizmoRenderer) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let gpu_mesh = mesh_cache.get_gpu(ctx, mesh_handle.clone());
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
             let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
 
             gizmo_renderer.draw_sphere(
@@ -467,20 +459,20 @@ impl PbrRenderer {
 
 #[derive(Clone)]
 pub struct GpuMaterial {
-    pub base_color_texture: AssetHandle<Image>,
+    pub base_color_texture: asset::AssetHandle<Image>,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: AssetHandle<Image>,
+    pub metallic_roughness_texture: asset::AssetHandle<Image>,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: AssetHandle<Image>,
+    pub occlusion_texture: asset::AssetHandle<Image>,
     pub occlusion_strength: f32,
 
-    pub normal_texture: AssetHandle<Image>,
+    pub normal_texture: asset::AssetHandle<Image>,
     pub normal_scale: f32,
 
-    pub emissive_texture: AssetHandle<Image>,
+    pub emissive_texture: asset::AssetHandle<Image>,
     pub emissive_factor: [f32; 3],
 }
 
@@ -509,8 +501,9 @@ impl PbrMaterial {
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
     pub fn to_material(
         self,
+        ctx: &mut Context,
         // TODO: part of context?
-        image_cache: &mut AssetCache<Image, GpuImage>,
+        // image_cache: &mut AssetCache<Image, GpuImage>,
         pixel_cache: &mut PixelCache,
     ) -> GpuMaterial {
         const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
@@ -519,47 +512,32 @@ impl PbrMaterial {
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
         fn alloc(
-            image_cache: &mut AssetCache<Image, GpuImage>,
+            ctx: &mut Context,
             pixel_cache: &mut PixelCache,
             tex: Option<Image>,
             default: [u8; 4],
-        ) -> AssetHandle<Image> {
+        ) -> asset::AssetHandle<Image> {
             if let Some(tex) = tex {
-                image_cache.allocate(tex)
+                asset::AssetBuilder::insert(tex).build(ctx)
             } else {
-                pixel_cache.allocate(image_cache, default)
+                pixel_cache.allocate(ctx, default)
             }
         }
         let base_color_texture = alloc(
-            image_cache,
+            ctx,
             pixel_cache,
             self.base_color_texture,
             BASE_COLOR_DEFAULT,
         );
-        let normal_texture = alloc(
-            image_cache,
-            pixel_cache,
-            self.normal_texture,
-            NORMAL_DEFAULT,
-        );
+        let normal_texture = alloc(ctx, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
         let metallic_roughness_texture = alloc(
-            image_cache,
+            ctx,
             pixel_cache,
             self.metallic_roughness_texture,
             METALLIC_ROUGHNESS_DEFAULT,
         );
-        let occlusion_texture = alloc(
-            image_cache,
-            pixel_cache,
-            self.occlusion_texture,
-            OCCLUSION_DEFAULT,
-        );
-        let emissive_texture = alloc(
-            image_cache,
-            pixel_cache,
-            self.emissive_texture,
-            EMISSIVE_DEFAULT,
-        );
+        let occlusion_texture = alloc(ctx, pixel_cache, self.occlusion_texture, OCCLUSION_DEFAULT);
+        let emissive_texture = alloc(ctx, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
 
         GpuMaterial {
             base_color_texture,

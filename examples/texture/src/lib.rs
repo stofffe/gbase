@@ -49,7 +49,10 @@ impl Callbacks for App {
         let texture_handle =
             asset::AssetBuilder::load::<render::Image>("assets/textures/texture.jpeg")
                 .on_load(|img| {
-                    img.texture = img.texture.clone().format(wgpu::TextureFormat::Rgba8Unorm)
+                    img.texture = img
+                        .texture
+                        .clone()
+                        .with_format(wgpu::TextureFormat::Rgba8Unorm)
                 })
                 .watch(ctx)
                 .build(ctx);

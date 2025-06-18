@@ -1,4 +1,5 @@
 use gbase::{
+    asset,
     render::{self, ArcHandle, GpuImage, Image},
     tracing,
     wgpu::{self},
@@ -257,7 +258,7 @@ impl Asset<render::ShaderBuilder, wgpu::ShaderModule> for render::ShaderBuilder 
 }
 
 pub struct PixelCache {
-    default_textures: HashMap<[u8; 4], AssetHandle<Image>>,
+    default_textures: HashMap<[u8; 4], asset::AssetHandle<Image>>,
 }
 
 impl PixelCache {
@@ -267,11 +268,7 @@ impl PixelCache {
         }
     }
 
-    pub fn allocate(
-        &mut self,
-        image_cache: &mut AssetCache<Image, GpuImage>,
-        value: [u8; 4],
-    ) -> AssetHandle<Image> {
+    pub fn allocate(&mut self, ctx: &mut Context, value: [u8; 4]) -> asset::AssetHandle<Image> {
         match self.default_textures.get(&value) {
             Some(handle) => handle.clone(),
             None => {
@@ -284,7 +281,7 @@ impl PixelCache {
                     sampler: render::SamplerBuilder::new()
                         .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
                 };
-                let handle = image_cache.allocate(image);
+                let handle = asset::AssetBuilder::insert(image).build(ctx);
                 self.default_textures.insert(value, handle.clone());
                 handle
             }

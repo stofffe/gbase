@@ -18,7 +18,7 @@ pub fn texture_builder_from_image_bytes(
         img.height(),
         img.to_vec(),
     ))
-    .format(gbase::wgpu::TextureFormat::Rgba8Unorm);
+    .with_format(gbase::wgpu::TextureFormat::Rgba8Unorm);
     Ok(builder)
 }
 

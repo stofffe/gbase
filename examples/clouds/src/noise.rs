@@ -1,10 +1,9 @@
 use encase::ShaderType;
 use gbase::{
-    filesystem, load_b,
-    render::{self, Image},
-    wgpu, Context,
+    filesystem,
+    render::{self},
+    tracing, wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle};
 
 #[derive(ShaderType)]
 struct NoiseGeneratorUniforms {
@@ -31,11 +30,18 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
         NOISE_TEXTURE_DIM,
     ))
     .depth_or_array_layers(NOISE_TEXTURE_DIM)
-    .format(wgpu::TextureFormat::Rgba8Unorm)
+    .with_format(wgpu::TextureFormat::Rgba8Unorm)
     .dimension(wgpu::TextureDimension::D3)
     .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
-    .build(ctx)
-    .with_default_sampler_and_view(ctx);
+    .build(ctx);
+
+    tracing::warn!("after tex");
+
+    let sampler = render::SamplerBuilder::new()
+        .with_address_mode(wgpu::AddressMode::Repeat)
+        .build(ctx);
+    let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+    let texture = render::GpuImage::new(texture, view, sampler);
 
     let noise_generator_info =
         render::UniformBufferBuilder::new(render::UniformBufferSource::Data(NOISE_UNIFORM))
@@ -84,31 +90,4 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
     });
 
     Ok(texture)
-}
-
-pub fn generate_weather_map(
-    image_cache: &mut AssetCache<Image, render::GpuImage>,
-) -> AssetHandle<Image> {
-    let texture = gbase_utils::texture_builder_from_image_bytes(
-        &load_b!("textures/clouds_weather_map.png").unwrap(),
-    )
-    .unwrap()
-    .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST);
-    let sampler = render::SamplerBuilder::new();
-    let image = Image { texture, sampler };
-
-    image_cache.allocate_reload(image, "assets/textures/clouds_weather_map.png".into())
-}
-
-pub fn generate_blue_noise(
-    image_cache: &mut AssetCache<Image, render::GpuImage>,
-) -> AssetHandle<Image> {
-    let texture =
-        gbase_utils::texture_builder_from_image_bytes(&load_b!("textures/blue_noise.png").unwrap())
-            .unwrap()
-            .usage(wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST);
-    let sampler = render::SamplerBuilder::new();
-    let image = Image { texture, sampler };
-
-    image_cache.allocate_reload(image, "assets/textures/blue_noise.png".into())
 }

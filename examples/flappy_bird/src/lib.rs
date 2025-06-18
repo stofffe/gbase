@@ -387,7 +387,7 @@ impl Callbacks for App {
 
         let sprite_atlas = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
             .unwrap()
-            .format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .build(ctx)
             .with_default_sampler_and_view(ctx);
 

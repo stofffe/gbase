@@ -1,37 +1,44 @@
-use crate::noise::{generate_blue_noise, generate_cloud_noise, generate_weather_map};
+use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
-use gbase::filesystem;
 use gbase::render::{GpuImage, GpuMesh, Image, Mesh};
+use gbase::{asset, tracing};
 use gbase::{
     render::{self, ShaderBuilder},
     wgpu, Context,
 };
-use gbase_utils::{AssetCache, AssetHandle};
 use std::collections::BTreeSet;
 
 pub struct CloudRenderer {
-    mesh_handle: AssetHandle<Mesh>,
-    shader_handle: AssetHandle<ShaderBuilder>,
+    mesh_handle: asset::AssetHandle<Mesh>,
+    shader_handle: asset::AssetHandle<ShaderBuilder>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
     noise_texture: render::GpuImage,
-    weather_map_texture: AssetHandle<Image>,
-    blue_noise_texture: AssetHandle<Image>,
+    weather_map_texture: asset::AssetHandle<Image>,
+    blue_noise_texture: asset::AssetHandle<Image>,
     app_info: gbase_utils::AppInfo, // TODO: global or passed in render?
 }
 
 impl CloudRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        shader_cache: &mut AssetCache<ShaderBuilder, wgpu::ShaderModule>,
-        image_cache: &mut AssetCache<Image, render::GpuImage>,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
-    ) -> Result<Self, wgpu::Error> {
+    pub fn new(ctx: &mut Context) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map_texture = generate_weather_map(image_cache);
-        let blue_noise_texture = generate_blue_noise(image_cache);
+        let weather_map_texture =
+            asset::AssetBuilder::load("assets/textures/clouds_weather_map.png")
+                .watch(ctx)
+                .on_load(|img: &mut Image| {
+                    img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+                    img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+                })
+                .build(ctx);
+        let blue_noise_texture = asset::AssetBuilder::load("assets/textures/blue_noise.png")
+            .watch(ctx)
+            .on_load(|img: &mut Image| {
+                img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+                img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+            })
+            .build(ctx);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
@@ -40,12 +47,11 @@ impl CloudRenderer {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]));
-        let mesh_handle = mesh_cache.allocate(mesh);
+        let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
 
-        let shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder::new(filesystem::load_s!("shaders/clouds.wgsl").unwrap()),
-            "assets/shaders/clouds.wgsl".into(),
-        );
+        let shader_handle = asset::AssetBuilder::load("assets/shaders/clouds.wgsl")
+            .watch(ctx)
+            .build(ctx);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -113,9 +119,6 @@ impl CloudRenderer {
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
-        shader_cache: &mut AssetCache<ShaderBuilder, wgpu::ShaderModule>,
-        image_cache: &mut AssetCache<Image, GpuImage>,
-        mesh_cache: &mut AssetCache<Mesh, GpuMesh>,
         depth_buffer: &render::DepthBuffer,
         framebuffer: &render::FrameBuffer, // TODO: remove
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
@@ -123,8 +126,10 @@ impl CloudRenderer {
     ) {
         self.app_info.update_buffer(ctx);
 
-        let weather_map = image_cache.get_gpu(ctx, self.weather_map_texture.clone());
-        let blue_noise = image_cache.get_gpu(ctx, self.blue_noise_texture.clone());
+        let weather_map =
+            asset::convert_asset::<GpuImage>(ctx, self.weather_map_texture.clone(), &()).unwrap();
+        let blue_noise =
+            asset::convert_asset::<GpuImage>(ctx, self.blue_noise_texture.clone(), &()).unwrap();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -148,8 +153,8 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let mesh = mesh_cache.get(self.mesh_handle.clone());
-        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
+        let mesh = asset::get(ctx, self.mesh_handle.clone()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
             .buffers(mesh.buffer_layout())
@@ -157,7 +162,7 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = mesh_cache.get_gpu(ctx, self.mesh_handle.clone());
+        let mesh_gpu = asset::convert_asset::<GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
@@ -175,15 +180,11 @@ impl CloudRenderer {
         let queue = render::queue(ctx);
         queue.submit(Some(encoder.finish()));
     }
-}
 
-// #[rustfmt::skip]
-// const QUAD_VERTICES: &[render::VertexUV] = &[
-//     render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-//     render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-//     render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
-//
-//     render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-//     render::VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
-//     render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-// ];
+    pub fn reload_noise(&mut self, ctx: &mut Context) {
+        let d = render::device(ctx);
+        // tracing::warn!("reload noise before");
+        // self.noise_texture = generate_cloud_noise(ctx).unwrap();
+        // tracing::warn!("reload noise after");
+    }
+}

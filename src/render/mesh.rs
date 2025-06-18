@@ -1,5 +1,3 @@
-use wgpu::core::device;
-
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
