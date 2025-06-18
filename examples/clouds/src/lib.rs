@@ -113,7 +113,7 @@ impl gbase::Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::tracing::Level::WARN)
             .window_attributes(Window::default_attributes().with_maximized(true))
-            .vsync(false)
+        // .vsync(false)
     }
 
     #[no_mangle]
@@ -302,7 +302,7 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        // self.cloud_renderer.reload_noise(ctx);
+        self.cloud_renderer.reload_noise(ctx);
     }
 }
 

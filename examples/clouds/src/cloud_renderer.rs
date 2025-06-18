@@ -182,9 +182,6 @@ impl CloudRenderer {
     }
 
     pub fn reload_noise(&mut self, ctx: &mut Context) {
-        let d = render::device(ctx);
-        // tracing::warn!("reload noise before");
-        // self.noise_texture = generate_cloud_noise(ctx).unwrap();
-        // tracing::warn!("reload noise after");
+        self.noise_texture = generate_cloud_noise(ctx).unwrap();
     }
 }

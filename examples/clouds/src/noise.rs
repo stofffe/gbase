@@ -35,8 +35,6 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
     .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
     .build(ctx);
 
-    tracing::warn!("after tex");
-
     let sampler = render::SamplerBuilder::new()
         .with_address_mode(wgpu::AddressMode::Repeat)
         .build(ctx);
