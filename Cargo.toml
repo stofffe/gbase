@@ -25,7 +25,6 @@ futures-channel = "0.3.31" # temp
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
 notify-debouncer-mini = "0.6.0"
-notify = { version = "7.0.0" }                         # TODO: use debouncer for hot reload then remove
 
 # wasm
 [target.'cfg(target_arch = "wasm32")'.dependencies]

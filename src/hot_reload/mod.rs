@@ -1,8 +1,7 @@
 mod dll;
 pub use dll::*;
 extern crate dlopen;
-use notify::Watcher;
-use std::{path::Path, sync::mpsc};
+use std::{path::Path, sync::mpsc, time::Duration};
 
 pub(crate) fn dllname() -> String {
     let dll_name = std::env::current_exe()
@@ -22,8 +21,8 @@ pub(crate) struct HotReloadContext {
     force_reload: bool,
     force_restart: bool,
 
-    dll_watcher: notify::FsEventWatcher, // keep reference alive
-    dll_change_channel: mpsc::Receiver<Result<notify::Event, notify::Error>>,
+    dll_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>, // keep reference alive
+    dll_update_channel: mpsc::Receiver<()>,
 }
 
 impl HotReloadContext {
@@ -39,24 +38,34 @@ impl HotReloadContext {
 
         let (tx, rx) = mpsc::channel();
 
-        let mut watcher = notify::recommended_watcher(tx).expect("could not create file watcher");
-        watcher
-            .watch(Path::new(&dllname()), notify::RecursiveMode::NonRecursive)
+        let mut dll_watcher = notify_debouncer_mini::new_debouncer(
+            Duration::from_millis(100),
+            move |res: notify_debouncer_mini::DebounceEventResult| match res {
+                Ok(_) => tx.send(()).expect("could not send dll change event"),
+                Err(err) => println!("debounced result error: {}", err),
+            },
+        )
+        .expect("could not create watcher");
+
+        dll_watcher
+            .watcher()
+            .watch(
+                Path::new(&dllname()),
+                notify_debouncer_mini::notify::RecursiveMode::NonRecursive,
+            )
             .expect("could not watch dll");
 
         Self {
             force_reload: false,
             force_restart: false,
-            dll_watcher: watcher,
-            dll_change_channel: rx,
+            dll_watcher,
+            dll_update_channel: rx,
         }
     }
 
     fn dll_changed(&self) -> bool {
-        if let Ok(Ok(event)) = self.dll_change_channel.try_recv() {
-            if let notify::EventKind::Modify(_) | notify::EventKind::Create(_) = event.kind {
-                return true;
-            }
+        if self.dll_update_channel.try_recv().is_ok() {
+            return true;
         }
 
         false

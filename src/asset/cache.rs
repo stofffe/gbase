@@ -305,7 +305,7 @@ impl AssetCacheExt {
             .watcher()
             .watch(
                 &absolute_path,
-                notify_debouncer_mini::notify::RecursiveMode::Recursive,
+                notify_debouncer_mini::notify::RecursiveMode::Recursive, // TODO: non recursive?
             )
             .unwrap();
 
