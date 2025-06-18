@@ -4,8 +4,6 @@ use crate::{
     render::{self, GpuImage},
 };
 
-// TODO: move this logic to respective types
-
 //
 // Mesh
 //

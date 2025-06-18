@@ -1,8 +1,9 @@
-use crate::{AssetCache, AssetHandle, PbrLightUniforms};
+use crate::PbrLightUniforms;
 
 use super::CameraUniform;
 use encase::ShaderSize;
 use gbase::{
+    asset::{self, AssetHandle},
     glam::Vec3,
     render::{self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule},
     wgpu, Context,
@@ -23,21 +24,15 @@ pub struct DeferredRenderer {
 }
 
 impl DeferredRenderer {
-    pub fn new(
-        ctx: &mut Context,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
-        let shader_handle = shader_cache.allocate_reload(
-            render::ShaderBuilder {
-                label: None,
-                source: include_str!("../assets/shaders/deferred.wgsl").into(),
-            },
-            "../../utils/gbase_utils/assets/shaders/deferred.wgsl".into(),
-        );
+        let shader_handle =
+            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred.wgsl")
+                .watch(ctx)
+                .build(ctx);
         let debug_input = crate::DebugInput::new(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .label("deferred")
@@ -91,7 +86,6 @@ impl DeferredRenderer {
         buffers: &crate::DeferredBuffers,
         camera: &render::UniformBuffer<CameraUniform>,
         light: &render::UniformBuffer<PbrLightUniforms>,
-        shader_cache: &mut AssetCache<render::ShaderBuilder, wgpu::ShaderModule>,
     ) {
         self.debug_input.update_buffer(ctx);
 
@@ -118,7 +112,7 @@ impl DeferredRenderer {
             ])
             .build(ctx);
 
-        let shader = shader_cache.get_gpu(ctx, self.shader_handle.clone());
+        let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(view_format))
             .buffers(vec![self.vertex_buffer.desc()])
