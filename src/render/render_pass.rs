@@ -1,4 +1,7 @@
-use std::ops::{Deref, DerefMut};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::Arc,
+};
 
 use crate::{render, Context};
 
@@ -182,11 +185,11 @@ impl<'a> RenderPassBuilder<'a> {
 
     pub fn build_run_submit_inner(
         self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
         run_func: impl FnOnce(wgpu::RenderPass<'_>),
     ) {
-        let mut encoder = render::EncoderBuilder::new().build_inner(device);
+        let mut encoder = render::EncoderBuilder::new().build_inner(&device);
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
             color_attachments: &self

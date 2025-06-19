@@ -1,3 +1,5 @@
+use wgpu::util::RenderEncoder;
+
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
@@ -394,6 +396,26 @@ impl GpuMesh {
             let slice = self.attribute_buffer.slice(start..end);
             render_pass.set_vertex_buffer(i as u32, slice);
         }
+        if let Some(indices) = &self.index_buffer {
+            render_pass.set_index_buffer(indices.as_ref().slice(..), wgpu::IndexFormat::Uint32);
+        }
+    }
+
+    pub fn bind_to_render_pass_specific(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        attributes: impl Into<BTreeSet<VertexAttributeId>>,
+    ) {
+        for (i, attr) in attributes.into().iter().enumerate() {
+            let (start, end) = self
+                .attribute_ranges
+                .get(attr)
+                .expect("mesh does not contain required attr");
+
+            let slice = self.attribute_buffer.slice(start..end);
+            render_pass.set_vertex_buffer(i as u32, slice);
+        }
+
         if let Some(indices) = &self.index_buffer {
             render_pass.set_index_buffer(indices.as_ref().slice(..), wgpu::IndexFormat::Uint32);
         }

@@ -189,6 +189,12 @@ pub fn device(ctx: &Context) -> &wgpu::Device {
 pub fn queue(ctx: &Context) -> &wgpu::Queue {
     &ctx.render.queue
 }
+pub fn device_arc(ctx: &Context) -> Arc<wgpu::Device> {
+    ctx.render.device.clone()
+}
+pub fn queue_arc(ctx: &Context) -> Arc<wgpu::Queue> {
+    ctx.render.queue.clone()
+}
 pub fn adapter(ctx: &Context) -> &wgpu::Adapter {
     &ctx.render.adapter
 }

@@ -40,8 +40,6 @@ wasm-bindgen-futures = "0.4.38"
 reqwest = "0.12.19"
 
 [features]
-# default = ["trace_tracy"]
-# default = ["hot_reload"]
 default = []
 
 hot_reload = ["dep:dlopen"]
@@ -60,6 +58,7 @@ members = [
     "examples/ui",
     "examples/gizmos",
     "examples/mesh",
+    "examples/shadows",
     "examples/camera",
     "examples/transform",
     "examples/texture",

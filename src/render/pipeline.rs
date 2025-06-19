@@ -42,7 +42,7 @@ impl PipelineLayoutBuilder {
     }
     pub fn build(&self, ctx: &mut Context) -> ArcPipelineLayout {
         if let Some(pipeline_layout) = ctx.render.cache.pipeline_layouts.get(self) {
-            tracing::info!("Fetch cached pipeline layout");
+            // tracing::info!("Fetch cached pipeline layout");
             return pipeline_layout.clone();
         }
 
@@ -57,8 +57,8 @@ impl PipelineLayoutBuilder {
 }
 
 impl PipelineLayoutBuilder {
-    pub fn label(mut self, value: String) -> Self {
-        self.label = Some(value);
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
         self
     }
     pub fn bind_groups(mut self, value: Vec<ArcBindGroupLayout>) -> Self {

@@ -13,7 +13,9 @@ use crate::Transform3D;
 #[derive(ShaderType)]
 pub struct CameraUniform {
     pos: Vec3,
+    near: f32,
     facing: Vec3,
+    far: f32,
 
     view: Mat4,
     proj: Mat4,
@@ -122,7 +124,9 @@ impl Camera {
 
         CameraUniform {
             pos,
+            near: self.znear,
             facing,
+            far: self.zfar,
             view,
             proj,
             view_proj,

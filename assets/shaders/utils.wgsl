@@ -69,7 +69,9 @@ fn perlin_fbm_3d(p: vec3f, noise_scale: f32) -> f32 {
 // Tiling 2d perlin fbm
 //
 
-fn hash2d(pos: vec2f) -> f32 { return fract(sin(dot(pos, vec2<f32>(27.16898, 38.90563))) * 5151.5473453); }
+fn hash2d(pos: vec2f) -> f32 {
+    return fract(sin(dot(pos, vec2<f32>(27.16898, 38.90563))) * 5151.5473453);
+}
 fn perlin_2d(pos: vec2f, scale: f32) -> f32 {
     var f: vec2f;
     var p = pos * scale;
@@ -96,4 +98,61 @@ fn perlin_fbm_2d(p: vec2<f32>) -> f32 {
     }
 
     return min(f, 1.0);
+}
+
+//
+//
+//
+
+//
+// Frustum culling
+//
+struct Plane {
+    origin: vec3f,
+    normal: vec3f,
+}
+struct CameraFrustum {
+    near: Plane,
+    far: Plane,
+    left: Plane,
+    right: Plane,
+    bottom: Plane,
+    top: Plane,
+}
+fn frustum_sphere_inside(
+    frustum: CameraFrustum,
+    origin: vec3f,
+    radius: f32,
+) -> bool {
+    let inside_near = dot(origin - frustum.near.origin, frustum.near.normal) + radius >= 0.0;
+    let inside_far = dot(origin - frustum.far.origin, frustum.far.normal) + radius >= 0.0;
+    let inside_left = dot(origin - frustum.left.origin, frustum.left.normal) + radius >= 0.0;
+    let inside_right = dot(origin - frustum.right.origin, frustum.right.normal) + radius >= 0.0;
+    let inside_bottom = dot(origin - frustum.bottom.origin, frustum.bottom.normal) + radius >= 0.0;
+    let inside_top = dot(origin - frustum.top.origin, frustum.top.normal) + radius >= 0.0;
+    return inside_near && inside_far
+        && inside_left && inside_right
+        && inside_bottom && inside_top;
+}
+
+//
+// Lighting
+//
+
+fn calculate_luminance(color: vec3f) -> f32 {
+    return dot(color, vec3f(0.2126, 0.7152, 0.0722));
+}
+
+//
+// Depth
+//
+
+// Convert depth value to the actual depth value in range [near, far]
+fn linearize_depth(depth: f32, near: f32, far: f32) -> f32 {
+    return (2.0 * near * far) / (far + near - depth * (far - near));
+}
+
+// Convert depth value to the actual depth value in range [0, 1]
+fn linearize_depth_normalized(depth: f32, near: f32, far: f32) -> f32 {
+    return (2.0 * near * far) / (far + near - depth * (far - near)) / far;
 }
