@@ -216,10 +216,6 @@ impl gbase::Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
-        if !asset::all_loaded(ctx) {
-            return false;
-        }
-
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);

@@ -1,3 +1,7 @@
+use super::{
+    Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetLoadFn, DynAssetOnLoadFn,
+    DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn, WriteableAsset,
+};
 use crate::render::{self, ArcHandle};
 use futures_channel::mpsc;
 use std::{
@@ -6,11 +10,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
     time::Duration,
-};
-
-use super::{
-    Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetLoadFn, DynAssetOnLoadFn,
-    DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn, WriteableAsset,
 };
 
 pub struct AssetCache {
@@ -253,27 +252,37 @@ impl AssetCache {
         }
     }
 
-    pub fn all_loaded(&mut self) -> bool {
+    pub fn all_loaded(&self) -> bool {
         self.currently_loading.is_empty()
     }
-    pub fn handle_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
-        self.currently_loading.contains(&handle.as_any())
+
+    pub fn handle_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
+        !self.currently_loading.contains(&handle.as_any())
     }
 
-    /// Wait for all async assets to be loaded
-    pub fn wait_all(&mut self) {
-        // while !self.currently_loading.is_empty() {
-        //     std::thread::sleep(Duration::from_millis(100));
-        //     self.poll_loaded();
-        // }
+    pub fn handles_loaded(&self, handles: impl IntoIterator<Item = AssetHandle<DynAsset>>) -> bool {
+        for handle in handles {
+            if !self.currently_loading.contains(&handle) {
+                return false;
+            }
+        }
+        true
     }
 
-    pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
-        // while self.currently_loading.contains(&handle.as_any()) {
-        //     std::thread::sleep(Duration::from_millis(100));
-        //     self.poll_loaded();
-        // }
-    }
+    // /// Wait for all async assets to be loaded
+    // pub fn wait_all(&mut self) {
+    //     while !self.currently_loading.is_empty() {
+    //         std::thread::sleep(Duration::from_millis(100));
+    //         self.poll_loaded();
+    //     }
+    // }
+    //
+    // pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
+    //     while self.currently_loading.contains(&handle.as_any()) {
+    //         std::thread::sleep(Duration::from_millis(100));
+    //         self.poll_loaded();
+    //     }
+    // }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

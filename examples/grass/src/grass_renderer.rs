@@ -248,7 +248,11 @@ impl GrassRenderer {
         frustum_buffer: &render::UniformBuffer<CameraFrustum>,
         render_mode: RenderMode,
     ) {
-        if !asset::all_loaded(ctx) {
+        if !asset::handle_loaded(ctx, self.draw_shader_handle.clone())
+            || !asset::handle_loaded(ctx, self.instance_shader_handle.clone())
+            || !asset::handle_loaded(ctx, self.render_forward_shader_handle.clone())
+            || !asset::handle_loaded(ctx, self.render_deferred_shader_handle.clone())
+        {
             return;
         }
 

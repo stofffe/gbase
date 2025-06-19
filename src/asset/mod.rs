@@ -106,17 +106,23 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
 // Commands
 //
 
+/// Check if all current assets are loaded
 pub fn all_loaded(ctx: &mut Context) -> bool {
     ctx.assets.asset_cache.all_loaded()
 }
 
-pub fn wait_all(ctx: &mut Context) {
-    ctx.assets.asset_cache.wait_all();
+/// Check if a specific asset is loaded
+pub fn handle_loaded<T: Asset>(ctx: &Context, handle: AssetHandle<T>) -> bool {
+    ctx.assets.asset_cache.handle_loaded(handle)
 }
 
-pub fn wait_for<T: Asset + LoadableAsset>(ctx: &mut Context, handle: AssetHandle<T>) {
-    ctx.assets.asset_cache.wait_for(handle);
-}
+/// Check if a list of asset are loaded
+// pub fn handles_loaded(
+//     ctx: &Context,
+//     handles: impl IntoIterator<Item = AssetHandle<DynAsset>>,
+// ) -> bool {
+//     ctx.assets.asset_cache.handles_loaded(handles)
+// }
 
 pub fn get<T: Asset + 'static>(ctx: &Context, handle: AssetHandle<T>) -> Option<&T> {
     ctx.assets.asset_cache.get(handle)

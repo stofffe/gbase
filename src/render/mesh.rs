@@ -350,6 +350,12 @@ impl GpuMesh {
                 cursor += 1;
             }
             let end = cursor;
+            // tracing::info!(
+            //     "INSERT: range {:?} values {:?} values b {:?}",
+            //     (start, end),
+            //     values.len(),
+            //     values.as_bytes().len()
+            // );
             attribute_ranges.insert(id, (start, end));
         }
 
@@ -362,8 +368,10 @@ impl GpuMesh {
             index_buffer = Some(buffer.buffer());
         }
 
-        let buffer = render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes))
-            .build_inner(device);
+        let attribtute_buffer =
+            render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes))
+                .label("mesh")
+                .build_inner(device);
 
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();
@@ -371,7 +379,7 @@ impl GpuMesh {
         let bounds = mesh.calculate_bounding_box();
 
         Self {
-            attribute_buffer: buffer.buffer(),
+            attribute_buffer: attribtute_buffer.buffer(),
             attribute_ranges,
             index_buffer,
             vertex_count,
@@ -381,7 +389,8 @@ impl GpuMesh {
     }
 
     pub fn bind_to_render_pass(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        for (i, (_, (start, end))) in self.attribute_ranges.iter().enumerate() {
+        for (i, (t, (start, end))) in self.attribute_ranges.iter().enumerate() {
+            // tracing::info!("bind {t:?} {i} to {:?}", (start, end));
             let slice = self.attribute_buffer.slice(start..end);
             render_pass.set_vertex_buffer(i as u32, slice);
         }

@@ -4,14 +4,11 @@ use std::{
     fmt::{Debug, Display},
     future::Future,
     path::Path,
-    pin::Pin,
 };
 
 pub type DynAsset = Box<dyn Asset>;
 pub type DynRenderAsset = ArcHandle<dyn Any>;
 pub type DynAssetLoadFn = Box<dyn Fn(&Path) -> DynAsset>;
-// pub type DynAssetLoadFn =
-//     Box<dyn Fn(&Path) -> Pin<Box<dyn Future<Output = DynAsset> + Send>> + Send + Sync>;
 pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;

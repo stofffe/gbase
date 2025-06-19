@@ -11,13 +11,13 @@ use std::collections::BTreeSet;
 pub struct CloudRenderer {
     mesh_handle: asset::AssetHandle<Mesh>,
     shader_handle: asset::AssetHandle<ShaderBuilder>,
+    weather_map_handle: asset::AssetHandle<Image>,
+    blue_noise_handle: asset::AssetHandle<Image>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
     noise_texture: render::GpuImage,
-    weather_map_texture: asset::AssetHandle<Image>,
-    blue_noise_texture: asset::AssetHandle<Image>,
     app_info: gbase_utils::AppInfo, // TODO: global or passed in render?
 }
 
@@ -109,8 +109,8 @@ impl CloudRenderer {
             shader_handle,
 
             noise_texture,
-            weather_map_texture,
-            blue_noise_texture,
+            weather_map_handle: weather_map_texture,
+            blue_noise_handle: blue_noise_texture,
         })
     }
 
@@ -124,12 +124,21 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
+        if !asset::handle_loaded(ctx, self.shader_handle.clone())
+            || !asset::handle_loaded(ctx, self.mesh_handle.clone())
+            || !asset::handle_loaded(ctx, self.weather_map_handle.clone())
+            || !asset::handle_loaded(ctx, self.blue_noise_handle.clone())
+        {
+            tracing::warn!("all cloud asset not loaded, skipping render");
+            return;
+        }
+
         self.app_info.update_buffer(ctx);
 
         let weather_map =
-            asset::convert_asset::<GpuImage>(ctx, self.weather_map_texture.clone(), &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, self.weather_map_handle.clone(), &()).unwrap();
         let blue_noise =
-            asset::convert_asset::<GpuImage>(ctx, self.blue_noise_texture.clone(), &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, self.blue_noise_handle.clone(), &()).unwrap();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info

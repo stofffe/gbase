@@ -205,7 +205,10 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        if !asset::all_loaded(ctx) {
+        if !asset::handle_loaded(ctx, self.cube_mesh_handle.clone())
+            || !asset::handle_loaded(ctx, self.ak47_mesh_handle.clone())
+            || !asset::handle_loaded(ctx, self.ak47_mesh_handle.clone())
+        {
             return false;
         }
 

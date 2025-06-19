@@ -1,7 +1,6 @@
 use gbase::{
     asset::{self, AssetHandle},
     render::{self, ArcPipelineLayout, GpuImage, Image},
-    tracing,
     wgpu::{self},
     Callbacks, Context,
 };
@@ -63,8 +62,6 @@ impl Callbacks for App {
         ]);
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
 
-        asset::wait_all(ctx);
-
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -76,7 +73,10 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        if !asset::all_loaded(ctx) {
+        if !asset::handle_loaded(ctx, self.mesh_handle.clone())
+            || !asset::handle_loaded(ctx, self.shader_handle.clone())
+            || !asset::handle_loaded(ctx, self.texture_handle.clone())
+        {
             return false;
         }
         let mesh =
