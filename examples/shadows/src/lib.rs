@@ -2,18 +2,15 @@ mod shadow_pass;
 
 use gbase::{
     asset,
-    glam::{vec3, vec4, Mat4, Quat, Vec3},
+    glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
     render::{self, Mesh},
-    time, tracing, wgpu, winit, Callbacks, Context,
+    tracing, wgpu, winit, Callbacks, Context,
 };
-use gbase_utils::{
-    Alignment, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
-    Transform3D, Widget, BLACK, GRAY, WHITE,
-};
+use gbase_utils::{GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
 use shadow_pass::ShadowPass;
-use std::{f32::consts::PI, sync::Arc, time::Instant};
+use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -234,44 +231,51 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        // add meshes
-        self.pbr_renderer.add_mesh(
-            self.plane_mesh_handle.clone(),
-            self.plane_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(0.0, -10.0, 0.0))
-                .with_rot(Quat::from_rotation_x(-PI / 2.0))
-                .with_scale(Vec3::ONE * PLANE_SIZE),
-        );
-        self.pbr_renderer.add_mesh(
-            self.helmet_mesh_handle.clone(),
-            self.helmet_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(0.0, 0.0, 0.0))
-                .with_scale(Vec3::ONE * 5.0),
-        );
-        self.pbr_renderer.add_mesh(
-            self.helmet_mesh_handle.clone(),
-            self.helmet_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(-10.0, 10.0, 0.0))
-                .with_scale(Vec3::ONE * 5.0),
-        );
-        self.pbr_renderer.add_mesh(
-            self.ak47_mesh_handle.clone(),
-            self.ak47_material.clone(),
-            Transform3D::default()
-                .with_pos(vec3(10.0, 0.0, -5.0))
-                .with_scale(Vec3::ONE * 5.0),
-        );
+        let meshes = vec![
+            // add meshes
+            (
+                self.plane_mesh_handle.clone(),
+                self.plane_material.clone(),
+                Transform3D::default()
+                    .with_pos(vec3(0.0, -10.0, 0.0))
+                    .with_rot(Quat::from_rotation_x(-PI / 2.0))
+                    .with_scale(Vec3::ONE * PLANE_SIZE),
+            ),
+            (
+                self.helmet_mesh_handle.clone(),
+                self.helmet_material.clone(),
+                Transform3D::default()
+                    .with_pos(vec3(0.0, 0.0, 0.0))
+                    .with_scale(Vec3::ONE * 5.0),
+            ),
+            (
+                self.helmet_mesh_handle.clone(),
+                self.helmet_material.clone(),
+                Transform3D::default()
+                    .with_pos(vec3(-10.0, 10.0, 0.0))
+                    .with_scale(Vec3::ONE * 5.0),
+            ),
+            (
+                self.ak47_mesh_handle.clone(),
+                self.ak47_material.clone(),
+                Transform3D::default()
+                    .with_pos(vec3(10.0, 0.0, -5.0))
+                    .with_scale(Vec3::ONE * 5.0),
+            ),
+        ];
 
-        self.shadow_pass.render(
-            ctx,
-            &self.camera_buffer,
-            vec![(self.helmet_mesh_handle.clone(), Transform3D::default())],
-        );
+        // shadow pass
+        let shadow_meshes = meshes
+            .iter()
+            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
+            .collect::<Vec<_>>();
+        self.shadow_pass
+            .render(ctx, &self.camera_buffer, shadow_meshes);
 
-        // render
+        // pbr pass
+        for (mesh, mat, transform) in meshes.iter().cloned() {
+            self.pbr_renderer.add_mesh(mesh, mat, transform);
+        }
         self.pbr_renderer.render(
             ctx,
             self.hdr_framebuffer_1.view_ref(),
@@ -292,7 +296,7 @@ impl Callbacks for App {
         if input::key_pressed(ctx, input::KeyCode::F1) {
             self.framebuffer_renderer.render_depth(
                 ctx,
-                self.depth_buffer.framebuffer().view(),
+                self.shadow_pass.shadow_map.framebuffer().view(),
                 screen_view,
                 render::surface_format(ctx),
                 &self.camera_buffer,
