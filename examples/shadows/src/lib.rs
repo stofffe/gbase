@@ -142,7 +142,7 @@ impl Callbacks for App {
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         let lights = PbrLightUniforms {
-            main_light_dir: vec3(0.0, -1.0, -1.0).normalize(),
+            main_light_dir: vec3(1.0, -1.0, -1.0).normalize(),
             main_light_insensity: 1.0,
         };
         let lights_buffer =
@@ -246,31 +246,36 @@ impl Callbacks for App {
                 self.helmet_material.clone(),
                 Transform3D::default()
                     .with_pos(vec3(0.0, 0.0, 0.0))
-                    .with_scale(Vec3::ONE * 5.0),
+                    .with_scale(Vec3::ONE * 1.0),
             ),
             (
                 self.helmet_mesh_handle.clone(),
                 self.helmet_material.clone(),
                 Transform3D::default()
-                    .with_pos(vec3(-10.0, 10.0, 0.0))
-                    .with_scale(Vec3::ONE * 5.0),
+                    .with_pos(vec3(-3.0, 10.0, 0.0))
+                    .with_scale(Vec3::ONE * 1.0),
             ),
             (
                 self.ak47_mesh_handle.clone(),
                 self.ak47_material.clone(),
                 Transform3D::default()
-                    .with_pos(vec3(10.0, 0.0, -5.0))
-                    .with_scale(Vec3::ONE * 5.0),
+                    .with_pos(vec3(3.0, 0.0, -1.0))
+                    .with_scale(Vec3::ONE * 1.0),
             ),
         ];
 
         // shadow pass
         let shadow_meshes = meshes
             .iter()
+            .skip(1) // TEMP: skip plane
             .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
             .collect::<Vec<_>>();
-        self.shadow_pass
-            .render(ctx, &self.camera_buffer, shadow_meshes);
+        self.shadow_pass.render(
+            ctx,
+            shadow_meshes,
+            self.camera.pos,
+            self.lights.main_light_dir,
+        );
 
         // pbr pass
         for (mesh, mat, transform) in meshes.iter().cloned() {

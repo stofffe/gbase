@@ -1,6 +1,6 @@
 use gbase::{
     asset, bytemuck,
-    glam::Vec3,
+    glam::{vec3, Mat4, Vec3},
     render::{self, GpuMesh},
     wgpu, Context,
 };
@@ -12,6 +12,9 @@ pub struct ShadowPass {
 
     shader_handle: asset::AssetHandle<render::ShaderBuilder>,
     pub shadow_map: render::DepthBuffer,
+
+    light_transform: Mat4,
+    light_transform_buffer: render::UniformBuffer<Mat4>,
 }
 
 impl ShadowPass {
@@ -43,21 +46,34 @@ impl ShadowPass {
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
+
+        let light_transform = Mat4::orthographic_rh(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
+            * Mat4::look_at_rh(
+                vec3(-2.0, 4.0, -1.0),
+                vec3(0.0, 0.0, 0.0),
+                vec3(0.0, 1.0, 0.0),
+            );
+        let light_transform_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(light_transform))
+                .build(ctx);
+
         Self {
             pipeline_layout,
             bindgroup_layout,
             shader_handle,
             shadow_map,
             instances,
+            light_transform,
+            light_transform_buffer,
         }
     }
 
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         meshes: Vec<(asset::AssetHandle<render::Mesh>, gbase_utils::Transform3D)>,
-        // main_light_dir: Vec3,
+        camera_pos: Vec3,
+        main_light_dir: Vec3,
     ) {
         let mut assets_loaded = true;
         assets_loaded &= asset::handle_loaded(ctx, self.shader_handle.clone());
@@ -98,17 +114,33 @@ impl ShadowPass {
         }
         ranges.push(sorted_meshes.len());
 
+        let light_cam_dist = 10.0;
+        let light_cam_width_height = 50.0;
+        let light_cam_range = 30.0;
+        let light_cam_pos = camera_pos - main_light_dir.normalize() * light_cam_dist;
+        let light_cam_proj = Mat4::orthographic_rh(
+            -light_cam_width_height,
+            light_cam_width_height,
+            -light_cam_width_height,
+            light_cam_width_height,
+            0.00,
+            light_cam_range,
+        );
+        let light_cam_view = Mat4::look_at_rh(light_cam_pos, camera_pos, vec3(0.0, 1.0, 0.0));
+        self.light_transform = light_cam_proj * light_cam_view;
+
         // update data
         self.instances.write(ctx, &instances);
-
-        // create camera
+        self.light_transform_buffer
+            .write(ctx, &self.light_transform);
 
         // setup state
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .label("shadow_pass")
             .entries(vec![
-                // camera
-                render::BindGroupEntry::Buffer(camera.buffer()),
+                // light transform
+                render::BindGroupEntry::Buffer(self.light_transform_buffer.buffer()),
+                // render::BindGroupEntry::Buffer(self.camera_buffer.buffer()),
                 // instances
                 render::BindGroupEntry::Buffer(self.instances.buffer()),
             ])
