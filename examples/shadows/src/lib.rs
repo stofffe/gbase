@@ -298,22 +298,19 @@ impl Callbacks for App {
             &self.camera_buffer,
         );
 
-        if input::key_pressed(ctx, input::KeyCode::F1) {
-            self.framebuffer_renderer.render_depth(
-                ctx,
-                self.shadow_pass.shadow_map.framebuffer().view(),
-                screen_view,
-                render::surface_format(ctx),
-                &self.camera_buffer,
-            );
-        } else {
-            self.framebuffer_renderer.render(
-                ctx,
-                self.hdr_framebuffer_1.view(),
-                screen_view,
-                render::surface_format(ctx),
-            );
-        }
+        self.framebuffer_renderer.render(
+            ctx,
+            self.hdr_framebuffer_1.view(),
+            screen_view,
+            render::surface_format(ctx),
+        );
+        self.framebuffer_renderer.render_depth(
+            ctx,
+            self.shadow_pass.shadow_map.framebuffer().view(),
+            screen_view,
+            render::surface_format(ctx),
+            &self.camera_buffer,
+        );
 
         false
     }

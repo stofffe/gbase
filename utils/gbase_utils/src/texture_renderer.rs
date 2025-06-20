@@ -9,9 +9,10 @@ use crate::CameraUniform;
 pub struct TextureRenderer {
     shader_handle: asset::AssetHandle<ShaderBuilder>,
     shader_depth_handle: asset::AssetHandle<ShaderBuilder>,
+    sampler: render::ArcSampler,
     vertices: render::VertexBuffer<VertexUV>,
     indices: render::IndexBuffer,
-    sampler: render::ArcSampler,
+    vertices_depth: render::VertexBuffer<VertexUV>,
 }
 
 impl TextureRenderer {
@@ -38,9 +39,15 @@ impl TextureRenderer {
         ))
         .build(ctx);
 
+        let vertices_depth = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
+            CENTERED_QUAD_VERTICES_DEPTH.to_vec(),
+        ))
+        .build(ctx);
+
         Self {
             vertices,
             indices,
+            vertices_depth,
             shader_handle,
             shader_depth_handle,
             sampler,
@@ -92,7 +99,7 @@ impl TextureRenderer {
         render::RenderPassBuilder::new()
             .label("texture renderer")
             .color_attachments(&[Some(
-                render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
+                render::RenderPassColorAttachment::new(out_texture).load(),
             )])
             .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
@@ -147,17 +154,17 @@ impl TextureRenderer {
         let shader = asset::convert_asset(ctx, self.shader_depth_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(vec![self.vertices.desc()])
+            .buffers(vec![self.vertices_depth.desc()])
             .build(ctx);
 
         render::RenderPassBuilder::new()
             .label("texture renderer")
             .color_attachments(&[Some(
-                render::RenderPassColorAttachment::new(out_texture).clear(wgpu::Color::BLACK),
+                render::RenderPassColorAttachment::new(out_texture).load(),
             )])
             .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
-                render_pass.set_vertex_buffer(0, self.vertices.slice(..));
+                render_pass.set_vertex_buffer(0, self.vertices_depth.slice(..));
                 render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
@@ -174,7 +181,17 @@ const CENTERED_QUAD_VERTICES: &[render::VertexUV] = &[
     render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
     render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
     render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
+];
 
+#[rustfmt::skip]
+const CENTERED_QUAD_VERTICES_DEPTH: &[render::VertexUV] = &[
+    render::VertexUV { position: [0.25, 0.25, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [1.0,  0.25, 0.0], uv: [1.0, 1.0] }, // bottom right
+    render::VertexUV { position: [1.0,  1.0,  0.0], uv: [1.0, 0.0] }, // top right
+
+    render::VertexUV { position: [0.25, 0.25, 0.0], uv: [0.0, 1.0] }, // bottom left
+    render::VertexUV { position: [1.0,  1.0,  0.0], uv: [1.0, 0.0] }, // top right
+    render::VertexUV { position: [0.25, 1.0,  0.0], uv: [0.0, 0.0] }, // top left
 ];
 
 #[rustfmt::skip]
