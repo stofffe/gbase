@@ -119,6 +119,7 @@ fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
         return false;
     }
 
+    // is this needed?
     var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
 
     // return false;
@@ -173,9 +174,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let view_dir = camera.pos - in.pos;
     let light_color = vec3f(1.0) * lights.main_light_intensity;
 
+    var visibility = 1.0;
     if in_shadow(in.light_pos, in.N, light_dir) {
-        return vec4f(1.0, 0.0, 0.0, 1.0);
-    // return base_color_tex * 0.01;
+        visibility = 0.0;
+    // return vec4f(1.0, 0.0, 0.0, 1.0);
     }
 
     // main light
@@ -189,6 +191,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
         roughness,
         metalness,
         occlusion,
+        visibility,
     );
 
     if true {
@@ -218,6 +221,7 @@ fn pbr_lighting(
     roughness: f32,
     metalness: f32,
     ambient_occlusion: f32,
+    visibility: f32, // shadows
 ) -> vec3f {
     let N = normalize(normal);
     let V = normalize(view_dir);
@@ -226,7 +230,7 @@ fn pbr_lighting(
     let F0 = mix(vec3f(0.04), albedo, metalness);
 
     let emission = emissivity;
-    let radiance = light_color; // TODO: falloff when using point light
+    let radiance = light_color * visibility; // TODO: falloff when using point light
     let brdf = brdf_lambert_cook(roughness, metalness, F0, albedo, N, V, L, H);
     let ldotn = safe_dot(L, N);
 
