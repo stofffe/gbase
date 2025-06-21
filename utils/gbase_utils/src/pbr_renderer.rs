@@ -2,7 +2,7 @@ use crate::{BoundingSphere, DeferredBuffers, GizmoRenderer, PixelCache, Transfor
 use encase::ShaderType;
 use gbase::{
     asset::{self, AssetHandle},
-    glam::{Vec3, Vec4Swizzles},
+    glam::{Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
@@ -90,6 +90,19 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
                     .fragment(),
+                // shadow map texture
+                render::BindGroupLayoutEntry::new()
+                    .texture_depth()
+                    .fragment(),
+                // shadow map sampler
+                render::BindGroupLayoutEntry::new()
+                    .sampler_filtering()
+                    .fragment(),
+                // shadow matrix
+                render::BindGroupLayoutEntry::new()
+                    .uniform()
+                    .vertex()
+                    .fragment(),
             ])
             .build(ctx);
 
@@ -134,6 +147,9 @@ impl PbrRenderer {
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
+        // optional
+        shadow_map: &render::DepthBuffer,
+        shadow_matrix: &render::UniformBuffer<Mat4>,
     ) {
         if !asset::handle_loaded(ctx, self.forward_shader_handle.clone())
             || !asset::handle_loaded(ctx, self.deferred_shader_handle.clone())
@@ -215,6 +231,11 @@ impl PbrRenderer {
                 asset::convert_asset::<GpuImage>(ctx, mat.occlusion_texture.clone(), &()).unwrap();
             let emissive_texture =
                 asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
+
+            let shadow_map_sampler = render::SamplerBuilder::new()
+                .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+                .build(ctx);
+
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
@@ -243,6 +264,12 @@ impl PbrRenderer {
                     render::BindGroupEntry::Texture(emissive_texture.view()),
                     // emissive roughness sampler
                     render::BindGroupEntry::Sampler(emissive_texture.sampler()),
+                    // shadow map texture
+                    render::BindGroupEntry::Texture(shadow_map.framebuffer().view()),
+                    // shadow map sampler
+                    render::BindGroupEntry::Sampler(shadow_map_sampler),
+                    // shadow matrix
+                    render::BindGroupEntry::Buffer(shadow_matrix.buffer()),
                 ])
                 .build(ctx);
 

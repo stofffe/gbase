@@ -14,7 +14,7 @@ pub struct ShadowPass {
     pub shadow_map: render::DepthBuffer,
 
     light_transform: Mat4,
-    light_transform_buffer: render::UniformBuffer<Mat4>,
+    pub light_transform_buffer: render::UniformBuffer<Mat4>,
 }
 
 impl ShadowPass {
@@ -116,8 +116,8 @@ impl ShadowPass {
 
         let light_cam_dist = 10.0;
         let light_cam_width_height = 50.0;
-        let light_cam_range = 30.0;
-        let light_cam_pos = camera_pos - main_light_dir.normalize() * light_cam_dist;
+        let light_cam_range = 100.0;
+        let light_cam_pos = Vec3::ZERO - main_light_dir.normalize() * light_cam_dist;
         let light_cam_proj = Mat4::orthographic_rh(
             -light_cam_width_height,
             light_cam_width_height,
@@ -126,7 +126,7 @@ impl ShadowPass {
             0.00,
             light_cam_range,
         );
-        let light_cam_view = Mat4::look_at_rh(light_cam_pos, camera_pos, vec3(0.0, 1.0, 0.0));
+        let light_cam_view = Mat4::look_at_rh(light_cam_pos, Vec3::ZERO, vec3(0.0, 1.0, 0.0));
         self.light_transform = light_cam_proj * light_cam_view;
 
         // update data

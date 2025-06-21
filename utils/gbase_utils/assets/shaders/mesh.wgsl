@@ -45,6 +45,9 @@ struct VertexInput {
 @group(0) @binding(10) var occlusion_sampler: sampler;
 @group(0) @binding(11) var emissive_texture: texture_2d<f32>;
 @group(0) @binding(12) var emissive_sampler: sampler;
+@group(0) @binding(13) var shadow_map_texture: texture_depth_2d;
+@group(0) @binding(14) var shadow_map_sampler: sampler;
+@group(0) @binding(15) var<uniform> shadow_matrix: mat4x4f;
 
 // NOTE: alignment
 struct Instance {
@@ -83,6 +86,7 @@ fn vs_main(
     out.B = B;
     out.N = N;
     out.index = in.index;
+    out.light_pos = shadow_matrix * position;
     return out;
 }
 
@@ -97,10 +101,26 @@ struct VertexOutput {
     @location(6) B: vec3f,
     @location(7) N: vec3f,
     @location(8) index: u32,
+    @location(9) light_pos: vec4f,
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    if true {
+        var proj_coords = in.light_pos / in.light_pos.w;
+        proj_coords = proj_coords * 0.5 + 0.5;
+        proj_coords.y = 1.0 - proj_coords.y;
+        let closest_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
+        let current_depth = proj_coords.z;
+
+        if current_depth > closest_depth {
+            return vec4f(0.0, 0.0, 0.0, 1.0);
+        } else {
+            return vec4f(1.0, 1.0, 1.0, 1.0);
+        }
+
+    }
+
     let instance = instances[in.index];
 
     let base_color_tex = decode_gamma_correction(textureSample(base_color_texture, base_color_sampler, in.uv));
@@ -138,6 +158,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     );
 
     if true {
+    // return vec4f(albedo, 1.0);
     // return vec4f(instance.color_factor);
     // return vec4f(roughness, roughness, roughness, 1.0);
     // return vec4f(metalness, mtalness, metalness, 1.0);
@@ -259,6 +280,10 @@ fn safe_division_vec3(num: vec3f, denom: vec3f) -> vec3f {
 
 fn decode_gamma_correction(in: vec4f) -> vec4f {
     return pow(in, vec4f(2.2));
+}
+
+fn encode_gamma_correction(in: vec4f) -> vec4f {
+    return pow(in, vec4f(1.0 / 2.2));
 }
 
 fn tone_mapping_reinhard(color: vec3f) -> vec3f {

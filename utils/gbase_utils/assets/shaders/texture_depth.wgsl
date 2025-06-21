@@ -42,10 +42,10 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let depth = textureSample(tex, samp, in.uv);
-    let linear_depth = linearize_depth_normalized(depth, camera.near, camera.far);
+    var depth = textureSample(tex, samp, in.uv);
+    // depth = linearize_depth_normalized(depth, camera.near, camera.far);
 
-    return vec4f(linear_depth, linear_depth, linear_depth, 1.0);
+    return vec4f(depth, depth, depth, 1.0);
 }
 
 //

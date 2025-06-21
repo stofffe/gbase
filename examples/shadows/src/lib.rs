@@ -289,6 +289,8 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
+            &self.shadow_pass.shadow_map,
+            &self.shadow_pass.light_transform_buffer,
         );
 
         self.gizmo_renderer.render(
