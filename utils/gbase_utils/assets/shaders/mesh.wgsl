@@ -104,9 +104,9 @@ struct VertexOutput {
     @location(9) light_pos: vec4f,
 }
 
-const MIN_BIAS = 0.001;
-const MAX_BIAS = 0.001;
-fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
+const MIN_BIAS = 0.000;
+const MAX_BIAS = 0.000;
+fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
     var proj_coords = light_pos / light_pos.w;
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
@@ -116,14 +116,40 @@ fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
 
     // check bounds
     if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
-        return false;
+        return 1.0;
     }
 
     // is this needed?
     var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
+    // if true {
+    //
+    //     // return false;
+    //     if saturate(pixel_depth) > shadow_map_depth + bias {
+    //         return 0.0;
+    //     } else {
+    //         return 1.0;
+    //     }
+    // }
 
-    // return false;
-    return saturate(pixel_depth) > shadow_map_depth + bias;
+    var s = 0.0;
+    let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+    for (var x = -1; x <= 1; x += 1) {
+        for (var y = -1; y <= 1; y += 1) {
+            // let offset =
+
+            let shadow_map_offset_depth = textureSample(
+                shadow_map_texture,
+                shadow_map_sampler,
+                proj_coords.xy + vec2f(f32(x), f32(y)) * texel_size,
+            );
+            if saturate(pixel_depth) > shadow_map_offset_depth + bias {
+                s += 1.0;
+            }
+        }
+    }
+    s /= 9.0;
+    return s;
+
 }
 
 @fragment
@@ -174,11 +200,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let view_dir = camera.pos - in.pos;
     let light_color = vec3f(1.0) * lights.main_light_intensity;
 
-    var visibility = 1.0;
-    if in_shadow(in.light_pos, in.N, light_dir) {
-        visibility = 0.0;
-    // return vec4f(1.0, 0.0, 0.0, 1.0);
-    }
+    let shadowing = shadow(in.light_pos, in.N, light_dir);
+    let visibility = 1.0 - shadowing;
 
     // main light
     let color = pbr_lighting(
@@ -195,6 +218,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     );
 
     if true {
+        return vec4f(visibility, visibility, visibility, 1.0);
     // return vec4f(albedo, 1.0);
     // return vec4f(instance.color_factor);
     // return vec4f(roughness, roughness, roughness, 1.0);
@@ -326,4 +350,8 @@ fn encode_gamma_correction(in: vec4f) -> vec4f {
 
 fn tone_mapping_reinhard(color: vec3f) -> vec3f {
     return color / (color + vec3f(1.0));
+}
+
+fn hash2d(pos: vec2f) -> f32 {
+    return fract(sin(dot(pos, vec2<f32>(27.16898, 38.90563))) * 5151.5473453);
 }
