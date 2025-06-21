@@ -104,8 +104,6 @@ struct VertexOutput {
     @location(9) light_pos: vec4f,
 }
 
-const MIN_BIAS = 0.000;
-const MAX_BIAS = 0.000;
 fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
     var proj_coords = light_pos / light_pos.w;
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
@@ -120,35 +118,32 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
     }
 
     // is this needed?
-    var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
-    // if true {
-    //
-    //     // return false;
-    //     if saturate(pixel_depth) > shadow_map_depth + bias {
-    //         return 0.0;
-    //     } else {
-    //         return 1.0;
-    //     }
-    // }
+    let bias = 0.0;
+    // const MIN_BIAS = 0.000;
+    // const MAX_BIAS = 0.000;
+    // var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
 
-    var s = 0.0;
+    var shadow_percentage = 0.0;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     for (var x = -1; x <= 1; x += 1) {
         for (var y = -1; y <= 1; y += 1) {
-            // let offset =
+            let hash = u32(hash_2d_i32(x, y));
+            let base_offset = vec2f(f32(x), f32(y));
+            let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
+            let offset = base_offset + jitter;
 
             let shadow_map_offset_depth = textureSample(
                 shadow_map_texture,
                 shadow_map_sampler,
-                proj_coords.xy + vec2f(f32(x), f32(y)) * texel_size,
+                proj_coords.xy + offset * texel_size,
             );
             if saturate(pixel_depth) > shadow_map_offset_depth + bias {
-                s += 1.0;
+                shadow_percentage += 1.0;
             }
         }
     }
-    s /= 9.0;
-    return s;
+    shadow_percentage /= 9.0;
+    return shadow_percentage;
 
 }
 
@@ -218,7 +213,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     );
 
     if true {
-        return vec4f(visibility, visibility, visibility, 1.0);
+    // return vec4f(visibility, visibility, visibility, 1.0);
     // return vec4f(albedo, 1.0);
     // return vec4f(instance.color_factor);
     // return vec4f(roughness, roughness, roughness, 1.0);
@@ -352,6 +347,53 @@ fn tone_mapping_reinhard(color: vec3f) -> vec3f {
     return color / (color + vec3f(1.0));
 }
 
-fn hash2d(pos: vec2f) -> f32 {
-    return fract(sin(dot(pos, vec2<f32>(27.16898, 38.90563))) * 5151.5473453);
+fn hash_2d(x: u32, y: u32) -> u32 {
+    // Use Wang hash for better distribution
+    var hash: u32 = x;
+    hash = hash ^ ((y << 16u) | (y >> 16u));
+    hash = hash * 0x85ebca6bu;
+    hash = hash ^ (hash >> 13u);
+    hash = hash * 0xc2b2ae35u;
+    hash = hash ^ (hash >> 16u);
+    return hash;
 }
+fn hash_2d_i32(x: i32, y: i32) -> i32 {
+    // Use Wang hash for better distribution
+    var hash: i32 = x;
+    hash = hash ^ ((y << 16) | (y >> 16));
+    hash = hash * 0x85ebca6;
+    hash = hash ^ (hash >> 13);
+    hash = hash * 0xc2b2ae3;
+    hash = hash ^ (hash >> 16);
+    return hash;
+}
+// generate float in range [low, high]
+fn hash_to_range(hash: u32, low: f32, high: f32) -> f32 {
+    return low + (high - low) * hash_to_unorm(hash);
+}
+
+// generates float in range [0, 1]
+fn hash_to_unorm(hash: u32) -> f32 {
+    return f32(hash) * 2.3283064e-10; // hash * 1 / 2^32
+}
+
+// generates float in range [-1, 1]
+fn hash_to_snorm(hash: u32) -> f32 {
+    return (f32(hash) * 2.3283064e-10) * 2.0 - 1.0; // hash * 1 / 2^32
+}
+
+// generates vec2 with values in range [0, 1]
+fn hash_to_vec2_unorm(hash: u32) -> vec2<f32> {
+    return vec2<f32>(
+        hash_to_unorm(hash ^ 0x36753621u),
+        hash_to_unorm(hash ^ 0x12345678u),
+    );
+}
+
+// generates vec2 with values in range [-1, 1]
+fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
+    return vec2<f32>(
+        hash_to_snorm(hash ^ 0x36753621u),
+        hash_to_snorm(hash ^ 0x12345678u),
+    );
+} // Rotate orthogonal verticies towards camera
