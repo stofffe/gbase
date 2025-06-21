@@ -104,9 +104,8 @@ struct VertexOutput {
     @location(9) light_pos: vec4f,
 }
 
-const BIAS = 0.005;
-const MIN_BIAS = 0.005;
-const MAX_BIAS = 0.010;
+const MIN_BIAS = 0.001;
+const MAX_BIAS = 0.001;
 fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
     var proj_coords = light_pos / light_pos.w;
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
@@ -121,7 +120,6 @@ fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
     }
 
     var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
-    // bias = BIAS;
 
     // return false;
     return saturate(pixel_depth) > shadow_map_depth + bias;
@@ -175,8 +173,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let view_dir = camera.pos - in.pos;
     let light_color = vec3f(1.0) * lights.main_light_intensity;
 
-    if in_shadow(in.light_pos, normal, light_dir) {
-        return base_color_tex * 0.01;
+    if in_shadow(in.light_pos, in.N, light_dir) {
+        return vec4f(1.0, 0.0, 0.0, 1.0);
+    // return base_color_tex * 0.01;
     }
 
     // main light

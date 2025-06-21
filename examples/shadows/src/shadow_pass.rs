@@ -106,7 +106,7 @@ impl ShadowPass {
         ranges.push(sorted_meshes.len());
 
         // calculate light view proj matrix
-        let light_cam_width_height = 10.0;
+        let light_cam_width_height = 20.0;
         let light_cam_range = 20.0;
         let origin = -main_light_dir * 15.0;
         let light_cam_proj = Mat4::orthographic_rh(
@@ -138,6 +138,7 @@ impl ShadowPass {
         let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("shadow_pass")
+            // .cull_mode(wgpu::Face::Front)
             .buffers(vec![render::VertexBufferLayout::from_vertex_formats(
                 gbase::wgpu::VertexStepMode::Vertex,
                 vec![wgpu::VertexFormat::Float32x3], // pos
