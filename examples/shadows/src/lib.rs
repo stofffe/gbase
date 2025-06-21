@@ -6,7 +6,7 @@ use gbase::{
     input::{self, mouse_button_pressed},
     load_b,
     render::{self, Mesh},
-    tracing, wgpu, winit, Callbacks, Context,
+    time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
 use shadow_pass::ShadowPass;
@@ -17,7 +17,7 @@ pub async fn run() {
     gbase::run::<App>().await;
 }
 
-const PLANE_SIZE: f32 = 1000.0;
+const PLANE_SIZE: f32 = 10000.0;
 const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 struct App {
@@ -142,7 +142,7 @@ impl Callbacks for App {
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         let lights = PbrLightUniforms {
-            main_light_dir: vec3(1.0, -1.0, -1.0).normalize(),
+            main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
         };
         let lights_buffer =
@@ -245,6 +245,7 @@ impl Callbacks for App {
                 self.helmet_mesh_handle.clone(),
                 self.helmet_material.clone(),
                 Transform3D::default()
+                    .with_rot(Quat::from_rotation_y(time::time_since_start(ctx)))
                     .with_pos(vec3(0.0, 0.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             ),
@@ -267,14 +268,20 @@ impl Callbacks for App {
         // shadow pass
         let shadow_meshes = meshes
             .iter()
-            .skip(1) // TEMP: skip plane
+            // .skip(1) // TEMP: skip plane
             .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
             .collect::<Vec<_>>();
+
+        self.lights.main_light_dir = vec3(1.0, -1.0, 0.0);
         self.shadow_pass.render(
             ctx,
             shadow_meshes,
             self.camera.pos,
-            self.lights.main_light_dir,
+            // self.lights.main_light_dir,
+            // TODO: doesnt work for (0,-1,0)
+            self.lights.main_light_dir.normalize(),
+            // vec3(1.0, -1.0, 1.0).normalize(),
+            // vec3(0.0001, -1.0, 0.0).normalize(),
         );
 
         // pbr pass
@@ -291,6 +298,11 @@ impl Callbacks for App {
             &self.depth_buffer,
             &self.shadow_pass.shadow_map,
             &self.shadow_pass.light_transform_buffer,
+        );
+
+        self.gizmo_renderer.draw_sphere(
+            &Transform3D::from_pos(-self.lights.main_light_dir * 20.0),
+            vec3(1.0, 1.0, 1.0),
         );
 
         self.gizmo_renderer.render(

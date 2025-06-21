@@ -104,19 +104,50 @@ struct VertexOutput {
     @location(9) light_pos: vec4f,
 }
 
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    if true {
-        var proj_coords = in.light_pos / in.light_pos.w;
-        proj_coords = proj_coords * 0.5 + 0.5;
-        proj_coords.y = 1.0 - proj_coords.y;
-        let closest_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
-        let current_depth = proj_coords.z;
+const BIAS = 0.005;
+const MIN_BIAS = 0.005;
+const MAX_BIAS = 0.010;
+fn in_shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> bool {
+    var proj_coords = light_pos / light_pos.w;
+    proj_coords.x = proj_coords.x * 0.5 + 0.5;
+    proj_coords.y = proj_coords.y * 0.5 + 0.5;
+    proj_coords.y = 1.0 - proj_coords.y;
+    let shadow_map_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
+    let pixel_depth = proj_coords.z;
 
-        if current_depth > closest_depth {
-            return vec4f(0.0, 0.0, 0.0, 1.0);
-        } else {
-            return vec4f(1.0, 1.0, 1.0, 1.0);
+    // check bounds
+    if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
+        return false;
+    }
+
+    var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
+    // bias = BIAS;
+
+    // return false;
+    return saturate(pixel_depth) > shadow_map_depth + bias;
+}
+
+@fragment
+fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    if false {
+        var proj_coords = in.light_pos / in.light_pos.w;
+        proj_coords.x = proj_coords.x * 0.5 + 0.5;
+        proj_coords.y = proj_coords.y * 0.5 + 0.5;
+        proj_coords.y = 1.0 - proj_coords.y;
+        let shadow_map_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
+        let pixel_depth = proj_coords.z;
+
+        // check bounds
+        if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
+            return vec4f(0.0, 0.0, 1.0, 1.0);
+        }
+
+        if pixel_depth < 0.0 {
+            return vec4f(1.0, 0.0, 0.0, 1.0);
+        }
+
+        if pixel_depth > 1.0 {
+            return vec4f(0.0, 1.0, 0.0, 1.0);
         }
 
     }
@@ -143,6 +174,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let light_dir = -lights.main_light_dir;
     let view_dir = camera.pos - in.pos;
     let light_color = vec3f(1.0) * lights.main_light_intensity;
+
+    if in_shadow(in.light_pos, normal, light_dir) {
+        return base_color_tex * 0.01;
+    }
 
     // main light
     let color = pbr_lighting(

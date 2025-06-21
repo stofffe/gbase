@@ -13,7 +13,6 @@ pub struct ShadowPass {
     shader_handle: asset::AssetHandle<render::ShaderBuilder>,
     pub shadow_map: render::DepthBuffer,
 
-    light_transform: Mat4,
     pub light_transform_buffer: render::UniformBuffer<Mat4>,
 }
 
@@ -47,15 +46,8 @@ impl ShadowPass {
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
 
-        let light_transform = Mat4::orthographic_rh(-10.0, 10.0, -10.0, 10.0, 0.1, 100.0)
-            * Mat4::look_at_rh(
-                vec3(-2.0, 4.0, -1.0),
-                vec3(0.0, 0.0, 0.0),
-                vec3(0.0, 1.0, 0.0),
-            );
         let light_transform_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(light_transform))
-                .build(ctx);
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         Self {
             pipeline_layout,
@@ -63,7 +55,6 @@ impl ShadowPass {
             shader_handle,
             shadow_map,
             instances,
-            light_transform,
             light_transform_buffer,
         }
     }
@@ -114,25 +105,24 @@ impl ShadowPass {
         }
         ranges.push(sorted_meshes.len());
 
-        let light_cam_dist = 10.0;
-        let light_cam_width_height = 50.0;
-        let light_cam_range = 100.0;
-        let light_cam_pos = Vec3::ZERO - main_light_dir.normalize() * light_cam_dist;
+        // calculate light view proj matrix
+        let light_cam_width_height = 10.0;
+        let light_cam_range = 20.0;
+        let origin = -main_light_dir * 15.0;
         let light_cam_proj = Mat4::orthographic_rh(
             -light_cam_width_height,
             light_cam_width_height,
             -light_cam_width_height,
             light_cam_width_height,
-            0.00,
+            0.01,
             light_cam_range,
         );
-        let light_cam_view = Mat4::look_at_rh(light_cam_pos, Vec3::ZERO, vec3(0.0, 1.0, 0.0));
-        self.light_transform = light_cam_proj * light_cam_view;
+        let light_cam_view = Mat4::look_to_rh(origin, main_light_dir, vec3(0.0, 1.0, 0.0));
+        let light_transform = light_cam_proj * light_cam_view;
 
         // update data
         self.instances.write(ctx, &instances);
-        self.light_transform_buffer
-            .write(ctx, &self.light_transform);
+        self.light_transform_buffer.write(ctx, &light_transform);
 
         // setup state
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
