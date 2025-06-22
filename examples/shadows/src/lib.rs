@@ -66,6 +66,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
+            .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -237,7 +238,7 @@ impl Callbacks for App {
                 self.plane_mesh_handle.clone(),
                 self.plane_material.clone(),
                 Transform3D::default()
-                    .with_pos(vec3(0.0, -10.0, 0.0))
+                    .with_pos(vec3(0.0, -2.0, 0.0))
                     .with_rot(Quat::from_rotation_x(-PI / 2.0))
                     .with_scale(Vec3::ONE * PLANE_SIZE),
             ),
@@ -325,6 +326,10 @@ impl Callbacks for App {
             render::surface_format(ctx),
             &self.camera_buffer,
         );
+
+        self.ui_renderer.display_debug_info(ctx);
+        self.ui_renderer
+            .render(ctx, screen_view, render::surface_format(ctx));
 
         false
     }

@@ -106,7 +106,7 @@ impl ShadowPass {
         ranges.push(sorted_meshes.len());
 
         // calculate light view proj matrix
-        let light_cam_width_height = 7.0;
+        let light_cam_width_height = 10.0;
         let light_cam_range = 20.0;
         let origin = -main_light_dir * 15.0;
         let light_cam_proj = Mat4::orthographic_rh(

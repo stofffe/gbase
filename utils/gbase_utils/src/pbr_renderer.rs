@@ -98,6 +98,10 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new()
                     .sampler_filtering()
                     .fragment(),
+                // shadow map sampler comparison
+                render::BindGroupLayoutEntry::new()
+                    .sampler_comparison()
+                    .fragment(),
                 // shadow matrix
                 render::BindGroupLayoutEntry::new()
                     .uniform()
@@ -233,7 +237,11 @@ impl PbrRenderer {
                 asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
 
             let shadow_map_sampler = render::SamplerBuilder::new()
-                .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+                .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
+                .build(ctx);
+            let shadow_map_sampler_comparison = render::SamplerBuilder::new()
+                .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
+                .compare(wgpu::CompareFunction::LessEqual)
                 .build(ctx);
 
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
@@ -268,6 +276,8 @@ impl PbrRenderer {
                     render::BindGroupEntry::Texture(shadow_map.framebuffer().view()),
                     // shadow map sampler
                     render::BindGroupEntry::Sampler(shadow_map_sampler),
+                    // shadow map sampler comparison
+                    render::BindGroupEntry::Sampler(shadow_map_sampler_comparison),
                     // shadow matrix
                     render::BindGroupEntry::Buffer(shadow_matrix.buffer()),
                 ])

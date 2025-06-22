@@ -47,7 +47,8 @@ struct VertexInput {
 @group(0) @binding(12) var emissive_sampler: sampler;
 @group(0) @binding(13) var shadow_map_texture: texture_depth_2d;
 @group(0) @binding(14) var shadow_map_sampler: sampler;
-@group(0) @binding(15) var<uniform> shadow_matrix: mat4x4f;
+@group(0) @binding(15) var shadow_map_sampler_comparison: sampler_comparison;
+@group(0) @binding(16) var<uniform> shadow_matrix: mat4x4f;
 
 // NOTE: alignment
 struct Instance {
@@ -109,37 +110,47 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
     proj_coords.y = 1.0 - proj_coords.y;
-    let shadow_map_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
-    let pixel_depth = proj_coords.z;
+    let pixel_depth = saturate(proj_coords.z); // important to clamp [0,1]
 
-    // check bounds
-    if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
-        return 1.0;
+    let bias = 0.001;
+
+    if false {
+        var shadow_percentage = 0.0;
+        let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+        for (var x = -1; x <= 1; x += 1) {
+            for (var y = -1; y <= 1; y += 1) {
+                let hash = u32(hash_2d_i32(x, y));
+                let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
+                let base_offset = vec2f(f32(x), f32(y));
+                let offset = base_offset + jitter;
+
+                let shadow_map_offset_depth = textureSample(
+                    shadow_map_texture,
+                    shadow_map_sampler,
+                    proj_coords.xy + offset * texel_size,
+                );
+                if saturate(pixel_depth) > shadow_map_offset_depth + bias {
+                    shadow_percentage += 1.0;
+                }
+            }
+        }
+        shadow_percentage /= 9.0;
+        return shadow_percentage;
     }
 
-    // is this needed?
-    let bias = 0.0;
-    // const MIN_BIAS = 0.000;
-    // const MAX_BIAS = 0.000;
-    // var bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
-
     var shadow_percentage = 0.0;
-    let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+    let tex_dim = vec2f(textureDimensions(shadow_map_texture));
+    let texel_size = 1.0 / tex_dim;
     for (var x = -1; x <= 1; x += 1) {
         for (var y = -1; y <= 1; y += 1) {
-            let hash = u32(hash_2d_i32(x, y));
-            let base_offset = vec2f(f32(x), f32(y));
-            let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
-            let offset = base_offset + jitter;
+            let offset = proj_coords.xy + vec2f(f32(x), f32(y)) * texel_size;
 
-            let shadow_map_offset_depth = textureSample(
+            shadow_percentage += 1.0 - textureSampleCompare(
                 shadow_map_texture,
-                shadow_map_sampler,
-                proj_coords.xy + offset * texel_size,
+                shadow_map_sampler_comparison,
+                offset,
+                saturate(pixel_depth + bias),
             );
-            if saturate(pixel_depth) > shadow_map_offset_depth + bias {
-                shadow_percentage += 1.0;
-            }
         }
     }
     shadow_percentage /= 9.0;
@@ -169,7 +180,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
         if pixel_depth > 1.0 {
             return vec4f(0.0, 1.0, 0.0, 1.0);
         }
-
     }
 
     let instance = instances[in.index];
