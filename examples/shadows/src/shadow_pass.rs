@@ -1,3 +1,5 @@
+use std::default;
+
 use gbase::{
     asset, bytemuck,
     glam::{vec3, Mat4, Vec3},
@@ -107,7 +109,7 @@ impl ShadowPass {
 
         // calculate light view proj matrix
         let light_cam_width_height = 10.0;
-        let light_cam_range = 20.0;
+        let light_cam_range = 35.0;
         let origin = -main_light_dir * 15.0;
         let light_cam_proj = Mat4::orthographic_rh(
             -light_cam_width_height,
@@ -130,7 +132,6 @@ impl ShadowPass {
             .entries(vec![
                 // light transform
                 render::BindGroupEntry::Buffer(self.light_transform_buffer.buffer()),
-                // render::BindGroupEntry::Buffer(self.camera_buffer.buffer()),
                 // instances
                 render::BindGroupEntry::Buffer(self.instances.buffer()),
             ])
@@ -139,11 +140,23 @@ impl ShadowPass {
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("shadow_pass")
             // .cull_mode(wgpu::Face::Front)
+            .cull_mode(wgpu::Face::Back)
             .buffers(vec![render::VertexBufferLayout::from_vertex_formats(
                 gbase::wgpu::VertexStepMode::Vertex,
                 vec![wgpu::VertexFormat::Float32x3], // pos
             )])
-            .depth_stencil(self.shadow_map.depth_stencil_state())
+            .depth_stencil(wgpu::DepthStencilState {
+                format: self.shadow_map.framebuffer().format(),
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::LessEqual,
+                stencil: wgpu::StencilState::default(),
+                // TODO: be tweakable
+                bias: wgpu::DepthBiasState {
+                    constant: 4,
+                    slope_scale: 8.0,
+                    clamp: 0.0, // disable with 0.0
+                },
+            })
             .build(ctx);
 
         // render

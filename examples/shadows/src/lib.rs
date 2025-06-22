@@ -66,7 +66,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(false)
+            .vsync(true)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -348,5 +348,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
+        // render::set_vsync(_ctx, true);
     }
 }

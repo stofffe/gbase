@@ -236,12 +236,13 @@ impl PbrRenderer {
             let emissive_texture =
                 asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
 
+            // TODO: remove?
             let shadow_map_sampler = render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
                 .build(ctx);
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
-                .compare(wgpu::CompareFunction::LessEqual)
+                .compare(wgpu::CompareFunction::Less)
                 .build(ctx);
 
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())

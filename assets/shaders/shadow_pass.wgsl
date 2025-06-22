@@ -26,19 +26,5 @@ struct VertexOutput {
     @builtin(position) clip_position: vec4f,
 }
 
-const BIAS = 0.005;
 @fragment
-fn fs_main(
-    in: VertexOutput,
-    @builtin(front_facing) front_facing: bool,
-) -> @builtin(frag_depth) f32 {
-    var depth = in.clip_position.z;
-
-    // if something is very thin the backface will be chosen
-    // if something is thicker the fron will be chosen
-    if front_facing {
-        depth += BIAS;
-    }
-
-    return depth;
-}
+fn fs_main(in: VertexOutput) { }
