@@ -47,12 +47,8 @@ struct VertexInput {
 @group(0) @binding(12) var emissive_sampler: sampler;
 @group(0) @binding(13) var shadow_map_texture: texture_depth_2d_array;
 @group(0) @binding(14) var shadow_map_sampler_comparison: sampler_comparison;
-@group(0) @binding(15) var<storage, read> shadow_matrices: array<LightMatrix>;
+@group(0) @binding(15) var<storage, read> shadow_matrices: array<mat4x4f>;
 @group(0) @binding(16) var<storage, read> shadow_matrices_distances: array<f32>;
-
-struct LightMatrix {
-    mat: mat4x4f,
-}
 
 // NOTE: alignment
 struct Instance {
@@ -119,7 +115,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         }
     }
 
-    let light_pos = shadow_matrices[index].mat * vec4f(pos, 1.0);
+    let light_pos = shadow_matrices[index] * vec4f(pos, 1.0);
     var proj_coords = light_pos / light_pos.w;
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
@@ -151,7 +147,6 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
     }
     shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
     return shadow_percentage;
-
 }
 
 @fragment
@@ -200,7 +195,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     // return vec4f(visibility, visibility, visibility, 1.0);
     }
     return vec4f(color, 1.0);
-
 }
 
 const PI = 3.1415927;

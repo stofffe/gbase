@@ -1,21 +1,22 @@
 use gbase::{
-    asset, bytemuck,
+    asset,
+    encase::ShaderType,
     glam::{vec3, vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
     wgpu, Context,
 };
-use gbase_utils::{Camera, GizmoRenderer, LightMatrix};
+use gbase_utils::{Camera, GizmoRenderer};
 
 pub struct ShadowPass {
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
-    instances: render::RawBuffer<Instance>,
+    instances: render::StorageBuffer<Vec<ShadowInstance>>,
 
     shader_handle: asset::AssetHandle<render::ShaderBuilder>,
     pub shadow_map: render::ArcTexture,
-    pub light_matrices_buffer: render::RawBuffer<LightMatrix>,
+    pub light_matrices_buffer: render::StorageBuffer<Vec<Mat4>>,
     pub light_matrices_index: render::UniformBuffer<u32>,
-    pub light_matrices_distances: render::RawBuffer<f32>,
+    pub light_matrices_distances: render::StorageBuffer<Vec<f32>>,
 }
 
 const MAX_SHADOW_INSTANCES: u64 = 10000;
@@ -44,47 +45,47 @@ impl ShadowPass {
             .label("shadow_pass")
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let instances = render::RawBufferBuilder::new(render::RawBufferSource::Size(
-            MAX_SHADOW_INSTANCES * std::mem::size_of::<Instance>() as u64, // TODO: hardocoded
+        let instances = render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
+            MAX_SHADOW_INSTANCES * std::mem::size_of::<ShadowInstance>() as u64, // TODO: hardocoded
         ))
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
 
-        let shadow_map_new = render::TextureBuilder::new(render::TextureSource::Empty(1024, 1024))
+        let shadow_map = render::TextureBuilder::new(render::TextureSource::Empty(1024, 1024))
             .label("shadow map")
             .with_format(wgpu::TextureFormat::Depth32Float)
             .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
             .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
             .build(ctx);
 
-        let light_transform_buffers_new =
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(
-                MAX_SHADOW_CASCADES * std::mem::size_of::<LightMatrix>() as u64,
+        let light_matrices_index =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+
+        let light_matrices_distances =
+            render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
+                MAX_SHADOW_CASCADES * std::mem::size_of::<u32>() as u64,
+            ))
+            .label("light matrices distances")
+            .build(ctx);
+
+        let light_matrices_buffer =
+            render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
+                MAX_SHADOW_CASCADES * std::mem::size_of::<Mat4>() as u64,
             ))
             .label("light matrices")
             .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
             .build(ctx);
 
-        let light_matrices_index =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
-
-        let light_matrices_distances = render::RawBufferBuilder::new(
-            render::RawBufferSource::Size(MAX_SHADOW_CASCADES * std::mem::size_of::<u32>() as u64),
-        )
-        .label("light matrices distances")
-        .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
-        .build(ctx);
-
         Self {
             pipeline_layout,
             bindgroup_layout,
             shader_handle,
-            shadow_map: shadow_map_new,
+            shadow_map,
             instances,
-            light_matrices_buffer: light_transform_buffers_new,
             light_matrices_index,
             light_matrices_distances,
+            light_matrices_buffer,
         }
     }
 
@@ -120,12 +121,11 @@ impl ShadowPass {
         for plane in planes.windows(2) {
             let mat =
                 calculate_light_matrix(ctx, main_light_dir, camera.clone(), plane[0], plane[1]);
-            light_matrices.push(LightMatrix {
-                mat: mat.to_cols_array_2d(),
-            });
+            light_matrices.push(mat);
         }
         self.light_matrices_buffer.write(ctx, &light_matrices);
-        self.light_matrices_distances.write(ctx, &planes[1..]);
+        self.light_matrices_distances
+            .write(ctx, &planes[1..].to_vec()); // ignore first
 
         //
         // meshes
@@ -140,8 +140,8 @@ impl ShadowPass {
             let mut ranges = Vec::new();
             let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
             for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
-                instances.push(Instance {
-                    model: transform.matrix().to_cols_array_2d(),
+                instances.push(ShadowInstance {
+                    model: transform.matrix(),
                 });
 
                 if let Some(prev) = &prev_mesh {
@@ -240,6 +240,7 @@ impl ShadowPass {
         //
     }
 }
+
 fn calculate_light_matrix(
     ctx: &mut Context,
     main_light_dir: Vec3,
@@ -306,14 +307,7 @@ fn calculate_light_matrix(
 }
 
 #[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-pub struct Instance {
-    // transform
-    model: [[f32; 4]; 4],
+#[derive(Copy, Clone, Debug, ShaderType)]
+pub struct ShadowInstance {
+    model: Mat4,
 }
-
-// #[repr(C)]
-// #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-// pub struct LightMatrix {
-//     mat: [[f32; 4]; 4],
-// }

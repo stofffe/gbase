@@ -283,7 +283,6 @@ impl Callbacks for App {
         // shadow pass
         let shadow_meshes = meshes
             .iter()
-            // .skip(1) // TEMP: skip plane
             .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
             .collect::<Vec<_>>();
 

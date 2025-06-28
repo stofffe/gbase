@@ -157,8 +157,8 @@ impl PbrRenderer {
 
         // optional
         shadow_map: &render::ArcTexture,
-        shadow_matrices: &render::RawBuffer<LightMatrix>,
-        shadow_matrices_distances: &render::RawBuffer<f32>,
+        shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
+        shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
         if !asset::handle_loaded(ctx, self.forward_shader_handle.clone())
             || !asset::handle_loaded(ctx, self.deferred_shader_handle.clone())
@@ -241,10 +241,6 @@ impl PbrRenderer {
             let emissive_texture =
                 asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
 
-            // TODO: remove?
-            let shadow_map_sampler = render::SamplerBuilder::new()
-                .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
-                .build(ctx);
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
                 .compare(wgpu::CompareFunction::Less)
@@ -492,12 +488,6 @@ pub struct Instance {
     pad: f32,
 }
 
-// TODO: duplicate from shadowpass
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-pub struct LightMatrix {
-    pub mat: [[f32; 4]; 4],
-}
 // #[allow(clippy::too_many_arguments)]
 // pub fn render_deferred(
 //     &mut self,

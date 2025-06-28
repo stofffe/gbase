@@ -10,8 +10,8 @@ use wgpu::util::DeviceExt;
 //
 
 pub enum RawBufferSource<T: bytemuck::NoUninit> {
-    Size(u64),
     Data(Vec<T>),
+    Size(u64),
 }
 
 // TODO: add type to this
@@ -174,6 +174,102 @@ pub struct UniformBuffer<T: ShaderType + WriteInto> {
 impl<T: ShaderType + WriteInto> UniformBuffer<T> {
     pub fn write(&self, ctx: &Context, uniform: &T) {
         let mut buffer = encase::UniformBuffer::new(Vec::new());
+        buffer
+            .write(&uniform)
+            .expect("could not write to transform buffer");
+        render::queue(ctx).write_buffer(&self.buffer, 0, &buffer.into_inner());
+    }
+
+    pub fn buffer(&self) -> ArcBuffer {
+        self.buffer.clone()
+    }
+    pub fn buffer_ref(&self) -> &wgpu::Buffer {
+        &self.buffer
+    }
+    pub fn slice(&self, bounds: impl RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice<'_> {
+        self.buffer.slice(bounds)
+    }
+}
+
+//
+// Storage buffer
+//
+
+pub enum StorageBufferSource<T: ShaderType + WriteInto> {
+    Data(T),
+    Size(u64),
+}
+
+pub struct StorageBufferBuilder<T: ShaderType + WriteInto> {
+    source: StorageBufferSource<T>,
+    label: Option<String>,
+    usage: wgpu::BufferUsages,
+}
+
+impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
+    pub fn new(source: StorageBufferSource<T>) -> Self {
+        Self {
+            source,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            label: None,
+        }
+    }
+
+    pub fn build(self, ctx: &Context) -> StorageBuffer<T> {
+        let device = render::device(ctx);
+
+        match self.source {
+            StorageBufferSource::Data(data) => {
+                let mut buffer = encase::StorageBuffer::new(Vec::new());
+                buffer.write(&data).expect("could not write to buffer");
+                let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: self.label.as_deref(),
+                    usage: self.usage,
+                    contents: &buffer.into_inner(),
+                });
+
+                StorageBuffer {
+                    buffer: ArcBuffer::new(buffer),
+                    ty: PhantomData,
+                }
+            }
+            StorageBufferSource::Size(size) => {
+                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+                    label: self.label.as_deref(),
+                    size,
+                    usage: self.usage,
+                    mapped_at_creation: false,
+                });
+
+                StorageBuffer {
+                    buffer: ArcBuffer::new(buffer),
+                    ty: PhantomData,
+                }
+            }
+        }
+    }
+}
+
+impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
+    pub fn label(mut self, value: impl Into<String>) -> Self {
+        self.label = Some(value.into());
+        self
+    }
+    pub fn usage(mut self, value: wgpu::BufferUsages) -> Self {
+        self.usage = value;
+        self
+    }
+}
+
+#[derive(Debug)]
+pub struct StorageBuffer<T: ShaderType + WriteInto> {
+    buffer: ArcBuffer,
+    ty: PhantomData<T>,
+}
+
+impl<T: ShaderType + WriteInto> StorageBuffer<T> {
+    pub fn write(&self, ctx: &Context, uniform: &T) {
+        let mut buffer = encase::StorageBuffer::new(Vec::new());
         buffer
             .write(&uniform)
             .expect("could not write to transform buffer");
