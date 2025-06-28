@@ -344,7 +344,7 @@ impl GUIRenderer {
             false,
         );
         self.text(
-            &format!("ms: {}", time::frame_time(ctx)),
+            &format!("ms: {}", time::frame_time(ctx) * 1000.0),
             vec2(0.0, font_size * 1.0),
             vec2(0.5, font_size),
             font_size,

@@ -310,7 +310,8 @@ impl Callbacks for App {
             &self.lights_buffer,
             &self.depth_buffer,
             &self.shadow_pass.shadow_map,
-            &self.shadow_pass.light_transform_buffers,
+            &self.shadow_pass.light_matrices_buffer,
+            &self.shadow_pass.light_matrices_distances,
         );
 
         self.gizmo_renderer.draw_sphere(
@@ -365,6 +366,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        // render::set_vsync(_ctx, true);
+        // render::set_vsync(_ctx, false);
     }
 }

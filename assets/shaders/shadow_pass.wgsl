@@ -3,11 +3,16 @@ struct VertexInput {
     @location(0) position: vec3f,
 }
 
-@group(0) @binding(0) var<uniform> light_matrix: mat4x4f;
-@group(0) @binding(1) var<storage, read> instances: array<Instance>;
+// @group(0) @binding(0) var<uniform> light_matrix: mat4x4f;
+@group(0) @binding(0) var<storage, read> light_matrices: array<LightMatrix>;
+@group(0) @binding(1) var<uniform> light_matrices_index: u32;
+@group(0) @binding(2) var<storage, read> instances: array<Instance>;
 
 struct Instance {
     transform: mat4x4f,
+}
+struct LightMatrix {
+    mat: mat4x4f,
 }
 
 @vertex
@@ -16,7 +21,7 @@ fn vs_main(
 ) -> VertexOutput {
     let model = instances[in.index].transform;
     var out: VertexOutput;
-    out.clip_position = light_matrix * model * vec4f(in.position, 1.0);
+    out.clip_position = light_matrices[light_matrices_index].mat * model * vec4f(in.position, 1.0); // INFO: im only binding one and thus always take 0
     return out;
 }
 

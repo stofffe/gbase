@@ -45,10 +45,14 @@ struct VertexInput {
 @group(0) @binding(10) var occlusion_sampler: sampler;
 @group(0) @binding(11) var emissive_texture: texture_2d<f32>;
 @group(0) @binding(12) var emissive_sampler: sampler;
-@group(0) @binding(13) var shadow_map_texture: texture_depth_2d;
-@group(0) @binding(14) var shadow_map_sampler: sampler;
-@group(0) @binding(15) var shadow_map_sampler_comparison: sampler_comparison;
-@group(0) @binding(16) var<uniform> shadow_matrix: mat4x4f;
+@group(0) @binding(13) var shadow_map_texture: texture_depth_2d_array;
+@group(0) @binding(14) var shadow_map_sampler_comparison: sampler_comparison;
+@group(0) @binding(15) var<storage, read> shadow_matrices: array<LightMatrix>;
+@group(0) @binding(16) var<storage, read> shadow_matrices_distances: array<f32>;
+
+struct LightMatrix {
+    mat: mat4x4f,
+}
 
 // NOTE: alignment
 struct Instance {
@@ -69,7 +73,7 @@ fn vs_main(
     in: VertexInput,
 ) -> VertexOutput {
     let model = instances[in.index].transform;
-    // NOTE: w component of tangent shoudl specify LH RH coordinate system
+    // NOTE: w component of tangent should specify LH RH coordinate system
     // always assume RH so ignore this value
     let T = normalize((model * vec4<f32>(in.tangent.xyz, 0.0)).xyz);
     let N = normalize((model * vec4<f32>(in.normal, 0.0)).xyz);
@@ -87,7 +91,6 @@ fn vs_main(
     out.B = B;
     out.N = N;
     out.index = in.index;
-    out.light_pos = shadow_matrix * position;
     return out;
 }
 
@@ -102,18 +105,25 @@ struct VertexOutput {
     @location(6) B: vec3f,
     @location(7) N: vec3f,
     @location(8) index: u32,
-    @location(9) light_pos: vec4f,
 }
 
-fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
+fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
+    let view_space_pos = camera.view * vec4f(pos, 1.0);
+    let view_space_dist = -view_space_pos.z;
+
+    var index = 2;
+    for (var i = 0; i < 3; i++) {
+        if view_space_dist < shadow_matrices_distances[i] {
+            index = i;
+            break;
+        }
+    }
+
+    let light_pos = shadow_matrices[index].mat * vec4f(pos, 1.0);
     var proj_coords = light_pos / light_pos.w;
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
     proj_coords.y = 1.0 - proj_coords.y;
-
-    // TODO: this or this
-
-    // let pixel_depth = saturate(proj_coords.z); // important to clamp [0,1]
 
     let pixel_depth = proj_coords.z; // important to clamp [0,1]
     if pixel_depth < 0.0 || pixel_depth > 1.0 {
@@ -123,36 +133,7 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
         return 0.0;
     }
 
-    // remove because of hardware?
     const PCF_KERNEL_SIZE = 2;
-    // const MAX_BIAS = 0.000;
-    // const MIN_BIAS = 0.0000;
-    // let bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
-    // let bias = 0.0000;
-    // if false {
-    //     var shadow_percentage = 0.0;
-    //     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
-    //     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
-    //         for (var y = -PCF_KERNEL_SIZE; y <= PCF_KERNEL_SIZE; y += 1) {
-    //             let hash = u32(hash_2d_i32(x, y));
-    //             let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
-    //             let base_offset = vec2f(f32(x), f32(y));
-    //             let offset = base_offset + jitter;
-    //
-    //             let shadow_map_offset_depth = textureSample(
-    //                 shadow_map_texture,
-    //                 shadow_map_sampler,
-    //                 proj_coords.xy + offset * texel_size,
-    //             );
-    //             if saturate(pixel_depth - bias) > shadow_map_offset_depth {
-    //                 shadow_percentage += 1.0;
-    //             }
-    //         }
-    //     }
-    //     shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
-    //     return shadow_percentage;
-    // }
-
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     var shadow_percentage = 0.0;
     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
@@ -163,8 +144,7 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
                 shadow_map_texture,
                 shadow_map_sampler_comparison,
                 offset,
-                // saturate(pixel_depth - bias), // TODO: bias as param?
-                // pixel_depth - bias, // TODO: bias as param?
+                index, // TODO: hardocded layer
                 pixel_depth, // TODO: bias as param?
             );
         }
@@ -176,28 +156,6 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    if false {
-        var proj_coords = in.light_pos / in.light_pos.w;
-        proj_coords.x = proj_coords.x * 0.5 + 0.5;
-        proj_coords.y = proj_coords.y * 0.5 + 0.5;
-        proj_coords.y = 1.0 - proj_coords.y;
-        let shadow_map_depth = textureSample(shadow_map_texture, shadow_map_sampler, proj_coords.xy);
-        let pixel_depth = proj_coords.z;
-
-        // check bounds
-        if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
-            return vec4f(0.0, 0.0, 1.0, 1.0);
-        }
-
-        if pixel_depth < 0.0 {
-            return vec4f(1.0, 0.0, 0.0, 1.0);
-        }
-
-        if pixel_depth > 1.0 {
-            return vec4f(0.0, 1.0, 0.0, 1.0);
-        }
-    }
-
     let instance = instances[in.index];
 
     let base_color_tex = decode_gamma_correction(textureSample(base_color_texture, base_color_sampler, in.uv));
@@ -221,7 +179,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let view_dir = camera.pos - in.pos;
     let light_color = vec3f(1.0) * lights.main_light_intensity;
 
-    let shadowing = shadow(in.light_pos, in.N, light_dir);
+    let shadowing = shadow(in.pos, in.N, light_dir);
     let visibility = 1.0 - shadowing;
 
     // main light
@@ -240,10 +198,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 
     if true {
     // return vec4f(visibility, visibility, visibility, 1.0);
-    // return vec4f(albedo, 1.0);
-    // return vec4f(instance.color_factor);
-    // return vec4f(roughness, roughness, roughness, 1.0);
-    // return vec4f(metalness, mtalness, metalness, 1.0);
     }
     return vec4f(color, 1.0);
 
@@ -423,3 +377,32 @@ fn hash_to_vec2_snorm(hash: u32) -> vec2<f32> {
         hash_to_snorm(hash ^ 0x12345678u),
     );
 } // Rotate orthogonal verticies towards camera
+
+// const MAX_BIAS = 0.000;
+// const MIN_BIAS = 0.0000;
+// let bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
+// let bias = 0.0000;
+// if false {
+//     var shadow_percentage = 0.0;
+//     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+//     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
+//         for (var y = -PCF_KERNEL_SIZE; y <= PCF_KERNEL_SIZE; y += 1) {
+//             let hash = u32(hash_2d_i32(x, y));
+//             let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
+//             let base_offset = vec2f(f32(x), f32(y));
+//             let offset = base_offset + jitter;
+//
+//             let shadow_map_offset_depth = textureSample(
+//                 shadow_map_texture,
+//                 shadow_map_sampler,
+//                 proj_coords.xy + offset * texel_size,
+//             );
+//             if saturate(pixel_depth - bias) > shadow_map_offset_depth {
+//                 shadow_percentage += 1.0;
+//             }
+//         }
+//     }
+//     shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
+//     return shadow_percentage;
+// }
+const save_comment = 0;

@@ -92,20 +92,23 @@ impl PbrRenderer {
                     .fragment(),
                 // shadow map texture
                 render::BindGroupLayoutEntry::new()
-                    .texture_depth()
-                    .fragment(),
-                // shadow map sampler
-                render::BindGroupLayoutEntry::new()
-                    .sampler_filtering()
+                    .ty(wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Depth,
+                        view_dimension: wgpu::TextureViewDimension::D2Array,
+                        multisampled: false,
+                    })
                     .fragment(),
                 // shadow map sampler comparison
                 render::BindGroupLayoutEntry::new()
                     .sampler_comparison()
                     .fragment(),
-                // shadow matrix
+                // shadow matrices
                 render::BindGroupLayoutEntry::new()
-                    .uniform()
-                    .vertex()
+                    .storage_readonly()
+                    .fragment(),
+                // shadow matrices distances
+                render::BindGroupLayoutEntry::new()
+                    .storage_readonly()
                     .fragment(),
             ])
             .build(ctx);
@@ -151,9 +154,11 @@ impl PbrRenderer {
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
+
         // optional
         shadow_map: &render::ArcTexture,
-        shadow_matrix: &Vec<render::UniformBuffer<Mat4>>,
+        shadow_matrices: &render::RawBuffer<LightMatrix>,
+        shadow_matrices_distances: &render::RawBuffer<f32>,
     ) {
         if !asset::handle_loaded(ctx, self.forward_shader_handle.clone())
             || !asset::handle_loaded(ctx, self.deferred_shader_handle.clone())
@@ -276,16 +281,16 @@ impl PbrRenderer {
                     // shadow map texture
                     render::BindGroupEntry::Texture(
                         render::TextureViewBuilder::new(shadow_map.clone())
-                            .base_array_layer(0)
-                            .dimension(wgpu::TextureViewDimension::D2)
+                            .array_layer_count(3)
+                            .dimension(wgpu::TextureViewDimension::D2Array)
                             .build(ctx), // render::TextureViewBuilder::new(shadow_map.clone()).build(ctx),
                     ),
-                    // shadow map sampler
-                    render::BindGroupEntry::Sampler(shadow_map_sampler),
                     // shadow map sampler comparison
                     render::BindGroupEntry::Sampler(shadow_map_sampler_comparison),
-                    // shadow matrix
-                    render::BindGroupEntry::Buffer(shadow_matrix[0].buffer()),
+                    // shadow matrices
+                    render::BindGroupEntry::Buffer(shadow_matrices.buffer()),
+                    // shadow matrices distances
+                    render::BindGroupEntry::Buffer(shadow_matrices_distances.buffer()),
                 ])
                 .build(ctx);
 
@@ -487,6 +492,12 @@ pub struct Instance {
     pad: f32,
 }
 
+// TODO: duplicate from shadowpass
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable, Debug)]
+pub struct LightMatrix {
+    pub mat: [[f32; 4]; 4],
+}
 // #[allow(clippy::too_many_arguments)]
 // pub fn render_deferred(
 //     &mut self,
