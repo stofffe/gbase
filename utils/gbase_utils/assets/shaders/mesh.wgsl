@@ -110,50 +110,66 @@ fn shadow(light_pos: vec4f, normal: vec3f, light_dir: vec3f) -> f32 {
     proj_coords.x = proj_coords.x * 0.5 + 0.5;
     proj_coords.y = proj_coords.y * 0.5 + 0.5;
     proj_coords.y = 1.0 - proj_coords.y;
-    let pixel_depth = saturate(proj_coords.z); // important to clamp [0,1]
 
-    let bias = 0.001;
+    // TODO: this or this
 
-    if false {
-        var shadow_percentage = 0.0;
-        let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
-        for (var x = -1; x <= 1; x += 1) {
-            for (var y = -1; y <= 1; y += 1) {
-                let hash = u32(hash_2d_i32(x, y));
-                let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
-                let base_offset = vec2f(f32(x), f32(y));
-                let offset = base_offset + jitter;
+    // let pixel_depth = saturate(proj_coords.z); // important to clamp [0,1]
 
-                let shadow_map_offset_depth = textureSample(
-                    shadow_map_texture,
-                    shadow_map_sampler,
-                    proj_coords.xy + offset * texel_size,
-                );
-                if saturate(pixel_depth) > shadow_map_offset_depth + bias {
-                    shadow_percentage += 1.0;
-                }
-            }
-        }
-        shadow_percentage /= 9.0;
-        return shadow_percentage;
+    let pixel_depth = proj_coords.z; // important to clamp [0,1]
+    if pixel_depth < 0.0 || pixel_depth > 1.0 {
+        return 0.0;
+    }
+    if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
+        return 0.0;
     }
 
+    // remove because of hardware?
+    const PCF_KERNEL_SIZE = 2;
+    // const MAX_BIAS = 0.000;
+    // const MIN_BIAS = 0.0000;
+    // let bias = max(MAX_BIAS * (1.0 - dot(normal, light_dir)), MIN_BIAS);
+    // let bias = 0.0000;
+    // if false {
+    //     var shadow_percentage = 0.0;
+    //     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+    //     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
+    //         for (var y = -PCF_KERNEL_SIZE; y <= PCF_KERNEL_SIZE; y += 1) {
+    //             let hash = u32(hash_2d_i32(x, y));
+    //             let jitter = hash_to_vec2_snorm(u32(hash_2d_i32(x, y))) * 0.5;
+    //             let base_offset = vec2f(f32(x), f32(y));
+    //             let offset = base_offset + jitter;
+    //
+    //             let shadow_map_offset_depth = textureSample(
+    //                 shadow_map_texture,
+    //                 shadow_map_sampler,
+    //                 proj_coords.xy + offset * texel_size,
+    //             );
+    //             if saturate(pixel_depth - bias) > shadow_map_offset_depth {
+    //                 shadow_percentage += 1.0;
+    //             }
+    //         }
+    //     }
+    //     shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
+    //     return shadow_percentage;
+    // }
+
+    let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     var shadow_percentage = 0.0;
-    let tex_dim = vec2f(textureDimensions(shadow_map_texture));
-    let texel_size = 1.0 / tex_dim;
-    for (var x = -1; x <= 1; x += 1) {
-        for (var y = -1; y <= 1; y += 1) {
+    for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
+        for (var y = -PCF_KERNEL_SIZE; y <= PCF_KERNEL_SIZE; y += 1) {
             let offset = proj_coords.xy + vec2f(f32(x), f32(y)) * texel_size;
 
-            shadow_percentage += 1.0 - textureSampleCompare(
+            shadow_percentage += 1.0 - textureSampleCompareLevel(
                 shadow_map_texture,
                 shadow_map_sampler_comparison,
                 offset,
-                saturate(pixel_depth + bias),
+                // saturate(pixel_depth - bias), // TODO: bias as param?
+                // pixel_depth - bias, // TODO: bias as param?
+                pixel_depth, // TODO: bias as param?
             );
         }
     }
-    shadow_percentage /= 9.0;
+    shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
     return shadow_percentage;
 
 }

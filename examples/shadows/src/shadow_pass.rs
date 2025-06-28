@@ -2,10 +2,12 @@ use std::default;
 
 use gbase::{
     asset, bytemuck,
-    glam::{vec3, Mat4, Vec3},
+    glam::{vec3, vec4, Mat4, Vec3, Vec3Swizzles, Vec4, Vec4Swizzles},
+    input,
     render::{self, GpuMesh},
     wgpu, Context,
 };
+use gbase_utils::{GizmoRenderer, Transform3D};
 
 pub struct ShadowPass {
     pipeline_layout: render::ArcPipelineLayout,
@@ -42,7 +44,7 @@ impl ShadowPass {
             .screen_size(ctx)
             .build(ctx);
         let instances = render::RawBufferBuilder::new(render::RawBufferSource::Size(
-            10000 * std::mem::size_of::<Instance>() as u64,
+            10000 * std::mem::size_of::<Instance>() as u64, // TODO: hardocoded
         ))
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
@@ -65,8 +67,9 @@ impl ShadowPass {
         &mut self,
         ctx: &mut Context,
         meshes: Vec<(asset::AssetHandle<render::Mesh>, gbase_utils::Transform3D)>,
-        camera_pos: Vec3,
+        camera: &gbase_utils::Camera,
         main_light_dir: Vec3,
+        gizmo: &mut GizmoRenderer,
     ) {
         let mut assets_loaded = true;
         assets_loaded &= asset::handle_loaded(ctx, self.shader_handle.clone());
@@ -108,19 +111,84 @@ impl ShadowPass {
         ranges.push(sorted_meshes.len());
 
         // calculate light view proj matrix
-        let light_cam_width_height = 10.0;
-        let light_cam_range = 35.0;
-        let origin = -main_light_dir * 15.0;
-        let light_cam_proj = Mat4::orthographic_rh(
-            -light_cam_width_height,
-            light_cam_width_height,
-            -light_cam_width_height,
-            light_cam_width_height,
-            0.01,
-            light_cam_range,
-        );
-        let light_cam_view = Mat4::look_to_rh(origin, main_light_dir, vec3(0.0, 1.0, 0.0));
-        let light_transform = light_cam_proj * light_cam_view;
+        let light_transform = if !input::key_pressed(ctx, input::KeyCode::F1) {
+            // get world space corners
+
+            // change zfar to cover smaller area
+            let mut camera = camera.clone();
+            camera.zfar = 30.0;
+            let camera_inv_view_proj = camera.uniform(ctx).inv_view_proj;
+
+            let mut corners = Vec::new();
+            for x in [-1.0, 1.0] {
+                for y in [-1.0, 1.0] {
+                    for z in [0.0, 1.0] {
+                        let world_coord_homo = camera_inv_view_proj * vec4(x, y, z, 1.0);
+                        let world_coord = world_coord_homo / world_coord_homo.w;
+                        corners.push(world_coord.xyz());
+                    }
+                }
+            }
+
+            // calc aabb (view space)
+            let summed_corners = corners.iter().sum::<Vec3>();
+            let center = summed_corners / corners.len() as f32;
+
+            let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
+
+            let mut min_light_space = Vec3::MAX;
+            let mut max_light_space = Vec3::MIN;
+            for corner in corners.iter() {
+                let pos = light_cam_view.transform_point3(*corner);
+                min_light_space = min_light_space.min(pos);
+                max_light_space = max_light_space.max(pos);
+            }
+
+            // grow camera depth behind and in front of camera
+            let z_mult = 10.0;
+            if min_light_space.z < 0.0 {
+                min_light_space.z *= z_mult;
+            } else {
+                min_light_space.z /= z_mult;
+            }
+            if max_light_space.z < 0.0 {
+                max_light_space.z /= z_mult;
+            } else {
+                max_light_space.z *= z_mult;
+            }
+
+            //
+            let light_cam_proj = Mat4::orthographic_rh(
+                min_light_space.x,
+                max_light_space.x,
+                min_light_space.y,
+                max_light_space.y,
+                min_light_space.z,
+                max_light_space.z,
+            );
+            let light_transform = light_cam_proj * light_cam_view;
+
+            gizmo.draw_sphere(
+                &Transform3D::from_pos(center).with_scale(Vec3::ONE * 1.0),
+                vec3(1.0, 1.0, 1.0),
+            );
+
+            light_transform
+        } else {
+            let light_cam_width_height = 10.0;
+            let light_cam_range = 35.0;
+            let light_cam_proj = Mat4::orthographic_rh(
+                -light_cam_width_height,
+                light_cam_width_height,
+                -light_cam_width_height,
+                light_cam_width_height,
+                -light_cam_range,
+                light_cam_range,
+            );
+            let light_cam_view = Mat4::look_to_rh(Vec3::ZERO, main_light_dir, vec3(0.0, 1.0, 0.0));
+            // let light_cam_view = Mat4::look_to_rh(origin, main_light_dir, vec3(0.0, 1.0, 0.0));
+            light_cam_proj * light_cam_view
+        };
 
         // update data
         self.instances.write(ctx, &instances);

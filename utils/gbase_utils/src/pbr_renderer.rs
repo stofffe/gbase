@@ -123,7 +123,7 @@ impl PbrRenderer {
             .build(ctx);
 
         let instances = render::RawBufferBuilder::new(render::RawBufferSource::Size(
-            10000 * std::mem::size_of::<Instance>() as u64,
+            10000 * std::mem::size_of::<Instance>() as u64, // TODO: hardocoded
         ))
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)

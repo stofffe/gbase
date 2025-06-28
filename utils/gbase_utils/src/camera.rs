@@ -12,21 +12,21 @@ use crate::Transform3D;
 
 #[derive(ShaderType)]
 pub struct CameraUniform {
-    pos: Vec3,
-    near: f32,
-    facing: Vec3,
-    far: f32,
+    pub pos: Vec3,
+    pub near: f32,
+    pub facing: Vec3,
+    pub far: f32,
 
-    view: Mat4,
-    proj: Mat4,
-    view_proj: Mat4,
+    pub view: Mat4,
+    pub proj: Mat4,
+    pub view_proj: Mat4,
 
-    inv_view: Mat4,
-    inv_proj: Mat4,
-    inv_view_proj: Mat4,
+    pub inv_view: Mat4,
+    pub inv_proj: Mat4,
+    pub inv_view_proj: Mat4,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CameraProjection {
     Perspective { fov: f32 },
     Orthographic { height: f32 },
@@ -41,7 +41,7 @@ impl CameraProjection {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Camera {
     pub pos: Vec3,
     pub yaw: f32,

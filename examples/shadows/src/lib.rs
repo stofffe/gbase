@@ -232,7 +232,7 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        let meshes = vec![
+        let mut meshes = vec![
             // add meshes
             (
                 self.plane_mesh_handle.clone(),
@@ -266,6 +266,21 @@ impl Callbacks for App {
             ),
         ];
 
+        let amount = 5;
+        let gap = 5;
+
+        for x in -amount..amount {
+            for z in -amount..amount {
+                meshes.push((
+                    self.helmet_mesh_handle.clone(),
+                    self.helmet_material.clone(),
+                    Transform3D::default()
+                        .with_pos(vec3(gap as f32 * x as f32, 10.0, gap as f32 * z as f32))
+                        .with_scale(Vec3::ONE * 1.0),
+                ));
+            }
+        }
+
         // shadow pass
         let shadow_meshes = meshes
             .iter()
@@ -277,10 +292,11 @@ impl Callbacks for App {
         self.shadow_pass.render(
             ctx,
             shadow_meshes,
-            self.camera.pos,
+            &self.camera,
             // self.lights.main_light_dir,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
+            &mut self.gizmo_renderer,
             // vec3(1.0, -1.0, 1.0).normalize(),
             // vec3(0.0001, -1.0, 0.0).normalize(),
         );
