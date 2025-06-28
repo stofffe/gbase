@@ -12,6 +12,7 @@ Engine
 [x] add gamma correction by default?
 [x] hot_reload callback?
 [x] upgrade to wgpu 24
+[x] remove average fps from time module?
 [x] add proper BRDF to pbr
     [x] add HDR?
 [x] fix mesh example
@@ -40,14 +41,36 @@ Engine
 [] file system with caching for READ ONLY buffers/textures
 [] make buffer usage more uniform
 [] make screen view a buffer
-[] look into submitting all command encoders at once
+[] look into submitting all command encoders at once (probably fine without)
 [] add sinlge pixel images + full screen quad as cached stuff in context?
 [] rework deferred
-[] add ability to reuse encoders for all renderers
+<!-- [] add ability to reuse encoders for all renderers -->
 [] pbr renderer not caching textures? 
 [] learn about mip mapping
-[] remove average fps from time module?
-[] use norify for hot reload
+[x] convert notify to notify debounce for reload
+[] fix super-debug mode (hot reload, asset reload) which is not available for wasm
+    #[cfg(all(feature = "super-debug", target_arch = "wasm32"))]
+    compile_error!("The 'super-debug' feature is not supported on wasm32");
+[] remove all asset convert unwraps in renderers
+[] convert all util and core to use include_bytes!()
+[] extend camera to support non aspect ratio shapes
+[] remove framebuffers and replace with normal textures?
+
+[] shadows
+    [] frustum fitting
+    [] cascades
+    [] fade out when reaching limit
+    [] pcss
+    [] remove non comparison sampler from mesh.wgsl
+    [] frustum culling for light cameras
+    [x] look into depth bias state 
+    [x] check if you actually wanna saturate the pixel or just return non shaded
+    [x] compare front+back+bias vs only back faces
+
+[] assets 
+    [] add gltf loader
+    [] add sub model loading, file.glft#node1
+    [] check if asset waiting queus up work (like in pbr)
 
 [] bloom
     [] move pixel cache to ctx
@@ -55,6 +78,7 @@ Engine
     [] replace extract with karis
     [] combine last upsample and combine shaders
     [] add threshold/blur radius params
+    [] use single triangle (https://wallisc.github.io/rendering/2021/04/18/Fullscreen-Pass.html)
 
 [] profiling
     [x] cpu with mutex?

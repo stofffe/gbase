@@ -152,8 +152,8 @@ impl PbrRenderer {
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
         // optional
-        shadow_map: &render::DepthBuffer,
-        shadow_matrix: &render::UniformBuffer<Mat4>,
+        shadow_map: &render::ArcTexture,
+        shadow_matrix: &Vec<render::UniformBuffer<Mat4>>,
     ) {
         if !asset::handle_loaded(ctx, self.forward_shader_handle.clone())
             || !asset::handle_loaded(ctx, self.deferred_shader_handle.clone())
@@ -274,13 +274,18 @@ impl PbrRenderer {
                     // emissive roughness sampler
                     render::BindGroupEntry::Sampler(emissive_texture.sampler()),
                     // shadow map texture
-                    render::BindGroupEntry::Texture(shadow_map.framebuffer().view()),
+                    render::BindGroupEntry::Texture(
+                        render::TextureViewBuilder::new(shadow_map.clone())
+                            .base_array_layer(0)
+                            .dimension(wgpu::TextureViewDimension::D2)
+                            .build(ctx), // render::TextureViewBuilder::new(shadow_map.clone()).build(ctx),
+                    ),
                     // shadow map sampler
                     render::BindGroupEntry::Sampler(shadow_map_sampler),
                     // shadow map sampler comparison
                     render::BindGroupEntry::Sampler(shadow_map_sampler_comparison),
                     // shadow matrix
-                    render::BindGroupEntry::Buffer(shadow_matrix.buffer()),
+                    render::BindGroupEntry::Buffer(shadow_matrix[0].buffer()),
                 ])
                 .build(ctx);
 

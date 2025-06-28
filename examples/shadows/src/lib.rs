@@ -267,8 +267,7 @@ impl Callbacks for App {
         ];
 
         let amount = 5;
-        let gap = 5;
-
+        let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
                 meshes.push((
@@ -293,12 +292,9 @@ impl Callbacks for App {
             ctx,
             shadow_meshes,
             &self.camera,
-            // self.lights.main_light_dir,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
             &mut self.gizmo_renderer,
-            // vec3(1.0, -1.0, 1.0).normalize(),
-            // vec3(0.0001, -1.0, 0.0).normalize(),
         );
 
         // pbr pass
@@ -314,7 +310,7 @@ impl Callbacks for App {
             &self.lights_buffer,
             &self.depth_buffer,
             &self.shadow_pass.shadow_map,
-            &self.shadow_pass.light_transform_buffer,
+            &self.shadow_pass.light_transform_buffers,
         );
 
         self.gizmo_renderer.draw_sphere(
@@ -335,9 +331,14 @@ impl Callbacks for App {
             screen_view,
             render::surface_format(ctx),
         );
+
+        let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
+            .base_array_layer(0)
+            .dimension(wgpu::TextureViewDimension::D2)
+            .build(ctx);
         self.framebuffer_renderer.render_depth(
             ctx,
-            self.shadow_pass.shadow_map.framebuffer().view(),
+            view,
             screen_view,
             render::surface_format(ctx),
             &self.camera_buffer,
