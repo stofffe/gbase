@@ -107,9 +107,24 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
     let view_space_pos = camera.view * vec4f(pos, 1.0);
     let view_space_dist = -view_space_pos.z;
 
+    // var index = 2;
+    // for (var i = 0; i < 3; i++) {
+    //     if view_space_dist < shadow_matrices_distances[i] {
+    //         index = i;
+    //         break;
+    //     }
+    // }
+
     var index = 2;
     for (var i = 0; i < 3; i++) {
-        if view_space_dist < shadow_matrices_distances[i] {
+        let light_pos = shadow_matrices[i] * vec4f(pos, 1.0);
+        var proj_coords = light_pos / light_pos.w;
+        proj_coords.x = proj_coords.x * 0.5 + 0.5;
+        proj_coords.y = proj_coords.y * 0.5 + 0.5;
+        proj_coords.y = 1.0 - proj_coords.y;
+
+        let pixel_depth = proj_coords.z; // important to clamp [0,1]
+        if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(proj_coords.xy >= vec2f(0.0)) && all(proj_coords.xy <= vec2f(1.0)) {
             index = i;
             break;
         }
@@ -129,7 +144,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         return 0.0;
     }
 
-    const PCF_KERNEL_SIZE = 2;
+    const PCF_KERNEL_SIZE = 0;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     var shadow_percentage = 0.0;
     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
@@ -151,6 +166,34 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
+    // if true {
+    if false {
+        var index = 2;
+        for (var i = 0; i < 3; i++) {
+            let light_pos = shadow_matrices[i] * vec4f(in.pos, 1.0);
+            var proj_coords = light_pos / light_pos.w;
+            proj_coords.x = proj_coords.x * 0.5 + 0.5;
+            proj_coords.y = proj_coords.y * 0.5 + 0.5;
+            proj_coords.y = 1.0 - proj_coords.y;
+
+            let pixel_depth = proj_coords.z; // important to clamp [0,1]
+            if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(proj_coords.xy >= vec2f(0.0)) && all(proj_coords.xy <= vec2f(1.0)) {
+                index = i;
+                break;
+            }
+        }
+
+        if index == 0 {
+            return vec4f(1.0, 0.0, 0.0, 1.0);
+        }
+        if index == 1 {
+            return vec4f(0.0, 1.0, 0.0, 1.0);
+        }
+        if index == 2 {
+            return vec4f(0.0, 0.0, 1.0, 1.0);
+        }
+    }
+
     let instance = instances[in.index];
 
     let base_color_tex = decode_gamma_correction(textureSample(base_color_texture, base_color_sampler, in.uv));

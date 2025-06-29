@@ -280,28 +280,28 @@ fn calculate_light_matrix(
         max_light_space = max_light_space.max(pos);
     }
 
+    let mut left = min_light_space.x;
+    let mut right = max_light_space.x;
+    let mut bottom = min_light_space.y;
+    let mut top = max_light_space.y;
+    let mut near = min_light_space.z;
+    let mut far = max_light_space.z;
+
     // grow camera depth behind and in front of camera
     let z_mult = 10.0;
     if min_light_space.z < 0.0 {
-        min_light_space.z *= z_mult;
+        near *= z_mult;
     } else {
-        min_light_space.z /= z_mult;
+        near /= z_mult;
     }
     if max_light_space.z < 0.0 {
-        max_light_space.z /= z_mult;
+        far /= z_mult;
     } else {
-        max_light_space.z *= z_mult;
+        far *= z_mult;
     }
 
     // projection matrix
-    let light_cam_proj = Mat4::orthographic_rh(
-        min_light_space.x,
-        max_light_space.x,
-        min_light_space.y,
-        max_light_space.y,
-        min_light_space.z,
-        max_light_space.z,
-    );
+    let light_cam_proj = Mat4::orthographic_rh(left, right, bottom, top, near, far);
 
     light_cam_proj * light_cam_view
 }
