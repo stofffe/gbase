@@ -55,19 +55,21 @@ Engine
 [] convert all util and core to use include_bytes!()
 [] extend camera to support non aspect ratio shapes
 [] remove framebuffers and replace with normal textures?
+[] encase storage buffers instead of bytemuck
 
 [] shadows
-    [] frustum fitting
-    [] cascades
     [] fade out when reaching limit
     [] pcss
     [] remove non comparison sampler from mesh.wgsl
     [] frustum culling for light cameras
+    [x] frustum fitting
+    [x] cascades
     [x] look into depth bias state 
     [x] check if you actually wanna saturate the pixel or just return non shaded
     [x] compare front+back+bias vs only back faces
 
 [] assets 
+    [] add imports to shaders
     [] add gltf loader
     [] add sub model loading, file.glft#node1
     [] check if asset waiting queus up work (like in pbr)
@@ -91,7 +93,6 @@ Engine
     [x] tracy
 [] remove vsync, log level, (asset path) from init_ctx()
     some are needed for wasm (log level)
-
 
 Gltf
 [] use same texture if metal/rough and occlusion use the same

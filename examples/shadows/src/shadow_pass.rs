@@ -1,3 +1,4 @@
+use encase::rts_array::Length;
 use gbase::{
     asset,
     encase::ShaderType,
@@ -117,11 +118,15 @@ impl ShadowPass {
         //
         let mut light_matrices = Vec::new();
 
-        let planes = [0.01, 10.0, 30.0, 50.0];
+        let planes = [0.01, 3.0, 10.0, 30.0];
         for plane in planes.windows(2) {
-            let mat =
-                calculate_light_matrix(ctx, main_light_dir, camera.clone(), plane[0], plane[1]);
-            light_matrices.push(mat);
+            light_matrices.push(calculate_light_matrix(
+                ctx,
+                main_light_dir,
+                camera.clone(),
+                plane[0],
+                plane[1],
+            ));
         }
         self.light_matrices_buffer.write(ctx, &light_matrices);
         self.light_matrices_distances
@@ -253,7 +258,6 @@ fn calculate_light_matrix(
     camera.znear = znear;
     camera.zfar = zfar;
     let camera_inv_view_proj = camera.uniform(ctx).inv_view_proj;
-
     let mut corners = Vec::new();
     for x in [-1.0, 1.0] {
         for y in [-1.0, 1.0] {
@@ -265,45 +269,40 @@ fn calculate_light_matrix(
         }
     }
 
-    // calc aabb (view space)
-    let summed_corners = corners.iter().sum::<Vec3>();
-    let center = summed_corners / corners.len() as f32;
-
-    // view matrix
-    let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
-
-    let mut min_light_space = Vec3::MAX;
-    let mut max_light_space = Vec3::MIN;
+    let mut center = Vec3::ZERO;
     for corner in corners.iter() {
-        let pos = light_cam_view.transform_point3(*corner);
-        min_light_space = min_light_space.min(pos);
-        max_light_space = max_light_space.max(pos);
+        center += *corner;
+    }
+    center /= corners.len() as f32;
+
+    let mut radius = 0.0f32;
+    for corner in corners.iter() {
+        radius = radius.max(center.distance(*corner));
     }
 
-    let mut left = min_light_space.x;
-    let mut right = max_light_space.x;
-    let mut bottom = min_light_space.y;
-    let mut top = max_light_space.y;
-    let mut near = min_light_space.z;
-    let mut far = max_light_space.z;
+    radius = f32::ceil(radius * 16.0) / 16.0;
 
-    // grow camera depth behind and in front of camera
-    let z_mult = 10.0;
-    if min_light_space.z < 0.0 {
-        near *= z_mult;
-    } else {
-        near /= z_mult;
-    }
-    if max_light_space.z < 0.0 {
-        far /= z_mult;
-    } else {
-        far *= z_mult;
-    }
+    let min = Vec3::splat(-radius);
+    let max = Vec3::splat(radius);
 
-    // projection matrix
-    let light_cam_proj = Mat4::orthographic_rh(left, right, bottom, top, near, far);
+    let shadow_camera_pos = center - main_light_dir * radius * 2.0;
+    let ortho = Mat4::orthographic_rh(min.x, max.x, min.y, max.y, -radius * 4.0, radius * 4.0);
+    let lookat = Mat4::look_at_rh(shadow_camera_pos, center, Vec3::Y);
 
-    light_cam_proj * light_cam_view
+    let shadow_matrix = ortho * lookat;
+    let shadow_origin = shadow_matrix * vec4(0.0, 0.0, 0.0, 1.0) * (1024.0 / 2.0);
+    let rounded_origin = shadow_origin.round();
+    let mut rounded_offset = (rounded_origin - shadow_origin) * (2.0 / 1024.0);
+    rounded_offset.z = 0.0;
+    rounded_offset.w = 0.0;
+
+    let mut shadow_proj = ortho;
+    shadow_proj.col_mut(3)[0] += rounded_offset.x;
+    shadow_proj.col_mut(3)[1] += rounded_offset.y;
+    shadow_proj.col_mut(3)[2] += rounded_offset.z;
+    shadow_proj.col_mut(3)[3] += rounded_offset.w;
+
+    shadow_proj * lookat
 }
 
 #[repr(C)]
@@ -311,3 +310,105 @@ fn calculate_light_matrix(
 pub struct ShadowInstance {
     model: Mat4,
 }
+
+// // get world space corners
+// // change zfar to cover smaller area
+// camera.znear = znear;
+// camera.zfar = zfar;
+// let camera_inv_view_proj = camera.uniform(ctx).inv_view_proj;
+//
+// let mut corners = Vec::new();
+// for x in [-1.0, 1.0] {
+//     for y in [-1.0, 1.0] {
+//         for z in [0.0, 1.0] {
+//             let world_coord_homo = camera_inv_view_proj * vec4(x, y, z, 1.0);
+//             let world_coord = world_coord_homo / world_coord_homo.w;
+//             corners.push(world_coord.xyz());
+//         }
+//     }
+// }
+//
+// // calc aabb (view space)
+// let summed_corners = corners.iter().sum::<Vec3>();
+// let mut center = summed_corners / corners.len() as f32;
+//
+// // view matrix
+// // let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
+// // let light_cam_view_inv = light_cam_view.inverse();
+//
+// //     let mut tmp = light_cam_view * center.extend(1.0);
+// // tmp.x = tmp.x.floor() ;
+// //     tmp.y = tmp.y.floor();
+// //     center = (light_cam_view_inv * tmp).xyz();
+//
+// let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
+//
+// let mut min_light_space = Vec3::MAX;
+// let mut max_light_space = Vec3::MIN;
+// for corner in corners.iter() {
+//     let pos = light_cam_view.transform_point3(*corner);
+//     min_light_space = min_light_space.min(pos);
+//     max_light_space = max_light_space.max(pos);
+// }
+//
+// let mut left = min_light_space.x;
+// let mut right = max_light_space.x;
+// let mut bottom = min_light_space.y;
+// let mut top = max_light_space.y;
+// let mut near = min_light_space.z;
+// let mut far = max_light_space.z;
+//
+// // grow camera depth behind and in front of camera
+// let z_mult = 10.0;
+// if min_light_space.z < 0.0 {
+//     near *= z_mult;
+// } else {
+//     near /= z_mult;
+// }
+// if max_light_space.z < 0.0 {
+//     far /= z_mult;
+// } else {
+//     far *= z_mult;
+// }
+//
+// let constant_size = true;
+// let square = true;
+// let round_to_pixel = true;
+//
+// let actual_size = if constant_size {
+//     let far_face_diagnoal = (corners[7] - corners[1]).length();
+//     let forward_diagnoal = (corners[7] - corners[0]).length();
+//     f32::max(far_face_diagnoal, forward_diagnoal)
+// } else {
+//     f32::max(right - left, top - bottom)
+// };
+//
+// let height = top - bottom;
+// let width = right - left;
+//
+// if square {
+//     let mut diff = actual_size - height;
+//     if diff > 0.0 {
+//         top += diff / 2.0;
+//         bottom -= diff / 2.0;
+//     }
+//     diff = actual_size - width;
+//     if diff > 0.0 {
+//         right += diff / 2.0;
+//         left -= diff / 2.0;
+//     }
+// }
+//
+// let dim = 1024.0;
+// if round_to_pixel {
+//     let pixel_size = width.max(height) / dim;
+//     left = f32::round(left / pixel_size) * pixel_size;
+//     right = f32::round(right / pixel_size) * pixel_size;
+//     bottom = f32::round(bottom / pixel_size) * pixel_size;
+//     top = f32::round(top / pixel_size) * pixel_size;
+// }
+//
+// // projection matrix
+// let light_cam_proj = Mat4::orthographic_rh(left, right, bottom, top, near, far);
+//
+// light_cam_proj * light_cam_view

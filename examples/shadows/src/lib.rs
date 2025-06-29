@@ -17,7 +17,7 @@ pub async fn run() {
     gbase::run::<App>().await;
 }
 
-const PLANE_SIZE: f32 = 10000.0;
+const PLANE_SIZE: f32 = 100.0;
 const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 struct App {
@@ -333,7 +333,7 @@ impl Callbacks for App {
         );
 
         let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
-            .base_array_layer(0)
+            .base_array_layer(1)
             .dimension(wgpu::TextureViewDimension::D2)
             .build(ctx);
         self.framebuffer_renderer.render_depth(

@@ -144,7 +144,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         return 0.0;
     }
 
-    const PCF_KERNEL_SIZE = 0;
+    const PCF_KERNEL_SIZE = 1;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     var shadow_percentage = 0.0;
     for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
