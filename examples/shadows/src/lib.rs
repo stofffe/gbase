@@ -129,10 +129,8 @@ impl Callbacks for App {
         let camera =
             gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
                 .pos(vec3(0.0, 0.0, 8.0));
-        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            camera.uniform(ctx),
-        ))
-        .build(ctx);
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -333,7 +331,7 @@ impl Callbacks for App {
         );
 
         let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
-            .base_array_layer(1)
+            .base_array_layer(0)
             .dimension(wgpu::TextureViewDimension::D2)
             .build(ctx);
         self.framebuffer_renderer.render_depth(

@@ -110,6 +110,8 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new()
                     .storage_readonly()
                     .fragment(),
+                // // test
+                // render::BindGroupLayoutEntry::new().texture_depth(),
             ])
             .build(ctx);
 
@@ -241,8 +243,10 @@ impl PbrRenderer {
             let emissive_texture =
                 asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
 
+            // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Linear, wgpu::FilterMode::Linear)
+                // .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
                 .compare(wgpu::CompareFunction::Less)
                 .build(ctx);
 
@@ -287,6 +291,8 @@ impl PbrRenderer {
                     render::BindGroupEntry::Buffer(shadow_matrices.buffer()),
                     // shadow matrices distances
                     render::BindGroupEntry::Buffer(shadow_matrices_distances.buffer()),
+                    // // test
+                    // render::BindGroupEntry::Buffer(shadow_matrices_distances.buffer()),
                 ])
                 .build(ctx);
 

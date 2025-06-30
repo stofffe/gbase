@@ -4,7 +4,7 @@ use gbase::{
     encase::ShaderType,
     glam::{vec3, vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 use gbase_utils::{Camera, GizmoRenderer};
 
@@ -22,6 +22,7 @@ pub struct ShadowPass {
 
 const MAX_SHADOW_INSTANCES: u64 = 10000;
 const MAX_SHADOW_CASCADES: u64 = 3;
+const SHADOW_MAP_RESOLUTION: u32 = 1024;
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context) -> Self {
@@ -53,12 +54,15 @@ impl ShadowPass {
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
 
-        let shadow_map = render::TextureBuilder::new(render::TextureSource::Empty(1024, 1024))
-            .label("shadow map")
-            .with_format(wgpu::TextureFormat::Depth32Float)
-            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-            .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
-            .build(ctx);
+        let shadow_map = render::TextureBuilder::new(render::TextureSource::Empty(
+            SHADOW_MAP_RESOLUTION,
+            SHADOW_MAP_RESOLUTION,
+        ))
+        .label("shadow map")
+        .with_format(wgpu::TextureFormat::Depth32Float)
+        .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+        .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
+        .build(ctx);
 
         let light_matrices_index =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -280,29 +284,28 @@ fn calculate_light_matrix(
         radius = radius.max(center.distance(*corner));
     }
 
-    radius = f32::ceil(radius * 16.0) / 16.0;
+    // snap radius to larger steps to avoid shimmering
+    radius = f32::ceil(radius * 16.0) / 16.0; // TODO: whats best value here?
 
     let min = Vec3::splat(-radius);
     let max = Vec3::splat(radius);
 
-    let shadow_camera_pos = center - main_light_dir * radius * 2.0;
-    let ortho = Mat4::orthographic_rh(min.x, max.x, min.y, max.y, -radius * 4.0, radius * 4.0);
+    const MUL: f32 = 8.0;
+    let shadow_camera_pos = center - main_light_dir * radius * MUL;
+    let ortho = Mat4::orthographic_rh(min.x, max.x, min.y, max.y, 0.01, radius * MUL * 2.0); // Larger here?
     let lookat = Mat4::look_at_rh(shadow_camera_pos, center, Vec3::Y);
 
     let shadow_matrix = ortho * lookat;
-    let shadow_origin = shadow_matrix * vec4(0.0, 0.0, 0.0, 1.0) * (1024.0 / 2.0);
-    let rounded_origin = shadow_origin.round();
-    let mut rounded_offset = (rounded_origin - shadow_origin) * (2.0 / 1024.0);
-    rounded_offset.z = 0.0;
-    rounded_offset.w = 0.0;
+    let world_origin = vec4(0.0, 0.0, 0.0, 1.0);
+    let shadow_origin = shadow_matrix * world_origin * (SHADOW_MAP_RESOLUTION as f32 / 2.0);
+    let rounded_offset =
+        (shadow_origin.round() - shadow_origin) * (2.0 / SHADOW_MAP_RESOLUTION as f32);
 
-    let mut shadow_proj = ortho;
-    shadow_proj.col_mut(3)[0] += rounded_offset.x;
-    shadow_proj.col_mut(3)[1] += rounded_offset.y;
-    shadow_proj.col_mut(3)[2] += rounded_offset.z;
-    shadow_proj.col_mut(3)[3] += rounded_offset.w;
+    let mut snapped_ortho = ortho;
+    snapped_ortho.col_mut(3).x += rounded_offset.x;
+    snapped_ortho.col_mut(3).y += rounded_offset.y;
 
-    shadow_proj * lookat
+    snapped_ortho * lookat
 }
 
 #[repr(C)]

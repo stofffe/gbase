@@ -107,49 +107,53 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
     let view_space_pos = camera.view * vec4f(pos, 1.0);
     let view_space_dist = -view_space_pos.z;
 
-    // var index = 2;
-    // for (var i = 0; i < 3; i++) {
-    //     if view_space_dist < shadow_matrices_distances[i] {
-    //         index = i;
-    //         break;
-    //     }
-    // }
-
     var index = 2;
     for (var i = 0; i < 3; i++) {
         let light_pos = shadow_matrices[i] * vec4f(pos, 1.0);
-        var proj_coords = light_pos / light_pos.w;
-        proj_coords.x = proj_coords.x * 0.5 + 0.5;
-        proj_coords.y = proj_coords.y * 0.5 + 0.5;
-        proj_coords.y = 1.0 - proj_coords.y;
+        var shadow_uv = light_pos / light_pos.w;
+        shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
+        shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
+        shadow_uv.y = 1.0 - shadow_uv.y;
 
-        let pixel_depth = proj_coords.z; // important to clamp [0,1]
-        if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(proj_coords.xy >= vec2f(0.0)) && all(proj_coords.xy <= vec2f(1.0)) {
+        let pixel_depth = shadow_uv.z; // important to clamp [0,1]
+        if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(shadow_uv.xy >= vec2f(0.0)) && all(shadow_uv.xy <= vec2f(1.0)) {
             index = i;
             break;
         }
     }
 
     let light_pos = shadow_matrices[index] * vec4f(pos, 1.0);
-    var proj_coords = light_pos / light_pos.w;
-    proj_coords.x = proj_coords.x * 0.5 + 0.5;
-    proj_coords.y = proj_coords.y * 0.5 + 0.5;
-    proj_coords.y = 1.0 - proj_coords.y;
+    var shadow_uv = light_pos / light_pos.w;
+    shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
+    shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
+    shadow_uv.y = 1.0 - shadow_uv.y;
 
-    let pixel_depth = proj_coords.z; // important to clamp [0,1]
+    let pixel_depth = shadow_uv.z; // important to clamp [0,1]
     if pixel_depth < 0.0 || pixel_depth > 1.0 {
         return 0.0;
     }
-    if any(proj_coords.xy < vec2f(0.0)) || any(proj_coords.xy > vec2f(1.0)) {
+    if any(shadow_uv.xy < vec2f(0.0)) || any(shadow_uv.xy > vec2f(1.0)) {
         return 0.0;
     }
 
-    const PCF_KERNEL_SIZE = 1;
+    // first sample center
+    var shadow_percentage = 1.0 - textureSampleCompareLevel(
+        shadow_map_texture,
+        shadow_map_sampler_comparison,
+        shadow_uv.xy,
+        index, // TODO: hardocded layer
+        pixel_depth, // TODO: bias as param?
+    );
+
+    const PCF_KERNEL_SIZE = 2;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
-    var shadow_percentage = 0.0;
-    for (var x = -PCF_KERNEL_SIZE; x <= PCF_KERNEL_SIZE; x += 1) {
-        for (var y = -PCF_KERNEL_SIZE; y <= PCF_KERNEL_SIZE; y += 1) {
-            let offset = proj_coords.xy + vec2f(f32(x), f32(y)) * texel_size;
+    for (var x = 0; x < PCF_KERNEL_SIZE * 2; x++) {
+        for (var y = 0; y < PCF_KERNEL_SIZE * 2; y++) {
+            // sample between pixels to utilize linear filtering
+            let offset = shadow_uv.xy + vec2f(
+                f32(x) - f32(PCF_KERNEL_SIZE) + 0.5,
+                f32(y) - f32(PCF_KERNEL_SIZE) + 0.5,
+            ) * texel_size;
 
             shadow_percentage += 1.0 - textureSampleCompareLevel(
                 shadow_map_texture,
@@ -160,7 +164,8 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
             );
         }
     }
-    shadow_percentage /= (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0) * (f32(PCF_KERNEL_SIZE) * 2.0 + 1.0);
+
+    shadow_percentage /= f32((PCF_KERNEL_SIZE * 2) * (PCF_KERNEL_SIZE * 2) + 1); // +1 for middle sample
     return shadow_percentage;
 }
 
