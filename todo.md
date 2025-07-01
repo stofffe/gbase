@@ -55,13 +55,13 @@ Engine
 [] convert all util and core to use include_bytes!()
 [] extend camera to support non aspect ratio shapes
 [] remove framebuffers and replace with normal textures?
-[] encase storage buffers instead of bytemuck
+[x] encase storage buffers instead of bytemuck
 
 [] shadows
     [] fade out when reaching limit
     [] pcss
-    [] remove non comparison sampler from mesh.wgsl
     [] frustum culling for light cameras
+    [x] remove non comparison sampler from mesh.wgsl
     [x] frustum fitting
     [x] cascades
     [x] look into depth bias state 
@@ -197,4 +197,6 @@ Render type
     Texture
     Sampler
     Texture view
-    Shader
+
+
+https://web.archive.org/web/20230210095515/http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/   Shader

@@ -2,11 +2,13 @@ use encase::rts_array::Length;
 use gbase::{
     asset,
     encase::ShaderType,
-    glam::{vec3, vec4, Mat4, Vec3, Vec4Swizzles},
+    glam::{vec3, vec4, Mat3, Mat4, Quat, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
     tracing, wgpu, Context,
 };
-use gbase_utils::{Camera, GizmoRenderer};
+use gbase_utils::{
+    BoundingSphere, Camera, CameraFrustum, GizmoRenderer, Plane, Transform3D, WHITE,
+};
 
 pub struct ShadowPass {
     pipeline_layout: render::ArcPipelineLayout,
@@ -121,17 +123,16 @@ impl ShadowPass {
         // light projection matrices
         //
         let mut light_matrices = Vec::new();
+        let mut frustums = Vec::new();
 
         let planes = [0.01, 3.0, 10.0, 30.0];
         for plane in planes.windows(2) {
-            light_matrices.push(calculate_light_matrix(
-                ctx,
-                main_light_dir,
-                camera.clone(),
-                plane[0],
-                plane[1],
-            ));
+            let (light_matrix, frustum) =
+                calculate_light_matrix(ctx, main_light_dir, camera.clone(), plane[0], plane[1]);
+            light_matrices.push(light_matrix);
+            frustums.push(frustum);
         }
+
         self.light_matrices_buffer.write(ctx, &light_matrices);
         self.light_matrices_distances
             .write(ctx, &planes[1..].to_vec()); // ignore first
@@ -147,8 +148,40 @@ impl ShadowPass {
             let mut instances = Vec::new();
             let mut draws = Vec::new();
             let mut ranges = Vec::new();
+
+            //
+            // Culling
+            //
+
+            let mut meshes = sorted_meshes.clone();
+            let frustum = &frustums[i];
+            meshes.retain(|(handle, transform)| {
+                let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
+                frustum.sphere_inside(&gpu_mesh.bounds, transform)
+            });
+
+            // if i == 2 {
+            //     for (mesh_handle, transform) in meshes.iter() {
+            //         let gpu_mesh =
+            //             asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
+            //         let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
+            //
+            //         gizmo.draw_sphere(
+            //             &Transform3D::new(
+            //                 bounding_sphere.center,
+            //                 transform.rot,
+            //                 Vec3::ONE * bounding_sphere.radius * 2.0,
+            //             ),
+            //             WHITE.xyz(),
+            //         );
+            //     }
+            // }
+
+            //
+            // Batching
+            //
             let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
-            for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
+            for (index, (mesh_handle, transform)) in meshes.iter().enumerate() {
                 instances.push(ShadowInstance {
                     model: transform.matrix(),
                 });
@@ -165,7 +198,7 @@ impl ShadowPass {
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
-            ranges.push(sorted_meshes.len());
+            ranges.push(meshes.len());
 
             //
             // update data & render meshes
@@ -256,7 +289,7 @@ fn calculate_light_matrix(
     mut camera: Camera,
     znear: f32,
     zfar: f32,
-) -> gbase::glam::Mat4 {
+) -> (gbase::glam::Mat4, CameraFrustum) {
     // get world space corners
     // change zfar to cover smaller area
     camera.znear = znear;
@@ -278,6 +311,7 @@ fn calculate_light_matrix(
         center += *corner;
     }
     center /= corners.len() as f32;
+    // center = Vec3::ZERO;
 
     let mut radius = 0.0f32;
     for corner in corners.iter() {
@@ -291,8 +325,10 @@ fn calculate_light_matrix(
     let max = Vec3::splat(radius);
 
     const MUL: f32 = 8.0;
+    let (left, right, bottom, top) = (min.x, max.x, min.y, max.y);
+    let (near, far) = (0.01, radius * MUL * 2.0);
     let shadow_camera_pos = center - main_light_dir * radius * MUL;
-    let ortho = Mat4::orthographic_rh(min.x, max.x, min.y, max.y, 0.01, radius * MUL * 2.0); // Larger here?
+    let ortho = Mat4::orthographic_rh(left, right, bottom, top, near, far); // Larger here?
     let lookat = Mat4::look_at_rh(shadow_camera_pos, center, Vec3::Y);
 
     let shadow_matrix = ortho * lookat;
@@ -305,13 +341,77 @@ fn calculate_light_matrix(
     snapped_ortho.col_mut(3).x += rounded_offset.x;
     snapped_ortho.col_mut(3).y += rounded_offset.y;
 
-    snapped_ortho * lookat
+    let light_matrix = snapped_ortho * lookat;
+
+    //
+    // Frustum
+    //
+
+    let cam_pos = shadow_camera_pos;
+    let cam_forward = main_light_dir.normalize();
+    let cam_right = cam_forward.cross(Vec3::Y);
+    let cam_up = cam_right.cross(cam_forward);
+    let width = right - left;
+    let height = top - bottom;
+
+    let frustum = CameraFrustum {
+        near: Plane {
+            origin: cam_pos + near * cam_forward,
+            normal: cam_forward,
+        },
+        far: Plane {
+            origin: cam_pos + far * cam_forward,
+            normal: -cam_forward,
+        },
+        left: Plane {
+            origin: cam_pos - width * cam_right,
+            normal: cam_right,
+        },
+        right: Plane {
+            origin: cam_pos + width * cam_right,
+            normal: -cam_right,
+        },
+        bottom: Plane {
+            origin: cam_pos - height * cam_up,
+            normal: cam_up,
+        },
+        top: Plane {
+            origin: cam_pos + height * cam_up,
+            normal: -cam_up,
+        },
+    };
+
+    (light_matrix, frustum)
 }
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, ShaderType)]
 pub struct ShadowInstance {
     model: Mat4,
+}
+
+fn make_plane_transform(plane: &Plane, size: f32) -> crate::Transform3D {
+    let normal = plane.normal.normalize();
+
+    // Choose an arbitrary up vector not parallel to normal
+    let up = if normal.y.abs() < 0.99 {
+        Vec3::Y
+    } else {
+        Vec3::X
+    };
+
+    let right = normal.cross(up).normalize();
+    let up_corrected = right.cross(normal);
+
+    // Build rotation matrix with basis vectors: right, up_corrected, normal
+    let rotation = Mat3::from_cols(right, up_corrected, normal);
+
+    // Create transform with position and rotation, scaled by size
+    Transform3D {
+        pos: plane.origin,
+        rot: Quat::from_mat3(&rotation),
+        scale: Vec3::splat(size),
+    }
 }
 
 // // get world space corners

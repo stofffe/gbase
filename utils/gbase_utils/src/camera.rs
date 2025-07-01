@@ -208,7 +208,7 @@ impl Camera {
     }
 }
 
-#[derive(ShaderType)]
+#[derive(ShaderType, Clone)]
 pub struct Plane {
     pub origin: Vec3,
     pub normal: Vec3,
@@ -223,7 +223,7 @@ impl Plane {
     }
 }
 
-#[derive(ShaderType)]
+#[derive(ShaderType, Clone)]
 pub struct CameraFrustum {
     pub near: Plane,
     pub far: Plane,
@@ -231,6 +231,22 @@ pub struct CameraFrustum {
     pub right: Plane,
     pub bottom: Plane,
     pub top: Plane,
+}
+
+impl CameraFrustum {
+    pub fn planes(&self) -> [Plane; 6] {
+        [
+            self.left.clone(),
+            self.right.clone(),
+            self.bottom.clone(),
+            self.top.clone(),
+            self.near.clone(),
+            self.far.clone(),
+        ]
+    }
+    pub fn center(&self) -> Vec3 {
+        (self.near.origin + self.far.origin) / 2.0
+    }
 }
 
 pub struct BoundingSphere {
@@ -281,7 +297,45 @@ impl Camera {
         let cam_up = self.up();
 
         match self.projection {
-            CameraProjection::Orthographic { height } => todo!(),
+            CameraProjection::Orthographic { height } => {
+                let aspect_ratio = render::aspect_ratio(ctx);
+                let half_height = height / 2.0;
+                let half_width = half_height * aspect_ratio;
+
+                let near = Plane {
+                    origin: self.pos + self.znear * cam_forward,
+                    normal: cam_forward.normalize(),
+                };
+                let far = Plane {
+                    origin: self.pos + self.zfar * cam_forward,
+                    normal: -cam_forward.normalize(),
+                };
+                let left = Plane {
+                    origin: self.pos - half_width * cam_right,
+                    normal: cam_right.normalize(),
+                };
+                let right = Plane {
+                    origin: self.pos + half_width * cam_right,
+                    normal: -cam_right.normalize(),
+                };
+                let bottom = Plane {
+                    origin: self.pos - half_height * cam_up,
+                    normal: cam_up.normalize(),
+                };
+                let top = Plane {
+                    origin: self.pos + half_height * cam_up,
+                    normal: -cam_up.normalize(),
+                };
+
+                CameraFrustum {
+                    near,
+                    far,
+                    left,
+                    right,
+                    bottom,
+                    top,
+                }
+            }
             CameraProjection::Perspective { fov } => {
                 let aspect_ratio = render::aspect_ratio(ctx);
                 let half_far_height = self.zfar * f32::tan(fov / 2.0);
