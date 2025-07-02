@@ -1,8 +1,8 @@
-use crate::{BoundingSphere, DeferredBuffers, GizmoRenderer, PixelCache, Transform3D, WHITE};
+use crate::{BoundingSphere, Camera, CameraProjection, GizmoRenderer, PixelCache, Transform3D};
 use encase::ShaderType;
 use gbase::{
     asset::{self, AssetHandle},
-    glam::{Mat4, Vec3, Vec4Swizzles},
+    glam::{vec3, Mat4, Vec3},
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
@@ -339,10 +339,34 @@ impl PbrRenderer {
     }
 
     // temp?
-    pub fn render_bounding_boxes(&self, ctx: &mut Context, gizmo_renderer: &mut GizmoRenderer) {
+    pub fn render_bounding_boxes(
+        &self,
+        ctx: &mut Context,
+        gizmo_renderer: &mut GizmoRenderer,
+        camera: &Camera,
+    ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
             let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
             let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
+
+            let mut color = vec3(1.0, 1.0, 1.0);
+
+            if let CameraProjection::Perspective { fov } = camera.projection {
+                let screen_coverage = screen_space_coverage(
+                    bounding_sphere.radius,
+                    transform.pos,
+                    fov,
+                    camera.view_matrix(),
+                );
+
+                color = if screen_coverage > 0.5 {
+                    vec3(1.0, 0.0, 0.0)
+                } else if screen_coverage > 0.25 {
+                    vec3(0.0, 1.0, 0.0)
+                } else {
+                    vec3(0.0, 0.0, 1.0)
+                };
+            };
 
             gizmo_renderer.draw_sphere(
                 &Transform3D::new(
@@ -350,7 +374,7 @@ impl PbrRenderer {
                     transform.rot,
                     Vec3::ONE * bounding_sphere.radius * 2.0,
                 ),
-                WHITE.xyz(),
+                color,
             );
         }
     }
@@ -358,6 +382,18 @@ impl PbrRenderer {
     pub fn required_attributes(&self) -> &BTreeSet<render::VertexAttributeId> {
         &self.vertex_attributes
     }
+}
+
+fn screen_space_coverage(r: f32, world_pos: Vec3, fov: f32, view_matrix: Mat4) -> f32 {
+    let view_pos = view_matrix * world_pos.extend(1.0);
+    let z = -view_pos.z;
+
+    if z <= 0.0 {
+        tracing::warn!("behind camera?");
+        return 0.0;
+    }
+
+    r / (z * f32::tan(fov / 2.0))
 }
 
 //

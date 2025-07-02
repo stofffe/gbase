@@ -298,6 +298,8 @@ impl Callbacks for App {
         for (mesh, mat, transform) in meshes.iter().cloned() {
             self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
+        self.pbr_renderer
+            .render_bounding_boxes(ctx, &mut self.gizmo_renderer, &self.camera);
         self.pbr_renderer.render(
             ctx,
             self.hdr_framebuffer_1.view_ref(),
@@ -311,10 +313,10 @@ impl Callbacks for App {
             &self.shadow_pass.light_matrices_distances,
         );
 
-        self.gizmo_renderer.draw_sphere(
-            &Transform3D::from_pos(-self.lights.main_light_dir * 20.0),
-            vec3(1.0, 1.0, 1.0),
-        );
+        // self.gizmo_renderer.draw_sphere(
+        //     &Transform3D::from_pos(-self.lights.main_light_dir * 20.0),
+        //     vec3(1.0, 1.0, 1.0),
+        // );
 
         self.gizmo_renderer.render(
             ctx,

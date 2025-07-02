@@ -97,13 +97,13 @@ impl Camera {
         .normalize()
     }
 
-    pub fn uniform(&self, ctx: &Context) -> CameraUniform {
-        let pos = self.pos;
-        let facing = self.forward();
+    pub fn view_matrix(&self) -> Mat4 {
+        Mat4::look_to_rh(self.pos, self.forward(), self.up())
+    }
 
+    pub fn projection_matrix(&self, ctx: &Context) -> Mat4 {
         let aspect_ratio = render::aspect_ratio(ctx);
-        let view = Mat4::look_to_rh(self.pos, self.forward(), self.up());
-        let proj = match self.projection {
+        match self.projection {
             CameraProjection::Perspective { fov } => {
                 Mat4::perspective_rh(fov, aspect_ratio, self.znear, self.zfar)
             }
@@ -115,7 +115,19 @@ impl Camera {
                 self.znear,
                 self.zfar,
             ),
-        };
+        }
+    }
+
+    pub fn view_projection_matrix(&self, ctx: &Context) -> Mat4 {
+        self.projection_matrix(ctx) * self.view_matrix()
+    }
+
+    pub fn uniform(&self, ctx: &Context) -> CameraUniform {
+        let pos = self.pos;
+        let facing = self.forward();
+
+        let view = self.view_matrix();
+        let proj = self.projection_matrix(ctx);
         let view_proj = proj * view;
 
         let inv_view = view.inverse();
