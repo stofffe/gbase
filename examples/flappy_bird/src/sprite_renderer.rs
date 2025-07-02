@@ -8,6 +8,7 @@ use gbase::{
 };
 use gbase_utils::Transform2D;
 
+// TODO: this doesnt use the sampler provided by the gpuimage
 pub struct SpriteRenderer {
     vertices: Vec<VertexSprite>,
     indices: Vec<u32>,
@@ -99,7 +100,9 @@ impl SpriteRenderer {
             )
             .build(ctx);
 
-        let sampler = render::SamplerBuilder::new().build(ctx);
+        let sampler = render::SamplerBuilder::new()
+            .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+            .build(ctx);
 
         // Stencil
 

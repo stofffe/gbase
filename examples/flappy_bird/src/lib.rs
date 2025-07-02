@@ -11,7 +11,9 @@ use gbase::{
     winit::{dpi::PhysicalSize, window::Window},
     Callbacks, Context,
 };
-use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
+use gbase_utils::{
+    image::imageops::FilterType::Nearest, Alignment, SizeKind, Transform2D, Transform3D, Widget,
+};
 use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
 use std::{f32::consts::PI, time::Duration};
 
@@ -388,11 +390,15 @@ impl Callbacks for App {
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let sprite_atlas = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
+        let texture = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
             .unwrap()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-            .build(ctx)
-            .with_default_sampler_and_view(ctx);
+            .build(ctx);
+        let sampler = render::SamplerBuilder::new()
+            .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+            .build(ctx);
+        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
+        let sprite_atlas = render::GpuImage::new(texture, view, sampler);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
