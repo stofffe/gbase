@@ -2,7 +2,7 @@ use encase::ShaderType;
 use gbase::{
     filesystem,
     render::{self},
-    tracing, wgpu, Context,
+    wgpu, Context,
 };
 
 #[derive(ShaderType)]

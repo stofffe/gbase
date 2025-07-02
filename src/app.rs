@@ -1,8 +1,4 @@
-use crate::{
-    asset, audio, filesystem, input, random,
-    render::{self, device},
-    time, Context,
-};
+use crate::{asset, audio, filesystem, input, random, render, time, Context};
 
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
@@ -71,6 +67,7 @@ pub fn run_sync<C: Callbacks>() {
 /// general engine state
 ///
 /// can be both initialized and uninitialized
+#[allow(clippy::large_enum_variant)]
 enum App<C: Callbacks> {
     Uninitialized {
         proxy: Option<winit::event_loop::EventLoopProxy<Context>>,

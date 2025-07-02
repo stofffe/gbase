@@ -1,9 +1,7 @@
-use std::time::Instant;
-
 use gbase::{
     filesystem,
     render::{self, ArcRenderPipeline, Vertex},
-    time, wgpu, Callbacks, Context,
+    wgpu, Callbacks, Context,
 };
 
 #[cfg(not(target_arch = "wasm32"))]

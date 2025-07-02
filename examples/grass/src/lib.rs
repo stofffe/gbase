@@ -44,6 +44,8 @@ pub struct App {
 
     framebuffer: render::FrameBuffer,
     framebuffer_renderer: gbase_utils::TextureRenderer,
+
+    shadow_pass: gbase_utils::ShadowPass,
 }
 
 impl Callbacks for App {
@@ -76,9 +78,12 @@ impl Callbacks for App {
         let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
 
         // Camera
-        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
-            .pos(vec3(-1.0, 8.0, -1.0))
-            .yaw(PI / 4.0);
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::perspective(PI / 2.0),
+        )
+        .pos(vec3(-1.0, 8.0, -1.0))
+        .yaw(PI / 4.0);
 
         let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .label("camera buf")
@@ -134,6 +139,8 @@ impl Callbacks for App {
             .to_material(ctx, &mut pixel_cache), // TODO: remove this?
         );
 
+        let shadow_pass = gbase_utils::ShadowPass::new(ctx);
+
         Self {
             camera,
             camera_buffer,
@@ -152,13 +159,15 @@ impl Callbacks for App {
 
             framebuffer,
             framebuffer_renderer,
+
+            shadow_pass,
         }
     }
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         // update buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.frustum_buffer
             .write(ctx, &self.camera.calculate_frustum(ctx));
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
@@ -167,14 +176,25 @@ impl Callbacks for App {
         self.light_buffer.write(ctx, &self.light);
 
         // Render
-        self.pbr_renderer.add_mesh(
+        let meshes = [(
             self.plane_mesh.clone(),
             self.plane_material.clone(),
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
                 .with_scale(Vec3::ONE * PLANE_SIZE),
-        );
+        )];
+
+        let shadow_meshes = meshes
+            .iter()
+            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
+            .collect::<Vec<_>>();
+        self.shadow_pass
+            .render(ctx, shadow_meshes, &self.camera, self.light.main_light_dir);
+        for (mesh, mat, transform) in meshes.iter().cloned() {
+            self.pbr_renderer.add_mesh(mesh, mat, transform);
+        }
+
         self.pbr_renderer.render(
             ctx,
             self.framebuffer.view_ref(),
@@ -183,6 +203,9 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.light_buffer,
             &self.depth_buffer,
+            &self.shadow_pass.shadow_map,
+            &self.shadow_pass.light_matrices_buffer,
+            &self.shadow_pass.light_matrices_distances,
         );
 
         self.grass_renderer.render(
@@ -263,6 +286,7 @@ impl Callbacks for App {
         self.framebuffer.resize(ctx, new_size);
         self.depth_buffer.resize(ctx, new_size);
         self.gui_renderer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 
     #[no_mangle]

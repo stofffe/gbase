@@ -37,8 +37,11 @@ impl Callbacks for App {
         .build(ctx);
 
         // Camera
-        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
-            .pos(vec3(0.0, 0.0, 2.0));
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::perspective(PI / 2.0),
+        )
+        .pos(vec3(0.0, 0.0, 2.0));
 
         let buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -74,9 +77,15 @@ impl Callbacks for App {
             camera_buffer: buffer,
         }
     }
+
+    #[no_mangle]
+    fn resize(&mut self, _ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+        self.camera.resize(new_size);
+    }
+
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(

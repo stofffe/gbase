@@ -1,5 +1,3 @@
-mod shadow_pass;
-
 use gbase::{
     asset,
     glam::{vec3, Quat, Vec3},
@@ -8,8 +6,8 @@ use gbase::{
     render::{self, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
+use gbase_utils::ShadowPass;
 use gbase_utils::{GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
-use shadow_pass::ShadowPass;
 use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -126,9 +124,11 @@ impl Callbacks for App {
             &pbr_renderer,
         );
 
-        let camera =
-            gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
-                .pos(vec3(0.0, 0.0, 8.0));
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 },
+        )
+        .pos(vec3(0.0, 0.0, 8.0));
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
@@ -223,7 +223,7 @@ impl Callbacks for App {
         }
 
         // update buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // clear textures
@@ -291,7 +291,6 @@ impl Callbacks for App {
             &self.camera,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
-            &mut self.gizmo_renderer,
         );
 
         // pbr pass
@@ -358,6 +357,7 @@ impl Callbacks for App {
         self.gizmo_renderer.resize(ctx, new_size);
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 }
 

@@ -60,7 +60,7 @@ Engine
 [] shadows
     [] fade out when reaching limit
     [] pcss
-    [] frustum culling for light cameras
+    [x] frustum culling for light cameras
     [x] remove non comparison sampler from mesh.wgsl
     [x] frustum fitting
     [x] cascades

@@ -140,7 +140,8 @@ impl Callbacks for App {
                     self.health = 0.0;
                 };
                 if Widget::new()
-                    .label("btn")
+                    .label("reset health")
+                    .width(SizeKind::Pixels(200.0))
                     .border_radius(20.0)
                     .color(BLUE)
                     .button(ctx, renderer)
@@ -181,6 +182,7 @@ impl Callbacks for App {
                 .render(renderer);
         });
 
+        // self.gui_renderer.display_debug_info(ctx);
         self.gui_renderer.render(ctx, screen_view, render::surface_format(ctx));
         false
     }

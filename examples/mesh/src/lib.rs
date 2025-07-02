@@ -44,6 +44,8 @@ struct App {
 
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
+
+    shadow_pass: gbase_utils::ShadowPass,
 }
 
 fn load_simple_mesh(
@@ -134,13 +136,14 @@ impl Callbacks for App {
             &pbr_renderer,
         );
 
-        let camera =
-            gbase_utils::Camera::new(gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 })
-                .pos(vec3(0.0, 0.0, 8.0));
-        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            camera.uniform(ctx),
-        ))
-        .build(ctx);
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 },
+        )
+        .pos(vec3(0.0, 0.0, 8.0));
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(camera.uniform()))
+                .build(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -160,12 +163,12 @@ impl Callbacks for App {
         let tonemap = bloom::Tonemap::new(ctx);
         let bloom = bloom::Bloom::new(ctx, hdr_format);
 
+        let shadow_pass = gbase_utils::ShadowPass::new(ctx);
+
         Self {
             hdr_framebuffer_1,
             hdr_framebuffer_2,
             ldr_framebuffer,
-            depth_buffer,
-            framebuffer_renderer,
             tonemap,
             bloom,
 
@@ -186,6 +189,11 @@ impl Callbacks for App {
 
             cube_mesh_handle,
             cube_material,
+
+            shadow_pass,
+
+            framebuffer_renderer,
+            depth_buffer,
         }
     }
 
@@ -213,22 +221,31 @@ impl Callbacks for App {
         }
 
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
-        // let timer = time::CpuProfileTimer::new("render");
 
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
-        // let t = time::time_since_start(ctx);
-        self.pbr_renderer.add_mesh(
+        // Render
+        let meshes = [(
             self.helmet_mesh_handle.clone(),
             self.helmet_material.clone(),
             Transform3D::default()
                 .with_pos(vec3(0.0, 0.0, 0.0))
-                .with_scale(Vec3::ONE * 5.0), // .with_rot(Quat::from_rotation_y(t * PI / 10.0)),
-        );
+                .with_scale(Vec3::ONE * 5.0),
+        )];
+
+        let shadow_meshes = meshes
+            .iter()
+            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
+            .collect::<Vec<_>>();
+        self.shadow_pass
+            .render(ctx, shadow_meshes, &self.camera, self.lights.main_light_dir);
+        for (mesh, mat, transform) in meshes.iter().cloned() {
+            self.pbr_renderer.add_mesh(mesh, mat, transform);
+        }
 
         {
             let _timer = time::ProfileTimer::new(ctx, "render");
@@ -240,6 +257,9 @@ impl Callbacks for App {
                 &self.camera_buffer,
                 &self.lights_buffer,
                 &self.depth_buffer,
+                &self.shadow_pass.shadow_map,
+                &self.shadow_pass.light_matrices_buffer,
+                &self.shadow_pass.light_matrices_distances,
             );
         }
 
@@ -380,6 +400,7 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 }
 

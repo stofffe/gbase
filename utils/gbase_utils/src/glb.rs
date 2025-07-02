@@ -5,11 +5,6 @@ use gbase::{
     tracing, wgpu,
 };
 
-const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
-const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
-const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
-const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
-
 pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
     let mut meshes = Vec::new();
 

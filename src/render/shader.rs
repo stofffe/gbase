@@ -1,5 +1,5 @@
 use super::ArcShaderModule;
-use crate::{render, Context};
+use crate::Context;
 
 //
 // Shader Builder

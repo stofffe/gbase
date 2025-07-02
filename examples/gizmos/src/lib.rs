@@ -34,8 +34,11 @@ const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context) -> Self {
-        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
-            .pos(vec3(0.0, 0.0, 1.0));
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::perspective(PI / 2.0),
+        )
+        .pos(vec3(0.0, 0.0, 1.0));
 
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -51,7 +54,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
         let t = time::time_since_start(ctx);
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
 
         // let t: f32 = 10.5;
         // self.gizmo_renderer
@@ -131,5 +134,6 @@ impl Callbacks for App {
     #[no_mangle]
     fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 }

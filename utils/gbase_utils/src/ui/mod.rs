@@ -10,7 +10,7 @@ use crate::{app_info, camera, AppInfoUniform, CameraProjection};
 use gbase::{
     glam::{vec2, vec3},
     input,
-    render::{self, ArcBindGroup, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule, VertexUV},
+    render::{self, ArcBindGroup, ArcPipelineLayout, ArcShaderModule, VertexUV},
     time,
     wgpu::{self},
     winit, Context,
@@ -68,10 +68,9 @@ impl GUIRenderer {
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
 
         let camera = create_camera(render::surface_size(ctx));
-        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            camera.uniform(ctx),
-        ))
-        .build(ctx);
+        let camera_buffer =
+            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(camera.uniform()))
+                .build(ctx);
 
         let app_info_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
@@ -219,8 +218,9 @@ impl GUIRenderer {
     }
 
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.camera.resize(new_size);
         self.camera = create_camera(new_size);
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
     }
 
     /// Insert a widget into the widget tree
@@ -408,7 +408,11 @@ impl WidgetInstance {
 }
 
 fn create_camera(screen_size: winit::dpi::PhysicalSize<u32>) -> crate::Camera {
-    crate::Camera::new(CameraProjection::orthographic(screen_size.height as f32)).pos(vec3(
+    crate::Camera::new(
+        screen_size.width as f32 / screen_size.height as f32,
+        CameraProjection::orthographic(screen_size.height as f32),
+    )
+    .pos(vec3(
         screen_size.width as f32 / 2.0,
         -(screen_size.height as f32 / 2.0),
         1.0,

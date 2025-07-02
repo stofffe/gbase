@@ -2,8 +2,10 @@ mod cloud_renderer;
 mod noise;
 
 use gbase::{
-    asset, filesystem, glam, input,
-    render::{self, GpuImage, Image, UniformBufferBuilder},
+    filesystem,
+    glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles},
+    input,
+    render::{self, UniformBufferBuilder},
     time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
     Callbacks, Context,
@@ -11,7 +13,6 @@ use gbase::{
 use gbase_utils::{
     gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,
 };
-use glam::{uvec2, vec3, Quat, UVec2, Vec3, Vec4, Vec4Swizzles};
 use std::{f32::consts::PI, fs, io::Write, sync::mpsc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -133,10 +134,13 @@ impl gbase::Callbacks for App {
         let framebuffer_blitter = gbase_utils::TextureRenderer::new(ctx);
 
         // TODO: check if it works
-        let camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::perspective(PI / 2.0))
-            .pos(vec3(-68.0, -68.0, -67.0))
-            .yaw(3.43)
-            .pitch(0.35);
+        let camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::perspective(PI / 2.0),
+        )
+        .pos(vec3(-68.0, -68.0, -67.0))
+        .yaw(3.43)
+        .pitch(0.35);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
@@ -217,7 +221,7 @@ impl gbase::Callbacks for App {
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
         // write buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);
 
         // clear buffers
@@ -291,6 +295,7 @@ impl gbase::Callbacks for App {
     fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 }
 

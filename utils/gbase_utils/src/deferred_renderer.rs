@@ -1,11 +1,8 @@
-use crate::PbrLightUniforms;
-
 use super::CameraUniform;
-use encase::ShaderSize;
+use crate::PbrLightUniforms;
 use gbase::{
     asset::{self, AssetHandle},
-    glam::Vec3,
-    render::{self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule},
+    render::{self, ArcBindGroupLayout, ArcPipelineLayout},
     wgpu, Context,
 };
 

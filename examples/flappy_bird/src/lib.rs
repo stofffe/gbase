@@ -377,9 +377,12 @@ impl Callbacks for App {
         // other
         let sprite_renderer =
             sprite_renderer::SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_format(ctx));
-        let mut camera = gbase_utils::Camera::new(gbase_utils::CameraProjection::Orthographic {
-            height: BACKGROUND.pixel_size().y,
-        });
+        let mut camera = gbase_utils::Camera::new_with_screen_size(
+            ctx,
+            gbase_utils::CameraProjection::Orthographic {
+                height: BACKGROUND.pixel_size().y,
+            },
+        );
         camera.pos.z = 1.0;
 
         let camera_buffer =
@@ -645,7 +648,7 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
-        self.camera_buffer.write(ctx, &self.camera.uniform(ctx));
+        self.camera_buffer.write(ctx, &self.camera.uniform());
 
         // draw background stencil
         self.sprite_renderer.draw_sprite(
@@ -751,6 +754,7 @@ impl Callbacks for App {
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
         self.sprite_renderer.resize(ctx, new_size);
+        self.camera.resize(new_size);
     }
 }
 

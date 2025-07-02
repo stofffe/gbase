@@ -1,13 +1,10 @@
-use encase::rts_array::Length;
+use crate::{Camera, CameraFrustum, GizmoRenderer, Plane};
 use gbase::{
     asset,
     encase::ShaderType,
-    glam::{vec3, vec4, Mat3, Mat4, Quat, Vec3, Vec4Swizzles},
+    glam::{vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
-    tracing, wgpu, Context,
-};
-use gbase_utils::{
-    BoundingSphere, Camera, CameraFrustum, GizmoRenderer, Plane, Transform3D, WHITE,
+    wgpu, Context,
 };
 
 pub struct ShadowPass {
@@ -99,10 +96,9 @@ impl ShadowPass {
     pub fn render(
         &mut self,
         ctx: &mut Context,
-        meshes: Vec<(asset::AssetHandle<render::Mesh>, gbase_utils::Transform3D)>,
-        camera: &gbase_utils::Camera,
+        meshes: Vec<(asset::AssetHandle<render::Mesh>, crate::Transform3D)>,
+        camera: &crate::Camera,
         main_light_dir: Vec3,
-        gizmo: &mut GizmoRenderer,
     ) {
         //
         // early exits
@@ -128,7 +124,7 @@ impl ShadowPass {
         let planes = [0.01, 3.0, 10.0, 30.0];
         for plane in planes.windows(2) {
             let (light_matrix, frustum) =
-                calculate_light_matrix(ctx, main_light_dir, camera.clone(), plane[0], plane[1]);
+                calculate_light_matrix(main_light_dir, camera.clone(), plane[0], plane[1]);
             light_matrices.push(light_matrix);
             frustums.push(frustum);
         }
@@ -144,6 +140,7 @@ impl ShadowPass {
         let mut sorted_meshes = meshes;
         sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..planes.len() - 1 {
             let mut instances = Vec::new();
             let mut draws = Vec::new();
@@ -284,7 +281,6 @@ impl ShadowPass {
 }
 
 fn calculate_light_matrix(
-    ctx: &mut Context,
     main_light_dir: Vec3,
     mut camera: Camera,
     znear: f32,
@@ -294,7 +290,7 @@ fn calculate_light_matrix(
     // change zfar to cover smaller area
     camera.znear = znear;
     camera.zfar = zfar;
-    let camera_inv_view_proj = camera.uniform(ctx).inv_view_proj;
+    let camera_inv_view_proj = camera.uniform().inv_view_proj;
     let mut corners = Vec::new();
     for x in [-1.0, 1.0] {
         for y in [-1.0, 1.0] {
@@ -389,129 +385,3 @@ fn calculate_light_matrix(
 pub struct ShadowInstance {
     model: Mat4,
 }
-
-fn make_plane_transform(plane: &Plane, size: f32) -> crate::Transform3D {
-    let normal = plane.normal.normalize();
-
-    // Choose an arbitrary up vector not parallel to normal
-    let up = if normal.y.abs() < 0.99 {
-        Vec3::Y
-    } else {
-        Vec3::X
-    };
-
-    let right = normal.cross(up).normalize();
-    let up_corrected = right.cross(normal);
-
-    // Build rotation matrix with basis vectors: right, up_corrected, normal
-    let rotation = Mat3::from_cols(right, up_corrected, normal);
-
-    // Create transform with position and rotation, scaled by size
-    Transform3D {
-        pos: plane.origin,
-        rot: Quat::from_mat3(&rotation),
-        scale: Vec3::splat(size),
-    }
-}
-
-// // get world space corners
-// // change zfar to cover smaller area
-// camera.znear = znear;
-// camera.zfar = zfar;
-// let camera_inv_view_proj = camera.uniform(ctx).inv_view_proj;
-//
-// let mut corners = Vec::new();
-// for x in [-1.0, 1.0] {
-//     for y in [-1.0, 1.0] {
-//         for z in [0.0, 1.0] {
-//             let world_coord_homo = camera_inv_view_proj * vec4(x, y, z, 1.0);
-//             let world_coord = world_coord_homo / world_coord_homo.w;
-//             corners.push(world_coord.xyz());
-//         }
-//     }
-// }
-//
-// // calc aabb (view space)
-// let summed_corners = corners.iter().sum::<Vec3>();
-// let mut center = summed_corners / corners.len() as f32;
-//
-// // view matrix
-// // let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
-// // let light_cam_view_inv = light_cam_view.inverse();
-//
-// //     let mut tmp = light_cam_view * center.extend(1.0);
-// // tmp.x = tmp.x.floor() ;
-// //     tmp.y = tmp.y.floor();
-// //     center = (light_cam_view_inv * tmp).xyz();
-//
-// let light_cam_view = Mat4::look_to_rh(center, main_light_dir, vec3(0.0, 1.0, 0.0));
-//
-// let mut min_light_space = Vec3::MAX;
-// let mut max_light_space = Vec3::MIN;
-// for corner in corners.iter() {
-//     let pos = light_cam_view.transform_point3(*corner);
-//     min_light_space = min_light_space.min(pos);
-//     max_light_space = max_light_space.max(pos);
-// }
-//
-// let mut left = min_light_space.x;
-// let mut right = max_light_space.x;
-// let mut bottom = min_light_space.y;
-// let mut top = max_light_space.y;
-// let mut near = min_light_space.z;
-// let mut far = max_light_space.z;
-//
-// // grow camera depth behind and in front of camera
-// let z_mult = 10.0;
-// if min_light_space.z < 0.0 {
-//     near *= z_mult;
-// } else {
-//     near /= z_mult;
-// }
-// if max_light_space.z < 0.0 {
-//     far /= z_mult;
-// } else {
-//     far *= z_mult;
-// }
-//
-// let constant_size = true;
-// let square = true;
-// let round_to_pixel = true;
-//
-// let actual_size = if constant_size {
-//     let far_face_diagnoal = (corners[7] - corners[1]).length();
-//     let forward_diagnoal = (corners[7] - corners[0]).length();
-//     f32::max(far_face_diagnoal, forward_diagnoal)
-// } else {
-//     f32::max(right - left, top - bottom)
-// };
-//
-// let height = top - bottom;
-// let width = right - left;
-//
-// if square {
-//     let mut diff = actual_size - height;
-//     if diff > 0.0 {
-//         top += diff / 2.0;
-//         bottom -= diff / 2.0;
-//     }
-//     diff = actual_size - width;
-//     if diff > 0.0 {
-//         right += diff / 2.0;
-//         left -= diff / 2.0;
-//     }
-// }
-//
-// let dim = 1024.0;
-// if round_to_pixel {
-//     let pixel_size = width.max(height) / dim;
-//     left = f32::round(left / pixel_size) * pixel_size;
-//     right = f32::round(right / pixel_size) * pixel_size;
-//     bottom = f32::round(bottom / pixel_size) * pixel_size;
-//     top = f32::round(top / pixel_size) * pixel_size;
-// }
-//
-// // projection matrix
-// let light_cam_proj = Mat4::orthographic_rh(left, right, bottom, top, near, far);
-//
-// light_cam_proj * light_cam_view

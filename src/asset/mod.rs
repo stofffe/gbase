@@ -116,14 +116,6 @@ pub fn handle_loaded<T: Asset>(ctx: &Context, handle: AssetHandle<T>) -> bool {
     ctx.assets.asset_cache.handle_loaded(handle)
 }
 
-/// Check if a list of asset are loaded
-// pub fn handles_loaded(
-//     ctx: &Context,
-//     handles: impl IntoIterator<Item = AssetHandle<DynAsset>>,
-// ) -> bool {
-//     ctx.assets.asset_cache.handles_loaded(handles)
-// }
-
 pub fn get<T: Asset + 'static>(ctx: &Context, handle: AssetHandle<T>) -> Option<&T> {
     ctx.assets.asset_cache.get(handle)
 }

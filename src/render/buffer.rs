@@ -1,8 +1,8 @@
 use crate::{render, Context};
-use bytemuck::{AnyBitPattern, NoUninit};
+use bytemuck::NoUninit;
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
-use std::{marker::PhantomData, ops::RangeBounds, sync::Arc};
+use std::{marker::PhantomData, ops::RangeBounds};
 use wgpu::util::DeviceExt;
 
 //
@@ -14,7 +14,6 @@ pub enum RawBufferSource<T: bytemuck::NoUninit> {
     Size(u64),
 }
 
-// TODO: add type to this
 pub struct RawBufferBuilder<T: bytemuck::NoUninit> {
     source: RawBufferSource<T>,
     label: Option<String>,
@@ -68,6 +67,7 @@ impl<T: NoUninit> RawBufferBuilder<T> {
     }
 }
 
+/// Buffer for storing data without any alignment
 pub struct RawBuffer<T: bytemuck::NoUninit> {
     buffer: ArcBuffer,
     ty: PhantomData<T>,
@@ -165,6 +165,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
     }
 }
 
+/// Buffer for storing uniform buffers
 #[derive(Debug)]
 pub struct UniformBuffer<T: ShaderType + WriteInto> {
     buffer: ArcBuffer,
@@ -197,7 +198,7 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
 
 pub enum StorageBufferSource<T: ShaderType + WriteInto> {
     Data(T),
-    Size(u64),
+    Size(u64), // element count
 }
 
 pub struct StorageBufferBuilder<T: ShaderType + WriteInto> {

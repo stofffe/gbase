@@ -5,7 +5,7 @@ use gbase::{
     glam::{vec2, Vec2, Vec3Swizzles},
     input,
     render::{
-        self, device, queue, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
+        self, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
         RenderPassColorAttachment,
     },
     wgpu, Context,

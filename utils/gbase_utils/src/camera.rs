@@ -51,11 +51,15 @@ pub struct Camera {
     pub zfar: f32,
 
     pub projection: CameraProjection,
+    pub aspect_ratio: f32,
     // TODO: add aspect here
 }
 
 impl Camera {
-    pub fn new(projection: CameraProjection) -> Self {
+    pub fn new_with_screen_size(ctx: &Context, projection: CameraProjection) -> Self {
+        Self::new(render::aspect_ratio(ctx), projection)
+    }
+    pub fn new(aspect_ratio: f32, projection: CameraProjection) -> Self {
         Self {
             pos: Vec3::ZERO,
             yaw: 0.0,
@@ -65,8 +69,14 @@ impl Camera {
             zfar: 1000.0,
 
             projection,
+            aspect_ratio,
         }
     }
+
+    pub fn resize(&mut self, size: winit::dpi::PhysicalSize<u32>) {
+        self.aspect_ratio = size.width as f32 / size.height as f32;
+    }
+
     pub fn world_up(&self) -> Vec3 {
         vec3(0.0, 1.0, 0.0)
     }
@@ -101,15 +111,14 @@ impl Camera {
         Mat4::look_to_rh(self.pos, self.forward(), self.up())
     }
 
-    pub fn projection_matrix(&self, ctx: &Context) -> Mat4 {
-        let aspect_ratio = render::aspect_ratio(ctx);
+    pub fn projection_matrix(&self) -> Mat4 {
         match self.projection {
             CameraProjection::Perspective { fov } => {
-                Mat4::perspective_rh(fov, aspect_ratio, self.znear, self.zfar)
+                Mat4::perspective_rh(fov, self.aspect_ratio, self.znear, self.zfar)
             }
             CameraProjection::Orthographic { height } => Mat4::orthographic_rh(
-                aspect_ratio * -height / 2.0,
-                aspect_ratio * height / 2.0,
+                self.aspect_ratio * -height / 2.0,
+                self.aspect_ratio * height / 2.0,
                 -height / 2.0,
                 height / 2.0,
                 self.znear,
@@ -118,16 +127,16 @@ impl Camera {
         }
     }
 
-    pub fn view_projection_matrix(&self, ctx: &Context) -> Mat4 {
-        self.projection_matrix(ctx) * self.view_matrix()
+    pub fn view_projection_matrix(&self) -> Mat4 {
+        self.projection_matrix() * self.view_matrix()
     }
 
-    pub fn uniform(&self, ctx: &Context) -> CameraUniform {
+    pub fn uniform(&self) -> CameraUniform {
         let pos = self.pos;
         let facing = self.forward();
 
         let view = self.view_matrix();
-        let proj = self.projection_matrix(ctx);
+        let proj = self.projection_matrix();
         let view_proj = proj * view;
 
         let inv_view = view.inverse();

@@ -281,7 +281,7 @@ impl PbrRenderer {
                     // shadow map texture
                     render::BindGroupEntry::Texture(
                         render::TextureViewBuilder::new(shadow_map.clone())
-                            .array_layer_count(3)
+                            .array_layer_count(3) // TODO: hardcoded
                             .dimension(wgpu::TextureViewDimension::D2Array)
                             .build(ctx), // render::TextureViewBuilder::new(shadow_map.clone()).build(ctx),
                     ),
@@ -291,8 +291,6 @@ impl PbrRenderer {
                     render::BindGroupEntry::Buffer(shadow_matrices.buffer()),
                     // shadow matrices distances
                     render::BindGroupEntry::Buffer(shadow_matrices_distances.buffer()),
-                    // // test
-                    // render::BindGroupEntry::Buffer(shadow_matrices_distances.buffer()),
                 ])
                 .build(ctx);
 
@@ -388,8 +386,8 @@ fn screen_space_coverage(r: f32, world_pos: Vec3, fov: f32, view_matrix: Mat4) -
     let view_pos = view_matrix * world_pos.extend(1.0);
     let z = -view_pos.z;
 
+    // behind camera?
     if z <= 0.0 {
-        tracing::warn!("behind camera?");
         return 0.0;
     }
 

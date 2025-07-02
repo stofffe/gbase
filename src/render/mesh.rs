@@ -1,5 +1,3 @@
-use wgpu::util::RenderEncoder;
-
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
@@ -391,7 +389,7 @@ impl GpuMesh {
     }
 
     pub fn bind_to_render_pass(&self, render_pass: &mut wgpu::RenderPass<'_>) {
-        for (i, (t, (start, end))) in self.attribute_ranges.iter().enumerate() {
+        for (i, (_t, (start, end))) in self.attribute_ranges.iter().enumerate() {
             // tracing::info!("bind {t:?} {i} to {:?}", (start, end));
             let slice = self.attribute_buffer.slice(start..end);
             render_pass.set_vertex_buffer(i as u32, slice);
