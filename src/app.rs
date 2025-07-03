@@ -102,7 +102,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         let mut cache = AssetCache::new();
 
         #[cfg(not(feature = "hot_reload"))]
-        let callbacks = C::new(&mut ctx);
+        let callbacks = C::new(&mut ctx, &mut cache);
 
         #[cfg(feature = "hot_reload")]
         let callbacks = DllCallbacks::new(&mut ctx, &mut cache);
