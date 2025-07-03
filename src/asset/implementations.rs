@@ -22,7 +22,7 @@ impl ConvertableRenderAsset for render::GpuMesh {
         source: &Self::SourceAsset,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
-        Ok(render::GpuMesh::new_inner(render::device(ctx), source))
+        Ok(render::GpuMesh::new(ctx, source))
     }
 }
 
@@ -56,12 +56,12 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
     ) -> Result<Self, Self::Error> {
         #[cfg(target_arch = "wasm32")]
         {
-            Ok(source.build_inner_2(device))
+            Ok(source.build_non_arc(ctx))
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            source.build_inner_err_2(&render::device(ctx))
+            source.build_err_non_arc(ctx)
         }
     }
 }

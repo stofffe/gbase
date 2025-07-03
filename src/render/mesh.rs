@@ -336,10 +336,7 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
-    pub fn new(ctx: &Context, mesh: &Mesh) -> Self {
-        Self::new_inner(&ctx.render.device, mesh)
-    }
-    pub fn new_inner(device: &wgpu::Device, mesh: &Mesh) -> Self {
+    pub fn new(ctx: &mut Context, mesh: &Mesh) -> Self {
         // layout attributes sequentially in the buffer
         let mut cursor = 0;
         let mut combined_bytes = Vec::new();
@@ -351,12 +348,6 @@ impl GpuMesh {
                 cursor += 1;
             }
             let end = cursor;
-            // tracing::info!(
-            //     "INSERT: range {:?} values {:?} values b {:?}",
-            //     (start, end),
-            //     values.len(),
-            //     values.as_bytes().len()
-            // );
             attribute_ranges.insert(id, (start, end));
         }
 
@@ -365,14 +356,14 @@ impl GpuMesh {
             let buffer =
                 render::RawBufferBuilder::new(render::RawBufferSource::Data(indices.clone()))
                     .usage(wgpu::BufferUsages::INDEX)
-                    .build_inner(device);
+                    .build(ctx);
             index_buffer = Some(buffer.buffer());
         }
 
         let attribtute_buffer =
             render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes))
                 .label("mesh")
-                .build_inner(device);
+                .build(ctx);
 
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();

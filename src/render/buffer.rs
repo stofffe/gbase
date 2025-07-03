@@ -30,9 +30,7 @@ impl<T: NoUninit> RawBufferBuilder<T> {
     }
 
     pub fn build(self, ctx: &Context) -> RawBuffer<T> {
-        self.build_inner(&ctx.render.device)
-    }
-    pub fn build_inner(self, device: &wgpu::Device) -> RawBuffer<T> {
+        let device = render::device(ctx);
         let buffer = match self.source {
             RawBufferSource::Size(size) => device.create_buffer(&wgpu::BufferDescriptor {
                 label: self.label.as_deref(),
