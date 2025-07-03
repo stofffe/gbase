@@ -1,4 +1,6 @@
-use crate::{BoundingSphere, Camera, CameraProjection, GizmoRenderer, PixelCache, Transform3D};
+use crate::{
+    BoundingSphere, Camera, CameraFrustum, CameraProjection, GizmoRenderer, PixelCache, Transform3D,
+};
 use encase::ShaderType;
 use gbase::{
     asset::{self, AssetHandle},
@@ -201,11 +203,11 @@ impl PbrRenderer {
         //
         // Culling
         //
-        let frustum = camera.calculate_frustum(ctx);
-        self.frame_meshes.retain(|(handle, _, transform)| {
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
-            frustum.sphere_inside(&gpu_mesh.bounds, transform)
-        });
+        // let frustum = camera.calculate_frustum(ctx);
+        // self.frame_meshes.retain(|(handle, _, transform)| {
+        //     let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
+        //     frustum.sphere_inside(&gpu_mesh.bounds, transform)
+        // });
 
         //
         // Grouping of draws
@@ -327,6 +329,7 @@ impl PbrRenderer {
         self.frame_meshes.clear();
     }
 
+    /// cull and add mesh
     pub fn add_mesh(
         &mut self,
         mesh: asset::AssetHandle<render::Mesh>,
@@ -334,6 +337,24 @@ impl PbrRenderer {
         transform: Transform3D,
     ) {
         self.frame_meshes.push((mesh, material, transform));
+    }
+
+    /// cull and add mesh
+    pub fn add_mesh_culled(
+        &mut self,
+        ctx: &mut Context,
+        frustum: &CameraFrustum,
+        mesh: asset::AssetHandle<render::Mesh>,
+        material: Arc<GpuMaterial>,
+        transform: Transform3D,
+    ) {
+        // TODO: cache the frustum
+        // cull
+        let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh.clone(), &()).unwrap();
+
+        if frustum.sphere_inside(&gpu_mesh.bounds, &transform) {
+            self.frame_meshes.push((mesh, material, transform));
+        }
     }
 
     // temp?
@@ -350,7 +371,7 @@ impl PbrRenderer {
             let mut color = vec3(1.0, 1.0, 1.0);
 
             if let CameraProjection::Perspective { fov } = camera.projection {
-                let screen_coverage = screen_space_coverage(
+                let screen_coverage = screen_space_vertical_coverage(
                     bounding_sphere.radius,
                     transform.pos,
                     fov,
@@ -382,7 +403,8 @@ impl PbrRenderer {
     }
 }
 
-fn screen_space_coverage(r: f32, world_pos: Vec3, fov: f32, view_matrix: Mat4) -> f32 {
+// TODO: do area instead of just height
+fn screen_space_vertical_coverage(r: f32, world_pos: Vec3, fov: f32, view_matrix: Mat4) -> f32 {
     let view_pos = view_matrix * world_pos.extend(1.0);
     let z = -view_pos.z;
 

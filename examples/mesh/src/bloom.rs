@@ -1,5 +1,5 @@
 use gbase::{
-    asset,
+    asset::{self, AssetCache},
     render::{self, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
 };

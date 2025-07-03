@@ -32,7 +32,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
         }
 
         // TODO: not used rn
-        let new_transform = transform * Mat4::from_cols_array_2d(&node.transform().matrix());
+        let local_transform = transform * Mat4::from_cols_array_2d(&node.transform().matrix());
 
         if let Some(mesh) = node.mesh() {
             // each primitive has its own material
@@ -183,6 +183,7 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                         sampler: SamplerBuilder::new()
                             .min_mag_filter(
                                 samp.min_filter()
+                                    // TODO: handle mipmap filters
                                     .map_or(wgpu::FilterMode::Linear, |filter| match filter {
                                         gltf::texture::MinFilter::Nearest
                                         | gltf::texture::MinFilter::NearestMipmapLinear
@@ -232,11 +233,6 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                             ),
                     }
                 });
-
-                // let base_color_texture = match base_color_texture {
-                //     Some(tex) => image_cache.allocate(tex),
-                //     None => self.pixel_cache(image_cache, BASE_COLOR_DEFAULT),
-                // };
 
                 let color_factor = pbr.base_color_factor(); // scaling / replacement
 
@@ -531,14 +527,14 @@ pub fn parse_glb(glb_bytes: &[u8]) -> Vec<GltfPrimitive> {
                 meshes.push(GltfPrimitive {
                     mesh,
                     material,
-                    transform: new_transform,
+                    transform: local_transform,
                 });
             }
         }
 
         // recursively visit children
         for child in node.children() {
-            node_stack.push((child, new_transform));
+            node_stack.push((child, local_transform));
         }
     }
 

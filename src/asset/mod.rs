@@ -137,38 +137,3 @@ pub fn convert_asset<G: ConvertableRenderAsset>(
         params,
     )
 }
-// pub fn insert<T: Asset + 'static>(ctx: &mut Context, asset: T) -> AssetHandle<T> {
-//     ctx.assets.asset_cache.insert(asset)
-// }
-
-// pub fn load<T: Asset + LoadableAsset + 'static>(
-//     ctx: &mut Context,
-//     path: &std::path::Path,
-//     sync: bool,
-// ) -> AssetHandle<T> {
-//     ctx.assets.asset_cache.load(path, sync)
-// }
-//
-// pub fn load_watch<T: Asset + LoadableAsset + 'static>(
-//     ctx: &mut Context,
-//     path: &std::path::Path,
-//     sync: bool,
-// ) -> AssetHandle<T> {
-//     ctx.assets.asset_cache.load_watch(path, sync)
-// }
-//
-// pub fn load_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
-//     ctx: &mut Context,
-//     path: &std::path::Path,
-//     sync: bool,
-// ) -> AssetHandle<T> {
-//     ctx.assets.asset_cache.load_write(path, sync)
-// }
-//
-// pub fn load_watch_write<T: Asset + LoadableAsset + WriteableAsset + 'static>(
-//     ctx: &mut Context,
-//     path: &std::path::Path,
-//     sync: bool,
-// ) -> AssetHandle<T> {
-//     ctx.assets.asset_cache.load_watch_write(path, sync)
-// }

@@ -6,8 +6,8 @@ use gbase::{
     render::{self, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
-use gbase_utils::ShadowPass;
 use gbase_utils::{GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
+use gbase_utils::{MeshLod, ShadowPass};
 use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -37,6 +37,7 @@ struct App {
     ak47_material: Arc<GpuMaterial>,
     helmet_mesh_handle: asset::AssetHandle<Mesh>,
     helmet_material: Arc<GpuMaterial>,
+    helmet_mesh_lod: MeshLod,
 
     plane_mesh_handle: asset::AssetHandle<Mesh>,
     plane_material: Arc<GpuMaterial>,
@@ -57,6 +58,28 @@ fn load_simple_mesh(
     let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
     let material = prim.material.clone().to_material(ctx, pixel_cache);
     (mesh_handle, Arc::new(material))
+}
+
+fn load_lod_mesh(
+    ctx: &mut Context,
+    bytes: &[u8],
+    pixel_cache: &mut PixelCache,
+    pbr_renderer: &PbrRenderer,
+) -> MeshLod {
+    let mut meshes = Vec::new();
+    let thresholds = [0.5, 0.25, 0.0];
+
+    for (i, prim) in gbase_utils::parse_glb(bytes).into_iter().enumerate() {
+        let mesh = prim
+            .mesh
+            .extract_attributes(pbr_renderer.required_attributes().clone());
+        let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
+        let material = Arc::new(prim.material.clone().to_material(ctx, pixel_cache));
+
+        meshes.push((mesh_handle, material, thresholds[i]));
+    }
+
+    MeshLod::new(meshes)
 }
 
 impl Callbacks for App {
@@ -172,6 +195,13 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx);
 
+        let helmet_mesh_lod = load_lod_mesh(
+            ctx,
+            &load_b!("models/helmet2.glb").unwrap(),
+            &mut pixel_cache,
+            &pbr_renderer,
+        );
+
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
@@ -197,6 +227,7 @@ impl Callbacks for App {
             plane_material,
 
             shadow_pass,
+            helmet_mesh_lod,
         }
     }
 
@@ -294,11 +325,14 @@ impl Callbacks for App {
         );
 
         // pbr pass
+        let frustum = self.camera.calculate_frustum();
         for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer.add_mesh(mesh, mat, transform);
+            self.pbr_renderer
+                .add_mesh_culled(ctx, &frustum, mesh, mat, transform);
+            // self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
-        self.pbr_renderer
-            .render_bounding_boxes(ctx, &mut self.gizmo_renderer, &self.camera);
+        // self.pbr_renderer
+        //     .render_bounding_boxes(ctx, &mut self.gizmo_renderer, &self.camera);
         self.pbr_renderer.render(
             ctx,
             self.hdr_framebuffer_1.view_ref(),
@@ -365,6 +399,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        // render::set_vsync(_ctx, false);
+        render::set_vsync(_ctx, false);
     }
 }

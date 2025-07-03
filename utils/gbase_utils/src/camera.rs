@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 
 use encase::ShaderType;
 use gbase::{
+    asset::{self, ConvertableRenderAsset, RenderAsset},
     glam::{vec3, Mat4, Vec3, Vec4Swizzles},
     input,
     render::{self, BoundingBox},
@@ -12,18 +13,18 @@ use crate::Transform3D;
 
 #[derive(ShaderType)]
 pub struct CameraUniform {
-    pub pos: Vec3,
-    pub near: f32,
-    pub facing: Vec3,
-    pub far: f32,
+    pos: Vec3,
+    near: f32,
+    facing: Vec3,
+    far: f32,
 
-    pub view: Mat4,
-    pub proj: Mat4,
-    pub view_proj: Mat4,
+    view: Mat4,
+    proj: Mat4,
+    view_proj: Mat4,
 
-    pub inv_view: Mat4,
-    pub inv_proj: Mat4,
-    pub inv_view_proj: Mat4,
+    inv_view: Mat4,
+    inv_proj: Mat4,
+    inv_view_proj: Mat4,
 }
 
 #[derive(Debug, Clone)]
@@ -312,16 +313,15 @@ impl CameraFrustum {
 
 impl Camera {
     // TODO: cache in camera?
-    pub fn calculate_frustum(&self, ctx: &Context) -> CameraFrustum {
+    pub fn calculate_frustum(&self) -> CameraFrustum {
         let cam_forward = self.forward();
         let cam_right = self.right();
         let cam_up = self.up();
 
         match self.projection {
             CameraProjection::Orthographic { height } => {
-                let aspect_ratio = render::aspect_ratio(ctx);
                 let half_height = height / 2.0;
-                let half_width = half_height * aspect_ratio;
+                let half_width = half_height * self.aspect_ratio;
 
                 let near = Plane {
                     origin: self.pos + self.znear * cam_forward,
@@ -358,9 +358,8 @@ impl Camera {
                 }
             }
             CameraProjection::Perspective { fov } => {
-                let aspect_ratio = render::aspect_ratio(ctx);
                 let half_far_height = self.zfar * f32::tan(fov / 2.0);
-                let half_far_width = half_far_height * aspect_ratio;
+                let half_far_width = half_far_height * self.aspect_ratio;
 
                 let far_left = cam_forward * self.zfar - cam_right * half_far_width;
                 let far_right = cam_forward * self.zfar + cam_right * half_far_width;
@@ -401,5 +400,27 @@ impl Camera {
                 }
             }
         }
+    }
+}
+
+//
+// Camera asset
+//
+
+impl asset::Asset for Camera {}
+impl RenderAsset for CameraFrustum {}
+impl ConvertableRenderAsset for CameraFrustum {
+    type SourceAsset = Camera;
+    type Params = ();
+    type Error = bool;
+
+    fn convert(
+        device: &gbase::wgpu::Device,
+        queue: &gbase::wgpu::Queue,
+        render_cache: &mut render::RenderCache,
+        source: &Self::SourceAsset,
+        params: &Self::Params,
+    ) -> Result<Self, Self::Error> {
+        Ok(source.calculate_frustum())
     }
 }

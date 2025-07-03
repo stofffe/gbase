@@ -22,7 +22,7 @@ pub trait WriteableAsset: LoadableAsset {
     fn write(&mut self, path: &Path);
 }
 
-pub trait RenderAsset: Any {}
+pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
 
 // pub trait ConvertableRenderAsset: RenderAsset + Sync + Sized {
 pub trait ConvertableRenderAsset: RenderAsset + Sized + Clone {

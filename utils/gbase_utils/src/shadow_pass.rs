@@ -290,7 +290,7 @@ fn calculate_light_matrix(
     // change zfar to cover smaller area
     camera.znear = znear;
     camera.zfar = zfar;
-    let camera_inv_view_proj = camera.uniform().inv_view_proj;
+    let camera_inv_view_proj = camera.view_projection_matrix().inverse();
     let mut corners = Vec::new();
     for x in [-1.0, 1.0] {
         for y in [-1.0, 1.0] {
