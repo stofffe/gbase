@@ -1,3 +1,4 @@
+use super::AssetHandle;
 use crate::{
     render::{self, ArcHandle},
     Context,
@@ -10,6 +11,7 @@ use std::{
 };
 
 pub type DynAsset = Box<dyn Asset>;
+pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynRenderAsset = ArcHandle<dyn Any>;
 pub type DynAssetLoadFn = Box<dyn Fn(&Path) -> DynAsset>;
 pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;

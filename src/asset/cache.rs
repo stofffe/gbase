@@ -1,6 +1,7 @@
 use super::{
-    Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetLoadFn, DynAssetOnLoadFn,
-    DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn, WriteableAsset,
+    Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetHandle, DynAssetLoadFn,
+    DynAssetOnLoadFn, DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn,
+    WriteableAsset,
 };
 use crate::{render::ArcHandle, Context};
 use futures_channel::mpsc;
@@ -12,20 +13,20 @@ use std::{
     time::Duration,
 };
 
-// TODO: maybe create new types for the complicated ones
+pub type RenderAssetKey = (DynAssetHandle, TypeId);
 
 pub struct AssetCache {
-    cache: HashMap<AssetHandle<DynAsset>, DynAsset>,
+    cache: HashMap<DynAssetHandle, DynAsset>,
 
-    render_cache: HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
-    render_cache_last_valid: HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
-    render_cache_invalidate_lookup: HashMap<AssetHandle<DynAsset>, HashSet<TypeId>>,
+    render_cache: HashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_last_valid: HashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_invalidate_lookup: HashMap<DynAssetHandle, HashSet<TypeId>>,
 
     // async loading
-    load_sender: mpsc::UnboundedSender<(AssetHandle<DynAsset>, DynAsset)>,
-    load_receiver: mpsc::UnboundedReceiver<(AssetHandle<DynAsset>, DynAsset)>,
-    currently_loading: HashSet<AssetHandle<DynAsset>>,
-    reload_on_load: HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
+    load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
+    currently_loading: HashSet<DynAssetHandle>,
+    reload_on_load: HashMap<DynAssetHandle, DynAssetOnLoadFn>,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -278,7 +279,7 @@ impl AssetCache {
         !self.currently_loading.contains(&handle.as_any())
     }
 
-    pub fn handles_loaded(&self, handles: impl IntoIterator<Item = AssetHandle<DynAsset>>) -> bool {
+    pub fn handles_loaded(&self, handles: impl IntoIterator<Item = DynAssetHandle>) -> bool {
         for handle in handles {
             if !self.currently_loading.contains(&handle) {
                 return false;
@@ -291,15 +292,15 @@ impl AssetCache {
 #[cfg(not(target_arch = "wasm32"))]
 pub struct AssetCacheExt {
     // reloading
-    reload_handles: HashMap<PathBuf, Vec<AssetHandle<DynAsset>>>,
+    reload_handles: HashMap<PathBuf, Vec<DynAssetHandle>>,
     reload_functions: HashMap<TypeId, DynAssetLoadFn>,
     reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
     reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
 
     // writing
-    write_handles: HashMap<AssetHandle<DynAsset>, PathBuf>,
+    write_handles: HashMap<DynAssetHandle, PathBuf>,
     write_functions: HashMap<TypeId, DynAssetWriteFn>,
-    write_dirty: HashSet<AssetHandle<DynAsset>>,
+    write_dirty: HashSet<DynAssetHandle>,
 }
 
 // TODO: check if canoicalize is necessary
@@ -353,7 +354,7 @@ impl AssetCacheExt {
     }
 
     // check if any files are scheduled for writing to disk
-    pub fn poll_write(&mut self, cache: &mut HashMap<AssetHandle<DynAsset>, DynAsset>) {
+    pub fn poll_write(&mut self, cache: &mut HashMap<DynAssetHandle, DynAsset>) {
         for handle in self.write_dirty.drain() {
             if let Some(path) = self.write_handles.get(&handle) {
                 let asset = cache.get_mut(&handle);
@@ -374,10 +375,10 @@ impl AssetCacheExt {
     // checks if any files changed and spawns a thread which reloads the data
     pub fn poll_reload(
         &mut self,
-        cache: &mut HashMap<AssetHandle<DynAsset>, DynAsset>,
-        render_cache: &mut HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
-        render_cache_invalidate_lookup: &HashMap<AssetHandle<DynAsset>, HashSet<TypeId>>,
-        on_load: &HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
+        cache: &mut HashMap<DynAssetHandle, DynAsset>,
+        render_cache: &mut HashMap<RenderAssetKey, DynRenderAsset>,
+        render_cache_invalidate_lookup: &HashMap<DynAssetHandle, HashSet<TypeId>>,
+        on_load: &HashMap<DynAssetHandle, DynAssetOnLoadFn>,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
             println!("1 reload {:?}", path);
@@ -413,9 +414,9 @@ impl AssetCacheExt {
 }
 
 pub fn invalidate_render_cache(
-    render_cache: &mut HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
-    render_cache_invalidate_lookup: &HashMap<AssetHandle<DynAsset>, HashSet<TypeId>>,
-    handle: AssetHandle<DynAsset>,
+    render_cache: &mut HashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_invalidate_lookup: &HashMap<DynAssetHandle, HashSet<TypeId>>,
+    handle: DynAssetHandle,
 ) {
     if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {
         for render_type in render_types {
