@@ -45,7 +45,6 @@ pub struct Context {
     pub(crate) audio: audio::AudioContext,
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
-    pub(crate) assets: asset::AssetContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,

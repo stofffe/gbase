@@ -60,7 +60,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         // let mut image_cache = AssetCache::new();
         let mut pixel_cache = PixelCache::new();
 
@@ -75,7 +75,7 @@ impl Callbacks for App {
                     | wgpu::TextureUsages::STORAGE_BINDING,
             )
             .build(ctx);
-        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
+        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx, cache);
 
         // Camera
         let camera = gbase_utils::Camera::new_with_screen_size(
@@ -93,8 +93,8 @@ impl Callbacks for App {
             .label("frustum")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
-        frustum_buffer.write(ctx, &camera.calculate_frustum(ctx)); // TODO: remove
-                                                                   // .build(ctx);
+        frustum_buffer.write(ctx, &camera.calculate_frustum()); // TODO: remove
+                                                                // .build(ctx);
         let light = gbase_utils::PbrLightUniforms {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
@@ -106,8 +106,8 @@ impl Callbacks for App {
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let grass_renderer = GrassRenderer::new(ctx);
-        let pbr_renderer = gbase_utils::PbrRenderer::new(ctx);
+        let grass_renderer = GrassRenderer::new(ctx, cache);
+        let pbr_renderer = gbase_utils::PbrRenderer::new(ctx, cache);
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1024,
@@ -121,7 +121,7 @@ impl Callbacks for App {
                 .build()
                 .extract_attributes(pbr_renderer.required_attributes().clone()),
         )
-        .build(ctx);
+        .build(cache);
         let plane_material = Arc::new(
             PbrMaterial {
                 base_color_texture: None,
@@ -136,10 +136,10 @@ impl Callbacks for App {
                 emissive_texture: None,
                 emissive_factor: [0.0, 0.0, 0.0],
             }
-            .to_material(ctx, &mut pixel_cache), // TODO: remove this?
+            .to_material(cache, &mut pixel_cache), // TODO: remove this?
         );
 
-        let shadow_pass = gbase_utils::ShadowPass::new(ctx);
+        let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 
         Self {
             camera,
@@ -165,11 +165,16 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.frustum_buffer
-            .write(ctx, &self.camera.calculate_frustum(ctx));
+            .write(ctx, &self.camera.calculate_frustum());
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
@@ -189,14 +194,20 @@ impl Callbacks for App {
             .iter()
             .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
             .collect::<Vec<_>>();
-        self.shadow_pass
-            .render(ctx, shadow_meshes, &self.camera, self.light.main_light_dir);
+        self.shadow_pass.render(
+            ctx,
+            cache,
+            shadow_meshes,
+            &self.camera,
+            self.light.main_light_dir,
+        );
         for (mesh, mat, transform) in meshes.iter().cloned() {
             self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
 
         self.pbr_renderer.render(
             ctx,
+            cache,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
             &self.camera,
@@ -210,6 +221,7 @@ impl Callbacks for App {
 
         self.grass_renderer.render(
             ctx,
+            cache,
             // &mut self.shader_cache,
             &self.camera,
             &self.camera_buffer,
@@ -272,6 +284,7 @@ impl Callbacks for App {
             .render(ctx, self.framebuffer.view_ref(), self.framebuffer.format());
         self.framebuffer_renderer.render(
             ctx,
+            cache,
             self.framebuffer.view(),
             screen_view,
             render::surface_format(ctx),
@@ -281,7 +294,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: PhysicalSize<u32>,
+    ) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.framebuffer.resize(ctx, new_size);
         self.depth_buffer.resize(ctx, new_size);
@@ -290,7 +308,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;

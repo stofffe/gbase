@@ -18,7 +18,7 @@ impl Callbacks for App {
         gbase::ContextBuilder::new().vsync(true).device_features(wgpu::Features::TIMESTAMP_QUERY)
     }
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1000,
@@ -33,16 +33,16 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache,) -> bool {
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             render::clear_cache(ctx);
-            *self = Self::new(ctx);
+            *self = Self::new(ctx, cache);
         }
         false
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(&mut self, ctx: &mut Context,_cache: &mut gbase::asset::AssetCache, screen_view: &wgpu::TextureView) -> bool {
         let renderer = &mut self.gui_renderer;
 
         let outer = Widget::new()
@@ -188,7 +188,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
+    fn resize(&mut self, ctx: &mut Context,_cache: &mut gbase::asset::AssetCache, new_size: PhysicalSize<u32>) {
         self.gui_renderer.resize(ctx, new_size);
     }
 }

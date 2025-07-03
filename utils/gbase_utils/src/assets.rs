@@ -17,7 +17,11 @@ impl PixelCache {
         }
     }
 
-    pub fn allocate(&mut self, ctx: &mut Context, value: [u8; 4]) -> asset::AssetHandle<Image> {
+    pub fn allocate(
+        &mut self,
+        cache: &mut gbase::asset::AssetCache,
+        value: [u8; 4],
+    ) -> asset::AssetHandle<Image> {
         match self.default_textures.get(&value) {
             Some(handle) => handle.clone(),
             None => {
@@ -30,7 +34,7 @@ impl PixelCache {
                     sampler: render::SamplerBuilder::new()
                         .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
                 };
-                let handle = asset::AssetBuilder::insert(image).build(ctx);
+                let handle = asset::AssetBuilder::insert(image).build(cache);
                 self.default_textures.insert(value, handle.clone());
                 handle
             }

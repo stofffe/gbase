@@ -49,7 +49,7 @@ struct App {
 }
 
 fn load_simple_mesh(
-    ctx: &mut Context,
+    cache: &mut gbase::asset::AssetCache,
     bytes: &[u8],
     pixel_cache: &mut PixelCache,
     pbr_renderer: &PbrRenderer,
@@ -58,8 +58,8 @@ fn load_simple_mesh(
     let mesh = prim
         .mesh
         .extract_attributes(pbr_renderer.required_attributes().clone());
-    let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
-    let material = prim.material.clone().to_material(ctx, pixel_cache);
+    let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
+    let material = prim.material.clone().to_material(cache, pixel_cache);
     (mesh_handle, Arc::new(material))
 }
 
@@ -79,7 +79,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let mut pixel_cache = PixelCache::new();
 
         let hdr_format = if render::device(ctx)
@@ -107,30 +107,30 @@ impl Callbacks for App {
             )
             .label("ldr")
             .build(ctx);
-        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx);
+        let framebuffer_renderer = gbase_utils::TextureRenderer::new(ctx, cache);
 
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
 
-        let pbr_renderer = PbrRenderer::new(ctx);
+        let pbr_renderer = PbrRenderer::new(ctx, cache);
 
         let (ak47_mesh_handle, ak47_material) = load_simple_mesh(
-            ctx,
+            cache,
             &load_b!("models/ak47.glb").unwrap(),
             &mut pixel_cache,
             &pbr_renderer,
         );
 
         let (helmet_mesh_handle, helmet_material) = load_simple_mesh(
-            ctx,
+            cache,
             &load_b!("models/helmet.glb").unwrap(),
             &mut pixel_cache,
             &pbr_renderer,
         );
 
         let (cube_mesh_handle, cube_material) = load_simple_mesh(
-            ctx,
+            cache,
             &load_b!("models/cube.glb").unwrap(),
             &mut pixel_cache,
             &pbr_renderer,
@@ -160,10 +160,10 @@ impl Callbacks for App {
         let lights_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
-        let tonemap = bloom::Tonemap::new(ctx);
-        let bloom = bloom::Bloom::new(ctx, hdr_format);
+        let tonemap = bloom::Tonemap::new(ctx, cache);
+        let bloom = bloom::Bloom::new(ctx, cache, hdr_format);
 
-        let shadow_pass = gbase_utils::ShadowPass::new(ctx);
+        let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 
         Self {
             hdr_framebuffer_1,
@@ -198,24 +198,29 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
             tracing::warn!("RESTART");
-            *self = Self::new(ctx);
+            *self = Self::new(ctx, cache);
         }
 
         false
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &gbase::wgpu::TextureView) -> bool {
-        if !asset::handle_loaded(ctx, self.cube_mesh_handle.clone())
-            || !asset::handle_loaded(ctx, self.ak47_mesh_handle.clone())
-            || !asset::handle_loaded(ctx, self.ak47_mesh_handle.clone())
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
+        if !asset::handle_loaded(cache, self.cube_mesh_handle.clone())
+            || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
+            || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
         {
             return false;
         }
@@ -241,8 +246,13 @@ impl Callbacks for App {
             .iter()
             .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
             .collect::<Vec<_>>();
-        self.shadow_pass
-            .render(ctx, shadow_meshes, &self.camera, self.lights.main_light_dir);
+        self.shadow_pass.render(
+            ctx,
+            cache,
+            shadow_meshes,
+            &self.camera,
+            self.lights.main_light_dir,
+        );
         for (mesh, mat, transform) in meshes.iter().cloned() {
             self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
@@ -251,6 +261,7 @@ impl Callbacks for App {
             let _timer = time::ProfileTimer::new(ctx, "render");
             self.pbr_renderer.render(
                 ctx,
+                cache,
                 self.hdr_framebuffer_1.view_ref(),
                 self.hdr_framebuffer_1.format(),
                 &self.camera,
@@ -274,13 +285,13 @@ impl Callbacks for App {
 
         let start = Instant::now();
         self.bloom
-            .render(ctx, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
+            .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
         if input::key_pressed(ctx, input::KeyCode::KeyB) {
             time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
         }
 
         self.tonemap
-            .tonemap(ctx, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
+            .tonemap(ctx, cache, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
 
         {
             let _guard = tracing::span!(tracing::Level::TRACE, "ui update").entered();
@@ -384,6 +395,7 @@ impl Callbacks for App {
 
         self.framebuffer_renderer.render(
             ctx,
+            cache,
             self.ldr_framebuffer.view(),
             screen_view,
             render::surface_format(ctx),
@@ -393,7 +405,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: gbase::winit::dpi::PhysicalSize<u32>,
+    ) {
         self.depth_buffer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);

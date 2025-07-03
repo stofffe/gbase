@@ -16,15 +16,15 @@ pub struct TextureRenderer {
 }
 
 impl TextureRenderer {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let shader_handle =
             asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture.wgsl")
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
         let shader_depth_handle =
             asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
 
         let sampler = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
@@ -57,11 +57,12 @@ impl TextureRenderer {
     pub fn render(
         &self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         in_texture: ArcTextureView,
         out_texture: &wgpu::TextureView,
         out_texture_format: wgpu::TextureFormat,
     ) {
-        if !asset::handle_loaded(ctx, self.shader_handle.clone()) {
+        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
             return;
         }
 
@@ -90,7 +91,7 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(vec![self.vertices.desc()])
@@ -113,12 +114,13 @@ impl TextureRenderer {
     pub fn render_depth(
         &self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         in_texture: ArcTextureView,
         out_texture: &wgpu::TextureView,
         out_texture_format: wgpu::TextureFormat,
         camera: &render::UniformBuffer<CameraUniform>,
     ) {
-        if !asset::handle_loaded(ctx, self.shader_handle.clone()) {
+        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
             return;
         }
 
@@ -151,7 +153,8 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, self.shader_depth_handle.clone(), &()).unwrap();
+        let shader =
+            asset::convert_asset(ctx, cache, self.shader_depth_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(vec![self.vertices_depth.desc()])

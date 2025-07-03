@@ -15,14 +15,14 @@ pub struct App {
 
 impl Callbacks for App {
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         let sound_bytes = filesystem::load_b!("sounds/boom.mp3").unwrap();
         let sound = audio::load_audio_source(ctx, sound_bytes);
         Self { sound }
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::winit::keyboard::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);

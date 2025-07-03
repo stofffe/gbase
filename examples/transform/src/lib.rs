@@ -28,7 +28,7 @@ impl Callbacks for App {
             .device_features(wgpu::Features::TIMESTAMP_QUERY)
     }
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/transform.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
@@ -80,7 +80,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         // Transform movement
         let t = gbase::time::time_since_start(ctx);
         self.transform.pos.x = t.sin() * 0.5;
@@ -92,7 +92,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
 
         let mut encoder = render::create_encoder(ctx, None);

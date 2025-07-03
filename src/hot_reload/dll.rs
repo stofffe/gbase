@@ -1,10 +1,20 @@
-#[rustfmt::skip]
-type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool;
-type NewFunc<T> = fn(ctx: &mut crate::Context) -> T;
-type UpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context) -> bool;
-type ResizeFunc<T> =
-    fn(callbacks: &mut T, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>);
-type ReloadFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context);
+type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> T;
+type UpdateFunc<T> =
+    fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> bool;
+type RenderFunc<T> = fn(
+    callbacks: &mut T,
+    ctx: &mut crate::Context,
+    cache: &mut crate::asset::AssetCache,
+    screen_view: &wgpu::TextureView,
+) -> bool;
+type ResizeFunc<T> = fn(
+    callbacks: &mut T,
+    ctx: &mut crate::Context,
+    cache: &mut crate::asset::AssetCache,
+    new_size: winit::dpi::PhysicalSize<u32>,
+);
+type ReloadFunc<T> =
+    fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
@@ -28,36 +38,46 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         panic!("init_ctx on DllCallbacks should never be called");
     }
 
-    fn new(ctx: &mut crate::Context) -> Self {
+    fn new(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> Self {
         let dll = load_dll();
 
-        let mut callbacks = (dll.new_callback)(ctx);
+        let mut callbacks = (dll.new_callback)(ctx, cache);
 
         if let Some(hot_reload) = dll.reload_callback {
-            hot_reload(&mut callbacks, ctx);
+            hot_reload(&mut callbacks, ctx, cache);
         }
 
         Self { callbacks, dll }
     }
 
-    fn update(&mut self, ctx: &mut crate::Context) -> bool {
+    fn update(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> bool {
         match self.dll.update_callback {
-            Some(update) => update(&mut self.callbacks, ctx),
+            Some(update) => update(&mut self.callbacks, ctx, cache),
             None => false,
         }
     }
 
-    fn render(&mut self, ctx: &mut crate::Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut crate::Context,
+        cache: &mut crate::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         match self.dll.render_callback {
-            Some(render) => render(&mut self.callbacks, ctx, screen_view),
+            Some(render) => render(&mut self.callbacks, ctx, cache, screen_view),
             None => false,
         }
     }
 
-    fn resize(&mut self, ctx: &mut crate::Context, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut crate::Context,
+        cache: &mut crate::asset::AssetCache,
+        new_size: winit::dpi::PhysicalSize<u32>,
+    ) {
         #[allow(clippy::single_match)]
         match self.dll.resize_callback {
-            Some(resize) => resize(&mut self.callbacks, ctx, new_size),
+            Some(resize) => resize(&mut self.callbacks, ctx, cache, new_size),
             None => {}
         }
     }
@@ -67,20 +87,20 @@ impl<T> DllCallbacks<T> {
     /// reload dll file
     ///
     /// keep game state
-    pub fn hot_reload(&mut self, ctx: &mut crate::Context) {
+    pub fn hot_reload(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) {
         self.dll = load_dll();
 
         if let Some(hot_reload) = self.dll.reload_callback {
-            hot_reload(&mut self.callbacks, ctx);
+            hot_reload(&mut self.callbacks, ctx, cache);
         }
     }
 
     /// reload dll file
     ///
     /// reset game state
-    pub fn hot_restart(&mut self, ctx: &mut crate::Context) {
-        self.hot_reload(ctx);
-        self.callbacks = (self.dll.new_callback)(ctx);
+    pub fn hot_restart(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) {
+        self.hot_reload(ctx, cache);
+        self.callbacks = (self.dll.new_callback)(ctx, cache);
     }
 }
 

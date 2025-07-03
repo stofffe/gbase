@@ -11,11 +11,11 @@ pub fn main() {
 struct App {}
 
 impl Callbacks for App {
-    fn new(_ctx: &mut Context) -> Self {
+    fn new(_ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         Self {}
     }
 
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         let str_path = "tmp/string";
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("write string");

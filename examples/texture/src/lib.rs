@@ -25,7 +25,7 @@ impl Callbacks for App {
         gbase::ContextBuilder::new().vsync(true)
     }
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // texture
@@ -43,8 +43,8 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
         let shader_handle = asset::AssetBuilder::load("assets/shaders/texture.wgsl")
-            .watch(ctx)
-            .build(ctx);
+            .watch(cache)
+            .build(cache);
         let texture_handle =
             asset::AssetBuilder::load::<render::Image>("assets/textures/texture.jpeg")
                 .on_load(|img| {
@@ -53,14 +53,14 @@ impl Callbacks for App {
                         .clone()
                         .with_format(wgpu::TextureFormat::Rgba8Unorm)
                 })
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
 
         let mesh = render::MeshBuilder::quad().build().extract_attributes([
             render::VertexAttributeId::Position,
             render::VertexAttributeId::Uv(0),
         ]);
-        let mesh_handle = asset::AssetBuilder::insert(mesh).build(ctx);
+        let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
         Self {
             pipeline_layout,
@@ -72,21 +72,27 @@ impl Callbacks for App {
         }
     }
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
-        if !asset::handle_loaded(ctx, self.mesh_handle.clone())
-            || !asset::handle_loaded(ctx, self.shader_handle.clone())
-            || !asset::handle_loaded(ctx, self.texture_handle.clone())
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
+        if !asset::handle_loaded(cache, self.mesh_handle.clone())
+            || !asset::handle_loaded(cache, self.shader_handle.clone())
+            || !asset::handle_loaded(cache, self.texture_handle.clone())
         {
             return false;
         }
         let mesh =
-            asset::convert_asset::<render::GpuMesh>(ctx, self.mesh_handle.clone(), &()).unwrap();
+            asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone(), &())
+                .unwrap();
         let shader =
-            asset::convert_asset::<wgpu::ShaderModule>(ctx, self.shader_handle.clone(), &())
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone(), &())
                 .unwrap();
 
         let texture =
-            asset::convert_asset::<GpuImage>(ctx, self.texture_handle.clone(), &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle.clone(), &()).unwrap();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -98,7 +104,7 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let buffer_layout = asset::get(ctx, self.mesh_handle.clone())
+        let buffer_layout = asset::get(cache, self.mesh_handle.clone())
             .unwrap()
             .buffer_layout();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())

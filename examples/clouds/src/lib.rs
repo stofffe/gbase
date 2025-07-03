@@ -118,7 +118,7 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn new(ctx: &mut gbase::Context) -> Self {
+    fn new(ctx: &mut gbase::Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let cloud_framebuffer = render::FrameBufferBuilder::new()
             .usage(
                 wgpu::TextureUsages::TEXTURE_BINDING
@@ -131,7 +131,7 @@ impl gbase::Callbacks for App {
         let depth_buffer = render::DepthBufferBuilder::new()
             .screen_size(ctx)
             .build(ctx);
-        let framebuffer_blitter = gbase_utils::TextureRenderer::new(ctx);
+        let framebuffer_blitter = gbase_utils::TextureRenderer::new(ctx, cache);
 
         // TODO: check if it works
         let camera = gbase_utils::Camera::new_with_screen_size(
@@ -155,8 +155,8 @@ impl gbase::Callbacks for App {
         ))
         .build(ctx);
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
-        let cloud_renderer =
-            cloud_renderer::CloudRenderer::new(ctx).expect("could not create cloud renderer");
+        let cloud_renderer = cloud_renderer::CloudRenderer::new(ctx, cache)
+            .expect("could not create cloud renderer");
         let gaussian_blur = gaussian_filter::GaussianFilter::new(ctx);
 
         Self {
@@ -190,7 +190,7 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+    fn update(&mut self, ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         #[cfg(feature = "hot_reload")]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR)
             && input::modifier_pressed(ctx, input::KeyModifier::LCtrl)
@@ -219,7 +219,12 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut gbase::Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);
@@ -239,6 +244,7 @@ impl gbase::Callbacks for App {
         // render
         self.cloud_renderer.render(
             ctx,
+            cache,
             self.cloud_framebuffer.view_ref(),
             &self.depth_buffer,
             &self.cloud_framebuffer,
@@ -264,12 +270,13 @@ impl gbase::Callbacks for App {
         // render to image
         // ignores gizmos and ui
         if self.store_surface {
-            self.store(ctx);
+            self.store(ctx, cache);
             self.store_surface = false;
         }
 
         self.framebuffer_blitter.render(
             ctx,
+            cache,
             self.cloud_framebuffer.view(),
             screen_view,
             render::surface_format(ctx),
@@ -292,7 +299,12 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut gbase::Context, new_size: PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut gbase::Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: PhysicalSize<u32>,
+    ) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
@@ -666,7 +678,7 @@ impl App {
     }
 
     /// store the image and the metadata
-    fn store(&self, ctx: &mut Context) {
+    fn store(&self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) {
         // info
         let ms = time::frame_time(ctx);
         let mut metadata_file = fs::File::create(format!(
@@ -684,6 +696,7 @@ impl App {
         // NOTE: always render to original resolution
         let image_bytes = texture_to_buffer_gamma(
             ctx,
+            cache,
             self.cloud_framebuffer.view(),
             CLOUD_BASE_RESOLUTION.x,
             CLOUD_BASE_RESOLUTION.y,
@@ -711,6 +724,7 @@ impl App {
 // render texture to Rgba8UnormSrgb and then load to PNG
 fn texture_to_buffer_gamma(
     ctx: &mut Context,
+    cache: &mut gbase::asset::AssetCache,
     texture: render::ArcTextureView,
     width: u32,
     height: u32,
@@ -719,8 +733,9 @@ fn texture_to_buffer_gamma(
         .size(width, height)
         .format(wgpu::TextureFormat::Rgba8UnormSrgb)
         .build(ctx);
-    gbase_utils::TextureRenderer::new(ctx).render(
+    gbase_utils::TextureRenderer::new(ctx, cache).render(
         ctx,
+        cache,
         texture,
         temp_framebuffer.view_ref(),
         wgpu::TextureFormat::Rgba8UnormSrgb,

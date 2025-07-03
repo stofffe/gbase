@@ -11,11 +11,11 @@ pub struct App {}
 
 impl Callbacks for App {
     #[no_mangle]
-    fn new(_ctx: &mut Context) -> Self {
+    fn new(_ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         Self {}
     }
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("print");
         }

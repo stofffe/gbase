@@ -11,11 +11,11 @@ struct App {
 }
 
 impl Callbacks for App {
-    fn new(_ctx: &mut Context) -> Self {
+    fn new(_ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         let timer = time::Timer::new(Duration::from_secs(1));
         Self { timer }
     }
-    fn update(&mut self, _ctx: &mut Context) -> bool {
+    fn update(&mut self, _ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         // tracing::info!("time since start {}", time::time_since_start(ctx));
         // tracing::info!("current time {:?}", time::current_time(ctx));
         // tracing::info!("delta time {}", time::delta_time(ctx));

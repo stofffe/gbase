@@ -21,15 +21,15 @@ pub struct DeferredRenderer {
 }
 
 impl DeferredRenderer {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             QUAD_VERTICES.to_vec(),
         ))
         .build(ctx);
         let shader_handle =
             asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred.wgsl")
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
         let debug_input = crate::DebugInput::new(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .label("deferred")
@@ -78,6 +78,7 @@ impl DeferredRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
         buffers: &crate::DeferredBuffers,
@@ -109,7 +110,7 @@ impl DeferredRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(view_format))
             .buffers(vec![self.vertex_buffer.desc()])

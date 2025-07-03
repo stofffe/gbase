@@ -1,4 +1,4 @@
-use crate::{asset, audio, filesystem, input, random, render, time, Context};
+use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
 
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
@@ -20,12 +20,12 @@ pub trait Callbacks {
     }
 
     /// Called after context initilization and before game/update loop
-    fn new(_ctx: &mut Context) -> Self;
+    fn new(_ctx: &mut Context, cache: &mut AssetCache) -> Self;
 
     /// Called once per frame before rendering
     ///
     /// Return value determines wether to exit game or not
-    fn update(&mut self, _ctx: &mut Context) -> bool {
+    fn update(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) -> bool {
         false
     }
 
@@ -34,12 +34,23 @@ pub trait Callbacks {
     /// Return value determines wether to exit game or not
     ///
     /// Must submit at least one render pass, panics otherwise
-    fn render(&mut self, _ctx: &mut Context, _screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        _ctx: &mut Context,
+        _cache: &mut AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         false
     }
 
     /// Called after window resize
-    fn resize(&mut self, _ctx: &mut Context, _new_size: winit::dpi::PhysicalSize<u32>) {}
+    fn resize(
+        &mut self,
+        _ctx: &mut Context,
+        _cache: &mut AssetCache,
+        _new_size: winit::dpi::PhysicalSize<u32>,
+    ) {
+    }
 }
 
 pub async fn run<C: Callbacks>() {
@@ -76,6 +87,8 @@ enum App<C: Callbacks> {
     Initialized {
         ctx: Context,
 
+        cache: AssetCache,
+
         #[cfg(not(feature = "hot_reload"))]
         callbacks: C,
         #[cfg(feature = "hot_reload")]
@@ -85,13 +98,20 @@ enum App<C: Callbacks> {
 
 impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
     fn user_event(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, mut ctx: Context) {
+        // TODO: init here?
+        let mut cache = AssetCache::new();
+
         #[cfg(not(feature = "hot_reload"))]
         let callbacks = C::new(&mut ctx);
 
         #[cfg(feature = "hot_reload")]
-        let callbacks = DllCallbacks::new(&mut ctx);
+        let callbacks = DllCallbacks::new(&mut ctx, &mut cache);
 
-        *self = App::Initialized { callbacks, ctx };
+        *self = App::Initialized {
+            callbacks,
+            ctx,
+            cache,
+        };
     }
 
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
@@ -115,7 +135,6 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(window, &builder).await;
             let random = random::RandomContext::new();
-            let assets = asset::AssetContext::new();
 
             let ctx = Context {
                 input,
@@ -124,16 +143,13 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 audio,
                 render,
                 random,
-                assets,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),
             };
 
-            assert!(
-                proxy.send_event(ctx).is_ok(),
-                "could not send context event"
-            );
+            let sucess = proxy.send_event(ctx).is_ok();
+            assert!(sucess, "could not send context event");
         }
 
         let proxy = proxy.take().unwrap();
@@ -211,6 +227,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         let App::Initialized {
             ref mut ctx,
             callbacks,
+            cache,
         } = self
         else {
             tracing::warn!("app not initialized while receiving window event -> skipping");
@@ -224,23 +241,23 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 {
                     if ctx.hot_reload.should_reload() {
                         tracing::info!("Hot reload");
-                        callbacks.hot_reload(ctx);
+                        callbacks.hot_reload(ctx, cache);
                     }
                     if ctx.hot_reload.should_restart() {
                         tracing::info!("Hot restart");
-                        callbacks.hot_restart(ctx);
+                        callbacks.hot_restart(ctx, cache);
                     }
                 }
 
                 // update
-                if update_and_render(ctx, callbacks) {
+                if update_and_render(ctx, cache, callbacks) {
                     event_loop.exit();
                 }
             }
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::Resized(new_size) => {
                 ctx.render.resize_window(new_size);
-                callbacks.resize(ctx, new_size);
+                callbacks.resize(ctx, cache, new_size);
             }
             // Keyboard
             WindowEvent::KeyboardInput { event, .. } => {
@@ -286,14 +303,18 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 }
 
 /// Functions implemented on App
-fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool {
+fn update_and_render(
+    ctx: &mut Context,
+    cache: &mut AssetCache,
+    callbacks: &mut impl Callbacks,
+) -> bool {
     // time
     ctx.time.pre_update();
     #[cfg(feature = "hot_reload")]
     ctx.hot_reload.pre_update();
 
     // update
-    if callbacks.update(ctx) {
+    if callbacks.update(ctx, cache) {
         return true;
     }
 
@@ -322,7 +343,7 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
             ..Default::default()
         });
 
-    if callbacks.render(ctx, &view) {
+    if callbacks.render(ctx, cache, &view) {
         return true;
     }
 
@@ -338,7 +359,7 @@ fn update_and_render(ctx: &mut Context, callbacks: &mut impl Callbacks) -> bool 
         ctx.time.profiler.clone(),
     );
 
-    ctx.assets.asset_cache.poll();
+    cache.poll();
 
     false
 }

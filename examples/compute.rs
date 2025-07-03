@@ -19,7 +19,7 @@ struct App {
 }
 
 impl Callbacks for App {
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Buffers
         let input_buffer =
             render::RawBufferBuilder::new(render::RawBufferSource::Size(INPUT_MEM_SIZE))
@@ -69,7 +69,7 @@ impl Callbacks for App {
             cpu_buffer,
         }
     }
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

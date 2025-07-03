@@ -33,7 +33,7 @@ const WHITE: Vec3 = vec3(1.0, 1.0, 1.0);
 
 impl Callbacks for App {
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
             gbase_utils::CameraProjection::perspective(PI / 2.0),
@@ -52,7 +52,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         let t = time::time_since_start(ctx);
         self.camera_buffer.write(ctx, &self.camera.uniform());
 
@@ -92,7 +97,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -132,7 +137,12 @@ impl Callbacks for App {
         false
     }
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: PhysicalSize<u32>,
+    ) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
     }

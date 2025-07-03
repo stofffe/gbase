@@ -32,11 +32,16 @@ pub struct App {
 
 impl Callbacks for App {
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: winit::dpi::PhysicalSize<u32>,
+    ) {
         self.framebuffer.resize(ctx, new_size);
     }
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         // renderers
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
@@ -48,8 +53,8 @@ impl Callbacks for App {
             )
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
-        let texture_renderer_base = gbase_utils::TextureRenderer::new(ctx);
-        let texture_renderer_final = gbase_utils::TextureRenderer::new(ctx);
+        let texture_renderer_base = gbase_utils::TextureRenderer::new(ctx, cache);
+        let texture_renderer_final = gbase_utils::TextureRenderer::new(ctx, cache);
 
         // textures
         let texture1 = gbase_utils::texture_builder_from_image_bytes(
@@ -116,12 +121,18 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Backspace)
             || input::key_just_pressed(ctx, KeyCode::KeyR)
         {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.current_texture.clone(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -141,6 +152,7 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.texture1.view(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -150,6 +162,7 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Digit2) {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.texture2.view(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -159,6 +172,7 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Digit3) {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.texture3.view(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -168,6 +182,7 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Digit4) {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.texture4.view(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -177,6 +192,7 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Digit5) {
             self.texture_renderer_base.render(
                 ctx,
+                cache,
                 self.texture5.view(),
                 self.framebuffer.view_ref(),
                 wgpu::TextureFormat::Rgba8Unorm,
@@ -253,6 +269,7 @@ impl Callbacks for App {
         // final
         self.texture_renderer_final.render(
             ctx,
+            cache,
             self.framebuffer.view(),
             screen_view,
             render::surface_format(ctx),

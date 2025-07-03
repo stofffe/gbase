@@ -331,6 +331,7 @@ pub struct GpuMesh {
     pub index_buffer: Option<render::ArcBuffer>,
     pub vertex_count: u32,
     pub index_count: Option<u32>,
+    // TODO: bring out into own?
     pub bounds: BoundingBox,
 }
 

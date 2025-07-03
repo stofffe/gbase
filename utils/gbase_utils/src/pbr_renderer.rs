@@ -28,15 +28,15 @@ pub struct PbrRenderer {
 }
 
 impl PbrRenderer {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let forward_shader_handle =
             asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/mesh.wgsl")
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
         let deferred_shader_handle =
             asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl")
-                .watch(ctx)
-                .build(ctx);
+                .watch(cache)
+                .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -152,6 +152,7 @@ impl PbrRenderer {
     pub fn render(
         &mut self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
         camera: &crate::Camera,
@@ -164,8 +165,8 @@ impl PbrRenderer {
         shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
         shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
-        if !asset::handle_loaded(ctx, self.forward_shader_handle.clone())
-            || !asset::handle_loaded(ctx, self.deferred_shader_handle.clone())
+        if !asset::handle_loaded(cache, self.forward_shader_handle.clone())
+            || !asset::handle_loaded(cache, self.deferred_shader_handle.clone())
         {
             self.frame_meshes.clear();
             return;
@@ -176,7 +177,8 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset(ctx, self.forward_shader_handle.clone(), &()).unwrap();
+        let shader =
+            asset::convert_asset(ctx, cache, self.forward_shader_handle.clone(), &()).unwrap();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -232,18 +234,27 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh_handle.clone());
 
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
+            let gpu_mesh =
+                asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
             let base_color_texture =
-                asset::convert_asset::<GpuImage>(ctx, mat.base_color_texture.clone(), &()).unwrap();
-            let normal_texture =
-                asset::convert_asset::<GpuImage>(ctx, mat.normal_texture.clone(), &()).unwrap();
-            let metallic_roughness_texture =
-                asset::convert_asset::<GpuImage>(ctx, mat.metallic_roughness_texture.clone(), &())
+                asset::convert_asset::<GpuImage>(ctx, cache, mat.base_color_texture.clone(), &())
                     .unwrap();
+            let normal_texture =
+                asset::convert_asset::<GpuImage>(ctx, cache, mat.normal_texture.clone(), &())
+                    .unwrap();
+            let metallic_roughness_texture = asset::convert_asset::<GpuImage>(
+                ctx,
+                cache,
+                mat.metallic_roughness_texture.clone(),
+                &(),
+            )
+            .unwrap();
             let occlusion_texture =
-                asset::convert_asset::<GpuImage>(ctx, mat.occlusion_texture.clone(), &()).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, mat.occlusion_texture.clone(), &())
+                    .unwrap();
             let emissive_texture =
-                asset::convert_asset::<GpuImage>(ctx, mat.emissive_texture.clone(), &()).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, mat.emissive_texture.clone(), &())
+                    .unwrap();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()
@@ -343,6 +354,7 @@ impl PbrRenderer {
     pub fn add_mesh_culled(
         &mut self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         frustum: &CameraFrustum,
         mesh: asset::AssetHandle<render::Mesh>,
         material: Arc<GpuMaterial>,
@@ -350,7 +362,7 @@ impl PbrRenderer {
     ) {
         // TODO: cache the frustum
         // cull
-        let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh.clone(), &()).unwrap();
+        let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh.clone(), &()).unwrap();
 
         if frustum.sphere_inside(&gpu_mesh.bounds, &transform) {
             self.frame_meshes.push((mesh, material, transform));
@@ -361,11 +373,13 @@ impl PbrRenderer {
     pub fn render_bounding_boxes(
         &self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         gizmo_renderer: &mut GizmoRenderer,
         camera: &Camera,
     ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
+            let gpu_mesh =
+                asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
             let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
 
             let mut color = vec3(1.0, 1.0, 1.0);
@@ -464,7 +478,7 @@ impl PbrMaterial {
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
     pub fn to_material(
         self,
-        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         // TODO: part of context?
         // image_cache: &mut AssetCache<Image, GpuImage>,
         pixel_cache: &mut PixelCache,
@@ -475,32 +489,37 @@ impl PbrMaterial {
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
         fn alloc(
-            ctx: &mut Context,
+            cache: &mut gbase::asset::AssetCache,
             pixel_cache: &mut PixelCache,
             tex: Option<Image>,
             default: [u8; 4],
         ) -> asset::AssetHandle<Image> {
             if let Some(tex) = tex {
-                asset::AssetBuilder::insert(tex).build(ctx)
+                asset::AssetBuilder::insert(tex).build(cache)
             } else {
-                pixel_cache.allocate(ctx, default)
+                pixel_cache.allocate(cache, default)
             }
         }
         let base_color_texture = alloc(
-            ctx,
+            cache,
             pixel_cache,
             self.base_color_texture,
             BASE_COLOR_DEFAULT,
         );
-        let normal_texture = alloc(ctx, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
+        let normal_texture = alloc(cache, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
         let metallic_roughness_texture = alloc(
-            ctx,
+            cache,
             pixel_cache,
             self.metallic_roughness_texture,
             METALLIC_ROUGHNESS_DEFAULT,
         );
-        let occlusion_texture = alloc(ctx, pixel_cache, self.occlusion_texture, OCCLUSION_DEFAULT);
-        let emissive_texture = alloc(ctx, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
+        let occlusion_texture = alloc(
+            cache,
+            pixel_cache,
+            self.occlusion_texture,
+            OCCLUSION_DEFAULT,
+        );
+        let emissive_texture = alloc(cache, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
 
         GpuMaterial {
             base_color_texture,

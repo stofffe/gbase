@@ -11,9 +11,7 @@ use gbase::{
     winit::{dpi::PhysicalSize, window::Window},
     Callbacks, Context,
 };
-use gbase_utils::{
-    image::imageops::FilterType::Nearest, Alignment, SizeKind, Transform2D, Transform3D, Widget,
-};
+use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
 use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
 use std::{f32::consts::PI, time::Duration};
 
@@ -277,7 +275,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn new(ctx: &mut gbase::Context) -> Self {
+    fn new(ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         random::seed_with_time(ctx);
 
         let mut entities = EntityHandler::new();
@@ -451,7 +449,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut gbase::Context) -> bool {
+    fn update(&mut self, ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -653,7 +651,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut gbase::Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut gbase::Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         self.camera_buffer.write(ctx, &self.camera.uniform());
 
         // draw background stencil
@@ -756,7 +759,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut gbase::Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        ctx: &mut gbase::Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: gbase::winit::dpi::PhysicalSize<u32>,
+    ) {
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
         self.sprite_renderer.resize(ctx, new_size);

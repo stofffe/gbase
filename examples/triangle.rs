@@ -19,7 +19,7 @@ impl Callbacks for App {
         gbase::ContextBuilder::new().vsync(true)
     }
 
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
             TRIANGLE_VERTICES.to_vec(),
         ))
@@ -39,7 +39,12 @@ impl Callbacks for App {
             pipeline,
         }
     }
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLUE),

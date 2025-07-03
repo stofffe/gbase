@@ -1,4 +1,4 @@
-use crate::{Camera, CameraFrustum, GizmoRenderer, Plane};
+use crate::{Camera, CameraFrustum, Plane};
 use gbase::{
     asset,
     encase::ShaderType,
@@ -24,10 +24,10 @@ const MAX_SHADOW_CASCADES: u64 = 3;
 const SHADOW_MAP_RESOLUTION: u32 = 1024;
 
 impl ShadowPass {
-    pub fn new(ctx: &mut Context) -> Self {
+    pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let shader_handle = asset::AssetBuilder::load("assets/shaders/shadow_pass.wgsl")
-            .watch(ctx)
-            .build(ctx);
+            .watch(cache)
+            .build(cache);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // light matrices
@@ -96,6 +96,7 @@ impl ShadowPass {
     pub fn render(
         &mut self,
         ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
         meshes: Vec<(asset::AssetHandle<render::Mesh>, crate::Transform3D)>,
         camera: &crate::Camera,
         main_light_dir: Vec3,
@@ -105,11 +106,11 @@ impl ShadowPass {
         //
 
         let mut assets_loaded = true;
-        assets_loaded &= asset::handle_loaded(ctx, self.shader_handle.clone());
+        assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
 
         // could probably skip not loaded ones
         for (mesh, _) in meshes.iter() {
-            assets_loaded &= asset::handle_loaded(ctx, mesh.clone());
+            assets_loaded &= asset::handle_loaded(cache, mesh.clone());
         }
         if !assets_loaded {
             return;
@@ -153,7 +154,8 @@ impl ShadowPass {
             let mut meshes = sorted_meshes.clone();
             let frustum = &frustums[i];
             meshes.retain(|(handle, transform)| {
-                let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
+                let gpu_mesh =
+                    asset::convert_asset::<GpuMesh>(ctx, cache, handle.clone(), &()).unwrap();
                 frustum.sphere_inside(&gpu_mesh.bounds, transform)
             });
 
@@ -191,7 +193,7 @@ impl ShadowPass {
                 prev_mesh = Some(mesh_handle.clone());
 
                 let gpu_mesh =
-                    asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
+                    asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -215,7 +217,7 @@ impl ShadowPass {
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                 ])
                 .build(ctx);
-            let shader = asset::convert_asset(ctx, self.shader_handle.clone(), &()).unwrap();
+            let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
                 .label("shadow_pass")
                 // .cull_mode(wgpu::Face::Front)

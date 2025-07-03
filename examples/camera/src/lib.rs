@@ -25,7 +25,7 @@ struct App {
 
 impl Callbacks for App {
     #[no_mangle]
-    fn new(ctx: &mut Context) -> Self {
+    fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/camera.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
@@ -79,12 +79,22 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn resize(&mut self, _ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+    fn resize(
+        &mut self,
+        _ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        new_size: gbase::winit::dpi::PhysicalSize<u32>,
+    ) {
         self.camera.resize(new_size);
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context, screen_view: &wgpu::TextureView) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         self.camera_buffer.write(ctx, &self.camera.uniform());
 
         render::RenderPassBuilder::new()
@@ -101,7 +111,7 @@ impl Callbacks for App {
         false
     }
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context) -> bool {
+    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
