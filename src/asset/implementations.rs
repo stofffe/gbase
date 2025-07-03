@@ -26,6 +26,22 @@ impl ConvertableRenderAsset for render::GpuMesh {
     }
 }
 
+impl RenderAsset for render::BoundingBox {}
+impl ConvertableRenderAsset for render::BoundingBox {
+    type SourceAsset = render::Mesh;
+    type Params = ();
+    type Error = bool;
+
+    fn convert(
+        ctx: &mut Context,
+        source: &Self::SourceAsset,
+        params: &Self::Params,
+    ) -> Result<Self, Self::Error> {
+        tracing::error!("convert bb");
+        Ok(source.calculate_bounding_box())
+    }
+}
+
 //
 // Shader
 //

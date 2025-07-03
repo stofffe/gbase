@@ -1,5 +1,5 @@
 use gbase::{
-    asset,
+    asset::{self, AssetHandle},
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
@@ -28,7 +28,7 @@ struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
 
-    camera: gbase_utils::Camera,
+    camera: AssetHandle<gbase_utils::Camera>,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
@@ -152,6 +152,7 @@ impl Callbacks for App {
             gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 },
         )
         .pos(vec3(0.0, 0.0, 8.0));
+        let camera = asset::AssetBuilder::insert(camera).build(cache);
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
 
@@ -234,7 +235,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
-            self.camera.flying_controls(ctx);
+            let camera = asset::get_mut(cache, self.camera.clone()).unwrap();
+            camera.flying_controls(ctx);
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
@@ -259,7 +261,8 @@ impl Callbacks for App {
         }
 
         // update buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform());
+        let camera = asset::get(cache, self.camera.clone()).unwrap();
+        self.camera_buffer.write(ctx, &camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // clear textures
@@ -321,20 +324,26 @@ impl Callbacks for App {
             .collect::<Vec<_>>();
 
         self.lights.main_light_dir = vec3(1.0, -1.0, 0.0);
+
         self.shadow_pass.render(
             ctx,
             cache,
             shadow_meshes,
-            &self.camera,
+            self.camera.clone(),
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
         );
 
         // pbr pass
-        let frustum = self.camera.calculate_frustum();
         for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer
-                .add_mesh_culled(ctx, cache, &frustum, mesh, mat, transform);
+            self.pbr_renderer.add_mesh_culled(
+                ctx,
+                cache,
+                self.camera.clone(),
+                mesh,
+                mat,
+                transform,
+            );
             // self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
         // self.pbr_renderer
@@ -344,7 +353,6 @@ impl Callbacks for App {
             cache,
             self.hdr_framebuffer_1.view_ref(),
             self.hdr_framebuffer_1.format(),
-            &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
@@ -352,11 +360,6 @@ impl Callbacks for App {
             &self.shadow_pass.light_matrices_buffer,
             &self.shadow_pass.light_matrices_distances,
         );
-
-        // self.gizmo_renderer.draw_sphere(
-        //     &Transform3D::from_pos(-self.lights.main_light_dir * 20.0),
-        //     vec3(1.0, 1.0, 1.0),
-        // );
 
         self.gizmo_renderer.render(
             ctx,
@@ -397,7 +400,7 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        _cache: &mut gbase::asset::AssetCache,
+        cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
     ) {
         self.depth_buffer.resize(ctx, new_size);
@@ -405,7 +408,10 @@ impl Callbacks for App {
         self.gizmo_renderer.resize(ctx, new_size);
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
-        self.camera.resize(new_size);
+
+        asset::get_mut(cache, self.camera.clone())
+            .unwrap()
+            .resize(new_size);
     }
 }
 

@@ -5,7 +5,7 @@ use encase::ShaderType;
 use gbase::{
     asset::{self, AssetHandle},
     glam::{vec3, Mat4, Vec3},
-    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
+    render::{self, BoundingBox, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
 use std::{collections::BTreeSet, sync::Arc};
@@ -155,7 +155,6 @@ impl PbrRenderer {
         cache: &mut gbase::asset::AssetCache,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
-        camera: &crate::Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
@@ -355,16 +354,17 @@ impl PbrRenderer {
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
-        frustum: &CameraFrustum,
+        camera: AssetHandle<Camera>,
         mesh: asset::AssetHandle<render::Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
         // TODO: cache the frustum
         // cull
-        let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh.clone(), &()).unwrap();
+        let frustum = asset::convert_asset::<CameraFrustum>(ctx, cache, camera, &()).unwrap();
+        let bounds = asset::convert_asset::<BoundingBox>(ctx, cache, mesh.clone(), &()).unwrap();
 
-        if frustum.sphere_inside(&gpu_mesh.bounds, &transform) {
+        if frustum.sphere_inside(&bounds, &transform) {
             self.frame_meshes.push((mesh, material, transform));
         }
     }
@@ -378,9 +378,9 @@ impl PbrRenderer {
         camera: &Camera,
     ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let gpu_mesh =
-                asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
-            let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
+            let bounds =
+                asset::convert_asset::<BoundingBox>(ctx, cache, mesh_handle.clone(), &()).unwrap();
+            let bounding_sphere = BoundingSphere::new(&bounds, transform);
 
             let mut color = vec3(1.0, 1.0, 1.0);
 

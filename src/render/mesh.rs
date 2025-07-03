@@ -331,8 +331,6 @@ pub struct GpuMesh {
     pub index_buffer: Option<render::ArcBuffer>,
     pub vertex_count: u32,
     pub index_count: Option<u32>,
-    // TODO: bring out into own?
-    pub bounds: BoundingBox,
 }
 
 impl GpuMesh {
@@ -368,15 +366,12 @@ impl GpuMesh {
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();
 
-        let bounds = mesh.calculate_bounding_box();
-
         Self {
             attribute_buffer: attribtute_buffer.buffer(),
             attribute_ranges,
             index_buffer,
             vertex_count,
             index_count,
-            bounds,
         }
     }
 

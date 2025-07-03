@@ -25,7 +25,7 @@ const PLANE_SIZE: f32 = 1000.0;
 const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 pub struct App {
-    camera: gbase_utils::Camera,
+    camera: asset::AssetHandle<gbase_utils::Camera>,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     frustum_buffer: render::UniformBuffer<CameraFrustum>,
     light_buffer: render::UniformBuffer<PbrLightUniforms>,
@@ -84,6 +84,7 @@ impl Callbacks for App {
         )
         .pos(vec3(-1.0, 8.0, -1.0))
         .yaw(PI / 4.0);
+        let camera = asset::AssetBuilder::insert(camera).build(cache);
 
         let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
             .label("camera buf")
@@ -93,8 +94,7 @@ impl Callbacks for App {
             .label("frustum")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
-        frustum_buffer.write(ctx, &camera.calculate_frustum()); // TODO: remove
-                                                                // .build(ctx);
+
         let light = gbase_utils::PbrLightUniforms {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
@@ -171,10 +171,14 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        // TODO: temp
+        let camera = asset::get(cache, self.camera.clone()).unwrap().clone();
+
         // update buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform());
-        self.frustum_buffer
-            .write(ctx, &self.camera.calculate_frustum());
+        self.camera_buffer.write(ctx, &camera.uniform());
+        let frustum =
+            asset::convert_asset::<CameraFrustum>(ctx, cache, self.camera.clone(), &()).unwrap();
+        self.frustum_buffer.write(ctx, &frustum);
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
@@ -185,7 +189,7 @@ impl Callbacks for App {
             self.plane_mesh.clone(),
             self.plane_material.clone(),
             Transform3D::default()
-                .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
+                .with_pos(vec3(camera.pos.x, 0.0, camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
                 .with_scale(Vec3::ONE * PLANE_SIZE),
         )];
@@ -198,7 +202,7 @@ impl Callbacks for App {
             ctx,
             cache,
             shadow_meshes,
-            &self.camera,
+            self.camera.clone(),
             self.light.main_light_dir,
         );
         for (mesh, mat, transform) in meshes.iter().cloned() {
@@ -210,7 +214,6 @@ impl Callbacks for App {
             cache,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
-            &self.camera,
             &self.camera_buffer,
             &self.light_buffer,
             &self.depth_buffer,
@@ -222,8 +225,7 @@ impl Callbacks for App {
         self.grass_renderer.render(
             ctx,
             cache,
-            // &mut self.shader_cache,
-            &self.camera,
+            &camera,
             &self.camera_buffer,
             &self.frustum_buffer,
             grass_renderer::RenderMode::Forward {
@@ -297,18 +299,21 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        _cache: &mut gbase::asset::AssetCache,
+        cache: &mut gbase::asset::AssetCache,
         new_size: PhysicalSize<u32>,
     ) {
         self.gizmo_renderer.resize(ctx, new_size);
         self.framebuffer.resize(ctx, new_size);
         self.depth_buffer.resize(ctx, new_size);
         self.gui_renderer.resize(ctx, new_size);
-        self.camera.resize(new_size);
+
+        asset::get_mut(cache, self.camera.clone())
+            .unwrap()
+            .resize(new_size);
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
@@ -325,12 +330,8 @@ impl Callbacks for App {
             return false;
         }
 
-        self.camera.flying_controls(ctx);
-
-        // debug camera pos
-        if input::key_pressed(ctx, KeyCode::KeyC) {
-            tracing::info!("{}", self.camera.pos);
-        }
+        let camera = asset::get_mut(cache, self.camera.clone()).unwrap();
+        camera.flying_controls(ctx);
 
         false
     }

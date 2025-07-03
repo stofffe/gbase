@@ -30,7 +30,7 @@ struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
 
-    camera: gbase_utils::Camera,
+    camera: asset::AssetHandle<gbase_utils::Camera>,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
@@ -144,6 +144,7 @@ impl Callbacks for App {
         let camera_buffer =
             render::UniformBufferBuilder::new(render::UniformBufferSource::Data(camera.uniform()))
                 .build(ctx);
+        let camera = asset::AssetBuilder::insert(camera).build(cache);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -200,7 +201,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
-            self.camera.flying_controls(ctx);
+            let camera = asset::get_mut(cache, self.camera.clone()).unwrap();
+            camera.flying_controls(ctx);
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
@@ -230,7 +232,10 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        self.camera_buffer.write(ctx, &self.camera.uniform());
+        // TODO: temp
+        let camera = asset::get(cache, self.camera.clone()).unwrap().clone();
+
+        self.camera_buffer.write(ctx, &camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // Render
@@ -250,7 +255,7 @@ impl Callbacks for App {
             ctx,
             cache,
             shadow_meshes,
-            &self.camera,
+            self.camera.clone(),
             self.lights.main_light_dir,
         );
         for (mesh, mat, transform) in meshes.iter().cloned() {
@@ -264,7 +269,6 @@ impl Callbacks for App {
                 cache,
                 self.hdr_framebuffer_1.view_ref(),
                 self.hdr_framebuffer_1.format(),
-                &self.camera,
                 &self.camera_buffer,
                 &self.lights_buffer,
                 &self.depth_buffer,
@@ -408,7 +412,7 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        _cache: &mut gbase::asset::AssetCache,
+        cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
     ) {
         self.depth_buffer.resize(ctx, new_size);
@@ -417,7 +421,10 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
-        self.camera.resize(new_size);
+
+        asset::get_mut(cache, self.camera.clone())
+            .unwrap()
+            .resize(new_size);
     }
 }
 

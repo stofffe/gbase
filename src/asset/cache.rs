@@ -2,10 +2,7 @@ use super::{
     Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetLoadFn, DynAssetOnLoadFn,
     DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn, WriteableAsset,
 };
-use crate::{
-    render::{self, ArcHandle},
-    Context,
-};
+use crate::{render::ArcHandle, Context};
 use futures_channel::mpsc;
 use std::{
     any::{Any, TypeId},
@@ -17,7 +14,7 @@ use std::{
 
 pub struct AssetCache {
     cache: HashMap<AssetHandle<DynAsset>, DynAsset>,
-    render_cache: HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
+    render_cache: HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
 
     // async loading
     load_sender: mpsc::UnboundedSender<(AssetHandle<DynAsset>, DynAsset)>,
@@ -26,7 +23,7 @@ pub struct AssetCache {
     reload_on_load: HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
 
     // convert
-    convert_last_valid: HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
+    convert_last_valid: HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -104,7 +101,7 @@ impl AssetCache {
 
     pub fn get_mut<T: Asset + 'static>(&mut self, handle: AssetHandle<T>) -> Option<&mut T> {
         // invalidate gpu cache
-        self.render_cache.remove(&handle.clone().as_any());
+        invalidate_render_cache(&mut self.render_cache, handle.as_any());
 
         // set dirty
         // TODO: move inside
@@ -189,15 +186,16 @@ impl AssetCache {
             return None;
         };
 
-        let render_asset_exists = self.render_cache.contains_key(&handle.clone().as_any());
+        let key = (handle.clone().as_any(), TypeId::of::<G>());
+        let render_asset_exists = self.render_cache.contains_key(&key);
         if !render_asset_exists {
             match G::convert(ctx, source_asset, params) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     self.render_cache
-                        .insert(handle.clone().as_any(), render_asset_handle.clone());
+                        .insert(key.clone(), render_asset_handle.clone());
                     self.convert_last_valid
-                        .insert(handle.as_any(), render_asset_handle);
+                        .insert(key.clone(), render_asset_handle);
                 }
                 Err(err) => {
                     tracing::warn!("could not convert {}", err);
@@ -206,12 +204,12 @@ impl AssetCache {
         }
 
         self.render_cache
-            .get(&handle.as_any())
+            .get(&key)
             .map(|a| a.downcast::<G>().expect("could not downcast"))
             .or_else(|| {
                 // try last valid
                 self.convert_last_valid
-                    .get(&handle.as_any())
+                    .get(&key)
                     .map(|a| a.downcast::<G>().expect("could not downcast"))
             })
     }
@@ -249,7 +247,7 @@ impl AssetCache {
             self.currently_loading.remove(&handle.as_any());
 
             // invalidate render cache
-            self.render_cache.remove(&handle);
+            invalidate_render_cache(&mut self.render_cache, handle);
         }
     }
 
@@ -269,21 +267,6 @@ impl AssetCache {
         }
         true
     }
-
-    // /// Wait for all async assets to be loaded
-    // pub fn wait_all(&mut self) {
-    //     while !self.currently_loading.is_empty() {
-    //         std::thread::sleep(Duration::from_millis(100));
-    //         self.poll_loaded();
-    //     }
-    // }
-    //
-    // pub fn wait_for<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>) {
-    //     while self.currently_loading.contains(&handle.as_any()) {
-    //         std::thread::sleep(Duration::from_millis(100));
-    //         self.poll_loaded();
-    //     }
-    // }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -373,7 +356,7 @@ impl AssetCacheExt {
     pub fn poll_reload(
         &mut self,
         cache: &mut HashMap<AssetHandle<DynAsset>, DynAsset>,
-        render_cache: &mut HashMap<AssetHandle<DynAsset>, DynRenderAsset>,
+        render_cache: &mut HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
         on_load: &HashMap<AssetHandle<DynAsset>, DynAssetOnLoadFn>,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
@@ -398,9 +381,20 @@ impl AssetCacheExt {
                     cache.insert(handle.clone(), asset);
 
                     // invalidate render cache
-                    render_cache.remove(handle);
+                    invalidate_render_cache(render_cache, handle.as_any());
                 }
             }
         }
     }
+}
+
+// TODO: loops over whole hashmap
+// can store HashMap<Handle, HashSet<TypeId>> also
+//
+// TODO: maybe create new type for render_cache
+pub fn invalidate_render_cache(
+    render_cache: &mut HashMap<(AssetHandle<DynAsset>, TypeId), DynRenderAsset>,
+    handle: AssetHandle<DynAsset>,
+) {
+    render_cache.retain(|(h, _), _| h != &handle);
 }
