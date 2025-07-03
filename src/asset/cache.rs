@@ -2,7 +2,10 @@ use super::{
     Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetLoadFn, DynAssetOnLoadFn,
     DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn, WriteableAsset,
 };
-use crate::render::{self, ArcHandle};
+use crate::{
+    render::{self, ArcHandle},
+    Context,
+};
 use futures_channel::mpsc;
 use std::{
     any::{Any, TypeId},
@@ -177,9 +180,7 @@ impl AssetCache {
 
     pub fn convert<G: ConvertableRenderAsset>(
         &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
         params: &G::Params,
     ) -> Option<ArcHandle<G>> {
@@ -190,7 +191,7 @@ impl AssetCache {
 
         let render_asset_exists = self.render_cache.contains_key(&handle.clone().as_any());
         if !render_asset_exists {
-            match G::convert(device, queue, render_cache, source_asset, params) {
+            match G::convert(ctx, source_asset, params) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     self.render_cache

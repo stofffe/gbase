@@ -415,9 +415,7 @@ impl ConvertableRenderAsset for CameraFrustum {
     type Error = bool;
 
     fn convert(
-        device: &gbase::wgpu::Device,
-        queue: &gbase::wgpu::Queue,
-        render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         source: &Self::SourceAsset,
         params: &Self::Params,
     ) -> Result<Self, Self::Error> {

@@ -1,4 +1,7 @@
-use crate::render::{self, ArcHandle};
+use crate::{
+    render::{self, ArcHandle},
+    Context,
+};
 use std::{
     any::Any,
     fmt::{Debug, Display},
@@ -31,9 +34,7 @@ pub trait ConvertableRenderAsset: RenderAsset + Sized + Clone {
     type Error: Debug + Display;
 
     fn convert(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         source: &Self::SourceAsset,
         params: &Self::Params,
     ) -> Result<Self, Self::Error>;

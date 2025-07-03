@@ -2,6 +2,7 @@ use super::{Asset, ConvertableRenderAsset, LoadableAsset, RenderAsset};
 use crate::{
     filesystem,
     render::{self, GpuImage},
+    Context,
 };
 
 //
@@ -17,13 +18,11 @@ impl ConvertableRenderAsset for render::GpuMesh {
     type Error = bool;
 
     fn convert(
-        device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         source: &Self::SourceAsset,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
-        Ok(render::GpuMesh::new_inner(device, source))
+        Ok(render::GpuMesh::new_inner(render::device(ctx), source))
     }
 }
 
@@ -51,9 +50,7 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
     type Error = wgpu::Error;
 
     fn convert(
-        device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         source: &Self::SourceAsset,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
@@ -64,7 +61,7 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            source.build_inner_err_2(device)
+            source.build_inner_err_2(&render::device(ctx))
         }
     }
 }
@@ -100,15 +97,13 @@ impl ConvertableRenderAsset for render::GpuImage {
     type Error = bool;
 
     fn convert(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        render_cache: &mut render::RenderCache,
+        ctx: &mut Context,
         source: &Self::SourceAsset,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
-        let sampler = source.sampler.build_inner(render_cache, device);
-        let texture = source.texture.build_inner(device, queue);
-        let view = render::TextureViewBuilder::new(texture.clone()).build_inner(render_cache);
+        let sampler = source.sampler.clone().build(ctx);
+        let texture = source.texture.build(ctx);
+        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
         Ok(GpuImage::new(texture, view, sampler))
     }
 }

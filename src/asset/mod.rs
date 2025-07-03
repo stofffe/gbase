@@ -116,11 +116,5 @@ pub fn convert_asset<G: ConvertableRenderAsset>(
     handle: AssetHandle<G::SourceAsset>,
     params: &G::Params,
 ) -> Option<ArcHandle<G>> {
-    cache.convert(
-        &ctx.render.device,
-        &ctx.render.queue,
-        &mut ctx.render.cache,
-        handle,
-        params,
-    )
+    cache.convert(ctx, handle, params)
 }
