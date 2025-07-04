@@ -331,7 +331,7 @@ impl TextureViewBuilder {
         }
     }
 
-    pub fn build_uncached_inner(&self) -> render::ArcTextureView {
+    pub fn build_uncached(&self) -> render::ArcTextureView {
         let view = self.texture.create_view(&wgpu::TextureViewDescriptor {
             label: self.label.as_deref(),
             format: self.format,
@@ -354,12 +354,9 @@ impl TextureViewBuilder {
         }
 
         tracing::info!("Create cached texture view");
-        let view = self.build_uncached_inner();
+        let view = self.build_uncached();
         render_cache.texture_views.insert(self, view.clone());
         view
-    }
-    pub fn build_uncached(&self, _ctx: &Context) -> render::ArcTextureView {
-        self.build_uncached_inner()
     }
 }
 

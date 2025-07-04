@@ -33,7 +33,7 @@ impl ShaderBuilder {
     /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build_err(&self, ctx: &Context) -> Result<ArcShaderModule, wgpu::Error> {
-        self.build_err_non_arc(ctx).map(|res| ArcHandle::new(res))
+        self.build_err_non_arc(ctx).map(ArcHandle::new)
     }
 
     #[cfg(not(target_arch = "wasm32"))]

@@ -1,8 +1,5 @@
 use super::AssetHandle;
-use crate::{
-    render::{self, ArcHandle},
-    Context,
-};
+use crate::{render::ArcHandle, Context};
 use std::{
     any::Any,
     fmt::{Debug, Display},

@@ -12,7 +12,7 @@ pub use types::*;
 use crate::{render::ArcHandle, Context};
 
 //
-// Context
+// Builder
 //
 
 pub struct AssetBuilder {}
