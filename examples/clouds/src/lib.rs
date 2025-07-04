@@ -141,8 +141,7 @@ impl gbase::Callbacks for App {
         .pos(vec3(-68.0, -68.0, -67.0))
         .yaw(3.43)
         .pitch(0.35);
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -150,10 +149,8 @@ impl gbase::Callbacks for App {
             &filesystem::load_b!("fonts/font.ttf").unwrap(),
             gbase_utils::DEFAULT_SUPPORTED_CHARS, // TODO: make this an enum?
         );
-        let cloud_parameters_buffer = UniformBufferBuilder::new(render::UniformBufferSource::Data(
-            CloudParameters::default(),
-        ))
-        .build(ctx);
+        let cloud_parameters_buffer = UniformBufferBuilder::new().build(ctx);
+        cloud_parameters_buffer.write(ctx, &CloudParameters::default());
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
         let cloud_renderer = cloud_renderer::CloudRenderer::new(ctx, cache)
             .expect("could not create cloud renderer");
@@ -751,10 +748,9 @@ fn texture_to_buffer_sync(
 ) -> Vec<u8> {
     let pixel_size = std::mem::size_of::<u8>() as u32 * 4;
     let buffer_size = width * height * pixel_size;
-    let read_back_buffer =
-        render::RawBufferBuilder::<u8>::new(render::RawBufferSource::Size(buffer_size as u64))
-            .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
-            .build(ctx);
+    let read_back_buffer = render::RawBufferBuilder::<u8>::new(buffer_size as u64)
+        .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+        .build(ctx);
 
     let mut encoder = render::EncoderBuilder::new().build(ctx);
     encoder.copy_texture_to_buffer(

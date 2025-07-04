@@ -3,49 +3,36 @@ use bytemuck::NoUninit;
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
 use std::{marker::PhantomData, ops::RangeBounds};
-use wgpu::util::DeviceExt;
 
 //
 // Raw Buffer
 //
 
-pub enum RawBufferSource<T: bytemuck::NoUninit> {
-    Data(Vec<T>),
-    Size(u64),
-}
-
 pub struct RawBufferBuilder<T: bytemuck::NoUninit> {
-    source: RawBufferSource<T>,
+    size: u64,
     label: Option<String>,
     usage: wgpu::BufferUsages,
+    ty: PhantomData<T>,
 }
 
 impl<T: NoUninit> RawBufferBuilder<T> {
-    pub fn new(source: RawBufferSource<T>) -> Self {
+    pub fn new(size: u64) -> Self {
         Self {
-            source,
+            size,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             label: None,
+            ty: PhantomData,
         }
     }
 
     pub fn build(self, ctx: &Context) -> RawBuffer<T> {
         let device = render::device(ctx);
-        let buffer = match self.source {
-            RawBufferSource::Size(size) => device.create_buffer(&wgpu::BufferDescriptor {
-                label: self.label.as_deref(),
-                size,
-                usage: self.usage,
-                mapped_at_creation: false,
-            }),
-            RawBufferSource::Data(data) => {
-                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: self.label.as_deref(),
-                    usage: self.usage,
-                    contents: bytemuck::cast_slice(&data),
-                })
-            }
-        };
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: self.label.as_deref(),
+            size: self.size,
+            usage: self.usage,
+            mapped_at_creation: false,
+        });
 
         RawBuffer {
             buffer: ArcBuffer::new(buffer),
@@ -97,57 +84,34 @@ impl<T: bytemuck::NoUninit> RawBuffer<T> {
 // Uniform buffer
 //
 
-pub enum UniformBufferSource<T: ShaderType + WriteInto> {
-    Data(T),
-    Empty,
-}
-
 pub struct UniformBufferBuilder<T: ShaderType + WriteInto> {
-    source: UniformBufferSource<T>,
     label: Option<String>,
     usage: wgpu::BufferUsages,
+    ty: PhantomData<T>,
 }
 
 impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
-    pub fn new(source: UniformBufferSource<T>) -> Self {
+    pub fn new() -> Self {
         Self {
-            source,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             label: None,
+            ty: PhantomData,
         }
     }
 
     pub fn build(self, ctx: &Context) -> UniformBuffer<T> {
         let device = render::device(ctx);
 
-        match self.source {
-            UniformBufferSource::Data(data) => {
-                let mut buffer = encase::UniformBuffer::new(Vec::new());
-                buffer.write(&data).expect("could not write to buffer");
-                let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: self.label.as_deref(),
-                    usage: self.usage,
-                    contents: &buffer.into_inner(),
-                });
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: self.label.as_deref(),
+            size: u64::from(T::min_size()),
+            usage: self.usage,
+            mapped_at_creation: false,
+        });
 
-                UniformBuffer {
-                    buffer: ArcBuffer::new(buffer),
-                    ty: PhantomData,
-                }
-            }
-            UniformBufferSource::Empty => {
-                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: self.label.as_deref(),
-                    size: u64::from(T::min_size()),
-                    usage: self.usage,
-                    mapped_at_creation: false,
-                });
-
-                UniformBuffer {
-                    buffer: ArcBuffer::new(buffer),
-                    ty: PhantomData,
-                }
-            }
+        UniformBuffer {
+            buffer: ArcBuffer::new(buffer),
+            ty: PhantomData,
         }
     }
 }
@@ -164,7 +128,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
 }
 
 /// Buffer for storing uniform buffers
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct UniformBuffer<T: ShaderType + WriteInto> {
     buffer: ArcBuffer,
     ty: PhantomData<T>,
@@ -194,57 +158,36 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
 // Storage buffer
 //
 
-pub enum StorageBufferSource<T: ShaderType + WriteInto> {
-    Data(T),
-    Size(u64), // element count
-}
-
 pub struct StorageBufferBuilder<T: ShaderType + WriteInto> {
-    source: StorageBufferSource<T>,
+    size: u64,
     label: Option<String>,
     usage: wgpu::BufferUsages,
+    ty: PhantomData<T>,
 }
 
 impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
-    pub fn new(source: StorageBufferSource<T>) -> Self {
+    pub fn new(size: u64) -> Self {
         Self {
-            source,
+            size,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             label: None,
+            ty: PhantomData,
         }
     }
 
     pub fn build(self, ctx: &Context) -> StorageBuffer<T> {
         let device = render::device(ctx);
 
-        match self.source {
-            StorageBufferSource::Data(data) => {
-                let mut buffer = encase::StorageBuffer::new(Vec::new());
-                buffer.write(&data).expect("could not write to buffer");
-                let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                    label: self.label.as_deref(),
-                    usage: self.usage,
-                    contents: &buffer.into_inner(),
-                });
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: self.label.as_deref(),
+            size: self.size,
+            usage: self.usage,
+            mapped_at_creation: false,
+        });
 
-                StorageBuffer {
-                    buffer: ArcBuffer::new(buffer),
-                    ty: PhantomData,
-                }
-            }
-            StorageBufferSource::Size(size) => {
-                let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-                    label: self.label.as_deref(),
-                    size,
-                    usage: self.usage,
-                    mapped_at_creation: false,
-                });
-
-                StorageBuffer {
-                    buffer: ArcBuffer::new(buffer),
-                    ty: PhantomData,
-                }
-            }
+        StorageBuffer {
+            buffer: ArcBuffer::new(buffer),
+            ty: PhantomData,
         }
     }
 }

@@ -59,21 +59,18 @@ impl GUIRenderer {
             render::IndexBufferBuilder::new(render::IndexBufferSource::Data(INDICES.to_vec()))
                 .build(ctx);
         let instances = Vec::new();
-        let instance_buffer = render::RawBufferBuilder::new(render::RawBufferSource::Size(
-            (max_quads * mem::size_of::<WidgetInstance>()) as u64,
-        ))
-        .build(ctx);
+        let instance_buffer =
+            render::RawBufferBuilder::new((max_quads * mem::size_of::<WidgetInstance>()) as u64)
+                .build(ctx);
 
         let sampler = render::SamplerBuilder::new().build(ctx);
         let font_atlas = FontAtlas::new(ctx, font_bytes, supported_chars);
 
         let camera = create_camera(render::surface_size(ctx));
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(camera.uniform()))
-                .build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
+        camera_buffer.write(ctx, &camera.uniform());
 
-        let app_info_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let app_info_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let shader =
             render::ShaderBuilder::new(include_str!("../../assets/shaders/ui.wgsl")).build(ctx);

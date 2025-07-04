@@ -41,9 +41,8 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
     let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
     let texture = render::GpuImage::new(texture, view, sampler);
 
-    let noise_generator_info =
-        render::UniformBufferBuilder::new(render::UniformBufferSource::Data(NOISE_UNIFORM))
-            .build(ctx);
+    let noise_generator_info = render::UniformBufferBuilder::new().build(ctx);
+    noise_generator_info.write(ctx, &NOISE_UNIFORM);
 
     let shader_str = filesystem::load_s!("shaders/cloud_noise.wgsl").unwrap();
     #[cfg(feature = "hot_reload")]

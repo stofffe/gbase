@@ -54,8 +54,7 @@ impl MedianFilter {
             .usage(wgpu::TextureUsages::COPY_DST | wgpu::TextureUsages::TEXTURE_BINDING)
             .build(ctx);
 
-        let params_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let params_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         Self {
             pipeline,

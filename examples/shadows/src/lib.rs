@@ -30,8 +30,8 @@ struct App {
 
     camera: AssetHandle<gbase_utils::Camera>,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
-    lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
+    lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 
     ak47_mesh_handle: asset::AssetHandle<Mesh>,
     ak47_material: Arc<GpuMaterial>,
@@ -153,8 +153,7 @@ impl Callbacks for App {
         )
         .pos(vec3(0.0, 0.0, 8.0));
         let camera = asset::AssetBuilder::insert(camera).build(cache);
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -168,8 +167,7 @@ impl Callbacks for App {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
         };
-        let lights_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let plane_mesh_handle = asset::AssetBuilder::insert(
             render::MeshBuilder::quad()
@@ -419,6 +417,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        render::set_vsync(_ctx, false);
+        // render::set_vsync(_ctx, false);
     }
 }

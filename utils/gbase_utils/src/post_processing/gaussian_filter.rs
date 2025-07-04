@@ -55,8 +55,7 @@ impl GaussianFilter {
             .format(wgpu::TextureFormat::Rgba8Unorm)
             .build(ctx);
 
-        let params_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let params_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         Self {
             horizontal_pipeline,

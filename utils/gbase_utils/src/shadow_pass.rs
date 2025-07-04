@@ -46,9 +46,9 @@ impl ShadowPass {
             .label("shadow_pass")
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let instances = render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
+        let instances = render::StorageBufferBuilder::new(
             MAX_SHADOW_INSTANCES * std::mem::size_of::<ShadowInstance>() as u64, // TODO: hardocoded
-        ))
+        )
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
@@ -63,23 +63,20 @@ impl ShadowPass {
         .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
         .build(ctx);
 
-        let light_matrices_index =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let light_matrices_index = render::UniformBufferBuilder::new().build(ctx);
 
-        let light_matrices_distances =
-            render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
-                MAX_SHADOW_CASCADES * std::mem::size_of::<u32>() as u64,
-            ))
-            .label("light matrices distances")
-            .build(ctx);
+        let light_matrices_distances = render::StorageBufferBuilder::new(
+            MAX_SHADOW_CASCADES * std::mem::size_of::<u32>() as u64,
+        )
+        .label("light matrices distances")
+        .build(ctx);
 
-        let light_matrices_buffer =
-            render::StorageBufferBuilder::new(render::StorageBufferSource::Size(
-                MAX_SHADOW_CASCADES * std::mem::size_of::<Mat4>() as u64,
-            ))
-            .label("light matrices")
-            .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
-            .build(ctx);
+        let light_matrices_buffer = render::StorageBufferBuilder::new(
+            MAX_SHADOW_CASCADES * std::mem::size_of::<Mat4>() as u64,
+        )
+        .label("light matrices")
+        .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
+        .build(ctx);
 
         Self {
             pipeline_layout,

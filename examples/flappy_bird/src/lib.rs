@@ -385,8 +385,7 @@ impl Callbacks for App {
         );
         camera.pos.z = 1.0;
 
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let texture = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
             .unwrap()

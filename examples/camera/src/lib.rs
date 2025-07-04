@@ -43,8 +43,7 @@ impl Callbacks for App {
         )
         .pos(vec3(0.0, 0.0, 2.0));
 
-        let buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let buffer = render::UniformBufferBuilder::new().build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Camera

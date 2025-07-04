@@ -1,3 +1,5 @@
+use encase::internal::BufferRef;
+
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
@@ -352,22 +354,24 @@ impl GpuMesh {
         let mut index_buffer = None;
         if let Some(indices) = &mesh.indices {
             let buffer =
-                render::RawBufferBuilder::new(render::RawBufferSource::Data(indices.clone()))
-                    .usage(wgpu::BufferUsages::INDEX)
+                render::RawBufferBuilder::<u32>::new((size_of::<u32>() * indices.len()) as u64)
+                    .usage(wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST)
                     .build(ctx);
+            buffer.write(ctx, indices);
             index_buffer = Some(buffer.buffer());
         }
 
-        let attribtute_buffer =
-            render::RawBufferBuilder::new(render::RawBufferSource::Data(combined_bytes))
+        let attribute_buffer =
+            render::RawBufferBuilder::<u8>::new((size_of::<u8>() * combined_bytes.len()) as u64)
                 .label("mesh")
                 .build(ctx);
+        attribute_buffer.write(ctx, &combined_bytes);
 
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();
 
         Self {
-            attribute_buffer: attribtute_buffer.buffer(),
+            attribute_buffer: attribute_buffer.buffer(),
             attribute_ranges,
             index_buffer,
             vertex_count,

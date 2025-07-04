@@ -86,11 +86,11 @@ impl Callbacks for App {
         .yaw(PI / 4.0);
         let camera = asset::AssetBuilder::insert(camera).build(cache);
 
-        let camera_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+        let camera_buffer = render::UniformBufferBuilder::new()
             .label("camera buf")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
-        let frustum_buffer = render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+        let frustum_buffer = render::UniformBufferBuilder::new()
             .label("frustum")
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
@@ -99,8 +99,7 @@ impl Callbacks for App {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
         };
-        let light_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let light_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         // Renderers
         let depth_buffer = render::DepthBufferBuilder::new()

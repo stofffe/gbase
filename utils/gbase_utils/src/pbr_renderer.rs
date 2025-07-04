@@ -129,9 +129,9 @@ impl PbrRenderer {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
 
-        let instances = render::RawBufferBuilder::new(render::RawBufferSource::Size(
+        let instances = render::RawBufferBuilder::new(
             10000 * std::mem::size_of::<Instance>() as u64, // TODO: hardocoded
-        ))
+        )
         .label("instances")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);

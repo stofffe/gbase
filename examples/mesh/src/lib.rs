@@ -141,9 +141,8 @@ impl Callbacks for App {
             gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 },
         )
         .pos(vec3(0.0, 0.0, 8.0));
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Data(camera.uniform()))
-                .build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
+        camera_buffer.write(ctx, &camera.uniform());
         let camera = asset::AssetBuilder::insert(camera).build(cache);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
@@ -158,8 +157,7 @@ impl Callbacks for App {
             main_light_dir: vec3(0.0, -1.0, -1.0).normalize(),
             main_light_insensity: 1.0,
         };
-        let lights_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let tonemap = bloom::Tonemap::new(ctx, cache);
         let bloom = bloom::Bloom::new(ctx, cache, hdr_format);

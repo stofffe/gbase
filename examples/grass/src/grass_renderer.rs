@@ -57,26 +57,22 @@ pub struct GrassRenderer {
 impl GrassRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let instances = [
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(
-                GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
-            ))
-            .label("instance buffer 1")
-            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
-            .build(ctx),
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(
-                GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64,
-            ))
-            .label("instance buffer 2")
-            .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
-            .build(ctx),
+            render::RawBufferBuilder::new(GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64)
+                .label("instance buffer 1")
+                .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
+                .build(ctx),
+            render::RawBufferBuilder::new(GrassInstanceGPU::SIZE * BLADES_PER_TILE as u64)
+                .label("instance buffer 2")
+                .usage(wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::STORAGE)
+                .build(ctx),
         ];
 
         let instance_count = [
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
+            render::RawBufferBuilder::new(size_of::<u32>() as u64)
                 .label("instance count 1")
                 .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
                 .build(ctx),
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<u32>() as u64))
+            render::RawBufferBuilder::new(size_of::<u32>() as u64)
                 .label("instance count 2")
                 .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
                 .build(ctx),
@@ -84,11 +80,11 @@ impl GrassRenderer {
 
         #[rustfmt::skip]
         let indirect_buffer = [
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
+            render::RawBufferBuilder::new(size_of::<wgpu::util::DrawIndirectArgs>() as u64)
                 .label("indirect buffer 1")
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
                 .build(ctx),
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(size_of::<wgpu::util::DrawIndirectArgs>() as u64))
+            render::RawBufferBuilder::new(size_of::<wgpu::util::DrawIndirectArgs>() as u64)
                 .label("indirect buffer 2")
                 .usage( wgpu::BufferUsages::INDIRECT | wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,)
                 .build(ctx),
@@ -103,10 +99,10 @@ impl GrassRenderer {
         .with_default_sampler_and_view(ctx);
 
         let tile_buffer = [
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+            render::UniformBufferBuilder::new()
                 .label("tiles 1")
                 .build(ctx),
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
+            render::UniformBufferBuilder::new()
                 .label("tiles 2")
                 .build(ctx),
         ];

@@ -40,8 +40,7 @@ impl Callbacks for App {
         )
         .pos(vec3(0.0, 0.0, 1.0));
 
-        let camera_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty).build(ctx);
+        let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         Self {

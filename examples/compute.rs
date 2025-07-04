@@ -21,18 +21,15 @@ struct App {
 impl Callbacks for App {
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Buffers
-        let input_buffer =
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(INPUT_MEM_SIZE))
-                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
-                .build(ctx);
-        let output_buffer =
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(OUTPUT_MEM_SIZE))
-                .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC)
-                .build(ctx);
-        let cpu_buffer =
-            render::RawBufferBuilder::new(render::RawBufferSource::Size(OUTPUT_MEM_SIZE))
-                .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
-                .build(ctx);
+        let input_buffer = render::RawBufferBuilder::new(INPUT_MEM_SIZE)
+            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST)
+            .build(ctx);
+        let output_buffer = render::RawBufferBuilder::new(OUTPUT_MEM_SIZE)
+            .usage(wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC)
+            .build(ctx);
+        let cpu_buffer = render::RawBufferBuilder::new(OUTPUT_MEM_SIZE)
+            .usage(wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST)
+            .build(ctx);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // input

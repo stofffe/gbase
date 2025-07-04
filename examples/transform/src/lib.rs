@@ -42,10 +42,9 @@ impl Callbacks for App {
 
         // Transform
         let transform = Transform3D::default();
-        let transform_buffer =
-            render::UniformBufferBuilder::new(render::UniformBufferSource::Empty)
-                .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
-                .build(ctx);
+        let transform_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::UNIFORM)
+            .build(ctx);
         let transform_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // Transform
