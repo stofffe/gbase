@@ -1,6 +1,6 @@
 use gbase::{
     filesystem,
-    render::{self, ArcRenderPipeline, Vertex},
+    render::{self, ArcRenderPipeline},
     wgpu, Callbacks, Context,
 };
 
@@ -10,7 +10,7 @@ fn main() {
 }
 
 pub struct App {
-    vertex_buffer: render::VertexBuffer<render::Vertex>,
+    mesh: render::GpuMesh,
     pipeline: ArcRenderPipeline,
 }
 
@@ -20,24 +20,26 @@ impl Callbacks for App {
     }
 
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
-        let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
-            TRIANGLE_VERTICES.to_vec(),
-        ))
-        .usage(wgpu::BufferUsages::VERTEX)
-        .build(ctx);
+        let mut vertex_buffer = render::Mesh::new(wgpu::PrimitiveTopology::TriangleStrip);
+        vertex_buffer.set_attribute(
+            render::VertexAttributeId::Position,
+            render::VertexAttributeValues::Float32x3(vec![
+                [-0.5, -0.5, 0.0],
+                [0.5, -0.5, 0.0],
+                [0.0, 0.5, 0.0],
+            ]),
+        );
+        let mesh = vertex_buffer.to_gpu_mesh(ctx);
 
         let shader_str = filesystem::load_s!("shaders/triangle.wgsl").unwrap();
         let shader = render::ShaderBuilder::new(shader_str).build(ctx);
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
-            .buffers(vec![vertex_buffer.desc()])
+            .buffers(vertex_buffer.buffer_layout())
             .single_target(render::ColorTargetState::from_current_screen(ctx))
             .build(ctx);
 
-        Self {
-            vertex_buffer,
-            pipeline,
-        }
+        Self { mesh, pipeline }
     }
     fn render(
         &mut self,
@@ -45,23 +47,19 @@ impl Callbacks for App {
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLUE),
             )])
-            .build_run_submit(ctx, |mut render_pass| {
+            .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
-                render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-                render_pass.draw(0..self.vertex_buffer.len(), 0..1);
+
+                self.mesh.bind_to_render_pass(&mut render_pass);
+                render_pass.draw(0..self.mesh.vertex_count, 0..1);
             });
+        encoder.submit(ctx);
 
         false
     }
 }
-
-#[rustfmt::skip]
-const TRIANGLE_VERTICES: &[Vertex] = &[
-    Vertex { position: [-0.5, -0.5, 0.0]  },
-    Vertex { position: [0.5, -0.5, 0.0]   },
-    Vertex { position: [0.0, 0.5, 0.0] },
-];

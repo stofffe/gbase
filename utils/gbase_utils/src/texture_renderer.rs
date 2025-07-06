@@ -1,6 +1,6 @@
 use gbase::{
     asset,
-    render::{self, ArcTextureView, ShaderBuilder, VertexUV},
+    render::{self, ArcTextureView, GpuMesh, ShaderBuilder},
     wgpu, Context,
 };
 
@@ -10,9 +10,8 @@ pub struct TextureRenderer {
     shader_handle: asset::AssetHandle<ShaderBuilder>,
     shader_depth_handle: asset::AssetHandle<ShaderBuilder>,
     sampler: render::ArcSampler,
-    vertices: render::VertexBuffer<VertexUV>,
-    indices: render::IndexBuffer,
-    vertices_depth: render::VertexBuffer<VertexUV>,
+    vertices: asset::AssetHandle<render::Mesh>,
+    vertices_depth: asset::AssetHandle<render::Mesh>,
 }
 
 impl TextureRenderer {
@@ -30,24 +29,57 @@ impl TextureRenderer {
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
             .build(ctx);
 
-        let vertices = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
-            CENTERED_QUAD_VERTICES.to_vec(),
-        ))
-        .build(ctx);
-        let indices = render::IndexBufferBuilder::new(render::IndexBufferSource::Data(
-            CENTERED_QUAD_INDICES.to_vec(),
-        ))
-        .build(ctx);
+        let vertices = render::Mesh::new(wgpu::PrimitiveTopology::TriangleList)
+            .with_attribute(
+                render::VertexAttributeId::Position,
+                render::VertexAttributeValues::Float32x3(vec![
+                    [-1.0, -1.0, 0.0],
+                    [1.0, -1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [-1.0, -1.0, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [-1.0, 1.0, 0.0],
+                ]),
+            )
+            .with_attribute(
+                render::VertexAttributeId::Uv(0),
+                render::VertexAttributeValues::Float32x2(vec![
+                    [0.0, 1.0],
+                    [1.0, 1.0],
+                    [1.0, 0.0],
+                    [0.0, 1.0],
+                    [1.0, 0.0],
+                    [0.0, 0.0],
+                ]),
+            );
 
-        let vertices_depth = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(
-            CENTERED_QUAD_VERTICES_DEPTH.to_vec(),
-        ))
-        .build(ctx);
+        let vertices_depth = render::Mesh::new(wgpu::PrimitiveTopology::TriangleList)
+            .with_attribute(
+                render::VertexAttributeId::Position,
+                render::VertexAttributeValues::Float32x3(vec![
+                    [0.25, 0.25, 0.0],
+                    [1.0, 0.25, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [0.25, 0.25, 0.0],
+                    [1.0, 1.0, 0.0],
+                    [0.25, 1.0, 0.0],
+                ]),
+            )
+            .with_attribute(
+                render::VertexAttributeId::Uv(0),
+                render::VertexAttributeValues::Float32x2(vec![
+                    [0.0, 1.0],
+                    [1.0, 1.0],
+                    [1.0, 0.0],
+                    [0.0, 1.0],
+                    [1.0, 0.0],
+                    [0.0, 0.0],
+                ]),
+            );
 
         Self {
-            vertices,
-            indices,
-            vertices_depth,
+            vertices: asset::AssetBuilder::insert(vertices).build(cache),
+            vertices_depth: asset::AssetBuilder::insert(vertices_depth).build(cache),
             shader_handle,
             shader_depth_handle,
             sampler,
@@ -94,21 +126,28 @@ impl TextureRenderer {
         let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(vec![self.vertices.desc()])
+            .buffers(self.vertices.clone().get(cache).unwrap().buffer_layout())
             .build(ctx);
 
+        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
             .label("texture renderer")
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run_submit(ctx, |mut render_pass| {
+            .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
-                render_pass.set_vertex_buffer(0, self.vertices.slice(..));
-                render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
+
+                let gpu_mesh = self
+                    .vertices
+                    .clone()
+                    .convert::<GpuMesh>(ctx, cache, &())
+                    .unwrap();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+                gpu_mesh.bind_to_render_pass(&mut render_pass);
+                gpu_mesh.draw_in_render_pass(&mut render_pass);
             });
+        encoder.submit(ctx);
     }
 
     pub fn render_depth(
@@ -157,48 +196,32 @@ impl TextureRenderer {
             asset::convert_asset(ctx, cache, self.shader_depth_handle.clone(), &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(vec![self.vertices_depth.desc()])
+            .buffers(
+                self.vertices_depth
+                    .clone()
+                    .get(cache)
+                    .unwrap()
+                    .buffer_layout(),
+            )
             .build(ctx);
 
+        let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
             .label("texture renderer")
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run_submit(ctx, |mut render_pass| {
+            .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
-                render_pass.set_vertex_buffer(0, self.vertices_depth.slice(..));
-                render_pass.set_index_buffer(self.indices.slice(..), self.indices.format());
+                let gpu_mesh = self
+                    .vertices_depth
+                    .clone()
+                    .convert::<GpuMesh>(ctx, cache, &())
+                    .unwrap();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                render_pass.draw_indexed(0..self.indices.len(), 0, 0..1);
+                gpu_mesh.bind_to_render_pass(&mut render_pass);
+                gpu_mesh.draw_in_render_pass(&mut render_pass);
             });
+        encoder.submit(ctx);
     }
 }
-
-#[rustfmt::skip]
-const CENTERED_QUAD_VERTICES: &[render::VertexUV] = &[
-    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 1.0, -1.0, 0.0], uv: [1.0, 1.0] }, // bottom right
-    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-
-    render::VertexUV { position: [-1.0, -1.0, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [ 1.0,  1.0, 0.0], uv: [1.0, 0.0] }, // top right
-    render::VertexUV { position: [-1.0,  1.0, 0.0], uv: [0.0, 0.0] }, // top left
-];
-
-#[rustfmt::skip]
-const CENTERED_QUAD_VERTICES_DEPTH: &[render::VertexUV] = &[
-    render::VertexUV { position: [0.25, 0.25, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [1.0,  0.25, 0.0], uv: [1.0, 1.0] }, // bottom right
-    render::VertexUV { position: [1.0,  1.0,  0.0], uv: [1.0, 0.0] }, // top right
-
-    render::VertexUV { position: [0.25, 0.25, 0.0], uv: [0.0, 1.0] }, // bottom left
-    render::VertexUV { position: [1.0,  1.0,  0.0], uv: [1.0, 0.0] }, // top right
-    render::VertexUV { position: [0.25, 1.0,  0.0], uv: [0.0, 0.0] }, // top left
-];
-
-#[rustfmt::skip]
-const CENTERED_QUAD_INDICES: &[u32] = &[
-    0, 1, 2,
-    3, 4, 5
-];

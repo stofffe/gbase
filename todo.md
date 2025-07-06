@@ -56,6 +56,9 @@ Engine
 [] extend camera to support non aspect ratio shapes
 [] remove framebuffers and replace with normal textures?
 [x] encase storage buffers instead of bytemuck
+[] why is update and render separate?
+[] look into removing builder pattern from buffers (look at bevy_render/src/uniform_buffer.rs)
+
 
 [] shadows
     [] fade out when reaching limit
@@ -69,10 +72,17 @@ Engine
     [x] compare front+back+bias vs only back faces
 
 [] assets 
+    [] make non loading separate type without unwrap
+    [] use more references to avoid clone? or use copy?
+    [] make uniform/storage/mesh (vertex) grow dynamically
+    []
     [] add imports to shaders
     [] add gltf loader
     [] add sub model loading, file.glft#node1
     [] check if asset waiting queus up work (like in pbr)
+    [] create asset implementations for buffer types?
+    [x] look into putting assets in app and not context
+    [] updatable asset?
 
 [] bloom
     [] move pixel cache to ctx
@@ -91,6 +101,7 @@ Engine
 [x] move to tracing
     [x] tracing wasm
     [x] tracy
+    [] tracy_client has gpu support?
 [] remove vsync, log level, (asset path) from init_ctx()
     some are needed for wasm (log level)
 

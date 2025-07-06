@@ -1,5 +1,3 @@
-use encase::internal::BufferRef;
-
 use crate::{
     glam::Vec3,
     render::{self, VertexBufferLayout},
@@ -13,6 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, Default)]
 pub struct Mesh {
+    // TODO: use this in render pipeline, currently unused
     primitive_topology: wgpu::PrimitiveTopology,
     attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
     indices: Option<Vec<u32>>,
@@ -30,6 +29,10 @@ impl Mesh {
     pub fn set_indices(&mut self, indices: Vec<u32>) {
         self.indices = Some(indices);
     }
+    pub fn with_indices(mut self, indices: Vec<u32>) -> Self {
+        self.set_indices(indices);
+        self
+    }
 
     pub fn get_indices(&self) -> Option<&Vec<u32>> {
         self.indices.as_ref()
@@ -46,6 +49,10 @@ impl Mesh {
             }
         }
         self.attributes.insert(id, values);
+    }
+    pub fn with_attribute(mut self, id: VertexAttributeId, values: VertexAttributeValues) -> Self {
+        self.set_attribute(id, values);
+        self
     }
 
     pub fn get_attribute(&self, id: VertexAttributeId) -> Option<&VertexAttributeValues> {
@@ -69,20 +76,6 @@ impl Mesh {
 
     pub fn index_count(&self) -> Option<u32> {
         self.indices.as_ref().map(|inds| inds.len() as u32)
-    }
-
-    pub fn layouts(&self) -> Vec<render::VertexBufferLayout> {
-        let mut layouts = Vec::new();
-
-        for attr in self.attributes.keys() {
-            let layout = render::VertexBufferLayout::from_vertex_formats(
-                wgpu::VertexStepMode::Vertex,
-                vec![attr.format()],
-            );
-            layouts.push(layout);
-        }
-
-        layouts
     }
 
     /// Checks
@@ -222,6 +215,10 @@ impl Mesh {
             ));
         }
         buffers
+    }
+
+    pub fn to_gpu_mesh(&self, ctx: &mut Context) -> GpuMesh {
+        GpuMesh::new(ctx, self)
     }
 }
 

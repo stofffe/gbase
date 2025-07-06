@@ -13,6 +13,8 @@ use std::{
     time::Duration,
 };
 
+// TODO: maybe create new types for the complicated ones
+
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
 
 pub struct AssetCache {
@@ -422,5 +424,25 @@ pub fn invalidate_render_cache(
         for render_type in render_types {
             render_cache.remove(&(handle.clone(), *render_type));
         }
+    }
+}
+
+impl<T: Asset + 'static> AssetHandle<T> {
+    pub fn loaded(self, cache: &AssetCache) -> bool {
+        cache.handle_loaded(self)
+    }
+    pub fn get(self, cache: &mut AssetCache) -> Option<&T> {
+        cache.get(self.clone())
+    }
+    pub fn get_mut(self, cache: &mut AssetCache) -> Option<&mut T> {
+        cache.get_mut(self.clone())
+    }
+    pub fn convert<G: ConvertableRenderAsset<SourceAsset = T>>(
+        self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
+        params: &G::Params,
+    ) -> Option<ArcHandle<G>> {
+        cache.convert(ctx, self, params)
     }
 }
