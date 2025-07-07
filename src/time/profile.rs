@@ -1,8 +1,9 @@
+use super::Instant;
+
 use crate::Context;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 const SAMPLES: usize = 25;

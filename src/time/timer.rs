@@ -1,6 +1,6 @@
-use std::time::Duration;
-
 use super::Instant;
+
+use std::time::Duration;
 
 #[derive(Debug)]
 pub struct Timer {

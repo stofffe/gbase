@@ -1,5 +1,7 @@
 mod bloom;
 
+use time::Instant;
+
 use gbase::{
     asset,
     glam::{vec3, vec4, Vec3},
@@ -12,7 +14,7 @@ use gbase_utils::{
     Alignment, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
     Transform3D, Widget, BLACK, GRAY, WHITE,
 };
-use std::{f32::consts::PI, sync::Arc, time::Instant};
+use std::{f32::consts::PI, sync::Arc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {

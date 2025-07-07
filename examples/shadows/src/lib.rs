@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, AssetHandle},
+    asset,
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
@@ -15,7 +15,7 @@ pub async fn run() {
     gbase::run::<App>().await;
 }
 
-const PLANE_SIZE: f32 = 100.0;
+const PLANE_SIZE: f32 = 1000.0;
 const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 struct App {
