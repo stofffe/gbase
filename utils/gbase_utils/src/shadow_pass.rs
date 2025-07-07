@@ -4,7 +4,7 @@ use gbase::{
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, BoundingBox, GpuMesh},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 
 pub struct ShadowPass {
@@ -95,7 +95,7 @@ impl ShadowPass {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         meshes: Vec<(asset::AssetHandle<render::Mesh>, crate::Transform3D)>,
-        camera: AssetHandle<crate::Camera>,
+        camera: &Camera,
         main_light_dir: Vec3,
     ) {
         //
@@ -104,7 +104,6 @@ impl ShadowPass {
 
         let mut assets_loaded = true;
         assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
-        assets_loaded &= asset::handle_loaded(cache, camera.clone());
 
         // could probably skip not loaded ones
         for (mesh, _) in meshes.iter() {
@@ -120,7 +119,6 @@ impl ShadowPass {
         let mut light_matrices = Vec::new();
         let mut frustums = Vec::new();
 
-        let camera = asset::get(cache, camera).unwrap();
         let planes = [0.01, 3.0, 10.0, 30.0];
         for plane in planes.windows(2) {
             let (light_matrix, frustum) =
@@ -153,8 +151,10 @@ impl ShadowPass {
             let mut meshes = sorted_meshes.clone();
             let frustum = &frustums[i];
             meshes.retain(|(handle, transform)| {
-                let bounds =
-                    asset::convert_asset::<BoundingBox>(ctx, cache, handle.clone(), &()).unwrap();
+                let bounds = handle
+                    .clone()
+                    .convert::<BoundingBox>(ctx, cache, &())
+                    .unwrap();
                 frustum.sphere_inside(&bounds, transform)
             });
 

@@ -158,6 +158,7 @@ impl PbrRenderer {
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
+        frustum: &CameraFrustum,
 
         // optional
         shadow_map: &render::ArcTexture,
@@ -204,11 +205,13 @@ impl PbrRenderer {
         //
         // Culling
         //
-        // let frustum = camera.calculate_frustum(ctx);
-        // self.frame_meshes.retain(|(handle, _, transform)| {
-        //     let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, handle.clone(), &()).unwrap();
-        //     frustum.sphere_inside(&gpu_mesh.bounds, transform)
-        // });
+        self.frame_meshes.retain(|(handle, _, transform)| {
+            let bounds = handle
+                .clone()
+                .convert::<BoundingBox>(ctx, cache, &())
+                .unwrap();
+            frustum.sphere_inside(&bounds, transform)
+        });
 
         //
         // Grouping of draws
@@ -354,15 +357,17 @@ impl PbrRenderer {
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
-        camera: AssetHandle<Camera>,
+        frustum: &CameraFrustum,
         mesh: asset::AssetHandle<render::Mesh>,
         material: Arc<GpuMaterial>,
         transform: Transform3D,
     ) {
         // TODO: cache the frustum
         // cull
-        let frustum = asset::convert_asset::<CameraFrustum>(ctx, cache, camera, &()).unwrap();
-        let bounds = asset::convert_asset::<BoundingBox>(ctx, cache, mesh.clone(), &()).unwrap();
+        let bounds = mesh
+            .clone()
+            .convert::<BoundingBox>(ctx, cache, &())
+            .unwrap();
 
         if frustum.sphere_inside(&bounds, &transform) {
             self.frame_meshes.push((mesh, material, transform));
@@ -378,8 +383,12 @@ impl PbrRenderer {
         camera: &Camera,
     ) {
         for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let bounds =
-                asset::convert_asset::<BoundingBox>(ctx, cache, mesh_handle.clone(), &()).unwrap();
+            let bounds = mesh_handle
+                .clone()
+                .convert::<BoundingBox>(ctx, cache, &())
+                .unwrap();
+            // let bounds =
+            //     asset::convert_asset::<BoundingBox>(ctx, cache, mesh_handle.clone(), &()).unwrap();
             let bounding_sphere = BoundingSphere::new(&bounds, transform);
 
             let mut color = vec3(1.0, 1.0, 1.0);

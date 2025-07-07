@@ -1,11 +1,11 @@
 use std::f32::consts::PI;
 
-use encase::{internal::WriteInto, ShaderType};
+use encase::ShaderType;
 use gbase::{
     asset::{self, ConvertableRenderAsset, RenderAsset},
     glam::{vec3, Mat4, Vec3, Vec4Swizzles},
     input,
-    render::{self, BoundingBox, UniformBuffer},
+    render::{self, BoundingBox},
     time, winit, Context,
 };
 
@@ -400,25 +400,5 @@ impl Camera {
                 }
             }
         }
-    }
-}
-
-//
-// Camera asset
-//
-
-impl asset::Asset for Camera {}
-impl RenderAsset for CameraFrustum {}
-impl ConvertableRenderAsset for CameraFrustum {
-    type SourceAsset = Camera;
-    type Params = ();
-    type Error = bool;
-
-    fn convert(
-        ctx: &mut Context,
-        source: &Self::SourceAsset,
-        params: &Self::Params,
-    ) -> Result<Self, Self::Error> {
-        Ok(source.calculate_frustum())
     }
 }

@@ -6,7 +6,7 @@ use gbase::{
     render::{self, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
-use gbase_utils::{GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
+use gbase_utils::{Camera, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
 use gbase_utils::{MeshLod, ShadowPass};
 use std::{f32::consts::PI, sync::Arc};
 
@@ -28,7 +28,7 @@ struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
 
-    camera: AssetHandle<gbase_utils::Camera>,
+    camera: Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights: PbrLightUniforms,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
@@ -152,7 +152,6 @@ impl Callbacks for App {
             gbase_utils::CameraProjection::Perspective { fov: PI / 2.0 },
         )
         .pos(vec3(0.0, 0.0, 8.0));
-        let camera = asset::AssetBuilder::insert(camera).build(cache);
         let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
@@ -233,8 +232,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let camera = asset::get_mut(cache, self.camera.clone()).unwrap();
-            camera.flying_controls(ctx);
+            self.camera.flying_controls(ctx);
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
@@ -259,8 +257,7 @@ impl Callbacks for App {
         }
 
         // update buffers
-        let camera = asset::get(cache, self.camera.clone()).unwrap();
-        self.camera_buffer.write(ctx, &camera.uniform());
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // clear textures
@@ -327,21 +324,16 @@ impl Callbacks for App {
             ctx,
             cache,
             shadow_meshes,
-            self.camera.clone(),
+            &self.camera,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
         );
 
         // pbr pass
+        let frustum = &self.camera.calculate_frustum();
         for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer.add_mesh_culled(
-                ctx,
-                cache,
-                self.camera.clone(),
-                mesh,
-                mat,
-                transform,
-            );
+            self.pbr_renderer
+                .add_mesh_culled(ctx, cache, frustum, mesh, mat, transform);
             // self.pbr_renderer.add_mesh(mesh, mat, transform);
         }
         // self.pbr_renderer
@@ -354,6 +346,7 @@ impl Callbacks for App {
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
+            &self.camera.calculate_frustum(),
             &self.shadow_pass.shadow_map,
             &self.shadow_pass.light_matrices_buffer,
             &self.shadow_pass.light_matrices_distances,
@@ -406,10 +399,7 @@ impl Callbacks for App {
         self.gizmo_renderer.resize(ctx, new_size);
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
-
-        asset::get_mut(cache, self.camera.clone())
-            .unwrap()
-            .resize(new_size);
+        self.camera.resize(new_size);
     }
 }
 

@@ -30,7 +30,7 @@ struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     ui_renderer: gbase_utils::GUIRenderer,
 
-    camera: asset::AssetHandle<gbase_utils::Camera>,
+    camera: gbase_utils::Camera,
     camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
@@ -143,7 +143,6 @@ impl Callbacks for App {
         .pos(vec3(0.0, 0.0, 8.0));
         let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
         camera_buffer.write(ctx, &camera.uniform());
-        let camera = asset::AssetBuilder::insert(camera).build(cache);
 
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
@@ -199,8 +198,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let camera = asset::get_mut(cache, self.camera.clone()).unwrap();
-            camera.flying_controls(ctx);
+            self.camera.flying_controls(ctx);
         }
 
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
@@ -231,9 +229,7 @@ impl Callbacks for App {
         self.depth_buffer.clear(ctx);
 
         // TODO: temp
-        let camera = asset::get(cache, self.camera.clone()).unwrap().clone();
-
-        self.camera_buffer.write(ctx, &camera.uniform());
+        self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // Render
@@ -253,7 +249,7 @@ impl Callbacks for App {
             ctx,
             cache,
             shadow_meshes,
-            self.camera.clone(),
+            &self.camera,
             self.lights.main_light_dir,
         );
         for (mesh, mat, transform) in meshes.iter().cloned() {
@@ -270,6 +266,7 @@ impl Callbacks for App {
                 &self.camera_buffer,
                 &self.lights_buffer,
                 &self.depth_buffer,
+                &self.camera.calculate_frustum(),
                 &self.shadow_pass.shadow_map,
                 &self.shadow_pass.light_matrices_buffer,
                 &self.shadow_pass.light_matrices_distances,
@@ -419,10 +416,7 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
-
-        asset::get_mut(cache, self.camera.clone())
-            .unwrap()
-            .resize(new_size);
+        self.camera.resize(new_size);
     }
 }
 

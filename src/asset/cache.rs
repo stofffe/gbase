@@ -291,6 +291,10 @@ impl AssetCache {
     }
 }
 
+//
+// Hot reload extension
+//
+
 #[cfg(not(target_arch = "wasm32"))]
 pub struct AssetCacheExt {
     // reloading
