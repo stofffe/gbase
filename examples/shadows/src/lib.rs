@@ -1,5 +1,5 @@
 use gbase::{
-    asset,
+    asset::{self, AssetHandle},
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
@@ -60,6 +60,13 @@ fn load_simple_mesh(
     (mesh_handle, Arc::new(material))
 }
 
+fn mesh_to_lod_mesh(mesh: AssetHandle<render::Mesh>, mat: Arc<GpuMaterial>) -> MeshLod {
+    MeshLod {
+        meshes: vec![(mesh, 0.0)],
+        mat,
+    }
+}
+
 fn load_lod_mesh(
     cache: &mut gbase::asset::AssetCache,
     bytes: &[u8],
@@ -67,19 +74,35 @@ fn load_lod_mesh(
     pbr_renderer: &PbrRenderer,
 ) -> MeshLod {
     let mut meshes = Vec::new();
-    let thresholds = [0.5, 0.25, 0.0];
+    // NOTE: debug boxes defined separately
+    let thresholds = [0.25, 0.125, 0.0];
 
-    for (i, prim) in gbase_utils::parse_glb(bytes).into_iter().enumerate() {
+    let mut material = None;
+
+    // TODO: scuffed rev
+    // need to create LOD by name
+    for (i, prim) in gbase_utils::parse_glb(bytes).into_iter().rev().enumerate() {
         let mesh = prim
             .mesh
             .extract_attributes(pbr_renderer.required_attributes().clone());
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
-        let material = Arc::new(prim.material.clone().to_material(cache, pixel_cache));
+        material = Some(Arc::new(
+            prim.material.clone().to_material(cache, pixel_cache),
+        ));
 
-        meshes.push((mesh_handle, material, thresholds[i]));
+        dbg!(mesh_handle.clone().get(cache).unwrap().vertex_count());
+        meshes.push((mesh_handle, thresholds[i]));
     }
 
-    MeshLod::new(meshes)
+    MeshLod {
+        meshes,
+        mat: material.unwrap(),
+    }
+}
+
+struct DrawCall {
+    mesh: MeshLod,
+    transform: Transform3D,
 }
 
 impl Callbacks for App {
@@ -195,10 +218,12 @@ impl Callbacks for App {
 
         let helmet_mesh_lod = load_lod_mesh(
             cache,
-            &load_b!("models/helmet2.glb").unwrap(),
+            &load_b!("models/helmet_lod.glb").unwrap(),
             &mut pixel_cache,
             &pbr_renderer,
         );
+
+        dbg!(&helmet_mesh_lod);
 
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
@@ -264,58 +289,59 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        let mut meshes = vec![
-            // add meshes
-            (
-                self.plane_mesh_handle.clone(),
-                self.plane_material.clone(),
-                Transform3D::default()
+        let mut draw_calls = vec![
+            DrawCall {
+                mesh: mesh_to_lod_mesh(self.plane_mesh_handle.clone(), self.plane_material.clone()),
+                transform: Transform3D::default()
                     .with_pos(vec3(0.0, -2.0, 0.0))
                     .with_rot(Quat::from_rotation_x(-PI / 2.0))
                     .with_scale(Vec3::ONE * PLANE_SIZE),
-            ),
-            (
-                self.helmet_mesh_handle.clone(),
-                self.helmet_material.clone(),
-                Transform3D::default()
+            },
+            // add meshes
+            DrawCall {
+                mesh: self.helmet_mesh_lod.clone(),
+                transform: Transform3D::default()
                     .with_rot(Quat::from_rotation_y(time::time_since_start(ctx)))
                     .with_pos(vec3(0.0, 0.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
-            ),
-            (
-                self.helmet_mesh_handle.clone(),
-                self.helmet_material.clone(),
-                Transform3D::default()
+            },
+            DrawCall {
+                mesh: self.helmet_mesh_lod.clone(),
+                transform: Transform3D::default()
                     .with_pos(vec3(-3.0, 10.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
-            ),
-            (
-                self.ak47_mesh_handle.clone(),
-                self.ak47_material.clone(),
-                Transform3D::default()
+            },
+            DrawCall {
+                mesh: mesh_to_lod_mesh(self.ak47_mesh_handle.clone(), self.ak47_material.clone()),
+                transform: Transform3D::default()
                     .with_pos(vec3(3.0, 0.0, -1.0))
                     .with_scale(Vec3::ONE * 1.0),
-            ),
+            },
         ];
 
         let amount = 5;
         let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
-                meshes.push((
-                    self.helmet_mesh_handle.clone(),
-                    self.helmet_material.clone(),
-                    Transform3D::default()
+                draw_calls.push(DrawCall {
+                    mesh: self.helmet_mesh_lod.clone(), // TODO: should this even be clone
+                    transform: Transform3D::default()
                         .with_pos(vec3(gap as f32 * x as f32, 10.0, gap as f32 * z as f32))
                         .with_scale(Vec3::ONE * 1.0),
-                ));
+                });
             }
         }
 
         // shadow pass
-        let shadow_meshes = meshes
+        // TODO: scuffed
+        let shadow_meshes = draw_calls
             .iter()
-            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
+            .map(|draw_call| {
+                (
+                    draw_call.mesh.meshes[0].clone().0,
+                    draw_call.transform.clone(),
+                )
+            })
             .collect::<Vec<_>>();
 
         self.lights.main_light_dir = vec3(1.0, -1.0, 0.0);
@@ -330,14 +356,30 @@ impl Callbacks for App {
         );
 
         // pbr pass
-        let frustum = &self.camera.calculate_frustum();
-        for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer
-                .add_mesh_culled(ctx, cache, frustum, mesh, mat, transform);
-            // self.pbr_renderer.add_mesh(mesh, mat, transform);
+        for (i, draw_call) in draw_calls.iter().enumerate() {
+            self.pbr_renderer.add_mesh_lod(
+                ctx,
+                cache,
+                &draw_call.mesh,
+                draw_call.transform.clone(),
+                &self.camera,
+            );
         }
-        // self.pbr_renderer
-        //     .render_bounding_boxes(ctx, &mut self.gizmo_renderer, &self.camera);
+
+        self.pbr_renderer.add_mesh_lod(
+            ctx,
+            cache,
+            &self.helmet_mesh_lod,
+            Transform3D {
+                pos: vec3(10.0, 0.0, 10.0),
+                rot: Quat::IDENTITY,
+                scale: Vec3::ONE,
+            },
+            &self.camera,
+        );
+
+        self.pbr_renderer
+            .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
         self.pbr_renderer.render(
             ctx,
             cache,
@@ -407,6 +449,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        // render::set_vsync(_ctx, false);
+        render::set_vsync(_ctx, false);
     }
 }

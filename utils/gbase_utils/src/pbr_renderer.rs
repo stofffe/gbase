@@ -1,5 +1,6 @@
 use crate::{
-    BoundingSphere, Camera, CameraFrustum, CameraProjection, GizmoRenderer, PixelCache, Transform3D,
+    BoundingSphere, Camera, CameraFrustum, CameraProjection, GizmoRenderer, MeshLod, PixelCache,
+    Transform3D,
 };
 use encase::ShaderType;
 use gbase::{
@@ -29,14 +30,23 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let forward_shader_handle =
-            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/mesh.wgsl")
-                .watch(cache)
-                .build(cache);
-        let deferred_shader_handle =
-            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl")
-                .watch(cache)
-                .build(cache);
+        // let forward_shader_handle =
+        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/mesh.wgsl")
+        //         .watch(cache)
+        //         .build(cache);
+        // let deferred_shader_handle =
+        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl")
+        //         .watch(cache)
+        //         .build(cache);
+
+        let forward_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+            include_str!("../assets/shaders/mesh.wgsl"),
+        ))
+        .build(cache);
+        let deferred_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+            include_str!("../assets/shaders/deferred_mesh.wgsl"),
+        ))
+        .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -342,7 +352,6 @@ impl PbrRenderer {
         self.frame_meshes.clear();
     }
 
-    /// cull and add mesh
     pub fn add_mesh(
         &mut self,
         mesh: asset::AssetHandle<render::Mesh>,
@@ -352,7 +361,43 @@ impl PbrRenderer {
         self.frame_meshes.push((mesh, material, transform));
     }
 
-    /// cull and add mesh
+    pub fn add_mesh_lod(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        mesh_lod: &MeshLod,
+        transform: Transform3D,
+        camera: &Camera,
+    ) {
+        // self.frame_meshes.push((
+        //     mesh_lod.meshes[0].clone().0,
+        //     mesh_lod.mat.clone(),
+        //     transform,
+        // ));
+        // return;
+
+        for (handle, threshhold) in mesh_lod.meshes.iter() {
+            if let CameraProjection::Perspective { fov } = camera.projection {
+                let bounds = handle
+                    .clone()
+                    .convert::<BoundingBox>(ctx, cache, &())
+                    .unwrap();
+                let bounding_sphere = BoundingSphere::new(&bounds, &transform);
+                let screen_coverage = screen_space_vertical_coverage(
+                    bounding_sphere.radius,
+                    transform.pos,
+                    fov,
+                    camera.view_matrix(),
+                );
+                if screen_coverage >= *threshhold {
+                    self.frame_meshes
+                        .push((handle.clone(), mesh_lod.mat.clone(), transform));
+                    return;
+                }
+            }
+        }
+    }
+
     pub fn add_mesh_culled(
         &mut self,
         ctx: &mut Context,
@@ -387,8 +432,6 @@ impl PbrRenderer {
                 .clone()
                 .convert::<BoundingBox>(ctx, cache, &())
                 .unwrap();
-            // let bounds =
-            //     asset::convert_asset::<BoundingBox>(ctx, cache, mesh_handle.clone(), &()).unwrap();
             let bounding_sphere = BoundingSphere::new(&bounds, transform);
 
             let mut color = vec3(1.0, 1.0, 1.0);
@@ -401,9 +444,9 @@ impl PbrRenderer {
                     camera.view_matrix(),
                 );
 
-                color = if screen_coverage > 0.5 {
+                color = if screen_coverage > 0.25 {
                     vec3(1.0, 0.0, 0.0)
-                } else if screen_coverage > 0.25 {
+                } else if screen_coverage > 0.125 {
                     vec3(0.0, 1.0, 0.0)
                 } else {
                     vec3(0.0, 0.0, 1.0)

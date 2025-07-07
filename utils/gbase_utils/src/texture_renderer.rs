@@ -16,14 +16,22 @@ pub struct TextureRenderer {
 
 impl TextureRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let shader_handle =
-            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture.wgsl")
-                .watch(cache)
-                .build(cache);
-        let shader_depth_handle =
-            asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
-                .watch(cache)
-                .build(cache);
+        // let shader_handle =
+        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture.wgsl")
+        //         .watch(cache)
+        //         .build(cache);
+        // let shader_depth_handle =
+        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
+        //         .watch(cache)
+        //         .build(cache);
+        let shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(include_str!(
+            "../assets/shaders/texture.wgsl"
+        )))
+        .build(cache);
+        let shader_depth_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+            include_str!("../assets/shaders/texture_depth.wgsl"),
+        ))
+        .build(cache);
 
         let sampler = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)

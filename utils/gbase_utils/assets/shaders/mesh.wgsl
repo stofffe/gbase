@@ -1,3 +1,5 @@
+diagnostic (off, derivative_uniformity);
+
 struct CameraUniform {
     pos: vec3<f32>,
     facing: vec3<f32>,
@@ -100,7 +102,7 @@ struct VertexOutput {
     @location(5) T: vec3f,
     @location(6) B: vec3f,
     @location(7) N: vec3f,
-    @location(8) index: u32,
+    @location(8) @interpolate(flat) index: u32,
 }
 
 fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
