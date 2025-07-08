@@ -377,23 +377,16 @@ impl PbrRenderer {
         // return;
 
         for (handle, threshhold) in mesh_lod.meshes.iter() {
-            if let CameraProjection::Perspective { fov } = camera.projection {
-                let bounds = handle
-                    .clone()
-                    .convert::<BoundingBox>(ctx, cache, &())
-                    .unwrap();
-                let bounding_sphere = BoundingSphere::new(&bounds, &transform);
-                let screen_coverage = screen_space_vertical_coverage(
-                    bounding_sphere.radius,
-                    transform.pos,
-                    fov,
-                    camera.view_matrix(),
-                );
-                if screen_coverage >= *threshhold {
-                    self.frame_meshes
-                        .push((handle.clone(), mesh_lod.mat.clone(), transform));
-                    return;
-                }
+            let bounds = handle
+                .clone()
+                .convert::<BoundingBox>(ctx, cache, &())
+                .unwrap();
+            let screen_coverage =
+                screen_space_vertical_coverage(&BoundingSphere::new(&bounds, &transform), camera);
+            if screen_coverage >= *threshhold {
+                self.frame_meshes
+                    .push((handle.clone(), mesh_lod.mat.clone(), transform));
+                return;
             }
         }
     }
@@ -432,32 +425,22 @@ impl PbrRenderer {
                 .clone()
                 .convert::<BoundingBox>(ctx, cache, &())
                 .unwrap();
-            let bounding_sphere = BoundingSphere::new(&bounds, transform);
+            let bounds_sphere = BoundingSphere::new(&bounds, transform);
 
-            let mut color = vec3(1.0, 1.0, 1.0);
-
-            if let CameraProjection::Perspective { fov } = camera.projection {
-                let screen_coverage = screen_space_vertical_coverage(
-                    bounding_sphere.radius,
-                    transform.pos,
-                    fov,
-                    camera.view_matrix(),
-                );
-
-                color = if screen_coverage > 0.25 {
-                    vec3(1.0, 0.0, 0.0)
-                } else if screen_coverage > 0.125 {
-                    vec3(0.0, 1.0, 0.0)
-                } else {
-                    vec3(0.0, 0.0, 1.0)
-                };
+            let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
+            let color = if screen_coverage > 0.25 {
+                vec3(1.0, 0.0, 0.0)
+            } else if screen_coverage > 0.125 {
+                vec3(0.0, 1.0, 0.0)
+            } else {
+                vec3(0.0, 0.0, 1.0)
             };
 
             gizmo_renderer.draw_sphere(
                 &Transform3D::new(
-                    bounding_sphere.center,
+                    bounds_sphere.center,
                     transform.rot,
-                    Vec3::ONE * bounding_sphere.radius * 2.0,
+                    Vec3::ONE * bounds_sphere.radius * 2.0,
                 ),
                 color,
             );
@@ -470,16 +453,27 @@ impl PbrRenderer {
 }
 
 // TODO: do area instead of just height
-fn screen_space_vertical_coverage(r: f32, world_pos: Vec3, fov: f32, view_matrix: Mat4) -> f32 {
-    let view_pos = view_matrix * world_pos.extend(1.0);
-    let z = -view_pos.z;
+// circle area gives distortion?
+// aabb does not?
+fn screen_space_vertical_coverage(bounds: &BoundingSphere, camera: &Camera) -> f32 {
+    // TODO: is it bad to recalculate view matrix here?
+    let view_space_pos = camera.view_matrix() * bounds.center.extend(1.0);
 
-    // behind camera?
-    if z <= 0.0 {
+    // camera looks neg z, invert for positive distance
+    let z = -view_space_pos.z;
+
+    // if point behind near plane, coverage is 0.0
+    if z <= camera.znear {
         return 0.0;
     }
 
-    r / (z * f32::tan(fov / 2.0))
+    let diameter = 2.0 * bounds.radius;
+    let screen_height = match camera.projection {
+        CameraProjection::Perspective { fov } => 2.0 * (z * f32::tan(fov / 2.0)),
+        CameraProjection::Orthographic { height } => height,
+    };
+
+    diameter / screen_height
 }
 
 //
