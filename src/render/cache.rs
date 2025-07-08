@@ -5,28 +5,28 @@ use crate::render::{
     TextureViewBuilder,
 };
 use crate::Context;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 
 pub struct RenderCache {
-    pub bindgroup_layouts: HashMap<BindGroupLayoutBuilder, ArcBindGroupLayout>,
-    pub bindgroups: HashMap<BindGroupBuilder, ArcBindGroup>,
-    pub pipeline_layouts: HashMap<PipelineLayoutBuilder, ArcPipelineLayout>,
-    pub render_pipelines: HashMap<RenderPipelineBuilder, ArcRenderPipeline>,
-    pub compute_pipelines: HashMap<ComputePipelineBuilder, ArcComputePipeline>,
-    pub samplers: HashMap<SamplerBuilder, ArcSampler>,
-    pub texture_views: HashMap<TextureViewBuilder, render::ArcTextureView>,
+    pub bindgroup_layouts: FxHashMap<BindGroupLayoutBuilder, ArcBindGroupLayout>,
+    pub bindgroups: FxHashMap<BindGroupBuilder, ArcBindGroup>,
+    pub pipeline_layouts: FxHashMap<PipelineLayoutBuilder, ArcPipelineLayout>,
+    pub render_pipelines: FxHashMap<RenderPipelineBuilder, ArcRenderPipeline>,
+    pub compute_pipelines: FxHashMap<ComputePipelineBuilder, ArcComputePipeline>,
+    pub samplers: FxHashMap<SamplerBuilder, ArcSampler>,
+    pub texture_views: FxHashMap<TextureViewBuilder, render::ArcTextureView>,
 }
 
 impl RenderCache {
     pub fn empty() -> Self {
         Self {
-            bindgroup_layouts: HashMap::new(),
-            bindgroups: HashMap::new(),
-            pipeline_layouts: HashMap::new(),
-            render_pipelines: HashMap::new(),
-            compute_pipelines: HashMap::new(),
-            samplers: HashMap::new(),
-            texture_views: HashMap::new(),
+            bindgroup_layouts: FxHashMap::default(),
+            bindgroups: FxHashMap::default(),
+            pipeline_layouts: FxHashMap::default(),
+            render_pipelines: FxHashMap::default(),
+            compute_pipelines: FxHashMap::default(),
+            samplers: FxHashMap::default(),
+            texture_views: FxHashMap::default(),
         }
     }
 }

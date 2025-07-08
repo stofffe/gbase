@@ -1,10 +1,10 @@
+use std::collections::HashMap;
+
 use gbase::{
     asset,
     render::{self, Image},
     wgpu::{self},
-    Context,
 };
-use std::collections::HashMap;
 
 pub struct PixelCache {
     default_textures: HashMap<[u8; 4], asset::AssetHandle<Image>>,

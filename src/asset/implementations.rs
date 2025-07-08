@@ -37,7 +37,6 @@ impl ConvertableRenderAsset for render::BoundingBox {
         source: &Self::SourceAsset,
         params: &Self::Params,
     ) -> Result<Self, Self::Error> {
-        tracing::error!("convert bb");
         Ok(source.calculate_bounding_box())
     }
 }

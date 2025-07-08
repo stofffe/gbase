@@ -1,8 +1,9 @@
+use std::collections::HashMap;
+
 use gbase::{
     glam::{uvec2, vec2, vec4, UVec2, Vec2, Vec4},
     render, wgpu, Context,
 };
-use std::collections::HashMap;
 
 pub struct FontAtlas {
     pub(crate) texture_atlas: crate::TextureAtlas,

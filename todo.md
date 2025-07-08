@@ -58,7 +58,8 @@ Engine
 [x] encase storage buffers instead of bytemuck
 [] why is update and render separate?
 [] look into removing builder pattern from buffers (look at bevy_render/src/uniform_buffer.rs)
-
+[] tracing doesnt work in new() for hot reload
+[] move more things to FxHasher?
 
 [] shadows
     [] fade out when reaching limit
