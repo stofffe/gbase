@@ -1,4 +1,4 @@
-use crate::{Camera, CameraFrustum, Plane};
+use crate::{Camera, CameraFrustum, MeshLod, Plane, Transform3D};
 use gbase::{
     asset::{self, AssetHandle},
     encase::ShaderType,
@@ -90,11 +90,12 @@ impl ShadowPass {
         }
     }
 
+    // TODO: a lot of cloning in this func
     pub fn render(
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
-        meshes: Vec<(asset::AssetHandle<render::Mesh>, crate::Transform3D)>,
+        meshes: Vec<(MeshLod, Transform3D)>,
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
@@ -106,8 +107,10 @@ impl ShadowPass {
         assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
 
         // could probably skip not loaded ones
-        for (mesh, _) in meshes.iter() {
-            assets_loaded &= asset::handle_loaded(cache, mesh.clone());
+        for (mesh_lod, _) in meshes.iter() {
+            for (handle, _) in mesh_lod.meshes.iter() {
+                assets_loaded &= asset::handle_loaded(cache, handle.clone());
+            }
         }
         if !assets_loaded {
             return;
@@ -135,9 +138,6 @@ impl ShadowPass {
         // meshes
         //
 
-        let mut sorted_meshes = meshes;
-        sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
-
         #[allow(clippy::needless_range_loop)]
         for i in 0..planes.len() - 1 {
             let mut instances = Vec::new();
@@ -145,41 +145,34 @@ impl ShadowPass {
             let mut ranges = Vec::new();
 
             //
-            // Culling
+            // lod
             //
 
-            let mut meshes = sorted_meshes.clone();
-            let frustum = &frustums[i];
-            meshes.retain(|(handle, transform)| {
+            let mut sorted_meshes = Vec::new();
+            for (mesh_lod, transform) in meshes.iter() {
+                // sorted_meshes.push((mesh_lod.get_lod_closest(level), transform));
+                sorted_meshes.push((mesh_lod.get_lod_closest(i), transform));
+            }
+
+            //
+            // culling
+            //
+
+            sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
+            sorted_meshes.retain(|(handle, transform)| {
                 let bounds = handle
                     .clone()
                     .convert::<BoundingBox>(ctx, cache, &())
                     .unwrap();
-                frustum.sphere_inside(&bounds, transform)
+                frustums[i].sphere_inside(&bounds, transform)
             });
 
-            // if i == 2 {
-            //     for (mesh_handle, transform) in meshes.iter() {
-            //         let gpu_mesh =
-            //             asset::convert_asset::<GpuMesh>(ctx, mesh_handle.clone(), &()).unwrap();
-            //         let bounding_sphere = BoundingSphere::new(&gpu_mesh.bounds, transform);
             //
-            //         gizmo.draw_sphere(
-            //             &Transform3D::new(
-            //                 bounding_sphere.center,
-            //                 transform.rot,
-            //                 Vec3::ONE * bounding_sphere.radius * 2.0,
-            //             ),
-            //             WHITE.xyz(),
-            //         );
-            //     }
-            // }
+            // batching
+            //
 
-            //
-            // Batching
-            //
             let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
-            for (index, (mesh_handle, transform)) in meshes.iter().enumerate() {
+            for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
                 instances.push(ShadowInstance {
                     model: transform.matrix(),
                 });
@@ -196,11 +189,12 @@ impl ShadowPass {
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
-            ranges.push(meshes.len());
+            ranges.push(sorted_meshes.len());
 
             //
             // update data & render meshes
             //
+
             self.instances.write(ctx, &instances);
             self.light_matrices_index.write(ctx, &(i as u32));
 
@@ -267,17 +261,6 @@ impl ShadowPass {
                 });
             render::queue(ctx).submit([encoder.finish()]);
         }
-
-        // gizmo.draw_sphere(
-        //     &Transform3D::from_pos(center).with_scale(Vec3::ONE * 1.0),
-        //     vec3(1.0, 1.0, 1.0),
-        // );
-
-        // TODO: culling?
-
-        //
-        // batch meshes
-        //
     }
 }
 

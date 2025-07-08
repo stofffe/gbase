@@ -1,12 +1,15 @@
 use gbase::{
     asset::{self, AssetHandle},
-    glam::{vec3, Quat, Vec3},
+    glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
     render::{self, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
-use gbase_utils::{Camera, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, Transform3D};
+use gbase_utils::{
+    Camera, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget,
+    RED, WHITE,
+};
 use gbase_utils::{MeshLod, ShadowPass};
 use std::{f32::consts::PI, sync::Arc};
 
@@ -100,6 +103,7 @@ fn load_lod_mesh(
     }
 }
 
+#[derive(Debug, Clone)]
 struct DrawCall {
     mesh: MeshLod,
     transform: Transform3D,
@@ -110,7 +114,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(true)
+            .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -122,6 +126,7 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
+        tracing::error!("start of  new");
         let mut pixel_cache = PixelCache::new();
 
         let hdr_format = if render::device(ctx)
@@ -275,17 +280,14 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> bool {
-        if !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
-        {
-            return false;
-        }
+        let _render_timer = time::ProfileTimer::new(ctx, "render");
 
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
         // clear textures
+        // TODO: clear in some other pass
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
@@ -319,7 +321,7 @@ impl Callbacks for App {
             },
         ];
 
-        let amount = 5;
+        let amount = 20;
         let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
@@ -335,13 +337,9 @@ impl Callbacks for App {
         // shadow pass
         // TODO: scuffed
         let shadow_meshes = draw_calls
-            .iter()
-            .map(|draw_call| {
-                (
-                    draw_call.mesh.meshes[0].clone().0,
-                    draw_call.transform.clone(),
-                )
-            })
+            .clone()
+            .into_iter()
+            .map(|draw_call| (draw_call.mesh, draw_call.transform))
             .collect::<Vec<_>>();
 
         self.lights.main_light_dir = vec3(1.0, -1.0, 0.0);
@@ -356,7 +354,7 @@ impl Callbacks for App {
         );
 
         // pbr pass
-        for (i, draw_call) in draw_calls.iter().enumerate() {
+        for draw_call in draw_calls.iter() {
             self.pbr_renderer.add_mesh_lod(
                 ctx,
                 cache,
@@ -378,8 +376,8 @@ impl Callbacks for App {
             &self.camera,
         );
 
-        self.pbr_renderer
-            .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
+        // self.pbr_renderer
+        //     .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
         self.pbr_renderer.render(
             ctx,
             cache,
@@ -421,6 +419,26 @@ impl Callbacks for App {
             render::surface_format(ctx),
             &self.camera_buffer,
         );
+
+        _render_timer.finish();
+
+        Widget::new()
+            .width(SizeKind::PercentOfParent(1.0))
+            .height(SizeKind::PercentOfParent(1.0))
+            .layout(&mut self.ui_renderer, |renderer| {
+                Widget::new()
+                    .height(SizeKind::PercentOfParent(0.5))
+                    .render(renderer);
+
+                for (label, time) in time::profiler(ctx).get_cpu_samples() {
+                    Widget::new()
+                        .width(SizeKind::TextSize)
+                        .height(SizeKind::TextSize)
+                        .text(format!("CPU: {:.5} {}", time * 1000.0, label))
+                        .text_color(WHITE)
+                        .render(renderer);
+                }
+            });
 
         self.ui_renderer.display_debug_info(ctx);
         self.ui_renderer
