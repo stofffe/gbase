@@ -1,7 +1,6 @@
 use glam::{vec2, Vec2};
-pub use winit::event::MouseButton;
-
 use std::collections::HashSet;
+pub use winit::event::MouseButton;
 
 use crate::{render, Context};
 
@@ -16,6 +15,16 @@ pub(crate) struct MouseContext {
 }
 
 impl MouseContext {
+    pub fn new() -> Self {
+        Self {
+            on_screen: false,
+            pos: (0.0, 0.0),
+            mouse_delta: (0.0, 0.0),
+            pressed: HashSet::new(),
+            previous_pressed: HashSet::new(),
+            scroll_delta: (0.0, 0.0),
+        }
+    }
     pub(crate) fn post_update(&mut self) {
         self.store_buttons();
         self.set_mouse_delta((0.0, 0.0));
@@ -26,6 +35,9 @@ impl MouseContext {
     /// Returns true if Button is down
     /// Accepts repeating
     pub(crate) fn button_pressed(&self, keycode: MouseButton) -> bool {
+        // tracing::info!("pressed btns {:?}", self.pressed);
+        // tracing::info!("checked keycode {:?}", keycode);
+        // tracing::info!("contained {:?}", self.pressed.get(&keycode));
         self.pressed.contains(&keycode)
     }
 

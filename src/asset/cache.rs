@@ -5,9 +5,9 @@ use super::{
 };
 use crate::{render::ArcHandle, Context};
 use futures_channel::mpsc;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
-    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     time::Duration,
@@ -18,17 +18,17 @@ use std::{
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
 
 pub struct AssetCache {
-    cache: HashMap<DynAssetHandle, DynAsset>,
+    cache: FxHashMap<DynAssetHandle, DynAsset>,
 
-    render_cache: HashMap<RenderAssetKey, DynRenderAsset>,
-    render_cache_last_valid: HashMap<RenderAssetKey, DynRenderAsset>,
-    render_cache_invalidate_lookup: HashMap<DynAssetHandle, HashSet<TypeId>>,
+    render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
 
     // async loading
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
-    currently_loading: HashSet<DynAssetHandle>,
-    reload_on_load: HashMap<DynAssetHandle, DynAssetOnLoadFn>,
+    currently_loading: FxHashSet<DynAssetHandle>,
+    reload_on_load: FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -61,26 +61,26 @@ impl AssetCache {
         };
 
         Self {
-            cache: HashMap::new(),
-            render_cache: HashMap::new(),
-            render_cache_last_valid: HashMap::new(),
-            render_cache_invalidate_lookup: HashMap::new(),
+            cache: FxHashMap::default(),
+            render_cache: FxHashMap::default(),
+            render_cache_last_valid: FxHashMap::default(),
+            render_cache_invalidate_lookup: FxHashMap::default(),
 
-            currently_loading: HashSet::new(),
+            currently_loading: FxHashSet::default(),
             load_sender,
             load_receiver,
-            reload_on_load: HashMap::new(),
+            reload_on_load: FxHashMap::default(),
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
-                reload_handles: HashMap::new(),
-                reload_functions: HashMap::new(),
+                reload_handles: FxHashMap::default(),
+                reload_functions: FxHashMap::default(),
                 reload_watcher,
                 reload_receiver,
 
-                write_handles: HashMap::new(),
-                write_functions: HashMap::new(),
-                write_dirty: HashSet::new(),
+                write_handles: FxHashMap::default(),
+                write_functions: FxHashMap::default(),
+                write_dirty: FxHashSet::default(),
             },
         }
     }
@@ -298,15 +298,15 @@ impl AssetCache {
 #[cfg(not(target_arch = "wasm32"))]
 pub struct AssetCacheExt {
     // reloading
-    reload_handles: HashMap<PathBuf, Vec<DynAssetHandle>>,
-    reload_functions: HashMap<TypeId, DynAssetLoadFn>,
+    reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
+    reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
     reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
     reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
 
     // writing
-    write_handles: HashMap<DynAssetHandle, PathBuf>,
-    write_functions: HashMap<TypeId, DynAssetWriteFn>,
-    write_dirty: HashSet<DynAssetHandle>,
+    write_handles: FxHashMap<DynAssetHandle, PathBuf>,
+    write_functions: FxHashMap<TypeId, DynAssetWriteFn>,
+    write_dirty: FxHashSet<DynAssetHandle>,
 }
 
 // TODO: check if canoicalize is necessary
@@ -360,7 +360,7 @@ impl AssetCacheExt {
     }
 
     // check if any files are scheduled for writing to disk
-    pub fn poll_write(&mut self, cache: &mut HashMap<DynAssetHandle, DynAsset>) {
+    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, DynAsset>) {
         for handle in self.write_dirty.drain() {
             if let Some(path) = self.write_handles.get(&handle) {
                 let asset = cache.get_mut(&handle);
@@ -381,10 +381,10 @@ impl AssetCacheExt {
     // checks if any files changed and spawns a thread which reloads the data
     pub fn poll_reload(
         &mut self,
-        cache: &mut HashMap<DynAssetHandle, DynAsset>,
-        render_cache: &mut HashMap<RenderAssetKey, DynRenderAsset>,
-        render_cache_invalidate_lookup: &HashMap<DynAssetHandle, HashSet<TypeId>>,
-        on_load: &HashMap<DynAssetHandle, DynAssetOnLoadFn>,
+        cache: &mut FxHashMap<DynAssetHandle, DynAsset>,
+        render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
+        render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
+        on_load: &FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
             println!("1 reload {:?}", path);
@@ -420,8 +420,8 @@ impl AssetCacheExt {
 }
 
 pub fn invalidate_render_cache(
-    render_cache: &mut HashMap<RenderAssetKey, DynRenderAsset>,
-    render_cache_invalidate_lookup: &HashMap<DynAssetHandle, HashSet<TypeId>>,
+    render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
     handle: DynAssetHandle,
 ) {
     if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {

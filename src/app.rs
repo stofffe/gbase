@@ -129,7 +129,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             builder: ContextBuilder,
             proxy: winit::event_loop::EventLoopProxy<Context>,
         ) {
-            let input = input::InputContext::default();
+            let input = input::InputContext::new();
             let time = time::TimeContext::default();
             let filesystem = filesystem::FileSystemContext::new();
             let audio = audio::AudioContext::new();

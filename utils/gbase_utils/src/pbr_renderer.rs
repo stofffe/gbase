@@ -369,13 +369,6 @@ impl PbrRenderer {
         transform: Transform3D,
         camera: &Camera,
     ) {
-        // self.frame_meshes.push((
-        //     mesh_lod.meshes[0].clone().0,
-        //     mesh_lod.mat.clone(),
-        //     transform,
-        // ));
-        // return;
-
         for (handle, threshhold) in mesh_lod.meshes.iter() {
             let bounds = handle
                 .clone()
@@ -388,27 +381,6 @@ impl PbrRenderer {
                     .push((handle.clone(), mesh_lod.mat.clone(), transform));
                 return;
             }
-        }
-    }
-
-    pub fn add_mesh_culled(
-        &mut self,
-        ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
-        frustum: &CameraFrustum,
-        mesh: asset::AssetHandle<render::Mesh>,
-        material: Arc<GpuMaterial>,
-        transform: Transform3D,
-    ) {
-        // TODO: cache the frustum
-        // cull
-        let bounds = mesh
-            .clone()
-            .convert::<BoundingBox>(ctx, cache, &())
-            .unwrap();
-
-        if frustum.sphere_inside(&bounds, &transform) {
-            self.frame_meshes.push((mesh, material, transform));
         }
     }
 

@@ -1,8 +1,8 @@
-pub use winit::keyboard::KeyCode;
-use winit::keyboard::ModifiersKeyState;
-
 use crate::Context;
 use std::collections::HashSet;
+use winit::keyboard::ModifiersKeyState;
+
+pub use winit::keyboard::KeyCode;
 
 #[derive(Default)]
 pub(crate) struct KeyboardContext {
@@ -13,6 +13,14 @@ pub(crate) struct KeyboardContext {
 }
 
 impl KeyboardContext {
+    pub fn new() -> Self {
+        Self {
+            pressed: HashSet::new(),
+            previous_pressed: HashSet::new(),
+            pressed_modifiers: HashSet::new(),
+            previous_pressed_modifiers: HashSet::new(),
+        }
+    }
     pub(crate) fn post_update(&mut self) {
         self.store_keys();
         self.store_modifiers();

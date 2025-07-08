@@ -11,6 +11,12 @@ pub(crate) struct InputContext {
 }
 
 impl InputContext {
+    pub fn new() -> Self {
+        Self {
+            keyboard: KeyboardContext::new(),
+            mouse: MouseContext::new(),
+        }
+    }
     pub(crate) fn post_update(&mut self) {
         self.keyboard.post_update();
         self.mouse.post_update();
