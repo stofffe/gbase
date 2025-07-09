@@ -57,6 +57,42 @@ impl Callbacks for App {
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        let dt = gbase::time::delta_time(ctx);
+
+        if input::key_just_pressed(ctx, KeyCode::KeyR) {
+            self.camera.yaw = 0.0;
+            self.camera.pitch = 0.0;
+        }
+
+        // Camera rotation
+        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
+            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
+            self.camera.yaw -= 1.0 * dt * mouse_dx;
+            self.camera.pitch -= 1.0 * dt * mouse_dy;
+        }
+
+        // Camera movement
+        let mut camera_movement_dir = Vec3::ZERO;
+        if input::key_pressed(ctx, KeyCode::KeyW) {
+            camera_movement_dir += self.camera.forward();
+        }
+
+        if input::key_pressed(ctx, KeyCode::KeyS) {
+            camera_movement_dir -= self.camera.forward();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyA) {
+            camera_movement_dir -= self.camera.right();
+        }
+        if input::key_pressed(ctx, KeyCode::KeyD) {
+            camera_movement_dir += self.camera.right();
+        }
+        if camera_movement_dir != Vec3::ZERO {
+            self.camera.pos += camera_movement_dir.normalize() * dt;
+        }
+
+        // Camera zoom
+        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
+
         let t = time::time_since_start(ctx);
         self.camera_buffer.write(ctx, &self.camera.uniform());
 
@@ -95,46 +131,6 @@ impl Callbacks for App {
         false
     }
 
-    #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
-        let dt = gbase::time::delta_time(ctx);
-
-        if input::key_just_pressed(ctx, KeyCode::KeyR) {
-            self.camera.yaw = 0.0;
-            self.camera.pitch = 0.0;
-        }
-
-        // Camera rotation
-        if input::mouse_button_pressed(ctx, input::MouseButton::Left) {
-            let (mouse_dx, mouse_dy) = input::mouse_delta(ctx);
-            self.camera.yaw -= 1.0 * dt * mouse_dx;
-            self.camera.pitch -= 1.0 * dt * mouse_dy;
-        }
-
-        // Camera movement
-        let mut camera_movement_dir = Vec3::ZERO;
-        if input::key_pressed(ctx, KeyCode::KeyW) {
-            camera_movement_dir += self.camera.forward();
-        }
-
-        if input::key_pressed(ctx, KeyCode::KeyS) {
-            camera_movement_dir -= self.camera.forward();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyA) {
-            camera_movement_dir -= self.camera.right();
-        }
-        if input::key_pressed(ctx, KeyCode::KeyD) {
-            camera_movement_dir += self.camera.right();
-        }
-        if camera_movement_dir != Vec3::ZERO {
-            self.camera.pos += camera_movement_dir.normalize() * dt;
-        }
-
-        // Camera zoom
-        self.camera.zoom(input::scroll_delta(ctx).1 * dt);
-
-        false
-    }
     #[no_mangle]
     fn resize(
         &mut self,

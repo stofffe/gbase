@@ -33,16 +33,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache,) -> bool {
+    fn render(&mut self, ctx: &mut Context,cache: &mut gbase::asset::AssetCache, screen_view: &wgpu::TextureView) -> bool {
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             render::clear_cache(ctx);
             *self = Self::new(ctx, cache);
         }
-        false
-    }
 
-    #[no_mangle]
-    fn render(&mut self, ctx: &mut Context,_cache: &mut gbase::asset::AssetCache, screen_view: &wgpu::TextureView) -> bool {
         let renderer = &mut self.gui_renderer;
 
         let outer = Widget::new()

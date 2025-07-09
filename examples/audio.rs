@@ -20,9 +20,12 @@ impl Callbacks for App {
         let sound = audio::load_audio_source(ctx, sound_bytes);
         Self { sound }
     }
-
-    #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::winit::keyboard::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -31,6 +34,7 @@ impl Callbacks for App {
             tracing::info!("play boom");
             audio::play_audio_source(ctx, &self.sound);
         }
+
         false
     }
 }

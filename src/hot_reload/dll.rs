@@ -1,6 +1,4 @@
 type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> T;
-type UpdateFunc<T> =
-    fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> bool;
 type RenderFunc<T> = fn(
     callbacks: &mut T,
     ctx: &mut crate::Context,
@@ -18,7 +16,6 @@ type ReloadFunc<T> =
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
-    update_callback: Option<UpdateFunc<T>>,
     render_callback: Option<RenderFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
     reload_callback: Option<ReloadFunc<T>>,
@@ -48,13 +45,6 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         }
 
         Self { callbacks, dll }
-    }
-
-    fn update(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> bool {
-        match self.dll.update_callback {
-            Some(update) => update(&mut self.callbacks, ctx, cache),
-            None => false,
-        }
     }
 
     fn render(
@@ -116,14 +106,6 @@ fn load_dll<T>() -> DllApi<T> {
             panic!("{}", err);
         }
     };
-
-    let update_callback = match unsafe { lib.symbol::<UpdateFunc<T>>("update") } {
-        Ok(f) => Some(*f),
-        Err(err) => {
-            tracing::warn!("could not find function update: {}", err);
-            None
-        }
-    };
     let render_callback = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
         Ok(f) => Some(*f),
         Err(err) => {
@@ -148,7 +130,6 @@ fn load_dll<T>() -> DllApi<T> {
 
     DllApi {
         new_callback,
-        update_callback,
         render_callback,
         resize_callback,
         reload_callback,

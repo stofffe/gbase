@@ -448,7 +448,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut gbase::Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -646,16 +651,10 @@ impl Callbacks for App {
             }
         };
 
-        false
-    }
+        //
+        // Render
+        //
 
-    #[no_mangle]
-    fn render(
-        &mut self,
-        ctx: &mut gbase::Context,
-        _cache: &mut gbase::asset::AssetCache,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
         self.camera_buffer.write(ctx, &self.camera.uniform());
 
         // draw background stencil

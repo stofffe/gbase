@@ -11,8 +11,8 @@ use gbase::{
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, Direction, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
-    Transform3D, Widget, BLACK, GRAY, WHITE,
+    Alignment, Direction, GpuMaterial, MeshLod, PbrLightUniforms, PbrRenderer, PixelCache,
+    SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
 };
 use std::{f32::consts::PI, sync::Arc};
 
@@ -198,7 +198,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
@@ -208,16 +213,6 @@ impl Callbacks for App {
             *self = Self::new(ctx, cache);
         }
 
-        false
-    }
-
-    #[no_mangle]
-    fn render(
-        &mut self,
-        ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
         if !asset::handle_loaded(cache, self.cube_mesh_handle.clone())
             || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
             || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
@@ -236,26 +231,25 @@ impl Callbacks for App {
 
         // Render
         let meshes = [(
-            self.helmet_mesh_handle.clone(),
-            self.helmet_material.clone(),
+            MeshLod::from_single_lod(
+                self.helmet_mesh_handle.clone(),
+                self.helmet_material.clone(),
+            ),
             Transform3D::default()
                 .with_pos(vec3(0.0, 0.0, 0.0))
                 .with_scale(Vec3::ONE * 5.0),
         )];
 
-        let shadow_meshes = meshes
-            .iter()
-            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
-            .collect::<Vec<_>>();
         self.shadow_pass.render(
             ctx,
             cache,
-            shadow_meshes,
+            &meshes,
             &self.camera,
             self.lights.main_light_dir,
         );
-        for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer.add_mesh(mesh, mat, transform);
+        for (mesh, transform) in meshes.iter().cloned() {
+            self.pbr_renderer
+                .add_mesh(mesh.get_lod_exact(0).unwrap(), mesh.mat.clone(), transform);
         }
 
         {

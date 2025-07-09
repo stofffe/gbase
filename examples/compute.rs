@@ -66,7 +66,12 @@ impl Callbacks for App {
             cpu_buffer,
         }
     }
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {

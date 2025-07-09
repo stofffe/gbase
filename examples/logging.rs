@@ -14,8 +14,14 @@ impl Callbacks for App {
     fn new(_ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         Self {}
     }
+
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("print");
         }
@@ -23,7 +29,6 @@ impl Callbacks for App {
             tracing::error!("log error");
             tracing::info!("log info");
         }
-
         false
     }
 }

@@ -187,7 +187,12 @@ impl gbase::Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut gbase::Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         #[cfg(feature = "hot_reload")]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR)
             && input::modifier_pressed(ctx, input::KeyModifier::LCtrl)
@@ -212,16 +217,6 @@ impl gbase::Callbacks for App {
             self.camera.flying_controls(ctx);
         }
 
-        false
-    }
-
-    #[no_mangle]
-    fn render(
-        &mut self,
-        ctx: &mut gbase::Context,
-        cache: &mut gbase::asset::AssetCache,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
         // write buffers
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.cloud_parameters_buffer.write(ctx, &self.cloud_params);

@@ -15,13 +15,13 @@ impl Callbacks for App {
         let timer = time::Timer::new(Duration::from_secs(1));
         Self { timer }
     }
-    fn update(&mut self, _ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
-        // tracing::info!("time since start {}", time::time_since_start(ctx));
-        // tracing::info!("current time {:?}", time::current_time(ctx));
-        // tracing::info!("delta time {}", time::delta_time(ctx));
-        // tracing::info!("frame time {}", time::frame_time(ctx));
-        // tracing::info!("fps {}", time::fps(ctx));
 
+    fn render(
+        &mut self,
+        _ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         if self.timer.just_ticked() {
             tracing::info!("timer just ticked");
             self.timer.reset();

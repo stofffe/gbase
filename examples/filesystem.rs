@@ -15,7 +15,12 @@ impl Callbacks for App {
         Self {}
     }
 
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         let str_path = "tmp/string";
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("write string");

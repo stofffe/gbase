@@ -60,6 +60,10 @@ Engine
 [] look into removing builder pattern from buffers (look at bevy_render/src/uniform_buffer.rs)
 [] tracing doesnt work in new() for hot reload
 [] move more things to FxHasher?
+    [x] asset cache
+    [x] render cache
+    [] input?
+[] use more references for asset handles, vectors etc
 
 [] shadows
     [] fade out when reaching limit
@@ -209,6 +213,5 @@ Render type
     Texture
     Sampler
     Texture view
-
 
 https://web.archive.org/web/20230210095515/http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/   Shader

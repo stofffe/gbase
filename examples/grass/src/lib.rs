@@ -10,8 +10,8 @@ use gbase::{
     Callbacks, Context,
 };
 use gbase_utils::{
-    CameraFrustum, Direction, GpuMaterial, PbrLightUniforms, PbrMaterial, PixelCache, SizeKind,
-    Transform3D, Widget,
+    CameraFrustum, Direction, GpuMaterial, MeshLod, PbrLightUniforms, PbrMaterial, PixelCache,
+    SizeKind, Transform3D, Widget,
 };
 use grass_renderer::GrassRenderer;
 use std::{f32::consts::PI, sync::Arc};
@@ -169,6 +169,23 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
+        // pausing
+        if input::key_just_pressed(ctx, KeyCode::Escape) {
+            self.paused = !self.paused;
+        }
+        if self.paused {
+            self.gui_renderer.text(
+                "pause (esc)",
+                vec2(0.0, 0.0),
+                vec2(0.5, 0.5),
+                0.05,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                false,
+            );
+            return false;
+        }
+
+        self.camera.flying_controls(ctx);
         // TODO: temp
 
         // update buffers
@@ -183,27 +200,21 @@ impl Callbacks for App {
 
         // Render
         let meshes = [(
-            self.plane_mesh.clone(),
-            self.plane_material.clone(),
+            MeshLod {
+                meshes: vec![(self.plane_mesh.clone(), 0.0)],
+                mat: self.plane_material.clone(),
+            },
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
                 .with_scale(Vec3::ONE * PLANE_SIZE),
         )];
 
-        let shadow_meshes = meshes
-            .iter()
-            .map(|(mesh, _, t)| (mesh.clone(), t.clone()))
-            .collect::<Vec<_>>();
-        self.shadow_pass.render(
-            ctx,
-            cache,
-            shadow_meshes,
-            &self.camera,
-            self.light.main_light_dir,
-        );
-        for (mesh, mat, transform) in meshes.iter().cloned() {
-            self.pbr_renderer.add_mesh(mesh, mat, transform);
+        self.shadow_pass
+            .render(ctx, cache, &meshes, &self.camera, self.light.main_light_dir);
+        for (mesh, transform) in meshes.iter().cloned() {
+            self.pbr_renderer
+                .add_mesh(mesh.meshes[0].0.clone(), mesh.mat, transform);
         }
 
         self.pbr_renderer.render(
@@ -297,7 +308,7 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
+        _cache: &mut gbase::asset::AssetCache,
         new_size: PhysicalSize<u32>,
     ) {
         self.gizmo_renderer.resize(ctx, new_size);
@@ -305,28 +316,5 @@ impl Callbacks for App {
         self.depth_buffer.resize(ctx, new_size);
         self.gui_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
-    }
-
-    #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
-        // pausing
-        if input::key_just_pressed(ctx, KeyCode::Escape) {
-            self.paused = !self.paused;
-        }
-        if self.paused {
-            self.gui_renderer.text(
-                "pause (esc)",
-                vec2(0.0, 0.0),
-                vec2(0.5, 0.5),
-                0.05,
-                vec4(1.0, 1.0, 1.0, 1.0),
-                false,
-            );
-            return false;
-        }
-
-        self.camera.flying_controls(ctx);
-
-        false
     }
 }

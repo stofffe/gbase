@@ -260,7 +260,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut gbase::asset::AssetCache,
+        screen_view: &gbase::wgpu::TextureView,
+    ) -> bool {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
@@ -270,16 +275,6 @@ impl Callbacks for App {
             *self = Self::new(ctx, cache);
         }
 
-        false
-    }
-
-    #[no_mangle]
-    fn render(
-        &mut self,
-        ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
-        screen_view: &gbase::wgpu::TextureView,
-    ) -> bool {
         let _render_timer = time::ProfileTimer::new(ctx, "render");
 
         // update buffers
@@ -321,7 +316,7 @@ impl Callbacks for App {
             },
         ];
 
-        let amount = 20;
+        let amount = 10;
         let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
@@ -347,7 +342,7 @@ impl Callbacks for App {
         self.shadow_pass.render(
             ctx,
             cache,
-            shadow_meshes,
+            &shadow_meshes,
             &self.camera,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
@@ -451,7 +446,7 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
+        _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
     ) {
         self.depth_buffer.resize(ctx, new_size);

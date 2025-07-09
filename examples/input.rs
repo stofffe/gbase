@@ -13,7 +13,12 @@ impl Callbacks for App {
     fn new(_ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         Self {}
     }
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        _screen_view: &wgpu::TextureView,
+    ) -> bool {
         if input::key_just_pressed(ctx, KeyCode::KeyA) {
             tracing::info!("A pressed");
         }

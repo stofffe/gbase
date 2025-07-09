@@ -95,7 +95,7 @@ impl ShadowPass {
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
-        meshes: Vec<(MeshLod, Transform3D)>,
+        meshes: &[(MeshLod, Transform3D)],
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
@@ -150,7 +150,6 @@ impl ShadowPass {
 
             let mut sorted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
-                // sorted_meshes.push((mesh_lod.get_lod_closest(level), transform));
                 sorted_meshes.push((mesh_lod.get_lod_closest(i), transform));
             }
 

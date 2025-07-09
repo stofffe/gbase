@@ -1,8 +1,7 @@
-use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
-
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
+use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
@@ -21,13 +20,6 @@ pub trait Callbacks {
 
     /// Called after context initilization and before game/update loop
     fn new(_ctx: &mut Context, cache: &mut AssetCache) -> Self;
-
-    /// Called once per frame before rendering
-    ///
-    /// Return value determines wether to exit game or not
-    fn update(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) -> bool {
-        false
-    }
 
     /// Called once per frame after update
     ///
@@ -312,11 +304,6 @@ fn update_and_render(
     ctx.time.pre_update();
     #[cfg(feature = "hot_reload")]
     ctx.hot_reload.pre_update();
-
-    // update
-    if callbacks.update(ctx, cache) {
-        return true;
-    }
 
     // render
     let surface = render::surface(ctx);

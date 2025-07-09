@@ -79,7 +79,12 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
+    fn render(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+        screen_view: &wgpu::TextureView,
+    ) -> bool {
         // Transform movement
         let t = gbase::time::time_since_start(ctx);
         self.transform.pos.x = t.sin() * 0.5;
@@ -87,16 +92,6 @@ impl Callbacks for App {
         self.transform.rot = Quat::from_rotation_z(t);
         self.transform.scale = Vec3::ONE * t.cos().abs().clamp(0.1, 1.0);
 
-        false
-    }
-
-    #[no_mangle]
-    fn render(
-        &mut self,
-        ctx: &mut Context,
-        _cache: &mut gbase::asset::AssetCache,
-        screen_view: &wgpu::TextureView,
-    ) -> bool {
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
 
         let mut encoder = render::create_encoder(ctx, None);

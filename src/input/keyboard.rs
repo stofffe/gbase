@@ -1,8 +1,8 @@
-use crate::Context;
 use std::collections::HashSet;
+pub use winit::keyboard::KeyCode;
 use winit::keyboard::ModifiersKeyState;
 
-pub use winit::keyboard::KeyCode;
+use crate::Context;
 
 #[derive(Default)]
 pub(crate) struct KeyboardContext {

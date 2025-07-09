@@ -94,23 +94,6 @@ impl Callbacks for App {
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
-        self.camera_buffer.write(ctx, &self.camera.uniform());
-
-        render::RenderPassBuilder::new()
-            .color_attachments(&[Some(
-                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
-            )])
-            .build_run_submit(ctx, |mut pass| {
-                pass.set_pipeline(&self.pipeline);
-                pass.set_vertex_buffer(0, self.vertex_buffer.buf_ref().slice(..));
-                pass.set_bind_group(0, Some(self.camera_bindgroup.as_ref()), &[]);
-                pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
-            });
-
-        false
-    }
-    #[no_mangle]
-    fn update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> bool {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -144,6 +127,19 @@ impl Callbacks for App {
 
         // Camera zoom
         self.camera.zoom(input::scroll_delta(ctx).1 * dt);
+
+        self.camera_buffer.write(ctx, &self.camera.uniform());
+
+        render::RenderPassBuilder::new()
+            .color_attachments(&[Some(
+                render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLACK),
+            )])
+            .build_run_submit(ctx, |mut pass| {
+                pass.set_pipeline(&self.pipeline);
+                pass.set_vertex_buffer(0, self.vertex_buffer.buf_ref().slice(..));
+                pass.set_bind_group(0, Some(self.camera_bindgroup.as_ref()), &[]);
+                pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
+            });
 
         false
     }
