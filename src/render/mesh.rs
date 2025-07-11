@@ -12,9 +12,9 @@ use std::collections::{BTreeMap, BTreeSet};
 #[derive(Debug, Clone, Default)]
 pub struct Mesh {
     // TODO: use this in render pipeline, currently unused
-    primitive_topology: wgpu::PrimitiveTopology,
-    attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
-    indices: Option<Vec<u32>>,
+    pub primitive_topology: wgpu::PrimitiveTopology,
+    pub attributes: BTreeMap<VertexAttributeId, VertexAttributeValues>,
+    pub indices: Option<Vec<u32>>,
 }
 
 impl Mesh {

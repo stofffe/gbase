@@ -1,20 +1,25 @@
-use crate::GpuMaterial;
-use gbase::{asset, render, tracing};
-use std::sync::Arc;
+use crate::Material;
+use gbase::{
+    asset::{self, AssetHandle},
+    render,
+};
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {
     /// lod ordererd from highest quality to lowest
     /// TODO: move threshold out of here?
-    pub meshes: Vec<(asset::AssetHandle<render::Mesh>, f32)>,
-    pub mat: Arc<GpuMaterial>,
+    pub meshes: Vec<(AssetHandle<render::Mesh>, f32)>,
+    pub material: AssetHandle<Material>,
 }
 
 impl MeshLod {
-    pub fn from_single_lod(mesh: asset::AssetHandle<render::Mesh>, mat: Arc<GpuMaterial>) -> Self {
+    pub fn from_single_lod(
+        mesh: AssetHandle<render::Mesh>,
+        material: AssetHandle<Material>,
+    ) -> Self {
         Self {
             meshes: vec![(mesh, 0.0)],
-            mat,
+            material,
         }
     }
 

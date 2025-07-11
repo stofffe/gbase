@@ -1,14 +1,14 @@
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{self, AssetCache, AssetHandle},
     glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
-    render::{self, Mesh},
+    render::{self, Image, Mesh},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, GpuMaterial, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget,
-    RED, WHITE,
+    Camera, GpuMaterial, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
+    Transform3D, Widget, RED, WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::{f32::consts::PI, sync::Arc};
@@ -36,70 +36,81 @@ struct App {
     lights: PbrLightUniforms,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 
-    ak47_mesh_handle: asset::AssetHandle<Mesh>,
-    ak47_material: Arc<GpuMaterial>,
-    helmet_mesh_handle: asset::AssetHandle<Mesh>,
-    helmet_material: Arc<GpuMaterial>,
+    ak47_mesh_handle: AssetHandle<Mesh>,
+    ak47_material: AssetHandle<Material>,
+    helmet_mesh_handle: AssetHandle<Mesh>,
+    helmet_material: AssetHandle<Material>,
     helmet_mesh_lod: MeshLod,
-
-    plane_mesh_handle: asset::AssetHandle<Mesh>,
-    plane_material: Arc<GpuMaterial>,
+    plane_mesh_handle: AssetHandle<Mesh>,
+    plane_material: AssetHandle<Material>,
 
     shadow_pass: ShadowPass,
 }
 
+/// Loads the first mesh from a file
+///
+/// Assume each mesh has one primitive
 fn load_simple_mesh(
-    cache: &mut gbase::asset::AssetCache,
+    cache: &mut AssetCache,
     bytes: &[u8],
-    pixel_cache: &mut PixelCache,
-    pbr_renderer: &PbrRenderer,
-) -> (asset::AssetHandle<Mesh>, Arc<GpuMaterial>) {
-    let prim = gbase_utils::parse_glb(bytes)[0].clone();
-    let mesh = prim
-        .mesh
-        .extract_attributes(pbr_renderer.required_attributes().clone());
-    let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
-    let material = prim.material.clone().to_material(cache, pixel_cache);
-    (mesh_handle, Arc::new(material))
+    pbr: &PbrRenderer,
+) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
+    let gltf = gbase_utils::parse_gltf_file(cache, bytes)
+        .get(cache)
+        .unwrap();
+    let mesh = gltf.meshes[0].clone().get(cache).unwrap();
+    let primitive = &mesh.primitives[0];
+
+    let mesh = primitive.mesh.clone();
+    let material = primitive.material.clone();
+
+    // TODO: move this to pbr renderer instead
+    let mesh_mut = mesh.clone().get_mut(cache).unwrap();
+    *mesh_mut = mesh_mut
+        .clone()
+        .extract_attributes(pbr.required_attributes().clone());
+    // .extract_attributes(pbr.required_attributes().clone());
+
+    (mesh, material)
 }
 
-fn mesh_to_lod_mesh(mesh: AssetHandle<render::Mesh>, mat: Arc<GpuMaterial>) -> MeshLod {
+fn mesh_to_lod_mesh(mesh: AssetHandle<render::Mesh>, material: AssetHandle<Material>) -> MeshLod {
     MeshLod {
         meshes: vec![(mesh, 0.0)],
-        mat,
+        material,
     }
 }
 
-fn load_lod_mesh(
-    cache: &mut gbase::asset::AssetCache,
-    bytes: &[u8],
-    pixel_cache: &mut PixelCache,
-    pbr_renderer: &PbrRenderer,
-) -> MeshLod {
-    let mut meshes = Vec::new();
-    // NOTE: debug boxes defined separately
+/// Load all meshes in file as LOD levels
+///
+/// Assume each mesh has one primitive
+fn load_lod_mesh(cache: &mut gbase::asset::AssetCache, bytes: &[u8], pbr: &PbrRenderer) -> MeshLod {
+    let gltf = gbase_utils::parse_gltf_file(cache, bytes)
+        .get(cache)
+        .unwrap()
+        .clone();
+
     let thresholds = [0.25, 0.125, 0.0];
-
+    let mut meshes = Vec::new();
     let mut material = None;
+    for (i, mesh) in gltf.meshes.iter().enumerate() {
+        let mesh = mesh.clone().get_mut(cache).unwrap().clone();
+        let primitive = &mesh.primitives[0];
 
-    // TODO: scuffed rev
-    // need to create LOD by name
-    for (i, prim) in gbase_utils::parse_glb(bytes).into_iter().rev().enumerate() {
-        let mesh = prim
-            .mesh
-            .extract_attributes(pbr_renderer.required_attributes().clone());
-        let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
-        material = Some(Arc::new(
-            prim.material.clone().to_material(cache, pixel_cache),
-        ));
+        let mesh_mut = primitive.mesh.clone().get_mut(cache).unwrap();
+        *mesh_mut = mesh_mut
+            .clone()
+            .extract_attributes(pbr.required_attributes().clone());
 
-        dbg!(mesh_handle.clone().get(cache).unwrap().vertex_count());
-        meshes.push((mesh_handle, thresholds[i]));
+        meshes.push((primitive.mesh.clone(), thresholds[i]));
+        material = Some(primitive.material.clone());
     }
+
+    dbg!(&meshes);
 
     MeshLod {
         meshes,
-        mat: material.unwrap(),
+        material: material.unwrap(),
     }
 }
 
@@ -161,19 +172,17 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let (ak47_mesh_handle, ak47_material) = load_simple_mesh(
+        let helmet_mesh_lod = load_lod_mesh(
             cache,
-            &load_b!("models/ak47.glb").unwrap(),
-            &mut pixel_cache,
+            &load_b!("models/helmet_lod.glb").unwrap(),
             &pbr_renderer,
         );
 
-        let (helmet_mesh_handle, helmet_material) = load_simple_mesh(
-            cache,
-            &load_b!("models/helmet.glb").unwrap(),
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
+        let (ak47_mesh_handle, ak47_material) =
+            load_simple_mesh(cache, &load_b!("models/ak47.glb").unwrap(), &pbr_renderer);
+
+        let (helmet_mesh_handle, helmet_material) =
+            load_simple_mesh(cache, &load_b!("models/helmet.glb").unwrap(), &pbr_renderer);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -202,33 +211,45 @@ impl Callbacks for App {
                 .extract_attributes(pbr_renderer.required_attributes().clone()),
         )
         .build(cache);
-        let plane_material = Arc::new(
-            gbase_utils::PbrMaterial {
-                base_color_texture: None,
-                color_factor: PLANE_COLOR,
-                metallic_roughness_texture: None,
-                roughness_factor: 1.0,
-                metallic_factor: 0.0,
-                occlusion_texture: None,
-                occlusion_strength: 1.0,
-                normal_texture: None,
-                normal_scale: 1.0,
-                emissive_texture: None,
-                emissive_factor: [0.0, 0.0, 0.0],
-            }
-            .to_material(cache, &mut pixel_cache), // TODO: remove this?
-        );
+
+        // TODO: temp
+        const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
+        const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
+        const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
+        const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
+        const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
+        let base_color_texture = cache
+            .insert(Image::new_pixel_texture(BASE_COLOR_DEFAULT))
+            .clone();
+        let metallic_roughness_texture = cache
+            .insert(Image::new_pixel_texture(METALLIC_ROUGHNESS_DEFAULT))
+            .clone();
+        let occlusion_texture = cache
+            .insert(Image::new_pixel_texture(OCCLUSION_DEFAULT))
+            .clone();
+        let normal_texture = cache
+            .insert(Image::new_pixel_texture(NORMAL_DEFAULT))
+            .clone();
+        let emissive_texture = cache
+            .insert(Image::new_pixel_texture(EMISSIVE_DEFAULT))
+            .clone();
+        let plane_material = cache.insert(Material {
+            color_factor: PLANE_COLOR,
+            base_color_texture,
+            roughness_factor: 1.0,
+            metallic_factor: 0.0,
+            metallic_roughness_texture,
+            occlusion_strength: 1.0,
+            occlusion_texture,
+            normal_scale: 1.0,
+            normal_texture,
+            emissive_factor: [0.0, 0.0, 0.0],
+            emissive_texture,
+        });
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
-        let helmet_mesh_lod = load_lod_mesh(
-            cache,
-            &load_b!("models/helmet_lod.glb").unwrap(),
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
-
-        dbg!(&helmet_mesh_lod);
+        // dbg!(&helmet_mesh_lod);
 
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
@@ -286,7 +307,7 @@ impl Callbacks for App {
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        let mut draw_calls = vec![
+        let mut draw_calls: Vec<DrawCall> = vec![
             DrawCall {
                 mesh: mesh_to_lod_mesh(self.plane_mesh_handle.clone(), self.plane_material.clone()),
                 transform: Transform3D::default()
@@ -359,17 +380,17 @@ impl Callbacks for App {
             );
         }
 
-        self.pbr_renderer.add_mesh_lod(
-            ctx,
-            cache,
-            &self.helmet_mesh_lod,
-            Transform3D {
-                pos: vec3(10.0, 0.0, 10.0),
-                rot: Quat::IDENTITY,
-                scale: Vec3::ONE,
-            },
-            &self.camera,
-        );
+        // self.pbr_renderer.add_mesh_lod(
+        //     ctx,
+        //     cache,
+        //     &self.helmet_mesh_lod,
+        //     Transform3D {
+        //         pos: vec3(10.0, 0.0, 10.0),
+        //         rot: Quat::IDENTITY,
+        //         scale: Vec3::ONE,
+        //     },
+        //     &self.camera,
+        // );
 
         // self.pbr_renderer
         //     .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
