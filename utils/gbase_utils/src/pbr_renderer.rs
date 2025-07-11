@@ -25,12 +25,6 @@ pub struct PbrRenderer {
 
     // TODO: use storagebuffer to avoid manual padding
     instances: RawBuffer<Instance>,
-
-    frame_meshes: Vec<(
-        AssetHandle<render::Mesh>,
-        AssetHandle<crate::Material>,
-        Transform3D,
-    )>,
 }
 
 impl PbrRenderer {
@@ -158,7 +152,6 @@ impl PbrRenderer {
             pipeline_layout,
             bindgroup_layout,
             vertex_attributes,
-            frame_meshes: Vec::new(),
             instances,
         }
     }
@@ -170,10 +163,12 @@ impl PbrRenderer {
         cache: &mut gbase::asset::AssetCache,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
+        camera: &Camera,
         camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
         frustum: &CameraFrustum,
+        frame_meshes: Vec<(MeshLod, Transform3D)>,
 
         // optional
         shadow_map: &render::ArcTexture,
@@ -183,11 +178,10 @@ impl PbrRenderer {
         if !asset::handle_loaded(cache, self.forward_shader_handle.clone())
             || !asset::handle_loaded(cache, self.deferred_shader_handle.clone())
         {
-            self.frame_meshes.clear();
             return;
         }
 
-        if self.frame_meshes.is_empty() {
+        if frame_meshes.is_empty() {
             tracing::warn!("trying to render without any meshes");
             return;
         }
@@ -206,22 +200,24 @@ impl PbrRenderer {
             .label("pbr")
             .buffers(buffers)
             .single_target(render::ColorTargetState::new().format(view_format))
-            // .polygon_mode(wgpu::PolygonMode::Line)
             .cull_mode(wgpu::Face::Back)
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
-
-        self.frame_meshes.sort_by_key(|a| a.0.clone());
 
         let mut instances = Vec::new();
         let mut draws = Vec::new();
         let mut ranges = Vec::new();
 
+        let mut frame_meshes = frame_meshes;
+
         //
         // Culling
         //
-        self.frame_meshes.retain(|(handle, _, transform)| {
-            let bounds = handle
+
+        // cull based of top LOD
+        frame_meshes.retain(|(mesh_lod, transform)| {
+            let top_lod = &mesh_lod.meshes[0].0.clone();
+            let bounds = top_lod
                 .clone()
                 .convert::<BoundingBox>(ctx, cache, &())
                 .unwrap();
@@ -229,12 +225,35 @@ impl PbrRenderer {
         });
 
         //
+        // LOD
+        //
+
+        let mut final_meshes = Vec::new();
+        for (mesh_lod, transform) in frame_meshes {
+            for (mesh_handle, threshhold) in mesh_lod.meshes.iter() {
+                let bounds = mesh_handle
+                    .clone()
+                    .convert::<BoundingBox>(ctx, cache, &())
+                    .unwrap();
+                let bounds_sphere = BoundingSphere::new(&bounds, &transform);
+                let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
+
+                if screen_coverage >= *threshhold {
+                    final_meshes.push((mesh_handle.clone(), mesh_lod.material.clone(), transform));
+                    break;
+                }
+            }
+        }
+
+        //
         // Grouping of draws
         //
+
+        // TODO: sort by material also?
+        final_meshes.sort_by_key(|(mesh_handle, _, _)| mesh_handle.clone());
+
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
-        for (index, (mesh_handle, material_handle, transform)) in
-            self.frame_meshes.iter().enumerate()
-        {
+        for (index, (mesh_handle, material_handle, transform)) in final_meshes.iter().enumerate() {
             let Material {
                 base_color_texture,
                 color_factor,
@@ -335,7 +354,7 @@ impl PbrRenderer {
             draws.push((gpu_mesh, bindgroup));
             ranges.push(index);
         }
-        ranges.push(self.frame_meshes.len());
+        ranges.push(final_meshes.len());
 
         self.instances.write(ctx, &instances);
 
@@ -361,76 +380,6 @@ impl PbrRenderer {
             });
 
         render::queue(ctx).submit([encoder.finish()]);
-
-        self.frame_meshes.clear();
-    }
-
-    pub fn add_mesh(
-        &mut self,
-        mesh: asset::AssetHandle<render::Mesh>,
-        material: AssetHandle<Material>,
-        transform: Transform3D,
-    ) {
-        self.frame_meshes.push((mesh, material, transform));
-    }
-
-    pub fn add_mesh_lod(
-        &mut self,
-        ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
-        mesh_lod: &MeshLod,
-        transform: Transform3D,
-        camera: &Camera,
-    ) {
-        for (i, (handle, threshhold)) in mesh_lod.meshes.iter().enumerate() {
-            let bounds = handle
-                .clone()
-                .convert::<BoundingBox>(ctx, cache, &())
-                .unwrap();
-            let bounds_sphere = BoundingSphere::new(&bounds, &transform);
-            let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
-
-            if screen_coverage >= *threshhold {
-                self.frame_meshes
-                    .push((handle.clone(), mesh_lod.material.clone(), transform));
-                return;
-            }
-        }
-    }
-
-    // temp?
-    pub fn render_bounding_boxes(
-        &self,
-        ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
-        gizmo_renderer: &mut GizmoRenderer,
-        camera: &Camera,
-    ) {
-        for (mesh_handle, _, transform) in self.frame_meshes.iter() {
-            let bounds = mesh_handle
-                .clone()
-                .convert::<BoundingBox>(ctx, cache, &())
-                .unwrap();
-            let bounds_sphere = BoundingSphere::new(&bounds, transform);
-
-            let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
-            let color = if screen_coverage > 0.25 {
-                vec3(1.0, 0.0, 0.0)
-            } else if screen_coverage > 0.125 {
-                vec3(0.0, 1.0, 0.0)
-            } else {
-                vec3(0.0, 0.0, 1.0)
-            };
-
-            gizmo_renderer.draw_sphere(
-                &Transform3D::new(
-                    bounds_sphere.center,
-                    transform.rot,
-                    Vec3::ONE * bounds_sphere.radius * 2.0,
-                ),
-                color,
-            );
-        }
     }
 
     pub fn required_attributes(&self) -> &BTreeSet<render::VertexAttributeId> {

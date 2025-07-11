@@ -352,7 +352,7 @@ impl Callbacks for App {
 
         // shadow pass
         // TODO: scuffed
-        let shadow_meshes = draw_calls
+        let meshes = draw_calls
             .clone()
             .into_iter()
             .map(|draw_call| (draw_call.mesh, draw_call.transform))
@@ -363,34 +363,11 @@ impl Callbacks for App {
         self.shadow_pass.render(
             ctx,
             cache,
-            &shadow_meshes,
+            &meshes,
             &self.camera,
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
         );
-
-        // pbr pass
-        for draw_call in draw_calls.iter() {
-            self.pbr_renderer.add_mesh_lod(
-                ctx,
-                cache,
-                &draw_call.mesh,
-                draw_call.transform.clone(),
-                &self.camera,
-            );
-        }
-
-        // self.pbr_renderer.add_mesh_lod(
-        //     ctx,
-        //     cache,
-        //     &self.helmet_mesh_lod,
-        //     Transform3D {
-        //         pos: vec3(10.0, 0.0, 10.0),
-        //         rot: Quat::IDENTITY,
-        //         scale: Vec3::ONE,
-        //     },
-        //     &self.camera,
-        // );
 
         // self.pbr_renderer
         //     .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
@@ -399,10 +376,12 @@ impl Callbacks for App {
             cache,
             self.hdr_framebuffer_1.view_ref(),
             self.hdr_framebuffer_1.format(),
+            &self.camera,
             &self.camera_buffer,
             &self.lights_buffer,
             &self.depth_buffer,
             &self.camera.calculate_frustum(),
+            meshes,
             &self.shadow_pass.shadow_map,
             &self.shadow_pass.light_matrices_buffer,
             &self.shadow_pass.light_matrices_distances,
