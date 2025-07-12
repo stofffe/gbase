@@ -13,7 +13,7 @@ pub struct AssetHandle<T: 'static> {
 
 impl<T: 'static> AssetHandle<T> {
     #![allow(clippy::new_without_default)]
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             id: NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
             ty: PhantomData,

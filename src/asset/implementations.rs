@@ -48,7 +48,7 @@ impl ConvertableRenderAsset for render::BoundingBox {
 impl Asset for render::ShaderBuilder {}
 
 impl LoadableAsset for render::ShaderBuilder {
-    async fn load(path: &std::path::Path) -> Self {
+    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self {
         let source = filesystem::load_str(path).await;
 
         Self {
@@ -88,7 +88,7 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 impl Asset for render::Image {}
 
 impl LoadableAsset for render::Image {
-    async fn load(path: &std::path::Path) -> Self {
+    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self {
         let bytes = filesystem::load_bytes(path).await;
 
         let img = image::load_from_memory(&bytes)

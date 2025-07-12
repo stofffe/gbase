@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, AssetCache, AssetHandle},
+    asset::{self, AssetBuilder, AssetCache, AssetHandle},
     glam::{vec3, vec4, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
@@ -7,7 +7,7 @@ use gbase::{
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, GpuMaterial, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
+    Camera, Gltf, GpuMaterial, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
     Transform3D, Widget, RED, WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
@@ -45,19 +45,22 @@ struct App {
     plane_material: AssetHandle<Material>,
 
     shadow_pass: ShadowPass,
+
+    new_helmet: AssetHandle<Gltf>,
 }
 
 /// Loads the first mesh from a file
 ///
-/// Assume each mesh has one primitive
+/// Assume mesh has one primitive
 fn load_simple_mesh(
     cache: &mut AssetCache,
     bytes: &[u8],
     pbr: &PbrRenderer,
 ) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
-    let gltf = gbase_utils::parse_gltf_file(cache, bytes)
-        .get(cache)
-        .unwrap();
+    let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
+
+    cache.poll();
+
     let mesh = gltf.meshes[0].clone().get(cache).unwrap();
     let primitive = &mesh.primitives[0];
 
@@ -69,7 +72,6 @@ fn load_simple_mesh(
     *mesh_mut = mesh_mut
         .clone()
         .extract_attributes(pbr.required_attributes().clone());
-    // .extract_attributes(pbr.required_attributes().clone());
 
     (mesh, material)
 }
@@ -85,14 +87,15 @@ fn mesh_to_lod_mesh(mesh: AssetHandle<render::Mesh>, material: AssetHandle<Mater
 ///
 /// Assume each mesh has one primitive
 fn load_lod_mesh(cache: &mut gbase::asset::AssetCache, bytes: &[u8], pbr: &PbrRenderer) -> MeshLod {
-    let gltf = gbase_utils::parse_gltf_file(cache, bytes)
-        .get(cache)
-        .unwrap()
-        .clone();
+    let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
 
+    // TODO: remove this
     let thresholds = [0.25, 0.125, 0.0];
     let mut meshes = Vec::new();
     let mut material = None;
+
+    cache.poll();
+
     for (i, mesh) in gltf.meshes.iter().enumerate() {
         let mesh = mesh.clone().get_mut(cache).unwrap().clone();
         let primitive = &mesh.primitives[0];
@@ -105,8 +108,6 @@ fn load_lod_mesh(cache: &mut gbase::asset::AssetCache, bytes: &[u8], pbr: &PbrRe
         meshes.push((primitive.mesh.clone(), thresholds[i]));
         material = Some(primitive.material.clone());
     }
-
-    dbg!(&meshes);
 
     MeshLod {
         meshes,
@@ -249,9 +250,12 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
+        let new_helmet = AssetBuilder::load::<Gltf>("assets/models/helmet.glb").build(cache);
         // dbg!(&helmet_mesh_lod);
 
         Self {
+            new_helmet,
+
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
             depth_buffer,
@@ -287,6 +291,11 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> bool {
+        if cache.handle_loaded(self.new_helmet.clone()) {
+            let gltf = cache.get(self.new_helmet.clone()).unwrap();
+            dbg!(gltf);
+        }
+
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }

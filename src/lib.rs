@@ -27,6 +27,7 @@ pub use app::*;
 pub use bytemuck;
 pub use encase;
 
+pub use futures_channel;
 pub use glam;
 pub use rustc_hash;
 pub use tracing;

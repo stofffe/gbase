@@ -17,7 +17,35 @@ use std::{
 
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
 
+#[derive(Debug, Clone)]
+pub struct LoadContext {
+    sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+}
+
+impl LoadContext {
+    pub fn new(sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>) -> Self {
+        Self { sender }
+    }
+
+    pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
+        let handle = AssetHandle::<T>::new();
+        self.sender
+            .unbounded_send((handle.as_any().clone(), Box::new(value)))
+            .unwrap();
+        handle
+    }
+
+    // TODO: ref vs owned self?
+    pub async fn load<T: LoadableAsset>(&self, path: impl Into<PathBuf>) -> AssetHandle<T> {
+        let path = path.into();
+        let value = T::load(self.clone(), &path).await;
+        self.insert(value)
+    }
+}
+
 pub struct AssetCache {
+    load_ctx: LoadContext,
+
     cache: FxHashMap<DynAssetHandle, DynAsset>,
 
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
@@ -60,7 +88,13 @@ impl AssetCache {
             (reload_watcher, reload_receiver)
         };
 
+        let load_ctx = LoadContext {
+            sender: load_sender.clone(),
+        };
+
         Self {
+            load_ctx,
+
             cache: FxHashMap::default(),
             render_cache: FxHashMap::default(),
             render_cache_last_valid: FxHashMap::default(),
@@ -83,6 +117,10 @@ impl AssetCache {
                 write_dirty: FxHashSet::default(),
             },
         }
+    }
+
+    pub fn load_context(&self) -> &LoadContext {
+        &self.load_ctx
     }
 
     //
@@ -158,12 +196,13 @@ impl AssetCache {
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
+        let load_context = self.load_ctx.clone();
 
         // load async
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             pollster::block_on(async {
-                let data = T::load(&path_clone).await;
+                let data = T::load(load_context, &path_clone).await;
                 loaded_sender_clone
                     .unbounded_send((handle_clone.as_any(), Box::new(data)))
                     .expect("could not send");
@@ -332,10 +371,12 @@ impl AssetCacheExt {
         let handles = self.reload_handles.entry(absolute_path).or_default();
         handles.push(handle.as_any());
 
+        // TODO: restore
+        //
         // store reload function
-        self.reload_functions
-            .entry(TypeId::of::<T>())
-            .or_insert_with(|| Box::new(|path| Box::new(pollster::block_on(T::load(path)))));
+        // self.reload_functions
+        //     .entry(TypeId::of::<T>())
+        //     .or_insert_with(|| Box::new(|path| Box::new(pollster::block_on(T::load(path)))));
     }
 
     /// Register asset for being written to disk when updated
