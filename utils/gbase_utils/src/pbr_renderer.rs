@@ -173,8 +173,8 @@ impl PbrRenderer {
         shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
         shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
-        if !asset::handle_loaded(cache, self.forward_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.deferred_shader_handle.clone())
+        if !asset::handle_loaded(cache, self.forward_shader_handle)
+            || !asset::handle_loaded(cache, self.deferred_shader_handle)
         {
             return;
         }
@@ -184,8 +184,7 @@ impl PbrRenderer {
             return;
         }
 
-        let shader =
-            asset::convert_asset(ctx, cache, self.forward_shader_handle.clone(), &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.forward_shader_handle, &()).unwrap();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -213,11 +212,10 @@ impl PbrRenderer {
         //
 
         frame_meshes.retain(|(mesh_lod, transform)| {
-            if !cache.handle_loaded(mesh_lod.clone()) {
+            if !cache.handle_loaded(*mesh_lod) {
                 return false;
             }
             let bounds = mesh_lod
-                .clone()
                 .convert::<BoundingBoxWrapper>(ctx, cache, &())
                 .unwrap();
             frustum.sphere_inside(&bounds, transform)
@@ -230,7 +228,6 @@ impl PbrRenderer {
         let mut final_meshes = Vec::new();
         for (mesh_lod, transform) in frame_meshes {
             let bounds = mesh_lod
-                .clone()
                 .convert::<BoundingBoxWrapper>(ctx, cache, &())
                 .unwrap();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
@@ -253,13 +250,13 @@ impl PbrRenderer {
         //
 
         // TODO: sort by material also?
-        final_meshes.sort_by_key(|(_, mesh, _)| mesh.clone());
+        final_meshes.sort_by_key(|(_, mesh, _)| *mesh);
 
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
-            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap();
-            let material = mesh_lod.material.clone();
+            let mesh_lod = mesh_lod_handle.get(cache).unwrap();
+            let material = mesh_lod.material;
             let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
                 base_color_texture,
@@ -291,9 +288,9 @@ impl PbrRenderer {
                     continue;
                 }
             }
-            prev_mesh = Some(mesh.clone());
+            prev_mesh = Some(mesh);
 
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh.clone(), &()).unwrap();
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh, &()).unwrap();
             let base_color_texture =
                 asset::convert_asset::<GpuImage>(ctx, cache, base_color_texture, &()).unwrap();
             let normal_texture =

@@ -35,10 +35,10 @@ impl ConvertableRenderAsset for render::BoundingBox {
     type Error = bool;
 
     fn convert(
-        ctx: &mut Context,
+        _ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        params: &Self::Params,
+        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         Ok(source.calculate_bounding_box())

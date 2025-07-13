@@ -81,21 +81,20 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> bool {
-        if !asset::handle_loaded(cache, self.mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.shader_handle.clone())
-            || !asset::handle_loaded(cache, self.texture_handle.clone())
+        if !asset::handle_loaded(cache, self.mesh_handle)
+            || !asset::handle_loaded(cache, self.shader_handle)
+            || !asset::handle_loaded(cache, self.texture_handle)
         {
             return false;
         }
         let mesh =
-            asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone(), &())
-                .unwrap();
+            asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle, &()).unwrap();
         let shader =
-            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone(), &())
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle, &())
                 .unwrap();
 
         let texture =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle.clone(), &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle, &()).unwrap();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -107,9 +106,7 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let buffer_layout = asset::get(cache, self.mesh_handle.clone())
-            .unwrap()
-            .buffer_layout();
+        let buffer_layout = asset::get(cache, self.mesh_handle).unwrap().buffer_layout();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::from_current_screen(ctx))
             .buffers(buffer_layout)

@@ -77,7 +77,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        tracing::error!("start of  new");
         let mut pixel_cache = PixelCache::new();
 
         let hdr_format = if render::device(ctx)
@@ -185,20 +184,18 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> bool {
-        if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            let mesh_lod = self.helmet_mesh.clone().get_mut(cache).unwrap();
+        if cache.handle_just_loaded(self.helmet_mesh) {
+            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
-                mesh.clone()
-                    .get_mut(cache)
+                mesh.get_mut(cache)
                     .unwrap()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
         }
-        if cache.handle_just_loaded(self.ak47_mesh.clone()) {
-            let mesh_lod = self.ak47_mesh.clone().get_mut(cache).unwrap();
+        if cache.handle_just_loaded(self.ak47_mesh) {
+            let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
-                mesh.clone()
-                    .get_mut(cache)
+                mesh.get_mut(cache)
                     .unwrap()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
@@ -226,7 +223,7 @@ impl Callbacks for App {
 
         let mut draw_calls: Vec<DrawCall> = vec![
             DrawCall {
-                mesh: self.plane_mesh.clone(),
+                mesh: self.plane_mesh,
                 transform: Transform3D::default()
                     .with_pos(vec3(0.0, -2.0, 0.0))
                     .with_rot(Quat::from_rotation_x(-PI / 2.0))
@@ -234,20 +231,20 @@ impl Callbacks for App {
             },
             // add meshes
             DrawCall {
-                mesh: self.helmet_mesh.clone(),
+                mesh: self.helmet_mesh,
                 transform: Transform3D::default()
                     .with_rot(Quat::from_rotation_y(time::time_since_start(ctx)))
                     .with_pos(vec3(0.0, 0.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: self.helmet_mesh.clone(),
+                mesh: self.helmet_mesh,
                 transform: Transform3D::default()
                     .with_pos(vec3(-3.0, 10.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: self.ak47_mesh.clone(),
+                mesh: self.ak47_mesh,
                 transform: Transform3D::default()
                     .with_pos(vec3(3.0, 0.0, -1.0))
                     .with_scale(Vec3::ONE * 1.0),
@@ -259,7 +256,7 @@ impl Callbacks for App {
         for x in -amount..amount {
             for z in -amount..amount {
                 draw_calls.push(DrawCall {
-                    mesh: self.helmet_mesh.clone(),
+                    mesh: self.helmet_mesh,
                     transform: Transform3D::default()
                         .with_pos(vec3(gap as f32 * x as f32, 10.0, gap as f32 * z as f32))
                         .with_scale(Vec3::ONE * 1.0),

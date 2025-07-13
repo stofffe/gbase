@@ -30,7 +30,7 @@ impl LoadContext {
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new();
         self.sender
-            .unbounded_send((handle.as_any().clone(), Box::new(value)))
+            .unbounded_send((handle.as_any(), Box::new(value)))
             .unwrap();
         handle
     }
@@ -106,6 +106,8 @@ impl AssetCache {
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
+                handle_to_type: FxHashMap::default(),
+
                 reload_handles: FxHashMap::default(),
                 reload_functions: FxHashMap::default(),
                 reload_watcher,
@@ -179,7 +181,7 @@ impl AssetCache {
         self.currently_loading.insert(handle.as_any());
 
         let path_clone = path.clone();
-        let handle_clone = handle.clone();
+        let handle_clone = handle;
         let loaded_sender_clone = self.load_sender.clone();
         let load_context = self.load_ctx.clone();
 
@@ -215,8 +217,7 @@ impl AssetCache {
         handle: AssetHandle<G::SourceAsset>,
         params: &G::Params,
     ) -> Option<ArcHandle<G>> {
-        // TODO: huh
-        let Some(source_asset) = self.get(handle.clone()) else {
+        if self.get(handle).is_none() {
             tracing::warn!("could not get source asset");
             return None;
         };
@@ -224,18 +225,17 @@ impl AssetCache {
         let key = (handle.clone().as_any(), TypeId::of::<G>());
         let render_asset_exists = self.render_cache.contains_key(&key);
         if !render_asset_exists {
-            match G::convert(ctx, self, handle.clone(), params) {
+            match G::convert(ctx, self, handle, params) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     // actual cache
-                    self.render_cache
-                        .insert(key.clone(), render_asset_handle.clone());
+                    self.render_cache.insert(key, render_asset_handle.clone());
                     // last valid cache
                     self.render_cache_last_valid
-                        .insert(key.clone(), render_asset_handle);
+                        .insert(key, render_asset_handle);
                     // invalidate lookup
                     self.render_cache_invalidate_lookup
-                        .entry(handle.clone().as_any())
+                        .entry(handle.as_any())
                         .or_default()
                         .insert(TypeId::of::<G>());
                 }
@@ -281,7 +281,7 @@ impl AssetCache {
     pub fn poll_loaded(&mut self) {
         while let Ok(Some((handle, asset))) = self.load_receiver.try_next() {
             // insert in cache
-            self.cache.insert(handle.clone(), asset);
+            self.cache.insert(handle, asset);
 
             // remove from currently loaded
             self.currently_loading.remove(&handle.as_any());
@@ -290,7 +290,7 @@ impl AssetCache {
             invalidate_render_cache(
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                handle.clone(),
+                handle,
             );
 
             //
@@ -325,6 +325,8 @@ impl AssetCache {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub struct AssetCacheExt {
+    handle_to_type: FxHashMap<DynAssetHandle, TypeId>,
+
     // reloading
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
     reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
@@ -363,8 +365,10 @@ impl AssetCacheExt {
         let handles = self.reload_handles.entry(absolute_path).or_default();
         handles.push(handle.as_any());
 
-        // TODO: restore
-        //
+        // map handle to type
+        self.handle_to_type
+            .insert(handle.as_any(), TypeId::of::<T>());
+
         // store reload function
         self.reload_functions
             .entry(TypeId::of::<T>())
@@ -380,6 +384,10 @@ impl AssetCacheExt {
 
         // map handle to path
         self.write_handles.insert(handle.as_any(), path.clone());
+
+        // map handle to type
+        self.handle_to_type
+            .insert(handle.as_any(), TypeId::of::<T>());
 
         // store reload function
         self.write_functions
@@ -402,9 +410,14 @@ impl AssetCacheExt {
 
                 // write if loaded
                 if let Some(asset) = asset {
+                    let ty_id = self
+                        .handle_to_type
+                        .get(&handle)
+                        .expect("could not get type id from asset handle");
+
                     let write_fn = self
                         .write_functions
-                        .get(&handle.ty_id)
+                        .get(ty_id)
                         .expect("could not get write fn");
 
                     write_fn(asset, path);
@@ -426,17 +439,22 @@ impl AssetCacheExt {
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
                     println!("reload {:?}", path);
-                    just_loaded.insert(handle.clone());
+                    just_loaded.insert(*handle);
+
+                    let ty_id = self
+                        .handle_to_type
+                        .get(handle)
+                        .expect("could not get type id from asset handle");
 
                     // load new fn
                     let loader_fn = self
                         .reload_functions
-                        .get(&handle.ty_id)
+                        .get(ty_id)
                         .expect("could not get loader fn");
                     let asset = loader_fn(self.load_ctx.clone(), &path);
 
                     // insert into cache
-                    cache.insert(handle.clone(), asset);
+                    cache.insert(*handle, asset);
 
                     // invalidate render cache
                     invalidate_render_cache(
@@ -457,7 +475,7 @@ pub fn invalidate_render_cache(
 ) {
     if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {
         for render_type in render_types {
-            render_cache.remove(&(handle.clone(), *render_type));
+            render_cache.remove(&(handle, *render_type));
         }
     }
 }
@@ -467,10 +485,10 @@ impl<T: Asset + 'static> AssetHandle<T> {
         cache.handle_loaded(self)
     }
     pub fn get(self, cache: &mut AssetCache) -> Option<&T> {
-        cache.get(self.clone())
+        cache.get(self)
     }
     pub fn get_mut(self, cache: &mut AssetCache) -> Option<&mut T> {
-        cache.get_mut(self.clone())
+        cache.get_mut(self)
     }
     pub fn convert<G: ConvertableRenderAsset<SourceAsset = T>>(
         self,
