@@ -44,9 +44,8 @@ impl LoadContext {
 }
 
 pub struct AssetCache {
-    load_ctx: LoadContext,
-
     cache: FxHashMap<DynAssetHandle, DynAsset>,
+    just_loaded: FxHashSet<DynAssetHandle>,
 
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
@@ -56,7 +55,7 @@ pub struct AssetCache {
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
     currently_loading: FxHashSet<DynAssetHandle>,
-    on_load: FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
+    load_ctx: LoadContext,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -94,6 +93,7 @@ impl AssetCache {
 
         Self {
             load_ctx: load_ctx.clone(),
+            just_loaded: FxHashSet::default(),
 
             cache: FxHashMap::default(),
             render_cache: FxHashMap::default(),
@@ -103,7 +103,6 @@ impl AssetCache {
             currently_loading: FxHashSet::default(),
             load_sender,
             load_receiver,
-            on_load: FxHashMap::default(),
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
@@ -173,23 +172,8 @@ impl AssetCache {
         &mut self,
         handle: AssetHandle<T>,
         path: &Path,
-        on_load: Option<TypedAssetOnLoadFn<T>>,
     ) -> AssetHandle<T> {
         let path = path.to_path_buf();
-
-        if let Some(on_load) = on_load {
-            // Wrap the callback to accept DynAsset and downcast internally
-            let wrapped_callback: Box<dyn Fn(&mut DynAsset)> = Box::new(move |dyn_asset| {
-                // Downcast DynAsset to the concrete type T
-                let asset = (dyn_asset.as_mut() as &mut dyn Any)
-                    .downcast_mut::<T>()
-                    .expect("Failed to downcast DynAsset to T in on_load callback");
-                on_load(asset);
-            });
-
-            self.on_load
-                .insert(handle.clone().as_any(), wrapped_callback);
-        }
 
         // add to currently loading
         self.currently_loading.insert(handle.as_any());
@@ -231,6 +215,7 @@ impl AssetCache {
         handle: AssetHandle<G::SourceAsset>,
         params: &G::Params,
     ) -> Option<ArcHandle<G>> {
+        // TODO: huh
         let Some(source_asset) = self.get(handle.clone()) else {
             tracing::warn!("could not get source asset");
             return None;
@@ -276,13 +261,15 @@ impl AssetCache {
     //
 
     pub fn poll(&mut self) {
+        self.just_loaded.clear();
+
         #[cfg(not(target_arch = "wasm32"))]
         {
             self.ext.poll_reload(
                 &mut self.cache,
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                &self.on_load,
+                &mut self.just_loaded,
             );
             self.ext.poll_write(&mut self.cache);
         }
@@ -292,12 +279,7 @@ impl AssetCache {
 
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
-        while let Ok(Some((handle, mut asset))) = self.load_receiver.try_next() {
-            // callback first
-            if let Some(on_load) = self.on_load.get(&handle) {
-                on_load(&mut asset);
-            }
-
+        while let Ok(Some((handle, asset))) = self.load_receiver.try_next() {
             // insert in cache
             self.cache.insert(handle.clone(), asset);
 
@@ -308,8 +290,11 @@ impl AssetCache {
             invalidate_render_cache(
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                handle,
+                handle.clone(),
             );
+
+            //
+            self.just_loaded.insert(handle);
         }
     }
 
@@ -317,6 +302,9 @@ impl AssetCache {
         self.currently_loading.is_empty()
     }
 
+    pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
+        self.just_loaded.contains(&handle.as_any())
+    }
     pub fn handle_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
         !self.currently_loading.contains(&handle.as_any())
     }
@@ -431,25 +419,21 @@ impl AssetCacheExt {
         cache: &mut FxHashMap<DynAssetHandle, DynAsset>,
         render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
-        on_load: &FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
+        just_loaded: &mut FxHashSet<DynAssetHandle>,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
             println!("1 reload {:?}", path);
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
                     println!("reload {:?}", path);
+                    just_loaded.insert(handle.clone());
 
                     // load new fn
                     let loader_fn = self
                         .reload_functions
                         .get(&handle.ty_id)
                         .expect("could not get loader fn");
-                    let mut asset = loader_fn(self.load_ctx.clone(), &path);
-
-                    // run on load
-                    if let Some(on_load) = on_load.get(handle) {
-                        on_load(&mut asset);
-                    }
+                    let asset = loader_fn(self.load_ctx.clone(), &path);
 
                     // insert into cache
                     cache.insert(handle.clone(), asset);

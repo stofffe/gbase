@@ -30,17 +30,19 @@ impl CloudRenderer {
         let weather_map_texture =
             asset::AssetBuilder::load("assets/textures/clouds_weather_map.png")
                 .watch(cache)
-                .on_load(|img: &mut Image| {
-                    img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-                    img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-                })
+                // TODO:
+                // .on_load(|img: &mut Image| {
+                //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+                //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+                // })
                 .build(cache);
         let blue_noise_texture = asset::AssetBuilder::load("assets/textures/blue_noise.png")
             .watch(cache)
-            .on_load(|img: &mut Image| {
-                img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-                img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-            })
+            // TODO:
+            // .on_load(|img: &mut Image| {
+            //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+            //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+            // })
             .build(cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);

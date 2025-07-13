@@ -248,8 +248,11 @@ impl Callbacks for App {
             self.lights.main_light_dir,
         );
         for (mesh, transform) in meshes.iter().cloned() {
-            self.pbr_renderer
-                .add_mesh(mesh.get_lod_exact(0).unwrap(), mesh.mat.clone(), transform);
+            self.pbr_renderer.add_mesh(
+                mesh.get_lod_exact(0).unwrap(),
+                mesh.material.clone(),
+                transform,
+            );
         }
 
         {

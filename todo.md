@@ -78,7 +78,7 @@
     [x] compare front+back+bias vs only back faces
 
 [] assets 
-    [] add gltf loader
+    [] remove typeid from asset handle, store it as tuple where needed
     [] make non loading separate type without unwrap
     [] add imports to shaders
     [] add sub model loading, file.glft#node1
@@ -86,6 +86,13 @@
     [] make uniform/storage/mesh (vertex) grow dynamically
     [] use more references to avoid clone? or use copy?
     [] allow load to error?
+    [] reintroduce pixel cache
+    [] types
+        [] font
+    [x] mesh lod loading 
+    [x] add gltf loader
+        [] cache duplicate meshes and materials
+        [] add required attributes as param?
     [x] look into putting assets in app and not context
 
 [] bloom

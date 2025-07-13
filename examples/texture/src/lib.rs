@@ -47,12 +47,13 @@ impl Callbacks for App {
             .build(cache);
         let texture_handle =
             asset::AssetBuilder::load::<render::Image>("assets/textures/texture.jpeg")
-                .on_load(|img| {
-                    img.texture = img
-                        .texture
-                        .clone()
-                        .with_format(wgpu::TextureFormat::Rgba8Unorm)
-                })
+                // TODO:
+                // .on_load(|img| {
+                //     img.texture = img
+                //         .texture
+                //         .clone()
+                //         .with_format(wgpu::TextureFormat::Rgba8Unorm)
+                // })
                 .watch(cache)
                 .build(cache);
 

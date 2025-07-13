@@ -1,6 +1,6 @@
 use crate::texture_builder_from_image_bytes;
 use gbase::{
-    asset::{Asset, AssetHandle, LoadContext, LoadableAsset},
+    asset::{Asset, AssetCache, AssetHandle, LoadContext, LoadableAsset},
     filesystem,
     render::{self, Image, Mesh, SamplerBuilder},
     tracing, wgpu,
@@ -428,4 +428,50 @@ pub struct Material {
 
     pub emissive_texture: AssetHandle<Image>,
     pub emissive_factor: [f32; 3],
+}
+
+impl Material {
+    pub fn default(cache: &mut AssetCache) -> Self {
+        const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
+        const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
+        const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
+        const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
+        const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
+        let base_color_texture = cache
+            .insert(Image::new_pixel_texture(BASE_COLOR_DEFAULT))
+            .clone();
+        let metallic_roughness_texture = cache
+            .insert(Image::new_pixel_texture(METALLIC_ROUGHNESS_DEFAULT))
+            .clone();
+        let occlusion_texture = cache
+            .insert(Image::new_pixel_texture(OCCLUSION_DEFAULT))
+            .clone();
+        let normal_texture = cache
+            .insert(Image::new_pixel_texture(NORMAL_DEFAULT))
+            .clone();
+        let emissive_texture = cache
+            .insert(Image::new_pixel_texture(EMISSIVE_DEFAULT))
+            .clone();
+        Self {
+            color_factor: [1.0, 1.0, 1.0, 1.0],
+            base_color_texture,
+            roughness_factor: 1.0,
+            metallic_factor: 0.0,
+            metallic_roughness_texture,
+            occlusion_strength: 1.0,
+            occlusion_texture,
+            normal_scale: 1.0,
+            normal_texture,
+            emissive_factor: [0.0, 0.0, 0.0],
+            emissive_texture,
+        }
+    }
+
+    pub fn set_color_factor(&mut self, value: [f32; 4]) {
+        self.color_factor = value;
+    }
+    pub fn with_color_factor(mut self, value: [f32; 4]) -> Self {
+        self.set_color_factor(value);
+        self
+    }
 }

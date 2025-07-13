@@ -25,7 +25,6 @@ impl AssetBuilder {
             handle: AssetHandle::new(),
             path: path.into(),
             ty: PhantomData,
-            on_load: None,
         }
     }
 }
@@ -52,8 +51,6 @@ pub struct LoadedAssetBuilder<T: Asset + LoadableAsset> {
     handle: AssetHandle<T>,
     path: PathBuf,
     ty: PhantomData<T>,
-
-    on_load: Option<TypedAssetOnLoadFn<T>>,
 }
 
 // TODO: can these just store bool instead?
@@ -75,13 +72,8 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
 }
 
 impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
-    pub fn on_load<F: Fn(&mut T) + Send + Sync + 'static>(mut self, callback: F) -> Self {
-        self.on_load = Some(Box::new(callback));
-        self
-    }
-
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T> {
-        cache.load::<T>(self.handle, &self.path, self.on_load)
+        cache.load::<T>(self.handle, &self.path)
     }
 }
 
