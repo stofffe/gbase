@@ -117,7 +117,7 @@ impl Callbacks for App {
         let plane_mesh = asset::AssetBuilder::insert(
             MeshBuilder::quad()
                 .build()
-                .extract_attributes(pbr_renderer.required_attributes().clone()),
+                .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         )
         .build(cache);
         let plane_material = Arc::new(
@@ -202,7 +202,7 @@ impl Callbacks for App {
         let meshes = [(
             MeshLod {
                 meshes: vec![(self.plane_mesh.clone(), 0.0)],
-                mat: self.plane_material.clone(),
+                material: self.plane_material.clone(),
             },
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
@@ -214,7 +214,7 @@ impl Callbacks for App {
             .render(ctx, cache, &meshes, &self.camera, self.light.main_light_dir);
         for (mesh, transform) in meshes.iter().cloned() {
             self.pbr_renderer
-                .add_mesh(mesh.meshes[0].0.clone(), mesh.mat, transform);
+                .add_mesh(mesh.meshes[0].0.clone(), mesh.material, transform);
         }
 
         self.pbr_renderer.render(

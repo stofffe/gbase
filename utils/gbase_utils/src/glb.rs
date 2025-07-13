@@ -9,24 +9,25 @@ use std::collections::BTreeMap;
 
 // TODO: have local cache for duplicate materials/primitives
 
-pub struct GltfLoader {
-    meshes: Vec<AssetHandle<GltfMesh>>,
-    primitives: Vec<AssetHandle<GltfPrimitive>>,
-}
+pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPrimitive> {
+    let glb = gltf::Glb::from_slice(bytes).expect("could not import glb from slice");
+    let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
+    let buffer = glb.bin.expect("could not get glb buffer");
 
-impl GltfLoader {
-    pub fn new() -> Self {
-        Self {
-            meshes: Vec::new(),
-            primitives: Vec::new(),
+    let mut primitives = Vec::new();
+    for mesh in info.meshes() {
+        let name = mesh
+            .name()
+            .map(|name| name.to_string())
+            .unwrap_or(format!("Mesh{}", mesh.index()));
+
+        for primitive in mesh.primitives() {
+            let primitive = parse_gltf_primitive(load_ctx, &buffer, primitive, &name);
+            primitives.push(primitive);
         }
     }
-    pub fn load(&mut self, load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
-        self.meshes.clear();
-        self.primitives.clear();
 
-        let gltf = parse_gltf_file(load_ctx, bytes);
-    }
+    primitives
 }
 
 pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
@@ -217,11 +218,14 @@ pub fn parse_gltf_material(
 
         let offset = view.offset();
         let length = view.length();
-        let texture_buffer = buffer[offset..offset + length].to_vec();
+        let texture_buffer = &buffer[offset..offset + length];
         let sampler = texture.sampler();
 
+        let texture_builder =
+            texture_builder_from_image_bytes(texture_buffer).expect("could not load");
+
         Image {
-            texture: texture_builder_from_image_bytes(&texture_buffer).expect("could not load"),
+            texture: texture_builder,
             sampler: SamplerBuilder::new()
                 .min_mag_filter(
                     sampler

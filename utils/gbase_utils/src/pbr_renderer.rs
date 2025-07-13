@@ -1,15 +1,15 @@
 use crate::{
-    BoundingSphere, Camera, CameraFrustum, CameraProjection, GizmoRenderer, Material, MeshLod,
-    PixelCache, Transform3D,
+    BoundingBoxWrapper, BoundingSphere, Camera, CameraFrustum, CameraProjection, Material, MeshLod,
+    PixelCache, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
     asset::{self, AssetHandle},
-    glam::{vec3, Mat4, Vec3},
-    render::{self, BoundingBox, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
+    glam::{Mat4, Vec3},
+    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
-use std::{collections::BTreeSet, sync::Arc};
+use std::collections::BTreeSet;
 
 //
 // Pbr renderer
@@ -121,8 +121,6 @@ impl PbrRenderer {
                 render::BindGroupLayoutEntry::new()
                     .storage_readonly()
                     .fragment(),
-                // // test
-                // render::BindGroupLayoutEntry::new().texture_depth(),
             ])
             .build(ctx);
 
@@ -168,7 +166,7 @@ impl PbrRenderer {
         lights: &render::UniformBuffer<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
         frustum: &CameraFrustum,
-        frame_meshes: Vec<(MeshLod, Transform3D)>,
+        frame_meshes: Vec<(AssetHandle<MeshLod>, Transform3D)>,
 
         // optional
         shadow_map: &render::ArcTexture,
@@ -214,12 +212,13 @@ impl PbrRenderer {
         // Culling
         //
 
-        // cull based of top LOD
         frame_meshes.retain(|(mesh_lod, transform)| {
-            let top_lod = &mesh_lod.meshes[0].0.clone();
-            let bounds = top_lod
+            if !cache.handle_loaded(mesh_lod.clone()) {
+                return false;
+            }
+            let bounds = mesh_lod
                 .clone()
-                .convert::<BoundingBox>(ctx, cache, &())
+                .convert::<BoundingBoxWrapper>(ctx, cache, &())
                 .unwrap();
             frustum.sphere_inside(&bounds, transform)
         });
@@ -230,19 +229,23 @@ impl PbrRenderer {
 
         let mut final_meshes = Vec::new();
         for (mesh_lod, transform) in frame_meshes {
-            for (mesh_handle, threshhold) in mesh_lod.meshes.iter() {
-                let bounds = mesh_handle
-                    .clone()
-                    .convert::<BoundingBox>(ctx, cache, &())
-                    .unwrap();
-                let bounds_sphere = BoundingSphere::new(&bounds, &transform);
-                let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
+            let bounds = mesh_lod
+                .clone()
+                .convert::<BoundingBoxWrapper>(ctx, cache, &())
+                .unwrap();
+            let bounds_sphere = BoundingSphere::new(&bounds, &transform);
+            let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
-                if screen_coverage >= *threshhold {
-                    final_meshes.push((mesh_handle.clone(), mesh_lod.material.clone(), transform));
-                    break;
-                }
-            }
+            // TODO: hardcoded
+            let lod = if screen_coverage >= THRESHOLDS[0] {
+                0
+            } else if screen_coverage >= THRESHOLDS[1] {
+                1
+            } else {
+                2
+            };
+
+            final_meshes.push((lod, mesh_lod, transform));
         }
 
         //
@@ -250,10 +253,14 @@ impl PbrRenderer {
         //
 
         // TODO: sort by material also?
-        final_meshes.sort_by_key(|(mesh_handle, _, _)| mesh_handle.clone());
+        final_meshes.sort_by_key(|(_, mesh, _)| mesh.clone());
 
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
-        for (index, (mesh_handle, material_handle, transform)) in final_meshes.iter().enumerate() {
+        for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
+        {
+            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap();
+            let material = mesh_lod.material.clone();
+            let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
                 base_color_texture,
                 color_factor,
@@ -266,7 +273,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = material_handle.clone().get(cache).unwrap().clone();
+            } = material.get(cache).unwrap().clone();
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),
@@ -280,14 +287,13 @@ impl PbrRenderer {
             });
 
             if let Some(prev) = &prev_mesh {
-                if prev == mesh_handle {
+                if *prev == mesh {
                     continue;
                 }
             }
-            prev_mesh = Some(mesh_handle.clone());
+            prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh =
-                asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh.clone(), &()).unwrap();
             let base_color_texture =
                 asset::convert_asset::<GpuImage>(ctx, cache, base_color_texture, &()).unwrap();
             let normal_texture =

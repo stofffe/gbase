@@ -65,3 +65,6 @@ members = [
     "examples/texture",
     "examples/flappy_bird",
 ]
+
+[profile.dev.package.image]
+opt-level = 3

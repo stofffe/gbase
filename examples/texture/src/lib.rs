@@ -56,10 +56,12 @@ impl Callbacks for App {
                 .watch(cache)
                 .build(cache);
 
-        let mesh = render::MeshBuilder::quad().build().extract_attributes([
-            render::VertexAttributeId::Position,
-            render::VertexAttributeId::Uv(0),
-        ]);
+        let mesh = render::MeshBuilder::quad()
+            .build()
+            .with_extracted_attributes([
+                render::VertexAttributeId::Position,
+                render::VertexAttributeId::Uv(0),
+            ]);
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
         Self {

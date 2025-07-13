@@ -56,7 +56,7 @@ pub struct AssetCache {
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
     currently_loading: FxHashSet<DynAssetHandle>,
-    reload_on_load: FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
+    on_load: FxHashMap<DynAssetHandle, DynAssetOnLoadFn>,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -93,7 +93,7 @@ impl AssetCache {
         };
 
         Self {
-            load_ctx,
+            load_ctx: load_ctx.clone(),
 
             cache: FxHashMap::default(),
             render_cache: FxHashMap::default(),
@@ -103,7 +103,7 @@ impl AssetCache {
             currently_loading: FxHashSet::default(),
             load_sender,
             load_receiver,
-            reload_on_load: FxHashMap::default(),
+            on_load: FxHashMap::default(),
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
@@ -115,6 +115,7 @@ impl AssetCache {
                 write_handles: FxHashMap::default(),
                 write_functions: FxHashMap::default(),
                 write_dirty: FxHashSet::default(),
+                load_ctx,
             },
         }
     }
@@ -186,7 +187,7 @@ impl AssetCache {
                 on_load(asset);
             });
 
-            self.reload_on_load
+            self.on_load
                 .insert(handle.clone().as_any(), wrapped_callback);
         }
 
@@ -238,7 +239,7 @@ impl AssetCache {
         let key = (handle.clone().as_any(), TypeId::of::<G>());
         let render_asset_exists = self.render_cache.contains_key(&key);
         if !render_asset_exists {
-            match G::convert(ctx, source_asset, params) {
+            match G::convert(ctx, self, handle.clone(), params) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     // actual cache
@@ -281,7 +282,7 @@ impl AssetCache {
                 &mut self.cache,
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                &self.reload_on_load,
+                &self.on_load,
             );
             self.ext.poll_write(&mut self.cache);
         }
@@ -293,7 +294,7 @@ impl AssetCache {
     pub fn poll_loaded(&mut self) {
         while let Ok(Some((handle, mut asset))) = self.load_receiver.try_next() {
             // callback first
-            if let Some(on_load) = self.reload_on_load.get(&handle) {
+            if let Some(on_load) = self.on_load.get(&handle) {
                 on_load(&mut asset);
             }
 
@@ -346,6 +347,9 @@ pub struct AssetCacheExt {
     write_handles: FxHashMap<DynAssetHandle, PathBuf>,
     write_functions: FxHashMap<TypeId, DynAssetWriteFn>,
     write_dirty: FxHashSet<DynAssetHandle>,
+
+    // load context
+    load_ctx: LoadContext,
 }
 
 // TODO: check if canoicalize is necessary
@@ -374,9 +378,11 @@ impl AssetCacheExt {
         // TODO: restore
         //
         // store reload function
-        // self.reload_functions
-        //     .entry(TypeId::of::<T>())
-        //     .or_insert_with(|| Box::new(|path| Box::new(pollster::block_on(T::load(path)))));
+        self.reload_functions
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| {
+                Box::new(|load_ctx, path| Box::new(pollster::block_on(T::load(load_ctx, path))))
+            });
     }
 
     /// Register asset for being written to disk when updated
@@ -438,7 +444,7 @@ impl AssetCacheExt {
                         .reload_functions
                         .get(&handle.ty_id)
                         .expect("could not get loader fn");
-                    let mut asset = loader_fn(&path);
+                    let mut asset = loader_fn(self.load_ctx.clone(), &path);
 
                     // run on load
                     if let Some(on_load) = on_load.get(handle) {

@@ -1,7 +1,12 @@
-use crate::{parse_gltf_file, Material};
+use std::{collections::BTreeSet, ops::Deref};
+
+use crate::{parse_gltf_primitives, Material};
 use gbase::{
-    asset::{self, Asset, AssetHandle, LoadableAsset},
-    filesystem, render,
+    asset::{
+        self, Asset, AssetCache, AssetHandle, ConvertableRenderAsset, LoadableAsset, RenderAsset,
+    },
+    filesystem,
+    render::{self, ArcHandle, BoundingBox, GpuMesh},
 };
 
 #[derive(Debug, Clone)]
@@ -11,6 +16,8 @@ pub struct MeshLod {
     pub meshes: Vec<(AssetHandle<render::Mesh>, f32)>,
     pub material: AssetHandle<Material>,
 }
+
+pub const THRESHOLDS: [f32; 3] = [0.25, 0.125, 0.0];
 
 impl MeshLod {
     pub fn from_single_lod(
@@ -32,26 +39,91 @@ impl MeshLod {
     }
 }
 
-// impl Asset for MeshLod {}
-// impl LoadableAsset for MeshLod {
-//     async fn load(load_ctx: asset::LoadContext, path: &std::path::Path) -> Self {
-//         let bytes = filesystem::load_bytes(path).await;
-//         let gltf = parse_gltf_file(&load_ctx, &bytes);
-//
-//         let mut meshes = Vec::new();
-//         let mut material = None;
-//         for (i, mesh) in gltf.meshes.iter().enumerate() {
-//             meshes.push(mesh.clone());
-//
-//             // mesh is asset handle, how do i access it?
-//         }
-//
-//         MeshLod {
-//             meshes,
-//             material: material.unwrap(),
-//         }
-//     }
-// }
+impl Asset for MeshLod {}
+impl LoadableAsset for MeshLod {
+    async fn load(load_ctx: asset::LoadContext, path: &std::path::Path) -> Self {
+        let bytes = filesystem::load_bytes(path).await;
+        let primitives = parse_gltf_primitives(&load_ctx, &bytes);
+
+        let material = primitives[0].material.clone();
+        let meshes = primitives
+            .iter()
+            .enumerate()
+            .map(|(i, p)| (p.mesh.clone(), THRESHOLDS[i]))
+            .collect();
+
+        MeshLod { meshes, material }
+    }
+}
+
+#[derive(Clone)]
+pub struct MeshWrapper(ArcHandle<GpuMesh>);
+
+impl RenderAsset for MeshWrapper {}
+impl ConvertableRenderAsset for MeshWrapper {
+    type SourceAsset = MeshLod;
+    type Params = usize; // lod level
+    type Error = bool;
+
+    fn convert(
+        ctx: &mut gbase::Context,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
+        params: &Self::Params,
+    ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
+        let mesh = source.get_lod_closest(*params);
+
+        // // TODO: remove this
+        // let vertex_attributes = BTreeSet::from([
+        //     render::VertexAttributeId::Position,
+        //     render::VertexAttributeId::Normal,
+        //     render::VertexAttributeId::Uv(0),
+        //     render::VertexAttributeId::Tangent,
+        //     render::VertexAttributeId::Color(0),
+        // ]);
+        // let m = mesh.clone().get_mut(cache).unwrap();
+        // *m = m.clone().extract_attributes(vertex_attributes);
+
+        let gpu_mesh = mesh.convert::<GpuMesh>(ctx, cache, &()).unwrap();
+        Ok(MeshWrapper(gpu_mesh))
+    }
+}
+
+#[derive(Clone)]
+pub struct BoundingBoxWrapper(BoundingBox);
+
+impl Deref for BoundingBoxWrapper {
+    type Target = BoundingBox;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl RenderAsset for BoundingBoxWrapper {}
+impl ConvertableRenderAsset for BoundingBoxWrapper {
+    type SourceAsset = MeshLod;
+    type Params = ();
+    type Error = bool;
+
+    fn convert(
+        ctx: &mut gbase::Context,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
+        params: &Self::Params,
+    ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
+        Ok(BoundingBoxWrapper(
+            source.meshes[0]
+                .0
+                .clone()
+                .get(cache)
+                .unwrap()
+                .calculate_bounding_box(),
+        ))
+    }
+}
 
 // impl Asset for MeshLod {}
 // impl LoadableAsset for MeshLod {

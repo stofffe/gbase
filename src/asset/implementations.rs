@@ -1,4 +1,4 @@
-use super::{Asset, ConvertableRenderAsset, LoadableAsset, RenderAsset};
+use super::{Asset, AssetCache, AssetHandle, ConvertableRenderAsset, LoadableAsset, RenderAsset};
 use crate::{
     filesystem,
     render::{self, GpuImage},
@@ -19,9 +19,11 @@ impl ConvertableRenderAsset for render::GpuMesh {
 
     fn convert(
         ctx: &mut Context,
-        source: &Self::SourceAsset,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
         Ok(render::GpuMesh::new(ctx, source))
     }
 }
@@ -34,9 +36,11 @@ impl ConvertableRenderAsset for render::BoundingBox {
 
     fn convert(
         ctx: &mut Context,
-        source: &Self::SourceAsset,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
         params: &Self::Params,
     ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
         Ok(source.calculate_bounding_box())
     }
 }
@@ -66,9 +70,11 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 
     fn convert(
         ctx: &mut Context,
-        source: &Self::SourceAsset,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
         #[cfg(target_arch = "wasm32")]
         {
             Ok(source.build_non_arc(ctx))
@@ -113,9 +119,11 @@ impl ConvertableRenderAsset for render::GpuImage {
 
     fn convert(
         ctx: &mut Context,
-        source: &Self::SourceAsset,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
         _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
+        let source = cache.get(source).unwrap();
         let sampler = source.sampler.clone().build(ctx);
         let texture = source.texture.build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);

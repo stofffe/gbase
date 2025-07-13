@@ -7,8 +7,8 @@ use gbase::{
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, Gltf, GpuMaterial, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind,
-    Transform3D, Widget, RED, WHITE,
+    parse_gltf_primitives, Camera, Gltf, GpuMaterial, Material, PbrLightUniforms, PbrRenderer,
+    PixelCache, SizeKind, Transform3D, Widget, RED, WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::{f32::consts::PI, sync::Arc};
@@ -36,88 +36,89 @@ struct App {
     lights: PbrLightUniforms,
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
 
-    ak47_mesh_handle: AssetHandle<Mesh>,
-    ak47_material: AssetHandle<Material>,
-    helmet_mesh_handle: AssetHandle<Mesh>,
-    helmet_material: AssetHandle<Material>,
-    helmet_mesh_lod: MeshLod,
-    plane_mesh_handle: AssetHandle<Mesh>,
-    plane_material: AssetHandle<Material>,
+    ak47_mesh: AssetHandle<MeshLod>,
+    helmet_mesh: AssetHandle<MeshLod>,
+    plane_mesh: AssetHandle<MeshLod>,
 
     shadow_pass: ShadowPass,
 
-    new_helmet: AssetHandle<Gltf>,
+    aaa: bool,
+    bbb: bool,
 }
 
-/// Loads the first mesh from a file
-///
-/// Assume mesh has one primitive
-fn load_simple_mesh(
+// /// Loads the first mesh from a file
+// ///
+// /// Assume mesh has one primitive
+// fn load_simple_mesh(
+//     cache: &mut AssetCache,
+//     bytes: &[u8],
+//     pbr: &PbrRenderer,
+// ) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
+//     let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
+//
+//     cache.poll();
+//
+//     let mesh = gltf.meshes[0].clone().get(cache).unwrap();
+//     let primitive = &mesh.primitives[0];
+//
+//     let mesh = primitive.mesh.clone();
+//     let material = primitive.material.clone();
+//
+//     // TODO: move this to pbr renderer instead
+//     let mesh_mut = mesh.clone().get_mut(cache).unwrap();
+//     *mesh_mut = mesh_mut
+//         .clone()
+//         .extract_attributes(pbr.required_attributes().clone());
+//
+//     (mesh, material)
+// }
+//
+fn mesh_to_lod_mesh(
     cache: &mut AssetCache,
-    bytes: &[u8],
-    pbr: &PbrRenderer,
-) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
-    let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
-
-    cache.poll();
-
-    let mesh = gltf.meshes[0].clone().get(cache).unwrap();
-    let primitive = &mesh.primitives[0];
-
-    let mesh = primitive.mesh.clone();
-    let material = primitive.material.clone();
-
-    // TODO: move this to pbr renderer instead
-    let mesh_mut = mesh.clone().get_mut(cache).unwrap();
-    *mesh_mut = mesh_mut
-        .clone()
-        .extract_attributes(pbr.required_attributes().clone());
-
-    (mesh, material)
-}
-
-fn mesh_to_lod_mesh(mesh: AssetHandle<render::Mesh>, material: AssetHandle<Material>) -> MeshLod {
-    MeshLod {
+    mesh: AssetHandle<render::Mesh>,
+    material: AssetHandle<Material>,
+) -> AssetHandle<MeshLod> {
+    cache.insert(MeshLod {
         meshes: vec![(mesh, 0.0)],
         material,
-    }
+    })
 }
-
-/// Load all meshes in file as LOD levels
-///
-/// Assume each mesh has one primitive
-fn load_lod_mesh(cache: &mut gbase::asset::AssetCache, bytes: &[u8], pbr: &PbrRenderer) -> MeshLod {
-    let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
-
-    // TODO: remove this
-    let thresholds = [0.25, 0.125, 0.0];
-    let mut meshes = Vec::new();
-    let mut material = None;
-
-    cache.poll();
-
-    for (i, mesh) in gltf.meshes.iter().enumerate() {
-        let mesh = mesh.clone().get_mut(cache).unwrap().clone();
-        let primitive = &mesh.primitives[0];
-
-        let mesh_mut = primitive.mesh.clone().get_mut(cache).unwrap();
-        *mesh_mut = mesh_mut
-            .clone()
-            .extract_attributes(pbr.required_attributes().clone());
-
-        meshes.push((primitive.mesh.clone(), thresholds[i]));
-        material = Some(primitive.material.clone());
-    }
-
-    MeshLod {
-        meshes,
-        material: material.unwrap(),
-    }
-}
+//
+// /// Load all meshes in file as LOD levels
+// ///
+// /// Assume each mesh has one primitive
+// fn load_lod_mesh(cache: &mut gbase::asset::AssetCache, bytes: &[u8], pbr: &PbrRenderer) -> MeshLod {
+//     let gltf = gbase_utils::parse_gltf_file(cache.load_context(), bytes);
+//
+//     // TODO: remove this
+//     let thresholds = [0.25, 0.125, 0.0];
+//     let mut meshes = Vec::new();
+//     let mut material = None;
+//
+//     cache.poll();
+//
+//     for (i, mesh) in gltf.meshes.iter().enumerate() {
+//         let mesh = mesh.clone().get_mut(cache).unwrap().clone();
+//         let primitive = &mesh.primitives[0];
+//
+//         let mesh_mut = primitive.mesh.clone().get_mut(cache).unwrap();
+//         *mesh_mut = mesh_mut
+//             .clone()
+//             .extract_attributes(pbr.required_attributes().clone());
+//
+//         meshes.push((primitive.mesh.clone(), thresholds[i]));
+//         material = Some(primitive.material.clone());
+//     }
+//
+//     MeshLod {
+//         meshes,
+//         material: material.unwrap(),
+//     }
+// }
 
 #[derive(Debug, Clone)]
 struct DrawCall {
-    mesh: MeshLod,
+    mesh: AssetHandle<MeshLod>,
     transform: Transform3D,
 }
 
@@ -173,17 +174,11 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh_lod = load_lod_mesh(
-            cache,
-            &load_b!("models/helmet_lod.glb").unwrap(),
-            &pbr_renderer,
-        );
+        let helmet_mesh = AssetBuilder::load::<MeshLod>("assets/models/helmet_lod.glb")
+            .watch(cache)
+            .build(cache);
 
-        let (ak47_mesh_handle, ak47_material) =
-            load_simple_mesh(cache, &load_b!("models/ak47.glb").unwrap(), &pbr_renderer);
-
-        let (helmet_mesh_handle, helmet_material) =
-            load_simple_mesh(cache, &load_b!("models/helmet.glb").unwrap(), &pbr_renderer);
+        let ak47_mesh = AssetBuilder::load::<MeshLod>("assets/models/ak47.glb").build(cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -209,7 +204,7 @@ impl Callbacks for App {
         let plane_mesh_handle = asset::AssetBuilder::insert(
             render::MeshBuilder::quad()
                 .build()
-                .extract_attributes(pbr_renderer.required_attributes().clone()),
+                .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         )
         .build(cache);
 
@@ -247,15 +242,11 @@ impl Callbacks for App {
             emissive_factor: [0.0, 0.0, 0.0],
             emissive_texture,
         });
+        let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
-        let new_helmet = AssetBuilder::load::<Gltf>("assets/models/helmet.glb").build(cache);
-        // dbg!(&helmet_mesh_lod);
-
         Self {
-            new_helmet,
-
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
             depth_buffer,
@@ -270,17 +261,14 @@ impl Callbacks for App {
             camera,
             camera_buffer,
 
-            ak47_mesh_handle,
-            ak47_material,
-
-            helmet_mesh_handle,
-            helmet_material,
-
-            plane_mesh_handle,
-            plane_material,
+            helmet_mesh,
+            ak47_mesh,
+            plane_mesh,
 
             shadow_pass,
-            helmet_mesh_lod,
+            // helmet_mesh_lod,
+            aaa: false,
+            bbb: false,
         }
     }
 
@@ -291,9 +279,25 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> bool {
-        if cache.handle_loaded(self.new_helmet.clone()) {
-            let gltf = cache.get(self.new_helmet.clone()).unwrap();
-            dbg!(gltf);
+        if !self.aaa && cache.handle_loaded(self.helmet_mesh.clone()) {
+            let mesh_lod = self.helmet_mesh.clone().get_mut(cache).unwrap();
+            for (mesh, _) in mesh_lod.meshes.clone() {
+                mesh.clone()
+                    .get_mut(cache)
+                    .unwrap()
+                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            }
+            self.aaa = true;
+        }
+        if !self.bbb && cache.handle_loaded(self.ak47_mesh.clone()) {
+            let mesh_lod = self.ak47_mesh.clone().get_mut(cache).unwrap();
+            for (mesh, _) in mesh_lod.meshes.clone() {
+                mesh.clone()
+                    .get_mut(cache)
+                    .unwrap()
+                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            }
+            self.bbb = true;
         }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
@@ -318,7 +322,7 @@ impl Callbacks for App {
 
         let mut draw_calls: Vec<DrawCall> = vec![
             DrawCall {
-                mesh: mesh_to_lod_mesh(self.plane_mesh_handle.clone(), self.plane_material.clone()),
+                mesh: self.plane_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(0.0, -2.0, 0.0))
                     .with_rot(Quat::from_rotation_x(-PI / 2.0))
@@ -326,32 +330,32 @@ impl Callbacks for App {
             },
             // add meshes
             DrawCall {
-                mesh: self.helmet_mesh_lod.clone(),
+                mesh: self.helmet_mesh.clone(),
                 transform: Transform3D::default()
                     .with_rot(Quat::from_rotation_y(time::time_since_start(ctx)))
                     .with_pos(vec3(0.0, 0.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: self.helmet_mesh_lod.clone(),
+                mesh: self.helmet_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(-3.0, 10.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: mesh_to_lod_mesh(self.ak47_mesh_handle.clone(), self.ak47_material.clone()),
+                mesh: self.ak47_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(3.0, 0.0, -1.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
         ];
 
-        let amount = 10;
+        let amount = 30;
         let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
                 draw_calls.push(DrawCall {
-                    mesh: self.helmet_mesh_lod.clone(), // TODO: should this even be clone
+                    mesh: self.helmet_mesh.clone(),
                     transform: Transform3D::default()
                         .with_pos(vec3(gap as f32 * x as f32, 10.0, gap as f32 * z as f32))
                         .with_scale(Vec3::ONE * 1.0),

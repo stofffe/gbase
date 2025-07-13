@@ -1,11 +1,12 @@
-use crate::{Camera, CameraFrustum, MeshLod, Plane, Transform3D};
+use crate::{BoundingBoxWrapper, Camera, CameraFrustum, MeshLod, MeshWrapper, Plane, Transform3D};
 use gbase::{
     asset::{self, AssetHandle},
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, BoundingBox, GpuMesh},
-    tracing, wgpu, Context,
+    wgpu, Context,
 };
+use gltf::json::extensions::mesh;
 
 pub struct ShadowPass {
     pipeline_layout: render::ArcPipelineLayout,
@@ -22,6 +23,7 @@ pub struct ShadowPass {
 const MAX_SHADOW_INSTANCES: u64 = 10000;
 const MAX_SHADOW_CASCADES: u64 = 3;
 const SHADOW_MAP_RESOLUTION: u32 = 1024;
+const SHADOW_MAP_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
@@ -58,7 +60,8 @@ impl ShadowPass {
             SHADOW_MAP_RESOLUTION,
         ))
         .label("shadow map")
-        .with_format(wgpu::TextureFormat::Depth32Float)
+        // TODO: maybe use 16 bits?
+        .with_format(SHADOW_MAP_FORMAT)
         .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
         .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
         .build(ctx);
@@ -95,7 +98,7 @@ impl ShadowPass {
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
-        meshes: &[(MeshLod, Transform3D)],
+        meshes: &[(AssetHandle<MeshLod>, Transform3D)],
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
@@ -107,11 +110,11 @@ impl ShadowPass {
         assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
 
         // could probably skip not loaded ones
-        for (mesh_lod, _) in meshes.iter() {
-            for (handle, _) in mesh_lod.meshes.iter() {
-                assets_loaded &= asset::handle_loaded(cache, handle.clone());
-            }
-        }
+        // for (mesh_lod, _) in meshes.iter() {
+        //     for (handle, _) in mesh_lod.meshes.iter() {
+        //         assets_loaded &= asset::handle_loaded(cache, handle.clone());
+        //     }
+        // }
         if !assets_loaded {
             return;
         }
@@ -142,6 +145,23 @@ impl ShadowPass {
         for i in 0..planes.len() - 1 {
             let mut instances = Vec::new();
             let mut draws = Vec::new();
+
+            //
+            // culling
+            //
+
+            let mut meshes = meshes.to_vec();
+            meshes.retain(|(handle, transform)| {
+                if !handle.clone().loaded(cache) {
+                    return false;
+                }
+
+                let bounds = handle
+                    .clone()
+                    .convert::<BoundingBoxWrapper>(ctx, cache, &())
+                    .unwrap();
+                frustums[i].sphere_inside(&bounds, transform)
+            });
             let mut ranges = Vec::new();
 
             //
@@ -150,26 +170,18 @@ impl ShadowPass {
 
             let mut sorted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
-                sorted_meshes.push((mesh_lod.get_lod_closest(i), transform));
+                // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
+                sorted_meshes.push((
+                    mesh_lod.clone().get(cache).unwrap().get_lod_closest(i),
+                    transform,
+                ));
             }
-
-            //
-            // culling
-            //
-
-            sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
-            sorted_meshes.retain(|(handle, transform)| {
-                let bounds = handle
-                    .clone()
-                    .convert::<BoundingBox>(ctx, cache, &())
-                    .unwrap();
-                frustums[i].sphere_inside(&bounds, transform)
-            });
 
             //
             // batching
             //
 
+            sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
             let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
             for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
                 instances.push(ShadowInstance {

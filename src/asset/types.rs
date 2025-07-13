@@ -1,4 +1,4 @@
-use super::{AssetHandle, LoadContext};
+use super::{AssetCache, AssetHandle, LoadContext};
 use crate::{render::ArcHandle, Context};
 use std::{
     any::Any,
@@ -10,7 +10,7 @@ use std::{
 pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynRenderAsset = ArcHandle<dyn Any>;
-pub type DynAssetLoadFn = Box<dyn Fn(&Path) -> DynAsset>;
+pub type DynAssetLoadFn = Box<dyn Fn(LoadContext, &Path) -> DynAsset>;
 pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
@@ -34,7 +34,8 @@ pub trait ConvertableRenderAsset: RenderAsset + Sized + Clone {
 
     fn convert(
         ctx: &mut Context,
-        source: &Self::SourceAsset,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>,
         params: &Self::Params,
     ) -> Result<Self, Self::Error>;
 }

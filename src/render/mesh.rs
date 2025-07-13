@@ -95,10 +95,7 @@ impl Mesh {
         true
     }
 
-    pub fn extract_attributes(
-        mut self,
-        attributes: impl Into<BTreeSet<VertexAttributeId>>,
-    ) -> Self {
+    pub fn extract_attributes(&mut self, attributes: impl Into<BTreeSet<VertexAttributeId>>) {
         let attributes = attributes.into();
         // remove
         self.attributes = self
@@ -136,8 +133,53 @@ impl Mesh {
                 }
             }
         }
+    }
 
+    pub fn with_extracted_attributes(
+        mut self,
+        attributes: impl Into<BTreeSet<VertexAttributeId>>,
+    ) -> Self {
+        self.extract_attributes(attributes);
         self
+        // let attributes = attributes.into();
+        // // remove
+        // self.attributes = self
+        //     .clone()
+        //     .attributes
+        //     .into_iter()
+        //     .filter(|(id, _)| attributes.contains(id))
+        //     .collect::<BTreeMap<VertexAttributeId, VertexAttributeValues>>();
+        //
+        // // add
+        // for attr in attributes {
+        //     if !self.attributes.contains_key(&attr) {
+        //         match attr {
+        //             VertexAttributeId::Normal => {
+        //                 tracing::warn!(
+        //                     "normal attribute could not be found, generating for each vertex"
+        //                 );
+        //                 self.generate_normals();
+        //             }
+        //             VertexAttributeId::Tangent => {
+        //                 tracing::warn!(
+        //                     "tangent attribute could not be found, generating for each vertex"
+        //                 );
+        //                 self.generate_tangents();
+        //             }
+        //             VertexAttributeId::Color(i) => {
+        //                 tracing::warn!(
+        //                 "color attribute could not be found, generating [1,1,1] for each vertex"
+        //             );
+        //                 self.generate_colors(i, [1.0, 1.0, 1.0]);
+        //             }
+        //             id => {
+        //                 panic!("vertex attributes does not contain required {:?}", id);
+        //             }
+        //         }
+        //     }
+        // }
+        //
+        // self
     }
 
     pub fn generate_normals(&mut self) {
