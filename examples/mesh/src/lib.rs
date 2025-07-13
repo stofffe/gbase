@@ -1,20 +1,19 @@
 mod bloom;
 
-use time::Instant;
-
 use gbase::{
-    asset,
+    asset::{AssetBuilder, AssetHandle},
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b,
-    render::{self, Mesh},
+    render::{self},
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, Direction, GpuMaterial, MeshLod, PbrLightUniforms, PbrRenderer, PixelCache,
-    SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
+    Alignment, Direction, MeshLod, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget,
+    BLACK, GRAY, WHITE,
 };
-use std::{f32::consts::PI, sync::Arc};
+use std::f32::consts::PI;
+use time::Instant;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -37,32 +36,12 @@ struct App {
     lights_buffer: render::UniformBuffer<PbrLightUniforms>,
     lights: PbrLightUniforms,
 
-    ak47_mesh_handle: asset::AssetHandle<Mesh>,
-    ak47_material: Arc<GpuMaterial>,
-    helmet_mesh_handle: asset::AssetHandle<Mesh>,
-    helmet_material: Arc<GpuMaterial>,
-    cube_mesh_handle: asset::AssetHandle<Mesh>,
-    cube_material: Arc<GpuMaterial>,
+    helmet_mesh: AssetHandle<MeshLod>,
 
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
 
     shadow_pass: gbase_utils::ShadowPass,
-}
-
-fn load_simple_mesh(
-    cache: &mut gbase::asset::AssetCache,
-    bytes: &[u8],
-    pixel_cache: &mut PixelCache,
-    pbr_renderer: &PbrRenderer,
-) -> (asset::AssetHandle<Mesh>, Arc<GpuMaterial>) {
-    let prim = gbase_utils::parse_glb(bytes)[0].clone();
-    let mesh = prim
-        .mesh
-        .extract_attributes(pbr_renderer.required_attributes().clone());
-    let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
-    let material = prim.material.clone().to_material(cache, pixel_cache);
-    (mesh_handle, Arc::new(material))
 }
 
 impl Callbacks for App {
@@ -82,8 +61,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let mut pixel_cache = PixelCache::new();
-
         let hdr_format = if render::device(ctx)
             .features()
             .contains(wgpu::Features::RG11B10UFLOAT_RENDERABLE)
@@ -117,26 +94,9 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let (ak47_mesh_handle, ak47_material) = load_simple_mesh(
-            cache,
-            &load_b!("models/ak47.glb").unwrap(),
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
-
-        let (helmet_mesh_handle, helmet_material) = load_simple_mesh(
-            cache,
-            &load_b!("models/helmet.glb").unwrap(),
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
-
-        let (cube_mesh_handle, cube_material) = load_simple_mesh(
-            cache,
-            &load_b!("models/cube.glb").unwrap(),
-            &mut pixel_cache,
-            &pbr_renderer,
-        );
+        let helmet_mesh = AssetBuilder::load::<MeshLod>("assets/models/helmet_lod.glb")
+            .watch(cache)
+            .build(cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -181,14 +141,7 @@ impl Callbacks for App {
             camera,
             camera_buffer,
 
-            ak47_mesh_handle,
-            ak47_material,
-
-            helmet_mesh_handle,
-            helmet_material,
-
-            cube_mesh_handle,
-            cube_material,
+            helmet_mesh,
 
             shadow_pass,
 
@@ -208,16 +161,13 @@ impl Callbacks for App {
             self.camera.flying_controls(ctx);
         }
 
-        if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::KeyR) {
-            tracing::warn!("RESTART");
-            *self = Self::new(ctx, cache);
-        }
-
-        if !asset::handle_loaded(cache, self.cube_mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.ak47_mesh_handle.clone())
-        {
-            return false;
+        if cache.handle_just_loaded(self.helmet_mesh) {
+            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
+            for (mesh, _) in mesh_lod.meshes.clone() {
+                mesh.get_mut(cache)
+                    .unwrap()
+                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            }
         }
 
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
@@ -230,11 +180,8 @@ impl Callbacks for App {
         self.lights_buffer.write(ctx, &self.lights);
 
         // Render
-        let meshes = [(
-            MeshLod::from_single_lod(
-                self.helmet_mesh_handle.clone(),
-                self.helmet_material.clone(),
-            ),
+        let meshes = vec![(
+            self.helmet_mesh,
             Transform3D::default()
                 .with_pos(vec3(0.0, 0.0, 0.0))
                 .with_scale(Vec3::ONE * 5.0),
@@ -247,13 +194,6 @@ impl Callbacks for App {
             &self.camera,
             self.lights.main_light_dir,
         );
-        for (mesh, transform) in meshes.iter().cloned() {
-            self.pbr_renderer.add_mesh(
-                mesh.get_lod_exact(0).unwrap(),
-                mesh.material.clone(),
-                transform,
-            );
-        }
 
         {
             let _timer = time::ProfileTimer::new(ctx, "render");
@@ -262,10 +202,12 @@ impl Callbacks for App {
                 cache,
                 self.hdr_framebuffer_1.view_ref(),
                 self.hdr_framebuffer_1.format(),
+                &self.camera,
                 &self.camera_buffer,
                 &self.lights_buffer,
                 &self.depth_buffer,
                 &self.camera.calculate_frustum(),
+                meshes,
                 &self.shadow_pass.shadow_map,
                 &self.shadow_pass.light_matrices_buffer,
                 &self.shadow_pass.light_matrices_distances,
@@ -423,36 +365,5 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        // render::set_vsync(_ctx, false);
     }
 }
-
-// let elems = 10000u32;
-// for x in 0..(elems.isqrt()) {
-//     for z in 0..(elems.isqrt()) {
-//         let transform = Transform3D::from_pos(vec3(5.0 * x as f32, 0.0, 10.0 * z as f32))
-//             .with_rot(Quat::from_rotation_y(
-//                 (time::time_since_start(ctx) + (x + z) as f32) * 1.0,
-//             ));
-//
-//         // self.pbr_renderer.add_mesh(
-//         //     self.cube_mesh_handle.clone(),
-//         //     self.cube_material.clone(),
-//         //     transform,
-//         // );
-//
-//         if (x + z) % 2 == 0 {
-//             self.pbr_renderer.add_mesh(
-//                 self.ak47_mesh_handle.clone(),
-//                 self.ak47_material.clone(),
-//                 transform,
-//             );
-//         } else {
-//             self.pbr_renderer.add_mesh(
-//                 self.helmet_mesh_handle.clone(),
-//                 self.helmet_material.clone(),
-//                 transform,
-//             );
-//         }
-//     }
-// }

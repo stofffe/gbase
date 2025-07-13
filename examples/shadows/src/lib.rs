@@ -142,8 +142,6 @@ impl Callbacks for App {
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         )
         .build(cache);
-
-        // TODO: temp
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
         let plane_material = cache.insert(plane_material);
         let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);

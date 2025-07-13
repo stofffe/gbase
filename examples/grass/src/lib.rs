@@ -1,7 +1,8 @@
 mod grass_renderer;
 
 use gbase::{
-    asset, filesystem,
+    asset::{self, AssetHandle},
+    filesystem,
     glam::{vec2, vec3, vec4, Quat, Vec3},
     input,
     render::{self, MeshBuilder},
@@ -37,8 +38,7 @@ pub struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     pbr_renderer: gbase_utils::PbrRenderer,
 
-    plane_mesh: asset::AssetHandle<render::Mesh>,
-    plane_material: Arc<GpuMaterial>,
+    plane_mesh: AssetHandle<MeshLod>,
 
     paused: bool,
 
@@ -114,28 +114,15 @@ impl Callbacks for App {
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let plane_mesh = asset::AssetBuilder::insert(
-            MeshBuilder::quad()
+        let plane_mesh_handle = asset::AssetBuilder::insert(
+            render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         )
         .build(cache);
-        let plane_material = Arc::new(
-            PbrMaterial {
-                base_color_texture: None,
-                color_factor: PLANE_COLOR,
-                metallic_roughness_texture: None,
-                roughness_factor: 1.0,
-                metallic_factor: 0.0,
-                occlusion_texture: None,
-                occlusion_strength: 1.0,
-                normal_texture: None,
-                normal_scale: 1.0,
-                emissive_texture: None,
-                emissive_factor: [0.0, 0.0, 0.0],
-            }
-            .to_material(cache, &mut pixel_cache), // TODO: remove this?
-        );
+        let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
+        let plane_material = cache.insert(plane_material);
+        let plane_mesh = cache.insert(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 
@@ -149,7 +136,6 @@ impl Callbacks for App {
             plane_mesh,
             light_buffer,
             light,
-            plane_material,
             depth_buffer,
             grass_renderer,
 
@@ -199,11 +185,8 @@ impl Callbacks for App {
         self.light_buffer.write(ctx, &self.light);
 
         // Render
-        let meshes = [(
-            MeshLod {
-                meshes: vec![(self.plane_mesh.clone(), 0.0)],
-                material: self.plane_material.clone(),
-            },
+        let meshes = vec![(
+            self.plane_mesh,
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))
@@ -212,20 +195,18 @@ impl Callbacks for App {
 
         self.shadow_pass
             .render(ctx, cache, &meshes, &self.camera, self.light.main_light_dir);
-        for (mesh, transform) in meshes.iter().cloned() {
-            self.pbr_renderer
-                .add_mesh(mesh.meshes[0].0.clone(), mesh.material, transform);
-        }
 
         self.pbr_renderer.render(
             ctx,
             cache,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
+            &self.camera,
             &self.camera_buffer,
             &self.light_buffer,
             &self.depth_buffer,
             &self.camera.calculate_frustum(),
+            meshes,
             &self.shadow_pass.shadow_map,
             &self.shadow_pass.light_matrices_buffer,
             &self.shadow_pass.light_matrices_distances,
