@@ -197,7 +197,7 @@ impl AssetCache {
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            let data = T::load(&path_clone).await;
+            let data = T::load(load_context, &path_clone).await;
             loaded_sender_clone
                 .unbounded_send((handle_clone.as_any(), Box::new(data)))
                 .expect("could not send");
