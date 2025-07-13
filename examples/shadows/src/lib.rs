@@ -2,9 +2,7 @@ use gbase::{
     asset::{self, AssetBuilder, AssetCache, AssetHandle},
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b,
-    render::{self, Image},
-    time, tracing, wgpu, winit, Callbacks, Context,
+    load_b, render, time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
     Camera, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget,
@@ -77,8 +75,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let mut pixel_cache = PixelCache::new();
-
         let hdr_format = if render::device(ctx)
             .features()
             .contains(wgpu::Features::RG11B10UFLOAT_RENDERABLE)

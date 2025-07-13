@@ -406,7 +406,7 @@ impl Callbacks for App {
     fn resize(
         &mut self,
         ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
+        _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
     ) {
         self.depth_buffer.resize(ctx, new_size);

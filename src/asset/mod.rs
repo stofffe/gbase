@@ -57,7 +57,7 @@ pub struct LoadedAssetBuilder<T: Asset + LoadableAsset> {
 impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write(self, cache: &mut AssetCache) -> Self {
-        cache.ext.write::<T>(self.handle.clone(), &self.path);
+        cache.ext.write::<T>(self.handle, &self.path);
         self
     }
 }
@@ -66,7 +66,7 @@ impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
 impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
     pub fn watch(self, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        cache.ext.watch::<T>(self.handle.clone(), &self.path);
+        cache.ext.watch::<T>(self.handle, &self.path);
         self
     }
 }

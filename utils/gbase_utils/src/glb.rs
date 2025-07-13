@@ -437,21 +437,12 @@ impl Material {
         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
-        let base_color_texture = cache
-            .insert(Image::new_pixel_texture(BASE_COLOR_DEFAULT))
-            .clone();
-        let metallic_roughness_texture = cache
-            .insert(Image::new_pixel_texture(METALLIC_ROUGHNESS_DEFAULT))
-            .clone();
-        let occlusion_texture = cache
-            .insert(Image::new_pixel_texture(OCCLUSION_DEFAULT))
-            .clone();
-        let normal_texture = cache
-            .insert(Image::new_pixel_texture(NORMAL_DEFAULT))
-            .clone();
-        let emissive_texture = cache
-            .insert(Image::new_pixel_texture(EMISSIVE_DEFAULT))
-            .clone();
+        let base_color_texture = cache.insert(Image::new_pixel_texture(BASE_COLOR_DEFAULT));
+        let metallic_roughness_texture =
+            cache.insert(Image::new_pixel_texture(METALLIC_ROUGHNESS_DEFAULT));
+        let occlusion_texture = cache.insert(Image::new_pixel_texture(OCCLUSION_DEFAULT));
+        let normal_texture = cache.insert(Image::new_pixel_texture(NORMAL_DEFAULT));
+        let emissive_texture = cache.insert(Image::new_pixel_texture(EMISSIVE_DEFAULT));
         Self {
             color_factor: [1.0, 1.0, 1.0, 1.0],
             base_color_texture,

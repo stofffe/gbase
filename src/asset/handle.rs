@@ -60,10 +60,7 @@ impl<T: 'static> std::hash::Hash for AssetHandle<T> {
 
 impl<T: 'static> Clone for AssetHandle<T> {
     fn clone(&self) -> Self {
-        Self {
-            id: self.id,
-            ty: PhantomData,
-        }
+        *self
     }
 }
 

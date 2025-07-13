@@ -1,7 +1,6 @@
 use super::{
     Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetHandle, DynAssetLoadFn,
-    DynAssetOnLoadFn, DynAssetWriteFn, DynRenderAsset, LoadableAsset, TypedAssetOnLoadFn,
-    WriteableAsset,
+    DynAssetWriteFn, DynRenderAsset, LoadableAsset, WriteableAsset,
 };
 use crate::{render::ArcHandle, Context};
 use futures_channel::mpsc;

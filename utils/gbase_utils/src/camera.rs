@@ -2,7 +2,6 @@ use std::f32::consts::PI;
 
 use encase::ShaderType;
 use gbase::{
-    asset::{self, ConvertableRenderAsset, RenderAsset},
     glam::{vec3, Mat4, Vec3, Vec4Swizzles},
     input,
     render::{self, BoundingBox},

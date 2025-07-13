@@ -1,12 +1,11 @@
-use crate::{BoundingBoxWrapper, Camera, CameraFrustum, MeshLod, MeshWrapper, Plane, Transform3D};
+use crate::{BoundingBoxWrapper, Camera, CameraFrustum, MeshLod, Plane, Transform3D};
 use gbase::{
     asset::{self, AssetHandle},
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
-    render::{self, BoundingBox, GpuMesh},
+    render::{self, GpuMesh},
     wgpu, Context,
 };
-use gltf::json::extensions::mesh;
 
 pub struct ShadowPass {
     pipeline_layout: render::ArcPipelineLayout,
@@ -107,7 +106,7 @@ impl ShadowPass {
         //
 
         let mut assets_loaded = true;
-        assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
+        assets_loaded &= asset::handle_loaded(cache, self.shader_handle);
 
         // could probably skip not loaded ones
         // for (mesh_lod, _) in meshes.iter() {
@@ -152,12 +151,11 @@ impl ShadowPass {
 
             let mut meshes = meshes.to_vec();
             meshes.retain(|(handle, transform)| {
-                if !handle.clone().loaded(cache) {
+                if !handle.loaded(cache) {
                     return false;
                 }
 
                 let bounds = handle
-                    .clone()
                     .convert::<BoundingBoxWrapper>(ctx, cache, &())
                     .unwrap();
                 frustums[i].sphere_inside(&bounds, transform)
@@ -171,17 +169,14 @@ impl ShadowPass {
             let mut sorted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
                 // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
-                sorted_meshes.push((
-                    mesh_lod.clone().get(cache).unwrap().get_lod_closest(i),
-                    transform,
-                ));
+                sorted_meshes.push((mesh_lod.get(cache).unwrap().get_lod_closest(i), transform));
             }
 
             //
             // batching
             //
 
-            sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
+            sorted_meshes.sort_by_key(|(mesh, ..)| *mesh);
             let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
             for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
                 instances.push(ShadowInstance {
@@ -193,10 +188,10 @@ impl ShadowPass {
                         continue;
                     }
                 }
-                prev_mesh = Some(mesh_handle.clone());
+                prev_mesh = Some(*mesh_handle);
 
                 let gpu_mesh =
-                    asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone(), &()).unwrap();
+                    asset::convert_asset::<GpuMesh>(ctx, cache, *mesh_handle, &()).unwrap();
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -221,7 +216,7 @@ impl ShadowPass {
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                 ])
                 .build(ctx);
-            let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
+            let shader = asset::convert_asset(ctx, cache, self.shader_handle, &()).unwrap();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
                 .label("shadow_pass")
                 // .cull_mode(wgpu::Face::Front)

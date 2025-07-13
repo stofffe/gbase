@@ -102,7 +102,7 @@ impl TextureRenderer {
         out_texture: &wgpu::TextureView,
         out_texture_format: wgpu::TextureFormat,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
+        if !asset::handle_loaded(cache, self.shader_handle) {
             return;
         }
 
@@ -131,10 +131,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone(), &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle, &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.clone().get(cache).unwrap().buffer_layout())
+            .buffers(self.vertices.get(cache).unwrap().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
@@ -146,11 +146,7 @@ impl TextureRenderer {
             .build_run(&mut encoder, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
-                let gpu_mesh = self
-                    .vertices
-                    .clone()
-                    .convert::<GpuMesh>(ctx, cache, &())
-                    .unwrap();
+                let gpu_mesh = self.vertices.convert::<GpuMesh>(ctx, cache, &()).unwrap();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);
@@ -167,7 +163,7 @@ impl TextureRenderer {
         out_texture_format: wgpu::TextureFormat,
         camera: &render::UniformBuffer<CameraUniform>,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
+        if !asset::handle_loaded(cache, self.shader_handle) {
             return;
         }
 
@@ -200,17 +196,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader =
-            asset::convert_asset(ctx, cache, self.shader_depth_handle.clone(), &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_depth_handle, &()).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(
-                self.vertices_depth
-                    .clone()
-                    .get(cache)
-                    .unwrap()
-                    .buffer_layout(),
-            )
+            .buffers(self.vertices_depth.get(cache).unwrap().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
@@ -223,7 +212,6 @@ impl TextureRenderer {
                 render_pass.set_pipeline(&pipeline);
                 let gpu_mesh = self
                     .vertices_depth
-                    .clone()
                     .convert::<GpuMesh>(ctx, cache, &())
                     .unwrap();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);

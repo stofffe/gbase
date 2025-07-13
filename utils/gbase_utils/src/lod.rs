@@ -1,5 +1,3 @@
-use std::{collections::BTreeSet, ops::Deref};
-
 use crate::{parse_gltf_primitives, Material};
 use gbase::{
     asset::{
@@ -8,6 +6,7 @@ use gbase::{
     filesystem,
     render::{self, ArcHandle, BoundingBox, GpuMesh},
 };
+use std::ops::Deref;
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {
@@ -31,11 +30,11 @@ impl MeshLod {
     }
 
     pub fn get_lod_exact(&self, level: usize) -> Option<asset::AssetHandle<render::Mesh>> {
-        self.meshes.get(level).map(|e| e.0.clone())
+        self.meshes.get(level).map(|e| e.0)
     }
     pub fn get_lod_closest(&self, level: usize) -> asset::AssetHandle<render::Mesh> {
         let index = usize::min(level, self.meshes.len() - 1);
-        self.meshes[index].0.clone()
+        self.meshes[index].0
     }
 }
 
@@ -45,11 +44,11 @@ impl LoadableAsset for MeshLod {
         let bytes = filesystem::load_bytes(path).await;
         let primitives = parse_gltf_primitives(&load_ctx, &bytes);
 
-        let material = primitives[0].material.clone();
+        let material = primitives[0].material;
         let meshes = primitives
             .iter()
             .enumerate()
-            .map(|(i, p)| (p.mesh.clone(), THRESHOLDS[i]))
+            .map(|(i, p)| (p.mesh, THRESHOLDS[i]))
             .collect();
 
         MeshLod { meshes, material }
@@ -73,18 +72,6 @@ impl ConvertableRenderAsset for MeshWrapper {
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         let mesh = source.get_lod_closest(*params);
-
-        // // TODO: remove this
-        // let vertex_attributes = BTreeSet::from([
-        //     render::VertexAttributeId::Position,
-        //     render::VertexAttributeId::Normal,
-        //     render::VertexAttributeId::Uv(0),
-        //     render::VertexAttributeId::Tangent,
-        //     render::VertexAttributeId::Color(0),
-        // ]);
-        // let m = mesh.clone().get_mut(cache).unwrap();
-        // *m = m.clone().extract_attributes(vertex_attributes);
-
         let gpu_mesh = mesh.convert::<GpuMesh>(ctx, cache, &()).unwrap();
         Ok(MeshWrapper(gpu_mesh))
     }
@@ -108,16 +95,15 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
     type Error = bool;
 
     fn convert(
-        ctx: &mut gbase::Context,
+        _ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        params: &Self::Params,
+        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         Ok(BoundingBoxWrapper(
             source.meshes[0]
                 .0
-                .clone()
                 .get(cache)
                 .unwrap()
                 .calculate_bounding_box(),
