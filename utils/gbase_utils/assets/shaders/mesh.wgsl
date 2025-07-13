@@ -147,7 +147,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         pixel_depth, // TODO: bias as param?
     );
 
-    const PCF_KERNEL_SIZE = 2;
+    const PCF_KERNEL_SIZE = 1;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     for (var x = 0; x < PCF_KERNEL_SIZE * 2; x++) {
         for (var y = 0; y < PCF_KERNEL_SIZE * 2; y++) {

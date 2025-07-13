@@ -21,8 +21,13 @@ pub struct ShadowPass {
 
 const MAX_SHADOW_INSTANCES: u64 = 10000;
 const MAX_SHADOW_CASCADES: u64 = 3;
-const SHADOW_MAP_RESOLUTION: u32 = 1024;
-const SHADOW_MAP_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth24Plus;
+const SHADOW_MAP_RESOLUTION: u32 = 2048;
+const SHADOW_MAP_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
+const SHADOW_MAP_SNAP_VALUE: f32 = 16.0; // TODO: whats best value here?
+
+const DEPTH_BIAS_STATE_CONSTANT: i32 = 4;
+const DEPTH_BIAS_STATE_SLOPE_SCALE: f32 = 8.0;
+const DEPTH_BIAS_STATE_CLAMP: f32 = 0.0; // disable with 0.0
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
@@ -107,13 +112,6 @@ impl ShadowPass {
 
         let mut assets_loaded = true;
         assets_loaded &= asset::handle_loaded(cache, self.shader_handle);
-
-        // could probably skip not loaded ones
-        // for (mesh_lod, _) in meshes.iter() {
-        //     for (handle, _) in mesh_lod.meshes.iter() {
-        //         assets_loaded &= asset::handle_loaded(cache, handle.clone());
-        //     }
-        // }
         if !assets_loaded {
             return;
         }
@@ -121,10 +119,12 @@ impl ShadowPass {
         //
         // light projection matrices
         //
+
         let mut light_matrices = Vec::new();
         let mut frustums = Vec::new();
 
-        let planes = [0.01, 3.0, 10.0, 30.0];
+        // let planes = [0.01, 3.0, 10.0, 30.0];
+        let planes = [0.01, 10.0, 30.0, 100.0];
         for plane in planes.windows(2) {
             let (light_matrix, frustum) =
                 calculate_light_matrix(main_light_dir, camera.clone(), plane[0], plane[1]);
@@ -219,7 +219,6 @@ impl ShadowPass {
             let shader = asset::convert_asset(ctx, cache, self.shader_handle, &()).unwrap();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
                 .label("shadow_pass")
-                // .cull_mode(wgpu::Face::Front)
                 .cull_mode(wgpu::Face::Back)
                 .buffers(vec![render::VertexBufferLayout::from_vertex_formats(
                     gbase::wgpu::VertexStepMode::Vertex,
@@ -230,11 +229,10 @@ impl ShadowPass {
                     depth_write_enabled: true,
                     depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: wgpu::StencilState::default(),
-                    // TODO: be tweakable
                     bias: wgpu::DepthBiasState {
-                        constant: 4,
-                        slope_scale: 8.0,
-                        clamp: 0.0, // disable with 0.0
+                        constant: DEPTH_BIAS_STATE_CONSTANT,
+                        slope_scale: DEPTH_BIAS_STATE_SLOPE_SCALE,
+                        clamp: DEPTH_BIAS_STATE_CLAMP, // disable with 0.0
                     },
                 })
                 .build(ctx);
@@ -297,7 +295,6 @@ fn calculate_light_matrix(
         center += *corner;
     }
     center /= corners.len() as f32;
-    // center = Vec3::ZERO;
 
     let mut radius = 0.0f32;
     for corner in corners.iter() {
@@ -305,7 +302,7 @@ fn calculate_light_matrix(
     }
 
     // snap radius to larger steps to avoid shimmering
-    radius = f32::ceil(radius * 16.0) / 16.0; // TODO: whats best value here?
+    radius = f32::ceil(radius * SHADOW_MAP_SNAP_VALUE) / SHADOW_MAP_SNAP_VALUE;
 
     let min = Vec3::splat(-radius);
     let max = Vec3::splat(radius);

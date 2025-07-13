@@ -5,8 +5,7 @@ use gbase::{
     load_b, render, time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, Material, PbrLightUniforms, PbrRenderer, PixelCache, SizeKind, Transform3D, Widget,
-    WHITE,
+    Camera, Material, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget, WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
@@ -63,7 +62,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(false)
+            .vsync(true)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -245,7 +244,7 @@ impl Callbacks for App {
             },
         ];
 
-        let amount = 30;
+        let amount = 20;
         let gap = 20;
         for x in -amount..amount {
             for z in -amount..amount {
