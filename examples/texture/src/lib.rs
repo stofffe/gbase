@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{self, AssetHandle, ImageLoader, ShaderLoader},
     render::{self, ArcPipelineLayout, GpuImage, Image},
     wgpu::{self},
     Callbacks, Context,
@@ -42,11 +42,12 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle = asset::AssetBuilder::load("assets/shaders/texture.wgsl")
-            .watch(cache)
-            .build(cache);
+        let shader_handle =
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/texture.wgsl")
+                .watch(cache)
+                .build(cache);
         let texture_handle =
-            asset::AssetBuilder::load::<render::Image>("assets/textures/texture.jpeg")
+            asset::AssetBuilder::load::<ImageLoader>("assets/textures/texture.jpeg")
                 // TODO:
                 // .on_load(|img| {
                 //     img.texture = img

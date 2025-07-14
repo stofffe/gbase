@@ -1,6 +1,6 @@
 use crate::{BoundingBoxWrapper, Camera, CameraFrustum, MeshLod, Plane, Transform3D};
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{self, AssetHandle, ShaderLoader},
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
@@ -31,9 +31,10 @@ const DEPTH_BIAS_STATE_CLAMP: f32 = 0.0; // disable with 0.0
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let shader_handle = asset::AssetBuilder::load("assets/shaders/shadow_pass.wgsl")
-            .watch(cache)
-            .build(cache);
+        let shader_handle =
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/shadow_pass.wgsl")
+                .watch(cache)
+                .build(cache);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // light matrices

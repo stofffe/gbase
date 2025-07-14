@@ -78,21 +78,23 @@
     [x] compare front+back+bias vs only back faces
 
 [] assets 
-    [] remove typeid from asset handle, store it as tuple where needed
+    [] garbage collect old handles
+    [] make convert only run once if it fails
     [] make non loading separate type without unwrap
     [] add imports to shaders
     [] add sub model loading, file.glft#node1
-    [] check if asset waiting queus up work (like in pbr)
-    [] make uniform/storage/mesh (vertex) grow dynamically
-    [] use more references to avoid clone? or use copy?
+    [] check if asset waiting queus up work (like in pbr)?
+    [] make uniform/storage/mesh (vertex) grow dynamically?
     [] allow load to error?
     [] reintroduce pixel cache
     [] types
         [] font
-    [x] mesh lod loading 
-    [x] add gltf loader
+    [/] add gltf loader
+        [x] load gltf
         [] cache duplicate meshes and materials
         [] add required attributes as param?
+    [x] remove typeid from asset handle, store it as tuple where needed
+    [x] mesh lod loading 
     [x] look into putting assets in app and not context
 
 [] bloom
@@ -179,7 +181,6 @@
     [] min/max size for elements?
     [] rounded corners
     [] (){} weird sizes
-
 
 [] example template
     [] toml

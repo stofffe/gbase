@@ -5,7 +5,8 @@ use gbase::{
     load_b, render, time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, Material, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget, WHITE,
+    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget,
+    WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
@@ -106,11 +107,11 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLod>("assets/models/helmet_lod.glb")
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
             .watch(cache)
             .build(cache);
 
-        let ak47_mesh = AssetBuilder::load::<MeshLod>("assets/models/ak47.glb")
+        let ak47_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/ak47.glb")
             .watch(cache)
             .build(cache);
 

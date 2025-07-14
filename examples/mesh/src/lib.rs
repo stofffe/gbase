@@ -9,8 +9,8 @@ use gbase::{
     time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, Direction, MeshLod, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget,
-    BLACK, GRAY, WHITE,
+    Alignment, Direction, MeshLod, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind,
+    Transform3D, Widget, BLACK, GRAY, WHITE,
 };
 use std::f32::consts::PI;
 use time::Instant;
@@ -94,7 +94,7 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLod>("assets/models/helmet_lod.glb")
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
             .watch(cache)
             .build(cache);
 

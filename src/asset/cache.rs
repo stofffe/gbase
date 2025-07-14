@@ -1,6 +1,6 @@
 use super::{
-    Asset, AssetHandle, ConvertableRenderAsset, DynAsset, DynAssetHandle, DynAssetLoadFn,
-    DynAssetWriteFn, DynRenderAsset, LoadableAsset, WriteableAsset,
+    Asset, AssetHandle, AssetLoader, ConvertableRenderAsset, DynAsset, DynAssetHandle,
+    DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{render::ArcHandle, Context};
 use futures_channel::mpsc;
@@ -12,40 +12,10 @@ use std::{
     time::Duration,
 };
 
-// TODO: maybe create new types for the complicated ones
-
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
-
-#[derive(Debug, Clone)]
-pub struct LoadContext {
-    sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
-}
-
-impl LoadContext {
-    pub fn new(sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>) -> Self {
-        Self { sender }
-    }
-
-    pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new();
-        self.sender
-            .unbounded_send((handle.as_any(), Box::new(value)))
-            .unwrap();
-        handle
-    }
-
-    // TODO: ref vs owned self?
-    pub async fn load<T: LoadableAsset>(&self, path: impl Into<PathBuf>) -> AssetHandle<T> {
-        let path = path.into();
-        let value = T::load(self.clone(), &path).await;
-        self.insert(value)
-    }
-}
-
 pub struct AssetCache {
     cache: FxHashMap<DynAssetHandle, DynAsset>,
     just_loaded: FxHashSet<DynAssetHandle>,
-
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
@@ -58,6 +28,8 @@ pub struct AssetCache {
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
+    // specialized caches
+    // pixel textures
 }
 
 impl AssetCache {
@@ -169,11 +141,11 @@ impl AssetCache {
     // Reloading
     //
 
-    pub fn load<T: Asset + LoadableAsset>(
+    pub fn load<T: AssetLoader>(
         &mut self,
-        handle: AssetHandle<T>,
+        handle: AssetHandle<T::Asset>,
         path: &Path,
-    ) -> AssetHandle<T> {
+    ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
         // add to currently loading
@@ -189,6 +161,7 @@ impl AssetCache {
         std::thread::spawn(move || {
             pollster::block_on(async {
                 let data = T::load(load_context, &path_clone).await;
+                // let data = T::load(load_context, &path_clone).await;
                 loaded_sender_clone
                     .unbounded_send((handle_clone.as_any(), Box::new(data)))
                     .expect("could not send");
@@ -319,6 +292,36 @@ impl AssetCache {
 }
 
 //
+// Load context
+//
+
+#[derive(Debug, Clone)]
+pub struct LoadContext {
+    sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+}
+
+impl LoadContext {
+    pub fn new(sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>) -> Self {
+        Self { sender }
+    }
+
+    pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
+        let handle = AssetHandle::<T>::new();
+        self.sender
+            .unbounded_send((handle.as_any(), Box::new(value)))
+            .unwrap();
+        handle
+    }
+
+    // TODO: ref vs owned self?
+    // pub async fn load<T: LoadableAsset>(&self, path: impl Into<PathBuf>) -> AssetHandle<T> {
+    //     let path = path.into();
+    //     let value = T::load(self.clone(), &path).await;
+    //     self.insert(value)
+    // }
+}
+
+//
 // Hot reload extension
 //
 
@@ -347,7 +350,7 @@ pub struct AssetCacheExt {
 impl AssetCacheExt {
     /// Register asset for being watched for hot reloads
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn watch<T: Asset + LoadableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
+    pub fn watch<T: AssetLoader>(&mut self, handle: AssetHandle<T::Asset>, path: &Path) {
         // need absolute path since notify uses them
         let absolute_path = fs::canonicalize(path).unwrap();
 
@@ -366,40 +369,40 @@ impl AssetCacheExt {
 
         // map handle to type
         self.handle_to_type
-            .insert(handle.as_any(), TypeId::of::<T>());
+            .insert(handle.as_any(), TypeId::of::<T::Asset>());
 
         // store reload function
         self.reload_functions
-            .entry(TypeId::of::<T>())
+            .entry(TypeId::of::<T::Asset>())
             .or_insert_with(|| {
                 Box::new(|load_ctx, path| Box::new(pollster::block_on(T::load(load_ctx, path))))
             });
     }
 
-    /// Register asset for being written to disk when updated
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn write<T: Asset + WriteableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
-        let path = path.to_path_buf();
-
-        // map handle to path
-        self.write_handles.insert(handle.as_any(), path.clone());
-
-        // map handle to type
-        self.handle_to_type
-            .insert(handle.as_any(), TypeId::of::<T>());
-
-        // store reload function
-        self.write_functions
-            .entry(TypeId::of::<T>())
-            .or_insert_with(|| {
-                Box::new(|asset, path| {
-                    let typed = (asset.as_mut() as &mut dyn Any)
-                        .downcast_mut::<T>()
-                        .expect("could not cast during write");
-                    typed.write(path);
-                })
-            });
-    }
+    // /// Register asset for being written to disk when updated
+    // #[cfg(not(target_arch = "wasm32"))]
+    // pub fn write<T: Asset + WriteableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
+    //     let path = path.to_path_buf();
+    //
+    //     // map handle to path
+    //     self.write_handles.insert(handle.as_any(), path.clone());
+    //
+    //     // map handle to type
+    //     self.handle_to_type
+    //         .insert(handle.as_any(), TypeId::of::<T>());
+    //
+    //     // store reload function
+    //     self.write_functions
+    //         .entry(TypeId::of::<T>())
+    //         .or_insert_with(|| {
+    //             Box::new(|asset, path| {
+    //                 let typed = (asset.as_mut() as &mut dyn Any)
+    //                     .downcast_mut::<T>()
+    //                     .expect("could not cast during write");
+    //                 typed.write(path);
+    //             })
+    //         });
+    // }
 
     // check if any files are scheduled for writing to disk
     pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, DynAsset>) {

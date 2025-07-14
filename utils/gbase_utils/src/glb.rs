@@ -1,6 +1,6 @@
-use crate::texture_builder_from_image_bytes;
+use crate::{texture_builder_from_image_bytes, MeshLod};
 use gbase::{
-    asset::{Asset, AssetCache, AssetHandle, LoadContext, LoadableAsset},
+    asset::{Asset, AssetCache, AssetHandle, AssetLoader, LoadContext},
     filesystem,
     render::{self, Image, Mesh, SamplerBuilder},
     tracing, wgpu,
@@ -382,12 +382,12 @@ pub fn parse_gltf_material(
 
 impl Asset for Gltf {}
 
-impl LoadableAsset for Gltf {
-    async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self {
-        let bytes = filesystem::load_bytes(path).await;
-        parse_gltf_file(&load_ctx, &bytes)
-    }
-}
+// impl LoadableAsset for Gltf {
+//     async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self {
+//         let bytes = filesystem::load_bytes(path).await;
+//         parse_gltf_file(&load_ctx, &bytes)
+//     }
+// }
 
 impl Asset for GltfMesh {}
 impl Asset for Material {}

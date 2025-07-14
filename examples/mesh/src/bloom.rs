@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self},
+    asset::{self, ShaderLoader},
     render::{self, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
 };
@@ -27,9 +27,10 @@ impl Tonemap {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let shader_handle = asset::AssetBuilder::load("assets/shaders/tonemap.wgsl")
-            .watch(cache)
-            .build(cache);
+        let shader_handle =
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/tonemap.wgsl")
+                .watch(cache)
+                .build(cache);
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -157,9 +158,10 @@ impl Bloom {
         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![extract_bindgroup_layout.clone()])
             .build(ctx);
-        let extract_shader_handle = asset::AssetBuilder::load("assets/shaders/bloom_extract.wgsl")
-            .watch(cache)
-            .build(cache);
+        let extract_shader_handle =
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_extract.wgsl")
+                .watch(cache)
+                .build(cache);
 
         //
         // Downsample
@@ -181,7 +183,7 @@ impl Bloom {
             .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
         let downsample_shader_handle =
-            asset::AssetBuilder::load("assets/shaders/bloom_downsample.wgsl")
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_downsample.wgsl")
                 .watch(cache)
                 .build(cache);
 
@@ -209,7 +211,7 @@ impl Bloom {
             .bind_groups(vec![upsample_bindgroup_layout.clone()])
             .build(ctx);
         let upsample_shader_handle =
-            asset::AssetBuilder::load("assets/shaders/bloom_upsample.wgsl")
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_upsample.wgsl")
                 .watch(cache)
                 .build(cache);
 
@@ -252,9 +254,10 @@ impl Bloom {
         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![combine_bindgroup_layout.clone()])
             .build(ctx);
-        let combine_shader_handle = asset::AssetBuilder::load("assets/shaders/bloom_combine.wgsl")
-            .watch(cache)
-            .build(cache);
+        let combine_shader_handle =
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_combine.wgsl")
+                .watch(cache)
+                .build(cache);
 
         let downsampling_buffer = FrameBufferBuilder::new()
             .label("downsampling")

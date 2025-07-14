@@ -1,10 +1,11 @@
 use crate::{parse_gltf_primitives, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetHandle, ConvertableRenderAsset, LoadableAsset, RenderAsset,
+        self, Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, LoadContext,
+        RenderAsset,
     },
     filesystem,
-    render::{self, ArcHandle, BoundingBox, GpuMesh},
+    render::{self, BoundingBox},
 };
 use std::ops::Deref;
 
@@ -39,8 +40,12 @@ impl MeshLod {
 }
 
 impl Asset for MeshLod {}
-impl LoadableAsset for MeshLod {
-    async fn load(load_ctx: asset::LoadContext, path: &std::path::Path) -> Self {
+
+pub struct MeshLodLoader {}
+impl AssetLoader for MeshLodLoader {
+    type Asset = MeshLod;
+
+    async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
         let primitives = parse_gltf_primitives(&load_ctx, &bytes);
 
@@ -52,28 +57,6 @@ impl LoadableAsset for MeshLod {
             .collect();
 
         MeshLod { meshes, material }
-    }
-}
-
-#[derive(Clone)]
-pub struct MeshWrapper(ArcHandle<GpuMesh>);
-
-impl RenderAsset for MeshWrapper {}
-impl ConvertableRenderAsset for MeshWrapper {
-    type SourceAsset = MeshLod;
-    type Params = usize; // lod level
-    type Error = bool;
-
-    fn convert(
-        ctx: &mut gbase::Context,
-        cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
-        params: &Self::Params,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
-        let mesh = source.get_lod_closest(*params);
-        let gpu_mesh = mesh.convert::<GpuMesh>(ctx, cache, &()).unwrap();
-        Ok(MeshWrapper(gpu_mesh))
     }
 }
 
@@ -110,6 +93,28 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
         ))
     }
 }
+
+// #[derive(Clone)]
+// pub struct MeshWrapper(ArcHandle<GpuMesh>);
+//
+// impl RenderAsset for MeshWrapper {}
+// impl ConvertableRenderAsset for MeshWrapper {
+//     type SourceAsset = MeshLod;
+//     type Params = usize; // lod level
+//     type Error = bool;
+//
+//     fn convert(
+//         ctx: &mut gbase::Context,
+//         cache: &mut AssetCache,
+//         source: AssetHandle<Self::SourceAsset>,
+//         params: &Self::Params,
+//     ) -> Result<Self, Self::Error> {
+//         let source = cache.get(source).unwrap();
+//         let mesh = source.get_lod_closest(*params);
+//         let gpu_mesh = mesh.convert::<GpuMesh>(ctx, cache, &()).unwrap();
+//         Ok(MeshWrapper(gpu_mesh))
+//     }
+// }
 
 // impl Asset for MeshLod {}
 // impl LoadableAsset for MeshLod {

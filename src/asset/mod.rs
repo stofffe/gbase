@@ -7,6 +7,7 @@ use std::{marker::PhantomData, path::PathBuf};
 
 pub use cache::*;
 pub use handle::*;
+pub use implementations::*;
 pub use types::*;
 
 use crate::{render::ArcHandle, Context};
@@ -20,7 +21,7 @@ impl AssetBuilder {
     pub fn insert<T: Asset>(value: T) -> InsertAssetBuilder<T> {
         InsertAssetBuilder::<T> { value }
     }
-    pub fn load<T: Asset + LoadableAsset>(path: impl Into<PathBuf>) -> LoadedAssetBuilder<T> {
+    pub fn load<T: AssetLoader>(path: impl Into<PathBuf>) -> LoadedAssetBuilder<T> {
         LoadedAssetBuilder::<T> {
             handle: AssetHandle::new(),
             path: path.into(),
@@ -47,23 +48,23 @@ impl<T: Asset> InsertAssetBuilder<T> {
 // Loaded
 //
 
-pub struct LoadedAssetBuilder<T: Asset + LoadableAsset> {
-    handle: AssetHandle<T>,
+pub struct LoadedAssetBuilder<T: AssetLoader> {
+    handle: AssetHandle<T::Asset>,
     path: PathBuf,
     ty: PhantomData<T>,
 }
 
-// TODO: can these just store bool instead?
-impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn write(self, cache: &mut AssetCache) -> Self {
-        cache.ext.write::<T>(self.handle, &self.path);
-        self
-    }
-}
+// // TODO: can these just store bool instead?
+// impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
+//     #[cfg(not(target_arch = "wasm32"))]
+//     pub fn write(self, cache: &mut AssetCache) -> Self {
+//         cache.ext.write::<T>(self.handle, &self.path);
+//         self
+//     }
+// }
 
 // TODO: can these just store bool instead?
-impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
+impl<T: AssetLoader> LoadedAssetBuilder<T> {
     pub fn watch(self, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
         cache.ext.watch::<T>(self.handle, &self.path);
@@ -71,8 +72,8 @@ impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
     }
 }
 
-impl<T: Asset + LoadableAsset> LoadedAssetBuilder<T> {
-    pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T> {
+impl<T: AssetLoader> LoadedAssetBuilder<T> {
+    pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
         cache.load::<T>(self.handle, &self.path)
     }
 }

@@ -1,4 +1,4 @@
-use super::{Asset, AssetCache, AssetHandle, ConvertableRenderAsset, LoadableAsset, RenderAsset};
+use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
 use crate::{
     filesystem,
     render::{self, GpuImage},
@@ -51,11 +51,14 @@ impl ConvertableRenderAsset for render::BoundingBox {
 
 impl Asset for render::ShaderBuilder {}
 
-impl LoadableAsset for render::ShaderBuilder {
-    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self {
+pub struct ShaderLoader {}
+impl AssetLoader for ShaderLoader {
+    type Asset = render::ShaderBuilder;
+
+    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
         let source = filesystem::load_str(path).await;
 
-        Self {
+        Self::Asset {
             label: Some(path.to_str().unwrap().to_string()),
             source,
         }
@@ -93,8 +96,11 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 
 impl Asset for render::Image {}
 
-impl LoadableAsset for render::Image {
-    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self {
+pub struct ImageLoader {}
+impl AssetLoader for ImageLoader {
+    type Asset = render::Image;
+
+    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
 
         let img = image::load_from_memory(&bytes)
@@ -106,7 +112,7 @@ impl LoadableAsset for render::Image {
             img.to_vec(),
         ));
         let sampler = render::SamplerBuilder::new();
-        Self { texture, sampler }
+        Self::Asset { texture, sampler }
     }
 }
 

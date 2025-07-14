@@ -17,11 +17,17 @@ pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
 
 pub trait Asset: Any + Send + Sync {}
 
-pub trait LoadableAsset: Asset {
-    fn load(load_ctx: LoadContext, path: &Path) -> impl Future<Output = Self>;
-}
-pub trait WriteableAsset: LoadableAsset {
-    fn write(&mut self, path: &Path);
+// pub trait LoadableAsset: Asset {
+//     fn load(load_ctx: LoadContext, path: &Path) -> impl Future<Output = Self>;
+// }
+// pub trait WriteableAsset: LoadableAsset {
+//     fn write(&mut self, path: &Path);
+// }
+
+pub trait AssetLoader {
+    type Asset: Asset;
+
+    fn load(load_ctx: LoadContext, path: &Path) -> impl Future<Output = Self::Asset>;
 }
 
 pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename

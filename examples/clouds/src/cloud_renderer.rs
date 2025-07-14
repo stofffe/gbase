@@ -1,5 +1,6 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
+use gbase::asset::{ImageLoader, ShaderLoader};
 use gbase::render::{GpuImage, GpuMesh, Image, Mesh};
 use gbase::{asset, tracing};
 use gbase::{
@@ -28,7 +29,7 @@ impl CloudRenderer {
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
         let weather_map_texture =
-            asset::AssetBuilder::load("assets/textures/clouds_weather_map.png")
+            asset::AssetBuilder::load::<ImageLoader>("assets/textures/clouds_weather_map.png")
                 .watch(cache)
                 // TODO:
                 // .on_load(|img: &mut Image| {
@@ -36,14 +37,15 @@ impl CloudRenderer {
                 //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
                 // })
                 .build(cache);
-        let blue_noise_texture = asset::AssetBuilder::load("assets/textures/blue_noise.png")
-            .watch(cache)
-            // TODO:
-            // .on_load(|img: &mut Image| {
-            //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-            //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-            // })
-            .build(cache);
+        let blue_noise_texture =
+            asset::AssetBuilder::load::<ImageLoader>("assets/textures/blue_noise.png")
+                .watch(cache)
+                // TODO:
+                // .on_load(|img: &mut Image| {
+                //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+                //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+                // })
+                .build(cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
@@ -54,7 +56,7 @@ impl CloudRenderer {
             ]));
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
-        let shader_handle = asset::AssetBuilder::load("assets/shaders/clouds.wgsl")
+        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/clouds.wgsl")
             .watch(cache)
             .build(cache);
 
