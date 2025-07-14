@@ -1,4 +1,8 @@
-use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
+use std::fs;
+
+use super::{
+    Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset, RenderAsset,
+};
 use crate::{
     filesystem,
     render::{self, GpuImage},

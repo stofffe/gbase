@@ -3,14 +3,13 @@ mod handle;
 mod implementations;
 mod types;
 
-use std::{marker::PhantomData, path::PathBuf};
-
 pub use cache::*;
 pub use handle::*;
 pub use implementations::*;
 pub use types::*;
 
 use crate::{render::ArcHandle, Context};
+use std::path::PathBuf;
 
 //
 // Builder
@@ -25,7 +24,6 @@ impl AssetBuilder {
         LoadedAssetBuilder::<T> {
             handle: AssetHandle::new(),
             path: path.into(),
-            ty: PhantomData,
         }
     }
 }
@@ -51,17 +49,16 @@ impl<T: Asset> InsertAssetBuilder<T> {
 pub struct LoadedAssetBuilder<T: AssetLoader> {
     handle: AssetHandle<T::Asset>,
     path: PathBuf,
-    ty: PhantomData<T>,
 }
 
-// // TODO: can these just store bool instead?
-// impl<T: Asset + LoadableAsset + WriteableAsset> LoadedAssetBuilder<T> {
-//     #[cfg(not(target_arch = "wasm32"))]
-//     pub fn write(self, cache: &mut AssetCache) -> Self {
-//         cache.ext.write::<T>(self.handle, &self.path);
-//         self
-//     }
-// }
+// TODO: can these just store bool instead?
+impl<T: AssetWriter> LoadedAssetBuilder<T> {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn write(self, cache: &mut AssetCache) -> Self {
+        cache.ext.write::<T>(self.handle, &self.path);
+        self
+    }
+}
 
 // TODO: can these just store bool instead?
 impl<T: AssetLoader> LoadedAssetBuilder<T> {

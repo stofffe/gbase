@@ -1,5 +1,5 @@
 use super::{
-    Asset, AssetHandle, AssetLoader, ConvertableRenderAsset, DynAsset, DynAssetHandle,
+    Asset, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset, DynAsset, DynAssetHandle,
     DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{render::ArcHandle, Context};
@@ -379,30 +379,30 @@ impl AssetCacheExt {
             });
     }
 
-    // /// Register asset for being written to disk when updated
-    // #[cfg(not(target_arch = "wasm32"))]
-    // pub fn write<T: Asset + WriteableAsset>(&mut self, handle: AssetHandle<T>, path: &Path) {
-    //     let path = path.to_path_buf();
-    //
-    //     // map handle to path
-    //     self.write_handles.insert(handle.as_any(), path.clone());
-    //
-    //     // map handle to type
-    //     self.handle_to_type
-    //         .insert(handle.as_any(), TypeId::of::<T>());
-    //
-    //     // store reload function
-    //     self.write_functions
-    //         .entry(TypeId::of::<T>())
-    //         .or_insert_with(|| {
-    //             Box::new(|asset, path| {
-    //                 let typed = (asset.as_mut() as &mut dyn Any)
-    //                     .downcast_mut::<T>()
-    //                     .expect("could not cast during write");
-    //                 typed.write(path);
-    //             })
-    //         });
-    // }
+    /// Register asset for being written to disk when updated
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn write<T: AssetWriter>(&mut self, handle: AssetHandle<T::Asset>, path: &Path) {
+        let path = path.to_path_buf();
+
+        // map handle to path
+        self.write_handles.insert(handle.as_any(), path.clone());
+
+        // map handle to type
+        self.handle_to_type
+            .insert(handle.as_any(), TypeId::of::<T::Asset>());
+
+        // store reload function
+        self.write_functions
+            .entry(TypeId::of::<T::Asset>())
+            .or_insert_with(|| {
+                Box::new(|asset, path| {
+                    let typed = (asset.as_mut() as &mut dyn Any)
+                        .downcast_mut::<T::Asset>()
+                        .expect("could not cast during write");
+                    T::write(typed, path);
+                })
+            });
+    }
 
     // check if any files are scheduled for writing to disk
     pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, DynAsset>) {

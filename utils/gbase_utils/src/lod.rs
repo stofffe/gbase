@@ -1,11 +1,12 @@
 use crate::{parse_gltf_primitives, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, LoadContext,
-        RenderAsset,
+        self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset,
+        LoadContext, RenderAsset,
     },
     filesystem,
     render::{self, BoundingBox},
+    tracing,
 };
 use std::ops::Deref;
 
@@ -57,6 +58,11 @@ impl AssetLoader for MeshLodLoader {
             .collect();
 
         MeshLod { meshes, material }
+    }
+}
+impl AssetWriter for MeshLodLoader {
+    fn write(asset: &Self::Asset, path: &std::path::Path) {
+        tracing::info!("write {:?} lod to {:?}", asset, path);
     }
 }
 
