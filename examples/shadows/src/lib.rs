@@ -5,8 +5,8 @@ use gbase::{
     load_b, render, time, tracing, wgpu, winit, Callbacks, Context,
 };
 use gbase_utils::{
-    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget,
-    WHITE,
+    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D,
+    ViewPort, Widget, WHITE,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
@@ -310,18 +310,23 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
-            .base_array_layer(0)
-            .dimension(wgpu::TextureViewDimension::D2)
-            .build(ctx);
-        self.framebuffer_renderer.render_depth(
-            ctx,
-            cache,
-            view,
-            screen_view,
-            render::surface_format(ctx),
-            &self.camera_buffer,
-        );
+        if input::key_pressed(ctx, input::KeyCode::F1) {
+            for i in 0..3 {
+                let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
+                    .base_array_layer(i)
+                    .dimension(wgpu::TextureViewDimension::D2)
+                    .build(ctx);
+                self.framebuffer_renderer.render_depth(
+                    ctx,
+                    cache,
+                    view,
+                    screen_view,
+                    render::surface_format(ctx),
+                    &self.camera_buffer,
+                    Some(ViewPort::new_ndc(ctx, 0.75, 0.25 * i as f32, 0.25, 0.25)),
+                );
+            }
+        }
 
         _render_timer.finish();
 
