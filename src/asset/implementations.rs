@@ -18,14 +18,12 @@ impl Asset for render::Mesh {}
 impl RenderAsset for render::GpuMesh {}
 impl ConvertableRenderAsset for render::GpuMesh {
     type SourceAsset = render::Mesh;
-    type Params = ();
     type Error = bool;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         Ok(render::GpuMesh::new(ctx, source))
@@ -35,14 +33,12 @@ impl ConvertableRenderAsset for render::GpuMesh {
 impl RenderAsset for render::BoundingBox {}
 impl ConvertableRenderAsset for render::BoundingBox {
     type SourceAsset = render::Mesh;
-    type Params = ();
     type Error = bool;
 
     fn convert(
         _ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         Ok(source.calculate_bounding_box())
@@ -72,14 +68,12 @@ impl AssetLoader for ShaderLoader {
 impl RenderAsset for wgpu::ShaderModule {}
 impl ConvertableRenderAsset for wgpu::ShaderModule {
     type SourceAsset = render::ShaderBuilder;
-    type Params = ();
     type Error = wgpu::Error;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         #[cfg(target_arch = "wasm32")]
@@ -124,14 +118,12 @@ impl RenderAsset for render::GpuImage {}
 
 impl ConvertableRenderAsset for render::GpuImage {
     type SourceAsset = render::Image;
-    type Params = ();
     type Error = bool;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         let sampler = source.sampler.clone().build(ctx);

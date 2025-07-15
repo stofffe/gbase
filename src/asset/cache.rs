@@ -187,7 +187,6 @@ impl AssetCache {
         &mut self,
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
-        params: &G::Params,
     ) -> Option<ArcHandle<G>> {
         if self.get(handle).is_none() {
             tracing::warn!("could not get source asset");
@@ -197,7 +196,7 @@ impl AssetCache {
         let key = (handle.clone().as_any(), TypeId::of::<G>());
         let render_asset_exists = self.render_cache.contains_key(&key);
         if !render_asset_exists {
-            match G::convert(ctx, self, handle, params) {
+            match G::convert(ctx, self, handle) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     // actual cache
@@ -496,8 +495,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
         self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-        params: &G::Params,
     ) -> Option<ArcHandle<G>> {
-        cache.convert(ctx, self, params)
+        cache.convert(ctx, self)
     }
 }

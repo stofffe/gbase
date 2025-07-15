@@ -144,9 +144,9 @@ impl CloudRenderer {
         self.app_info.update_buffer(ctx);
 
         let weather_map =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.weather_map_handle, &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.weather_map_handle).unwrap();
         let blue_noise =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.blue_noise_handle, &()).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.blue_noise_handle).unwrap();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -170,7 +170,7 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, cache, self.shader_handle, &()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle).unwrap();
         let mesh = asset::get(cache, self.mesh_handle).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
@@ -179,7 +179,7 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = asset::convert_asset::<GpuMesh>(ctx, cache, self.mesh_handle, &()).unwrap();
+        let mesh_gpu = asset::convert_asset::<GpuMesh>(ctx, cache, self.mesh_handle).unwrap();
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

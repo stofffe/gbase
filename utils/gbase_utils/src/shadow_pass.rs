@@ -156,9 +156,7 @@ impl ShadowPass {
                     return false;
                 }
 
-                let bounds = handle
-                    .convert::<BoundingBoxWrapper>(ctx, cache, &())
-                    .unwrap();
+                let bounds = handle.convert::<BoundingBoxWrapper>(ctx, cache).unwrap();
                 frustums[i].sphere_inside(&bounds, transform)
             });
             let mut ranges = Vec::new();
@@ -191,8 +189,7 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(*mesh_handle);
 
-                let gpu_mesh =
-                    asset::convert_asset::<GpuMesh>(ctx, cache, *mesh_handle, &()).unwrap();
+                let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, *mesh_handle).unwrap();
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -217,7 +214,7 @@ impl ShadowPass {
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                 ])
                 .build(ctx);
-            let shader = asset::convert_asset(ctx, cache, self.shader_handle, &()).unwrap();
+            let shader = asset::convert_asset(ctx, cache, self.shader_handle).unwrap();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
                 .label("shadow_pass")
                 .cull_mode(wgpu::Face::Back)

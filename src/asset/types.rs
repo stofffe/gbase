@@ -32,13 +32,11 @@ pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
 // pub trait ConvertableRenderAsset: RenderAsset + Sync + Sized {
 pub trait ConvertableRenderAsset: RenderAsset + Sized + Clone {
     type SourceAsset: Asset;
-    type Params;
     type Error: Debug + Display;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        params: &Self::Params,
     ) -> Result<Self, Self::Error>;
 }

@@ -78,6 +78,7 @@
     [x] compare front+back+bias vs only back faces
 
 [] assets 
+    [] params must be part of conversion hash?
     [] garbage collect old handles
     [] make convert only run once if it fails
     [] make non loading separate type without unwrap
@@ -181,6 +182,13 @@
     [] min/max size for elements?
     [] rounded corners
     [] (){} weird sizes
+
+MPM
+    [] implement fixed time step
+links
+https://www.sci.utah.edu/publications/Sol2021b/CH0003%20pre-proof-without-videos.pdf
+https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf
+https://nialltl.neocities.org/articles/mpm_guide
 
 [] example template
     [] toml

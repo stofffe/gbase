@@ -88,14 +88,10 @@ impl Callbacks for App {
         {
             return false;
         }
-        let mesh =
-            asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle, &()).unwrap();
+        let mesh = asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle).unwrap();
         let shader =
-            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle, &())
-                .unwrap();
-
-        let texture =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle, &()).unwrap();
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle).unwrap();
+        let texture = asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle).unwrap();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![

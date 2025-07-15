@@ -59,8 +59,7 @@ impl Tonemap {
             .build(ctx);
 
         let shader =
-            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone(), &())
-                .unwrap();
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle).unwrap();
         let pipeline =
             render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone()).build(ctx);
 
@@ -358,8 +357,7 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let extract_shader =
-            asset::convert_asset(ctx, cache, self.extract_shader_handle.clone(), &()).unwrap();
+        let extract_shader = asset::convert_asset(ctx, cache, self.extract_shader_handle).unwrap();
         let extract_pipeline = render::RenderPipelineBuilder::new(
             extract_shader,
             self.extract_pipeline_layout.clone(),
@@ -393,13 +391,9 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let downsample_shader = asset::convert_asset::<wgpu::ShaderModule>(
-            ctx,
-            cache,
-            self.downsample_shader_handle.clone(),
-            &(),
-        )
-        .unwrap();
+        let downsample_shader =
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.downsample_shader_handle)
+                .unwrap();
         let downsample_pipeline = render::RenderPipelineBuilder::new(
             downsample_shader.clone(),
             self.downsample_pipeline_layout.clone(),
@@ -443,13 +437,9 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let upsample_shader = asset::convert_asset::<wgpu::ShaderModule>(
-            ctx,
-            cache,
-            self.upsample_shader_handle.clone(),
-            &(),
-        )
-        .unwrap();
+        let upsample_shader =
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.upsample_shader_handle)
+                .unwrap();
         let upsample_pipeline = render::RenderPipelineBuilder::new(
             upsample_shader.clone(),
             self.upsample_pipeline_layout.clone(),
@@ -520,13 +510,9 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let combine_shader = asset::convert_asset::<wgpu::ShaderModule>(
-            ctx,
-            cache,
-            self.combine_shader_handle.clone(),
-            &(),
-        )
-        .unwrap();
+        let combine_shader =
+            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.combine_shader_handle)
+                .unwrap();
         let combine_pipeline = render::RenderPipelineBuilder::new(
             combine_shader,
             self.combine_pipeline_layout.clone(),

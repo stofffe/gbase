@@ -80,14 +80,12 @@ impl Deref for BoundingBoxWrapper {
 impl RenderAsset for BoundingBoxWrapper {}
 impl ConvertableRenderAsset for BoundingBoxWrapper {
     type SourceAsset = MeshLod;
-    type Params = ();
     type Error = bool;
 
     fn convert(
         _ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-        _params: &Self::Params,
     ) -> Result<Self, Self::Error> {
         let source = cache.get(source).unwrap();
         Ok(BoundingBoxWrapper(
@@ -99,60 +97,3 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
         ))
     }
 }
-
-// #[derive(Clone)]
-// pub struct MeshWrapper(ArcHandle<GpuMesh>);
-//
-// impl RenderAsset for MeshWrapper {}
-// impl ConvertableRenderAsset for MeshWrapper {
-//     type SourceAsset = MeshLod;
-//     type Params = usize; // lod level
-//     type Error = bool;
-//
-//     fn convert(
-//         ctx: &mut gbase::Context,
-//         cache: &mut AssetCache,
-//         source: AssetHandle<Self::SourceAsset>,
-//         params: &Self::Params,
-//     ) -> Result<Self, Self::Error> {
-//         let source = cache.get(source).unwrap();
-//         let mesh = source.get_lod_closest(*params);
-//         let gpu_mesh = mesh.convert::<GpuMesh>(ctx, cache, &()).unwrap();
-//         Ok(MeshWrapper(gpu_mesh))
-//     }
-// }
-
-// impl Asset for MeshLod {}
-// impl LoadableAsset for MeshLod {
-//     async fn load(
-//         path: &std::path::Path,
-//         sender: futures_channel::mpsc::UnboundedSender<(asset::DynAssetHandle, asset::DynAsset)>,
-//     ) -> Self {
-//         let gltf = crate::parse_gltf_file(cache, bytes)
-//             .get(cache)
-//             .unwrap()
-//             .clone();
-//
-//         // TODO: remove this
-//         let thresholds = [0.25, 0.125, 0.0];
-//         let mut meshes = Vec::new();
-//         let mut material = None;
-//         for (i, mesh) in gltf.meshes.iter().enumerate() {
-//             let mesh = mesh.clone().get_mut(cache).unwrap().clone();
-//             let primitive = &mesh.primitives[0];
-//
-//             let mesh_mut = primitive.mesh.clone().get_mut(cache).unwrap();
-//             *mesh_mut = mesh_mut
-//                 .clone()
-//                 .extract_attributes(pbr.required_attributes().clone());
-//
-//             meshes.push((primitive.mesh.clone(), thresholds[i]));
-//             material = Some(primitive.material.clone());
-//         }
-//
-//         MeshLod {
-//             meshes,
-//             material: material.unwrap(),
-//         }
-//     }
-// }
