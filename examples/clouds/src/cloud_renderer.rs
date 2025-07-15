@@ -31,20 +31,10 @@ impl CloudRenderer {
         let weather_map_texture =
             asset::AssetBuilder::load::<ImageLoader>("assets/textures/clouds_weather_map.png")
                 .watch(cache)
-                // TODO:
-                // .on_load(|img: &mut Image| {
-                //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-                //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-                // })
                 .build(cache);
         let blue_noise_texture =
             asset::AssetBuilder::load::<ImageLoader>("assets/textures/blue_noise.png")
                 .watch(cache)
-                // TODO:
-                // .on_load(|img: &mut Image| {
-                //     img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-                //     img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-                // })
                 .build(cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
@@ -132,6 +122,17 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
+        if cache.handle_just_loaded(self.weather_map_handle) {
+            let img = cache.get_mut(self.weather_map_handle).unwrap();
+            img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+            img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+        }
+        if cache.handle_just_loaded(self.blue_noise_handle) {
+            let img = cache.get_mut(self.blue_noise_handle).unwrap();
+            img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+            img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+        }
+
         if !asset::handle_loaded(cache, self.shader_handle)
             || !asset::handle_loaded(cache, self.mesh_handle)
             || !asset::handle_loaded(cache, self.weather_map_handle)
