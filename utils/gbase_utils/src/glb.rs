@@ -8,17 +8,23 @@ use gbase::{
 use std::collections::{BTreeMap, HashMap};
 
 pub struct GltfLoadCache {
-    materials: HashMap<usize, AssetHandle<Material>>,
-    meshes: HashMap<usize, AssetHandle<GltfMesh>>,
     nodes: HashMap<usize, AssetHandle<GltfNode>>,
+    named_nodes: HashMap<Box<str>, AssetHandle<GltfNode>>,
+
+    meshes: HashMap<usize, AssetHandle<GltfMesh>>,
+    named_meshes: HashMap<Box<str>, AssetHandle<GltfMesh>>,
+
+    materials: HashMap<usize, AssetHandle<Material>>,
 }
 
 impl GltfLoadCache {
     fn new() -> Self {
         Self {
-            materials: HashMap::new(),
-            meshes: HashMap::new(),
             nodes: HashMap::new(),
+            named_nodes: HashMap::new(),
+            meshes: HashMap::new(),
+            named_meshes: HashMap::new(),
+            materials: HashMap::new(),
         }
     }
 }
@@ -54,20 +60,25 @@ pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
     let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
     let buffer = glb.bin.expect("could not get glb buffer");
 
-    let mut meshes = Vec::new();
-
-    for mesh in info.meshes() {
-        let mesh_handle = parse_gltf_mesh(load_ctx, &buffer, &mut gltf_cache, mesh);
-        meshes.push(mesh_handle);
-    }
-
-    let mut nodes = Vec::new();
+    // let mut nodes = Vec::new();
     for node in info.nodes() {
-        let node_handle = parse_gltf_node(load_ctx, &buffer, &mut gltf_cache, node);
-        nodes.push(node_handle);
+        parse_gltf_node(load_ctx, &buffer, &mut gltf_cache, node);
     }
 
-    Gltf { meshes, nodes }
+    let GltfLoadCache {
+        nodes,
+        named_nodes,
+        meshes,
+        named_meshes,
+        ..
+    } = gltf_cache;
+
+    Gltf {
+        nodes: nodes.into_values().collect(),
+        named_nodes,
+        meshes: meshes.into_values().collect(),
+        named_meshes,
+    }
 }
 
 fn parse_gltf_node(
@@ -111,6 +122,9 @@ fn parse_gltf_node(
     });
 
     gltf_cache.nodes.insert(node.index(), node_handle);
+    if let Some(name) = node.name() {
+        gltf_cache.named_nodes.insert(Box::from(name), node_handle);
+    }
     node_handle
 }
 
@@ -137,6 +151,9 @@ fn parse_gltf_mesh(
     }
 
     let mesh_handle = load_ctx.insert(GltfMesh { name, primitives });
+    if let Some(name) = mesh.name() {
+        gltf_cache.named_meshes.insert(Box::from(name), mesh_handle);
+    }
     gltf_cache.meshes.insert(mesh.index(), mesh_handle);
     mesh_handle
 }
@@ -499,7 +516,9 @@ impl Asset for GltfNode {}
 #[derive(Debug, Clone)]
 pub struct Gltf {
     pub nodes: Vec<AssetHandle<GltfNode>>,
+    pub named_nodes: HashMap<Box<str>, AssetHandle<GltfNode>>,
     pub meshes: Vec<AssetHandle<GltfMesh>>,
+    pub named_meshes: HashMap<Box<str>, AssetHandle<GltfMesh>>,
 }
 
 #[derive(Debug, Clone)]
