@@ -1,7 +1,7 @@
-use crate::{texture_builder_from_image_bytes, MeshLod};
+use crate::{texture_builder_from_image_bytes, MeshLod, Transform3D};
 use gbase::{
     asset::{Asset, AssetCache, AssetHandle, AssetLoader, LoadContext},
-    filesystem,
+    glam::{Quat, Vec3},
     render::{self, Image, Mesh, SamplerBuilder},
     tracing, wgpu,
 };
@@ -43,7 +43,47 @@ pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
         meshes.push(mesh_handle);
     }
 
-    Gltf { meshes }
+    let mut nodes = Vec::new();
+    for node in info.nodes() {
+        let node = parse_gltf_node(load_ctx, &buffer, node);
+        let node_handle = load_ctx.insert(node);
+        nodes.push(node_handle);
+    }
+
+    Gltf { meshes, nodes }
+}
+
+fn parse_gltf_node(load_ctx: &LoadContext, buffer: &[u8], node: gltf::Node<'_>) -> GltfNode {
+    let name = node
+        .name()
+        .map(|name| name.to_string())
+        .unwrap_or(format!("Node{}", node.index()));
+
+    let mesh = node
+        .mesh()
+        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, mesh))
+        .map(|mesh| load_ctx.insert(mesh));
+
+    let (translation, rotation, scale) = node.transform().decomposed();
+    let transform = Transform3D::new(
+        Vec3::from_array(translation),
+        Quat::from_array(rotation),
+        Vec3::from_array(scale),
+    );
+
+    let mut children = Vec::new();
+    for child in node.children() {
+        let child_node = parse_gltf_node(load_ctx, buffer, child);
+        let child_node_handle = load_ctx.insert(child_node);
+        children.push(child_node_handle);
+    }
+
+    GltfNode {
+        name,
+        mesh,
+        transform,
+        children,
+    }
 }
 
 fn parse_gltf_mesh(load_ctx: &LoadContext, buffer: &[u8], mesh: gltf::Mesh<'_>) -> GltfMesh {
@@ -188,9 +228,11 @@ fn parse_gltf_primitive(
         indices,
     };
 
-    let material = parse_gltf_material(load_ctx, buffer, primitive.material());
-
     let name = format!("{}_Primitive{}", mesh_name, primitive.index());
+
+    tracing::error!("parse {} material", &name);
+
+    let material = parse_gltf_material(load_ctx, buffer, primitive.material());
 
     GltfPrimitive {
         name,
@@ -272,7 +314,8 @@ pub fn parse_gltf_material(
 
     fn single_pixel_image(color: [u8; 4]) -> Image {
         Image {
-            texture: render::TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec())),
+            texture: render::TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec()))
+                .with_format(wgpu::TextureFormat::Rgba8Unorm),
             sampler: render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         }
@@ -336,6 +379,7 @@ pub fn parse_gltf_material(
 
     let (normal_texture, normal_scale) = match material.normal_texture() {
         Some(info) => {
+            tracing::error!("found normal map");
             assert!(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (normal)"
@@ -344,6 +388,7 @@ pub fn parse_gltf_material(
             (load_ctx.insert(image), info.scale())
         }
         None => {
+            tracing::error!("could not find normal map");
             let image = single_pixel_image(NORMAL_DEFAULT);
             (load_ctx.insert(image), 1.0)
         }
@@ -382,19 +427,22 @@ pub fn parse_gltf_material(
 
 impl Asset for Gltf {}
 
-// impl LoadableAsset for Gltf {
-//     async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self {
-//         let bytes = filesystem::load_bytes(path).await;
-//         parse_gltf_file(&load_ctx, &bytes)
-//     }
-// }
-
 impl Asset for GltfMesh {}
 impl Asset for Material {}
+impl Asset for GltfNode {}
 
 #[derive(Debug, Clone)]
 pub struct Gltf {
+    pub nodes: Vec<AssetHandle<GltfNode>>,
     pub meshes: Vec<AssetHandle<GltfMesh>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GltfNode {
+    pub name: String,
+    pub mesh: Option<AssetHandle<GltfMesh>>,
+    pub transform: Transform3D,
+    pub children: Vec<AssetHandle<GltfNode>>,
 }
 
 #[derive(Debug, Clone)]

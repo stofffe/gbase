@@ -76,6 +76,7 @@ fn vs_main(
     let T = normalize((model * vec4<f32>(in.tangent.xyz, 0.0)).xyz);
     let N = normalize((model * vec4<f32>(in.normal, 0.0)).xyz);
     let B = cross(N, T);
+    // let B = in.tangent.w * cross(N, T);
 
     var out: VertexOutput;
     let position = model * vec4<f32>(in.position, 1.0);
@@ -105,71 +106,6 @@ struct VertexOutput {
     @location(8) @interpolate(flat) index: u32,
 }
 
-fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
-    let view_space_pos = camera.view * vec4f(pos, 1.0);
-    let view_space_dist = -view_space_pos.z;
-
-    var index = 2;
-    for (var i = 0; i < 3; i++) {
-        let light_pos = shadow_matrices[i] * vec4f(pos, 1.0);
-        var shadow_uv = light_pos / light_pos.w;
-        shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
-        shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
-        shadow_uv.y = 1.0 - shadow_uv.y;
-
-        let pixel_depth = shadow_uv.z; // important to clamp [0,1]
-        if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(shadow_uv.xy >= vec2f(0.0)) && all(shadow_uv.xy <= vec2f(1.0)) {
-            index = i;
-            break;
-        }
-    }
-
-    let light_pos = shadow_matrices[index] * vec4f(pos, 1.0);
-    var shadow_uv = light_pos / light_pos.w;
-    shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
-    shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
-    shadow_uv.y = 1.0 - shadow_uv.y;
-
-    let pixel_depth = shadow_uv.z; // important to clamp [0,1]
-    if pixel_depth < 0.0 || pixel_depth > 1.0 {
-        return 0.0;
-    }
-    if any(shadow_uv.xy < vec2f(0.0)) || any(shadow_uv.xy > vec2f(1.0)) {
-        return 0.0;
-    }
-
-    // first sample center
-    var shadow_percentage = 1.0 - textureSampleCompareLevel(
-        shadow_map_texture,
-        shadow_map_sampler_comparison,
-        shadow_uv.xy,
-        index, // TODO: hardocded layer
-        pixel_depth, // TODO: bias as param?
-    );
-
-    const PCF_KERNEL_SIZE = 1;
-    let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
-    for (var x = 0; x < PCF_KERNEL_SIZE * 2; x++) {
-        for (var y = 0; y < PCF_KERNEL_SIZE * 2; y++) {
-            // sample between pixels to utilize linear filtering
-            let offset = shadow_uv.xy + vec2f(
-                f32(x) - f32(PCF_KERNEL_SIZE) + 0.5,
-                f32(y) - f32(PCF_KERNEL_SIZE) + 0.5,
-            ) * texel_size;
-
-            shadow_percentage += 1.0 - textureSampleCompareLevel(
-                shadow_map_texture,
-                shadow_map_sampler_comparison,
-                offset,
-                index, // TODO: hardocded layer
-                pixel_depth, // TODO: bias as param?
-            );
-        }
-    }
-
-    shadow_percentage /= f32((PCF_KERNEL_SIZE * 2) * (PCF_KERNEL_SIZE * 2) + 1); // +1 for middle sample
-    return shadow_percentage;
-}
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
@@ -242,10 +178,84 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     );
 
     if true {
+        return vec4f(normal, 1.0);
+    // return vec4f(in.N, 1.0);
+    // return vec4f(in.uv, 0.0, 1.0);
     // return vec4f(visibility, visibility, visibility, 1.0);
     }
     return vec4f(color, 1.0);
 }
+
+//
+// Shadows
+//
+
+fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
+    let view_space_pos = camera.view * vec4f(pos, 1.0);
+    let view_space_dist = -view_space_pos.z;
+
+    var index = 2;
+    for (var i = 0; i < 3; i++) {
+        let light_pos = shadow_matrices[i] * vec4f(pos, 1.0);
+        var shadow_uv = light_pos / light_pos.w;
+        shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
+        shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
+        shadow_uv.y = 1.0 - shadow_uv.y;
+
+        let pixel_depth = shadow_uv.z; // important to clamp [0,1]
+        if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(shadow_uv.xy >= vec2f(0.0)) && all(shadow_uv.xy <= vec2f(1.0)) {
+            index = i;
+            break;
+        }
+    }
+
+    let light_pos = shadow_matrices[index] * vec4f(pos, 1.0);
+    var shadow_uv = light_pos / light_pos.w;
+    shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
+    shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
+    shadow_uv.y = 1.0 - shadow_uv.y;
+
+    let pixel_depth = shadow_uv.z; // important to clamp [0,1]
+    if pixel_depth < 0.0 || pixel_depth > 1.0 {
+        return 0.0;
+    }
+    if any(shadow_uv.xy < vec2f(0.0)) || any(shadow_uv.xy > vec2f(1.0)) {
+        return 0.0;
+    }
+
+    // first sample center
+    var shadow_percentage = 1.0 - textureSampleCompareLevel(
+        shadow_map_texture,
+        shadow_map_sampler_comparison,
+        shadow_uv.xy,
+        index, // TODO: hardocded layer
+        pixel_depth, // TODO: bias as param?
+    );
+
+    const PCF_KERNEL_SIZE = 1;
+    let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
+    for (var x = 0; x < PCF_KERNEL_SIZE * 2; x++) {
+        for (var y = 0; y < PCF_KERNEL_SIZE * 2; y++) {
+            // sample between pixels to utilize linear filtering
+            let offset = shadow_uv.xy + vec2f(
+                f32(x) - f32(PCF_KERNEL_SIZE) + 0.5,
+                f32(y) - f32(PCF_KERNEL_SIZE) + 0.5,
+            ) * texel_size;
+
+            shadow_percentage += 1.0 - textureSampleCompareLevel(
+                shadow_map_texture,
+                shadow_map_sampler_comparison,
+                offset,
+                index, // TODO: hardocded layer
+                pixel_depth, // TODO: bias as param?
+            );
+        }
+    }
+
+    shadow_percentage /= f32((PCF_KERNEL_SIZE * 2) * (PCF_KERNEL_SIZE * 2) + 1); // +1 for middle sample
+    return shadow_percentage;
+}
+
 
 const PI = 3.1415927;
 

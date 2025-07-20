@@ -1,4 +1,4 @@
-use crate::{parse_gltf_primitives, Material};
+use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
         self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset,
@@ -63,6 +63,18 @@ impl AssetLoader for MeshLodLoader {
 impl AssetWriter for MeshLodLoader {
     fn write(asset: &Self::Asset, path: &std::path::Path) {
         tracing::info!("write {:?} lod to {:?}", asset, path);
+    }
+}
+
+pub struct GltfLoader {}
+
+impl AssetLoader for GltfLoader {
+    type Asset = Gltf;
+
+    async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
+        let bytes = filesystem::load_bytes(path).await;
+        let gltf = parse_gltf_file(&load_ctx, &bytes);
+        gltf
     }
 }
 
