@@ -12,7 +12,8 @@ pub struct Image {
 impl Image {
     pub fn new_pixel_texture(color: [u8; 4]) -> Self {
         Self {
-            texture: TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec())),
+            texture: TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec()))
+                .with_format(wgpu::TextureFormat::Rgba8Unorm),
             sampler: SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         }

@@ -1,15 +1,32 @@
-use crate::{texture_builder_from_image_bytes, MeshLod, Transform3D};
+use crate::{texture_builder_from_image_bytes, Transform3D};
 use gbase::{
-    asset::{Asset, AssetCache, AssetHandle, AssetLoader, LoadContext},
+    asset::{Asset, AssetCache, AssetHandle, LoadContext},
     glam::{Quat, Vec3},
     render::{self, Image, Mesh, SamplerBuilder},
     tracing, wgpu,
 };
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+
+pub struct GltfLoadCache {
+    materials: HashMap<usize, AssetHandle<Material>>,
+    meshes: HashMap<usize, AssetHandle<GltfMesh>>,
+    nodes: HashMap<usize, AssetHandle<GltfNode>>,
+}
+
+impl GltfLoadCache {
+    fn new() -> Self {
+        Self {
+            materials: HashMap::new(),
+            meshes: HashMap::new(),
+            nodes: HashMap::new(),
+        }
+    }
+}
 
 // TODO: have local cache for duplicate materials/primitives
 
 pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPrimitive> {
+    let mut gltf_cache = GltfLoadCache::new();
     let glb = gltf::Glb::from_slice(bytes).expect("could not import glb from slice");
     let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
     let buffer = glb.bin.expect("could not get glb buffer");
@@ -22,7 +39,8 @@ pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPr
             .unwrap_or(format!("Mesh{}", mesh.index()));
 
         for primitive in mesh.primitives() {
-            let primitive = parse_gltf_primitive(load_ctx, &buffer, primitive, &name);
+            let primitive =
+                parse_gltf_primitive(load_ctx, &buffer, &mut gltf_cache, primitive, &name);
             primitives.push(primitive);
         }
     }
@@ -31,6 +49,7 @@ pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPr
 }
 
 pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
+    let mut gltf_cache = GltfLoadCache::new();
     let glb = gltf::Glb::from_slice(bytes).expect("could not import glb from slice");
     let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
     let buffer = glb.bin.expect("could not get glb buffer");
@@ -38,22 +57,30 @@ pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
     let mut meshes = Vec::new();
 
     for mesh in info.meshes() {
-        let mesh = parse_gltf_mesh(load_ctx, &buffer, mesh);
-        let mesh_handle = load_ctx.insert(mesh);
+        let mesh_handle = parse_gltf_mesh(load_ctx, &buffer, &mut gltf_cache, mesh);
         meshes.push(mesh_handle);
     }
 
     let mut nodes = Vec::new();
     for node in info.nodes() {
-        let node = parse_gltf_node(load_ctx, &buffer, node);
-        let node_handle = load_ctx.insert(node);
+        let node_handle = parse_gltf_node(load_ctx, &buffer, &mut gltf_cache, node);
         nodes.push(node_handle);
     }
 
     Gltf { meshes, nodes }
 }
 
-fn parse_gltf_node(load_ctx: &LoadContext, buffer: &[u8], node: gltf::Node<'_>) -> GltfNode {
+fn parse_gltf_node(
+    load_ctx: &LoadContext,
+    buffer: &[u8],
+    gltf_cache: &mut GltfLoadCache,
+    node: gltf::Node<'_>,
+) -> AssetHandle<GltfNode> {
+    if let Some(node_handle) = gltf_cache.nodes.get(&node.index()) {
+        // tracing::error!("REUSE NODE {}", node.index());
+        return *node_handle;
+    }
+
     let name = node
         .name()
         .map(|name| name.to_string())
@@ -61,8 +88,7 @@ fn parse_gltf_node(load_ctx: &LoadContext, buffer: &[u8], node: gltf::Node<'_>) 
 
     let mesh = node
         .mesh()
-        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, mesh))
-        .map(|mesh| load_ctx.insert(mesh));
+        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, gltf_cache, mesh));
 
     let (translation, rotation, scale) = node.transform().decomposed();
     let transform = Transform3D::new(
@@ -73,20 +99,32 @@ fn parse_gltf_node(load_ctx: &LoadContext, buffer: &[u8], node: gltf::Node<'_>) 
 
     let mut children = Vec::new();
     for child in node.children() {
-        let child_node = parse_gltf_node(load_ctx, buffer, child);
-        let child_node_handle = load_ctx.insert(child_node);
+        let child_node_handle = parse_gltf_node(load_ctx, buffer, gltf_cache, child);
         children.push(child_node_handle);
     }
 
-    GltfNode {
+    let node_handle = load_ctx.insert(GltfNode {
         name,
         mesh,
         transform,
         children,
-    }
+    });
+
+    gltf_cache.nodes.insert(node.index(), node_handle);
+    node_handle
 }
 
-fn parse_gltf_mesh(load_ctx: &LoadContext, buffer: &[u8], mesh: gltf::Mesh<'_>) -> GltfMesh {
+fn parse_gltf_mesh(
+    load_ctx: &LoadContext,
+    buffer: &[u8],
+    gltf_cache: &mut GltfLoadCache,
+    mesh: gltf::Mesh<'_>,
+) -> AssetHandle<GltfMesh> {
+    if let Some(mesh_handle) = gltf_cache.meshes.get(&mesh.index()) {
+        // tracing::error!("REUSE MESH {}", mesh.index());
+        return *mesh_handle;
+    }
+
     let name = mesh
         .name()
         .map(|name| name.to_string())
@@ -94,16 +132,19 @@ fn parse_gltf_mesh(load_ctx: &LoadContext, buffer: &[u8], mesh: gltf::Mesh<'_>) 
 
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
-        let primitive = parse_gltf_primitive(load_ctx, buffer, primitive, &name);
+        let primitive = parse_gltf_primitive(load_ctx, buffer, gltf_cache, primitive, &name);
         primitives.push(primitive);
     }
 
-    GltfMesh { name, primitives }
+    let mesh_handle = load_ctx.insert(GltfMesh { name, primitives });
+    gltf_cache.meshes.insert(mesh.index(), mesh_handle);
+    mesh_handle
 }
 
 fn parse_gltf_primitive(
     load_ctx: &LoadContext,
     buffer: &[u8],
+    gltf_cache: &mut GltfLoadCache,
     primitive: gltf::Primitive<'_>,
     mesh_name: &str,
 ) -> GltfPrimitive {
@@ -124,6 +165,8 @@ fn parse_gltf_primitive(
         let length = view.length();
 
         let bytes = &buffer[offset..offset + length];
+
+        // TODO: can access with attr.get()
 
         match sem {
             gltf::Semantic::Positions => {
@@ -230,20 +273,29 @@ fn parse_gltf_primitive(
 
     let name = format!("{}_Primitive{}", mesh_name, primitive.index());
 
-    let material = parse_gltf_material(load_ctx, buffer, primitive.material());
+    let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material());
 
     GltfPrimitive {
         name,
+        material,
         mesh: load_ctx.insert(mesh),
-        material: load_ctx.insert(material),
     }
 }
 
 pub fn parse_gltf_material(
     load_ctx: &LoadContext,
     buffer: &[u8],
+    gltf_cache: &mut GltfLoadCache,
     material: gltf::Material<'_>,
-) -> Material {
+) -> AssetHandle<Material> {
+    // TODO: have default material on None?
+    if let Some(index) = material.index() {
+        // tracing::error!("REUSE MATERIAL {index}");
+        if let Some(material) = gltf_cache.materials.get(&index) {
+            return *material;
+        }
+    }
+
     fn load_image(
         buffer: &[u8],
         texture: &gltf::texture::Texture<'_>,
@@ -417,7 +469,7 @@ pub fn parse_gltf_material(
         }
     };
 
-    Material {
+    let material_handle = load_ctx.insert(Material {
         base_color_texture,
         color_factor,
         metallic_roughness_texture,
@@ -429,7 +481,13 @@ pub fn parse_gltf_material(
         normal_scale,
         emissive_texture,
         emissive_factor,
+    });
+
+    if let Some(index) = material.index() {
+        gltf_cache.materials.insert(index, material_handle);
     }
+
+    material_handle
 }
 
 impl Asset for Gltf {}
