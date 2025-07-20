@@ -230,8 +230,6 @@ fn parse_gltf_primitive(
 
     let name = format!("{}_Primitive{}", mesh_name, primitive.index());
 
-    tracing::error!("parse {} material", &name);
-
     let material = parse_gltf_material(load_ctx, buffer, primitive.material());
 
     GltfPrimitive {
@@ -246,7 +244,11 @@ pub fn parse_gltf_material(
     buffer: &[u8],
     material: gltf::Material<'_>,
 ) -> Material {
-    fn load_image(buffer: &[u8], texture: &gltf::texture::Texture<'_>) -> Image {
+    fn load_image(
+        buffer: &[u8],
+        texture: &gltf::texture::Texture<'_>,
+        format: wgpu::TextureFormat,
+    ) -> Image {
         let image = texture.source();
         let gltf::image::Source::View { view, mime_type } = image.source() else {
             panic!("image source URI not supported");
@@ -263,8 +265,9 @@ pub fn parse_gltf_material(
         let texture_buffer = &buffer[offset..offset + length];
         let sampler = texture.sampler();
 
-        let texture_builder =
-            texture_builder_from_image_bytes(texture_buffer).expect("could not load");
+        let texture_builder = texture_builder_from_image_bytes(texture_buffer)
+            .expect("could not load")
+            .with_format(format);
 
         Image {
             texture: texture_builder,
@@ -321,6 +324,12 @@ pub fn parse_gltf_material(
         }
     }
 
+    const BASE_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+    const NORMAL_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    const METALLIC_ROUGHNESS_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    const OCCLUSION_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+    const EMMISIVE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
+
     const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
     const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
     const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
@@ -336,7 +345,7 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (albedo)"
             );
-            let image = load_image(buffer, &info.texture());
+            let image = load_image(buffer, &info.texture(), BASE_COLOR_FORMAT);
             load_ctx.insert(image)
         }
         None => {
@@ -353,7 +362,7 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (metallic roughness)"
             );
-            let image = load_image(buffer, &info.texture());
+            let image = load_image(buffer, &info.texture(), METALLIC_ROUGHNESS_FORMAT);
             load_ctx.insert(image)
         }
         None => {
@@ -368,7 +377,7 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (occlusion)"
             );
-            let image = load_image(buffer, &info.texture());
+            let image = load_image(buffer, &info.texture(), OCCLUSION_FORMAT);
             (load_ctx.insert(image), info.strength())
         }
         None => {
@@ -379,16 +388,14 @@ pub fn parse_gltf_material(
 
     let (normal_texture, normal_scale) = match material.normal_texture() {
         Some(info) => {
-            tracing::error!("found normal map");
             assert!(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (normal)"
             );
-            let image = load_image(buffer, &info.texture());
+            let image = load_image(buffer, &info.texture(), NORMAL_FORMAT);
             (load_ctx.insert(image), info.scale())
         }
         None => {
-            tracing::error!("could not find normal map");
             let image = single_pixel_image(NORMAL_DEFAULT);
             (load_ctx.insert(image), 1.0)
         }
@@ -401,7 +408,7 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (emissive)"
             );
-            let image = load_image(buffer, &info.texture());
+            let image = load_image(buffer, &info.texture(), EMMISIVE_FORMAT);
             load_ctx.insert(image)
         }
         None => {
