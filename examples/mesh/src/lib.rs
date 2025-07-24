@@ -13,7 +13,6 @@ use gbase_utils::{
     SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
 };
 use std::f32::consts::PI;
-use time::Instant;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -50,7 +49,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::ERROR)
-            // .vsync(false)
+            .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -95,10 +94,13 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
-            .watch(cache)
-            .build(cache);
-        let sponza_gltf = AssetBuilder::load::<GltfLoader>("assets/models/sponza.glb")
+        let helmet_mesh = AssetBuilder::load(
+            "assets/models/helmet_lod.glb",
+            MeshLodLoader::new("mesh_damaged_helmet"),
+        )
+        .watch(cache)
+        .build(cache);
+        let sponza_gltf = AssetBuilder::load("assets/models/sponza.glb", GltfLoader {})
             .watch(cache)
             .build(cache);
 
@@ -176,7 +178,8 @@ impl Callbacks for App {
         }
 
         if cache.handle_just_loaded(self.sponza_gltf) {
-            let gltf = (cache.get(self.sponza_gltf)).unwrap().clone();
+            let gltf = cache.get(self.sponza_gltf).unwrap().clone();
+
             for mesh in gltf.meshes.iter().clone() {
                 let prim = &mesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
                 prim.mesh
@@ -202,6 +205,8 @@ impl Callbacks for App {
                         .extract_attributes(self.pbr_renderer.required_attributes().clone());
                 }
             }
+
+            dbg!(&gltf.named_nodes);
         }
 
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
@@ -278,15 +283,17 @@ impl Callbacks for App {
             );
         });
 
-        let start = Instant::now();
-        self.bloom
-            .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
-        if input::key_pressed(ctx, input::KeyCode::KeyB) {
-            time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
-        }
+        // let start = std::time::Instant::now();
+        // // self.bloom
+        // //     .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
+        // if input::key_pressed(ctx, input::KeyCode::KeyB) {
+        //     time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
+        // }
+        // self.tonemap
+        //     .tonemap(ctx, cache, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
 
         self.tonemap
-            .tonemap(ctx, cache, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
+            .tonemap(ctx, cache, &self.hdr_framebuffer_1, &self.ldr_framebuffer);
 
         {
             let _guard = tracing::span!(tracing::Level::TRACE, "ui update").entered();

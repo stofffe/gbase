@@ -29,25 +29,25 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let forward_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
-            "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
-        )
-        .watch(cache)
-        .build(cache);
-        let deferred_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
-            "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl",
-        )
-        .watch(cache)
-        .build(cache);
+        // let forward_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
+        // )
+        // .watch(cache)
+        // .build(cache);
+        // let deferred_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        //     "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl",
+        // )
+        // .watch(cache)
+        // .build(cache);
 
-        // let forward_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
-        //     include_str!("../assets/shaders/mesh.wgsl"),
-        // ))
-        // .build(cache);
-        // let deferred_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
-        //     include_str!("../assets/shaders/deferred_mesh.wgsl"),
-        // ))
-        // .build(cache);
+        let forward_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+            include_str!("../assets/shaders/mesh.wgsl"),
+        ))
+        .build(cache);
+        let deferred_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+            include_str!("../assets/shaders/deferred_mesh.wgsl"),
+        ))
+        .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

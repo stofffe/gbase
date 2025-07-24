@@ -288,7 +288,8 @@ fn parse_gltf_primitive(
         indices,
     };
 
-    let name = format!("{}_Primitive{}", mesh_name, primitive.index());
+    // let name = format!("{}_Primitive{}", mesh_name, primitive.index());
+    let name = mesh_name.to_string();
 
     let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material());
 

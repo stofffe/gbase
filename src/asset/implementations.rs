@@ -51,11 +51,12 @@ impl ConvertableRenderAsset for render::BoundingBox {
 
 impl Asset for render::ShaderBuilder {}
 
+#[derive(Clone)]
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
     type Asset = render::ShaderBuilder;
 
-    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(&self, _load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
         let source = filesystem::load_str(path).await;
 
         Self::Asset {
@@ -94,11 +95,12 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 
 impl Asset for render::Image {}
 
+#[derive(Clone)]
 pub struct ImageLoader {}
 impl AssetLoader for ImageLoader {
     type Asset = render::Image;
 
-    async fn load(_load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(&self, _load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
 
         let img = image::load_from_memory(&bytes)

@@ -8,7 +8,7 @@ use gbase::{
     render::{self, BoundingBox},
     tracing,
 };
-use std::ops::Deref;
+use std::{ops::Deref, primitive};
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {
@@ -42,39 +42,93 @@ impl MeshLod {
 
 impl Asset for MeshLod {}
 
-pub struct MeshLodLoader {}
+#[derive(Clone)]
+pub struct MeshLodLoader {
+    node_name: Option<String>,
+}
+
+impl MeshLodLoader {
+    pub fn empty() -> Self {
+        Self { node_name: None }
+    }
+    pub fn new(mesh_name: impl Into<String>) -> Self {
+        Self {
+            node_name: Some(mesh_name.into()),
+        }
+    }
+}
+
 impl AssetLoader for MeshLodLoader {
     type Asset = MeshLod;
 
-    async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(&self, load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
         let primitives = parse_gltf_primitives(&load_ctx, &bytes);
 
-        let material = primitives[0].material;
-        let meshes = primitives
+        // extract lod levels
+
+        let mut parsed_primitives = Vec::new();
+
+        match &self.node_name {
+            Some(node_name) => {
+                for prim in primitives.iter() {
+                    dbg!(&prim.name);
+                    if let Some(a) = prim.name.strip_prefix(node_name) {
+                        if let Some(a) = a.strip_prefix("_LOD") {
+                            let lod_level = a.parse::<usize>().expect("could not parse lod level");
+                            parsed_primitives.push((lod_level, prim.mesh));
+                        }
+                    }
+                }
+                parsed_primitives.sort_by_key(|(lod_level, _)| *lod_level);
+            }
+            None => {
+                parsed_primitives = primitives
+                    .iter()
+                    .enumerate()
+                    .map(|(i, prim)| (i, prim.mesh))
+                    .collect::<Vec<_>>();
+            }
+        }
+
+        // for prim in primitives.iter() {
+        //     if let Some(a) = prim.name.strip_prefix(&self.node_name) {
+        //         if let Some(a) = a.strip_prefix("_LOD") {
+        //             let lod_level = a.parse::<usize>().expect("could not parse lod level");
+        //             parsed_primitives.push((lod_level, prim.mesh));
+        //         }
+        //     }
+        // }
+
+        // sort by lod level
+
+        // create lod
+        let material = primitives[0].material; // TODO: using material of LOD0 currently
+        let meshes = parsed_primitives
             .iter()
             .enumerate()
-            .map(|(i, p)| (p.mesh, THRESHOLDS[i]))
-            .collect();
+            .map(|(i, (_, mesh))| (*mesh, THRESHOLDS[i]))
+            .collect::<Vec<_>>();
 
         MeshLod { meshes, material }
     }
 }
+
 impl AssetWriter for MeshLodLoader {
     fn write(asset: &Self::Asset, path: &std::path::Path) {
         tracing::info!("write {:?} lod to {:?}", asset, path);
     }
 }
 
+#[derive(Clone)]
 pub struct GltfLoader {}
 
 impl AssetLoader for GltfLoader {
     type Asset = Gltf;
 
-    async fn load(load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(&self, load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
-        let gltf = parse_gltf_file(&load_ctx, &bytes);
-        gltf
+        parse_gltf_file(&load_ctx, &bytes)
     }
 }
 

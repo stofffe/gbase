@@ -138,10 +138,12 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_handle =
-            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/grass_compute_instance.wgsl")
-                .watch(cache)
-                .build(cache);
+        let instance_shader_handle = asset::AssetBuilder::load(
+            "assets/shaders/grass_compute_instance.wgsl",
+            ShaderLoader {},
+        )
+        .watch(cache)
+        .build(cache);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![instance_bindgroup_layout.clone()])
@@ -164,10 +166,12 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let draw_shader_handle =
-            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/grass_compute_draw.wgsl")
-                .watch(cache)
-                .build(cache);
+        let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+            "assets/shaders/grass_compute_draw.wgsl",
+            ShaderLoader {},
+        )
+        .watch(cache)
+        .build(cache);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![draw_bindgroup_layout.clone()])
@@ -195,12 +199,14 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_deferred_shader_handle =
-            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/grass_deferred.wgsl")
-                .watch(cache)
-                .build(cache);
+        let render_deferred_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+            "assets/shaders/grass_deferred.wgsl",
+            ShaderLoader {},
+        )
+        .watch(cache)
+        .build(cache);
         let render_forward_shader_handle =
-            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/grass.wgsl")
+            asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/grass.wgsl", ShaderLoader {})
                 .watch(cache)
                 .build(cache);
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()

@@ -9,6 +9,7 @@ use std::{
     any::{Any, TypeId},
     fs,
     path::{Path, PathBuf},
+    sync::Arc,
     time::Duration,
 };
 
@@ -141,10 +142,11 @@ impl AssetCache {
     // Reloading
     //
 
-    pub fn load<T: AssetLoader>(
+    pub fn load<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
+        loader: T,
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
@@ -160,7 +162,7 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             pollster::block_on(async {
-                let data = T::load(load_context, &path_clone).await;
+                let data = loader.load(load_context, &path_clone).await;
                 // let data = T::load(load_context, &path_clone).await;
                 loaded_sender_clone
                     .unbounded_send((handle_clone.as_any(), Box::new(data)))
@@ -170,7 +172,7 @@ impl AssetCache {
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            let data = T::load(load_context, &path_clone).await;
+            let data = loader.load(load_context, &path_clone).await;
             loaded_sender_clone
                 .unbounded_send((handle_clone.as_any(), Box::new(data)))
                 .expect("could not send");
@@ -349,7 +351,12 @@ pub struct AssetCacheExt {
 impl AssetCacheExt {
     /// Register asset for being watched for hot reloads
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn watch<T: AssetLoader>(&mut self, handle: AssetHandle<T::Asset>, path: &Path) {
+    pub fn watch<T: AssetLoader + 'static>(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+        path: &Path,
+        loader: T,
+    ) {
         // need absolute path since notify uses them
         let absolute_path = fs::canonicalize(path).unwrap();
 
@@ -374,7 +381,9 @@ impl AssetCacheExt {
         self.reload_functions
             .entry(TypeId::of::<T::Asset>())
             .or_insert_with(|| {
-                Box::new(|load_ctx, path| Box::new(pollster::block_on(T::load(load_ctx, path))))
+                Box::new(move |load_ctx, path| {
+                    Box::new(pollster::block_on(loader.clone().load(load_ctx, path)))
+                })
             });
     }
 

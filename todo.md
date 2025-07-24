@@ -92,7 +92,7 @@
         [] font
     [/] add gltf loader
         [x] load gltf
-        [] cache duplicate meshes and materials
+        [x] cache duplicate meshes and materials
         [] add required attributes as param?
     [x] remove typeid from asset handle, store it as tuple where needed
     [x] mesh lod loading 

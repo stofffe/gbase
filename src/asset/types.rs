@@ -15,12 +15,12 @@ pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
 
-pub trait Asset: Any + Send + Sync {}
+pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
-pub trait AssetLoader {
+pub trait AssetLoader: Send + Sync + Clone {
     type Asset: Asset;
 
-    fn load(load_ctx: LoadContext, path: &Path) -> impl Future<Output = Self::Asset>;
+    fn load(&self, load_ctx: LoadContext, path: &Path) -> impl Future<Output = Self::Asset>;
 }
 
 pub trait AssetWriter: AssetLoader {
@@ -29,8 +29,7 @@ pub trait AssetWriter: AssetLoader {
 
 pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
 
-// pub trait ConvertableRenderAsset: RenderAsset + Sync + Sized {
-pub trait ConvertableRenderAsset: RenderAsset + Sized + Clone {
+pub trait ConvertableRenderAsset: RenderAsset + Clone {
     type SourceAsset: Asset;
     type Error: Debug + Display;
 

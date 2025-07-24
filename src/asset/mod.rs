@@ -20,8 +20,12 @@ impl AssetBuilder {
     pub fn insert<T: Asset>(value: T) -> InsertAssetBuilder<T> {
         InsertAssetBuilder::<T> { value }
     }
-    pub fn load<T: AssetLoader>(path: impl Into<PathBuf>) -> LoadedAssetBuilder<T> {
+    pub fn load<T: AssetLoader + 'static>(
+        path: impl Into<PathBuf>,
+        loader: T,
+    ) -> LoadedAssetBuilder<T> {
         LoadedAssetBuilder::<T> {
+            loader,
             handle: AssetHandle::new(),
             path: path.into(),
         }
@@ -47,6 +51,7 @@ impl<T: Asset> InsertAssetBuilder<T> {
 //
 
 pub struct LoadedAssetBuilder<T: AssetLoader> {
+    loader: T,
     handle: AssetHandle<T::Asset>,
     path: PathBuf,
 }
@@ -61,17 +66,19 @@ impl<T: AssetWriter> LoadedAssetBuilder<T> {
 }
 
 // TODO: can these just store bool instead?
-impl<T: AssetLoader> LoadedAssetBuilder<T> {
+impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
     pub fn watch(self, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        cache.ext.watch::<T>(self.handle, &self.path);
+        cache
+            .ext
+            .watch::<T>(self.handle, &self.path, self.loader.clone()); //TODO: make this arc?
         self
     }
 }
 
-impl<T: AssetLoader> LoadedAssetBuilder<T> {
+impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
-        cache.load::<T>(self.handle, &self.path)
+        cache.load::<T>(self.handle, &self.path, self.loader)
     }
 }
 
