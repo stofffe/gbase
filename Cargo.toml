@@ -54,6 +54,7 @@ members = [
     "tools/atlas_generator",
 
     "examples/post_process",
+    "examples/egui",
     "examples/clouds",
     "examples/grass",
     "examples/ui",
