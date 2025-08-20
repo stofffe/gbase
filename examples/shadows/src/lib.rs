@@ -63,7 +63,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(true)
+            .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -109,12 +109,12 @@ impl Callbacks for App {
 
         let helmet_mesh = AssetBuilder::load(
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new("mesh_damaged_helmet"),
+            MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
         )
         .watch(cache)
         .build(cache);
 
-        let ak47_mesh = AssetBuilder::load("assets/models/ak47.glb", MeshLodLoader::empty())
+        let ak47_mesh = AssetBuilder::load("assets/models/ak47.glb", MeshLodLoader::new())
             .watch(cache)
             .build(cache);
 
@@ -181,7 +181,7 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> bool {
-        if cache.handle_just_loaded(self.helmet_mesh) {
+        if cache.handle_just_loaded(self.helmet_mesh.clone()) {
             let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
@@ -189,7 +189,7 @@ impl Callbacks for App {
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
         }
-        if cache.handle_just_loaded(self.ak47_mesh) {
+        if cache.handle_just_loaded(self.ak47_mesh.clone()) {
             let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
@@ -220,7 +220,7 @@ impl Callbacks for App {
 
         let mut draw_calls: Vec<DrawCall> = vec![
             DrawCall {
-                mesh: self.plane_mesh,
+                mesh: self.plane_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(0.0, -2.0, 0.0))
                     .with_rot(Quat::from_rotation_x(-PI / 2.0))
@@ -228,20 +228,20 @@ impl Callbacks for App {
             },
             // add meshes
             DrawCall {
-                mesh: self.helmet_mesh,
+                mesh: self.helmet_mesh.clone(),
                 transform: Transform3D::default()
                     .with_rot(Quat::from_rotation_y(time::time_since_start(ctx)))
                     .with_pos(vec3(0.0, 0.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: self.helmet_mesh,
+                mesh: self.helmet_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(-3.0, 10.0, 0.0))
                     .with_scale(Vec3::ONE * 1.0),
             },
             DrawCall {
-                mesh: self.ak47_mesh,
+                mesh: self.ak47_mesh.clone(),
                 transform: Transform3D::default()
                     .with_pos(vec3(3.0, 0.0, -1.0))
                     .with_scale(Vec3::ONE * 1.0),
@@ -253,7 +253,7 @@ impl Callbacks for App {
         for x in -amount..amount {
             for z in -amount..amount {
                 draw_calls.push(DrawCall {
-                    mesh: self.helmet_mesh,
+                    mesh: self.helmet_mesh.clone(),
                     transform: Transform3D::default()
                         .with_pos(vec3(gap as f32 * x as f32, 10.0, gap as f32 * z as f32))
                         .with_scale(Vec3::ONE * 1.0),

@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use gbase::{
     glam::{uvec2, vec2, vec4, UVec2, Vec2, Vec4},
     render, wgpu, Context,
 };
+use std::collections::HashMap;
 
 pub struct FontAtlas {
     pub(crate) texture_atlas: crate::TextureAtlas,
@@ -55,11 +54,10 @@ impl FontAtlas {
                 .with_default_sampler_and_view(ctx);
         let mut texture_atlas = crate::TextureAtlasBuilder::new().build(texture);
 
-        let mut offset = UVec2::ZERO;
-        let padding = FONT_ATLAS_PADDING;
-
         let mut letter_info = HashMap::<char, LetterInfo>::new();
 
+        let mut offset = UVec2::ZERO;
+        let padding = FONT_ATLAS_PADDING;
         for (metrics, bitmap, letter) in chars {
             let dimensions = uvec2(metrics.width as u32, metrics.height as u32);
 

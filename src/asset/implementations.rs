@@ -25,7 +25,7 @@ impl ConvertableRenderAsset for render::GpuMesh {
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
     ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
+        let source = cache.get(source.clone()).unwrap();
         Ok(render::GpuMesh::new(ctx, source))
     }
 }
@@ -40,7 +40,7 @@ impl ConvertableRenderAsset for render::BoundingBox {
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
     ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
+        let source = cache.get(source.clone()).unwrap();
         Ok(source.calculate_bounding_box())
     }
 }
@@ -76,7 +76,7 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
     ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
+        let source = cache.get(source.clone()).unwrap();
         #[cfg(target_arch = "wasm32")]
         {
             Ok(source.build_non_arc(ctx))
@@ -127,7 +127,7 @@ impl ConvertableRenderAsset for render::GpuImage {
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
     ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
+        let source = cache.get(source.clone()).unwrap();
         let sampler = source.sampler.clone().build(ctx);
         let texture = source.texture.build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);

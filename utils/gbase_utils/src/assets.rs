@@ -23,7 +23,7 @@ impl PixelCache {
         value: [u8; 4],
     ) -> asset::AssetHandle<Image> {
         match self.default_textures.get(&value) {
-            Some(handle) => *handle,
+            Some(handle) => handle.clone(),
             None => {
                 let image = Image {
                     texture: render::TextureBuilder::new(render::TextureSource::Data(
@@ -35,7 +35,7 @@ impl PixelCache {
                         .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
                 };
                 let handle = asset::AssetBuilder::insert(image).build(cache);
-                self.default_textures.insert(value, handle);
+                self.default_textures.insert(value, handle.clone());
                 handle
             }
         }

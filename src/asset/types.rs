@@ -36,6 +36,6 @@ pub trait ConvertableRenderAsset: RenderAsset + Clone {
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
     ) -> Result<Self, Self::Error>;
 }

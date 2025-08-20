@@ -54,6 +54,7 @@ impl RenderContext {
             backend_options: wgpu::BackendOptions {
                 gl: wgpu::GlBackendOptions::default(),
                 dx12: wgpu::Dx12BackendOptions::default(),
+                noop: wgpu::NoopBackendOptions { enable: false },
             },
         });
 
@@ -73,15 +74,13 @@ impl RenderContext {
         // tracing::error!("Using backend: {:?}", adapter.get_info().backend);
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    required_features: context_builder.device_features,
-                    required_limits: adapter.limits(),
-                    label: None,
-                    memory_hints: wgpu::MemoryHints::Performance,
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                required_features: context_builder.device_features,
+                required_limits: adapter.limits(),
+                label: None,
+                memory_hints: wgpu::MemoryHints::Performance,
+                trace: wgpu::Trace::Off, // TODO: look into this
+            })
             .await
             .expect("could not get device");
 

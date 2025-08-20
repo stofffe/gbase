@@ -52,7 +52,6 @@ pub struct Camera {
 
     pub projection: CameraProjection,
     pub aspect_ratio: f32,
-    // TODO: add aspect here
 }
 
 impl Camera {

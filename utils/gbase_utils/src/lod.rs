@@ -5,10 +5,14 @@ use gbase::{
         LoadContext, RenderAsset,
     },
     filesystem,
-    render::{self, BoundingBox},
+    render::{self, BoundingBox, VertexAttributeId},
     tracing,
 };
-use std::{ops::Deref, primitive};
+use std::{
+    collections::{self, BTreeSet},
+    ops::Deref,
+    primitive,
+};
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {
@@ -32,11 +36,11 @@ impl MeshLod {
     }
 
     pub fn get_lod_exact(&self, level: usize) -> Option<asset::AssetHandle<render::Mesh>> {
-        self.meshes.get(level).map(|e| e.0)
+        self.meshes.get(level).map(|e| e.0.clone())
     }
     pub fn get_lod_closest(&self, level: usize) -> asset::AssetHandle<render::Mesh> {
         let index = usize::min(level, self.meshes.len() - 1);
-        self.meshes[index].0
+        self.meshes[index].0.clone()
     }
 }
 
@@ -45,16 +49,25 @@ impl Asset for MeshLod {}
 #[derive(Clone)]
 pub struct MeshLodLoader {
     node_name: Option<String>,
+    required_attributes: Option<BTreeSet<VertexAttributeId>>,
 }
 
 impl MeshLodLoader {
-    pub fn empty() -> Self {
-        Self { node_name: None }
-    }
-    pub fn new(mesh_name: impl Into<String>) -> Self {
+    pub fn new() -> Self {
         Self {
-            node_name: Some(mesh_name.into()),
+            node_name: None,
+            required_attributes: None,
         }
+    }
+
+    pub fn with_node_name(mut self, value: impl Into<String>) -> Self {
+        self.node_name = Some(value.into());
+        self
+    }
+
+    pub fn with_required_attr(mut self, value: impl Into<BTreeSet<VertexAttributeId>>) -> Self {
+        self.required_attributes = Some(value.into());
+        self
     }
 }
 
@@ -63,12 +76,14 @@ impl AssetLoader for MeshLodLoader {
 
     async fn load(&self, load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
         let bytes = filesystem::load_bytes(path).await;
-        let primitives = parse_gltf_primitives(&load_ctx, &bytes);
+        let primitives =
+            parse_gltf_primitives(&load_ctx, &bytes, self.required_attributes.as_ref());
+
+        // extract material from LOD0
+        let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
 
         // extract lod levels
-
         let mut parsed_primitives = Vec::new();
-
         match &self.node_name {
             Some(node_name) => {
                 for prim in primitives.iter() {
@@ -76,7 +91,7 @@ impl AssetLoader for MeshLodLoader {
                     if let Some(a) = prim.name.strip_prefix(node_name) {
                         if let Some(a) = a.strip_prefix("_LOD") {
                             let lod_level = a.parse::<usize>().expect("could not parse lod level");
-                            parsed_primitives.push((lod_level, prim.mesh));
+                            parsed_primitives.push((lod_level, prim.mesh.clone()));
                         }
                     }
                 }
@@ -84,30 +99,18 @@ impl AssetLoader for MeshLodLoader {
             }
             None => {
                 parsed_primitives = primitives
-                    .iter()
+                    .into_iter()
                     .enumerate()
                     .map(|(i, prim)| (i, prim.mesh))
                     .collect::<Vec<_>>();
             }
         }
 
-        // for prim in primitives.iter() {
-        //     if let Some(a) = prim.name.strip_prefix(&self.node_name) {
-        //         if let Some(a) = a.strip_prefix("_LOD") {
-        //             let lod_level = a.parse::<usize>().expect("could not parse lod level");
-        //             parsed_primitives.push((lod_level, prim.mesh));
-        //         }
-        //     }
-        // }
-
-        // sort by lod level
-
         // create lod
-        let material = primitives[0].material; // TODO: using material of LOD0 currently
         let meshes = parsed_primitives
-            .iter()
+            .into_iter()
             .enumerate()
-            .map(|(i, (_, mesh))| (*mesh, THRESHOLDS[i]))
+            .map(|(i, (_, mesh))| (mesh, THRESHOLDS[i]))
             .collect::<Vec<_>>();
 
         MeshLod { meshes, material }
@@ -153,13 +156,10 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
     ) -> Result<Self, Self::Error> {
-        let source = cache.get(source).unwrap();
+        let source = cache.get(source.clone()).unwrap();
+        let handle = source.meshes[0].0.clone();
         Ok(BoundingBoxWrapper(
-            source.meshes[0]
-                .0
-                .get(cache)
-                .unwrap()
-                .calculate_bounding_box(),
+            handle.get(cache).unwrap().calculate_bounding_box(),
         ))
     }
 }

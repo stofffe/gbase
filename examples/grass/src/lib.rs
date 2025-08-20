@@ -186,7 +186,7 @@ impl Callbacks for App {
 
         // Render
         let meshes = vec![(
-            self.plane_mesh,
+            self.plane_mesh.clone(),
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))

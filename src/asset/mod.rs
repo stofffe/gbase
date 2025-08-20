@@ -60,7 +60,7 @@ pub struct LoadedAssetBuilder<T: AssetLoader> {
 impl<T: AssetWriter> LoadedAssetBuilder<T> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write(self, cache: &mut AssetCache) -> Self {
-        cache.ext.write::<T>(self.handle, &self.path);
+        cache.ext.write::<T>(self.handle.clone(), &self.path);
         self
     }
 }
@@ -71,7 +71,7 @@ impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
         #[cfg(not(target_arch = "wasm32"))]
         cache
             .ext
-            .watch::<T>(self.handle, &self.path, self.loader.clone()); //TODO: make this arc?
+            .watch::<T>(self.handle.clone(), &self.path, self.loader.clone()); //TODO: make this arc?
         self
     }
 }
@@ -93,7 +93,12 @@ pub fn all_loaded(cache: &AssetCache) -> bool {
 
 /// Check if a specific asset is loaded
 pub fn handle_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
-    cache.handle_loaded(handle)
+    cache.handle_loaded(handle.clone())
+}
+
+/// Check if a specific asset is loaded
+pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
+    cache.handle_just_loaded(handle.clone())
 }
 
 pub fn get<T: Asset + 'static>(cache: &AssetCache, handle: AssetHandle<T>) -> Option<&T> {

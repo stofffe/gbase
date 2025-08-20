@@ -129,21 +129,21 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
-        if cache.handle_just_loaded(self.weather_map_handle) {
-            let img = cache.get_mut(self.weather_map_handle).unwrap();
+        if cache.handle_just_loaded(self.weather_map_handle.clone()) {
+            let img = cache.get_mut(self.weather_map_handle.clone()).unwrap();
             img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
             img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
         }
-        if cache.handle_just_loaded(self.blue_noise_handle) {
-            let img = cache.get_mut(self.blue_noise_handle).unwrap();
+        if cache.handle_just_loaded(self.blue_noise_handle.clone()) {
+            let img = cache.get_mut(self.blue_noise_handle.clone()).unwrap();
             img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
             img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
         }
 
-        if !asset::handle_loaded(cache, self.shader_handle)
-            || !asset::handle_loaded(cache, self.mesh_handle)
-            || !asset::handle_loaded(cache, self.weather_map_handle)
-            || !asset::handle_loaded(cache, self.blue_noise_handle)
+        if !asset::handle_loaded(cache, self.shader_handle.clone())
+            || !asset::handle_loaded(cache, self.mesh_handle.clone())
+            || !asset::handle_loaded(cache, self.weather_map_handle.clone())
+            || !asset::handle_loaded(cache, self.blue_noise_handle.clone())
         {
             tracing::warn!("all cloud asset not loaded, skipping render");
             return;
@@ -152,9 +152,9 @@ impl CloudRenderer {
         self.app_info.update_buffer(ctx);
 
         let weather_map =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.weather_map_handle).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.weather_map_handle.clone()).unwrap();
         let blue_noise =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.blue_noise_handle).unwrap();
+            asset::convert_asset::<GpuImage>(ctx, cache, self.blue_noise_handle.clone()).unwrap();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -178,8 +178,8 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, cache, self.shader_handle).unwrap();
-        let mesh = asset::get(cache, self.mesh_handle).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone()).unwrap();
+        let mesh = self.mesh_handle.get(cache).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
             .buffers(mesh.buffer_layout())
@@ -187,7 +187,8 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = asset::convert_asset::<GpuMesh>(ctx, cache, self.mesh_handle).unwrap();
+        let mesh_gpu =
+            asset::convert_asset::<GpuMesh>(ctx, cache, self.mesh_handle.clone()).unwrap();
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

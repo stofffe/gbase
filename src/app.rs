@@ -43,6 +43,8 @@ pub trait Callbacks {
         _new_size: winit::dpi::PhysicalSize<u32>,
     ) {
     }
+
+    fn window_event(&mut self, _ctx: &mut Context, _event: &winit::event::WindowEvent) {}
 }
 
 pub async fn run<C: Callbacks>() {
@@ -226,6 +228,9 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             return;
         };
 
+        // TODO: temp for egui
+        callbacks.window_event(ctx, &event);
+
         match event {
             WindowEvent::RedrawRequested => {
                 // hot reload
@@ -347,6 +352,10 @@ fn update_and_render(
     );
 
     cache.poll();
+
+    // TODO: dont do this every frame
+    cache.clear_cpu_handles();
+    cache.clear_gpu_handles();
 
     false
 }

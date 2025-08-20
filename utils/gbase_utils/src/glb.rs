@@ -2,10 +2,10 @@ use crate::{texture_builder_from_image_bytes, Transform3D};
 use gbase::{
     asset::{Asset, AssetCache, AssetHandle, LoadContext},
     glam::{Quat, Vec3},
-    render::{self, Image, Mesh, SamplerBuilder},
+    render::{self, Image, Mesh, SamplerBuilder, VertexAttributeId},
     tracing, wgpu,
 };
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub struct GltfLoadCache {
     nodes: HashMap<usize, AssetHandle<GltfNode>>,
@@ -31,7 +31,11 @@ impl GltfLoadCache {
 
 // TODO: have local cache for duplicate materials/primitives
 
-pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPrimitive> {
+pub fn parse_gltf_primitives(
+    load_ctx: &LoadContext,
+    bytes: &[u8],
+    required_attributes: Option<&BTreeSet<VertexAttributeId>>,
+) -> Vec<GltfPrimitive> {
     let mut gltf_cache = GltfLoadCache::new();
     let glb = gltf::Glb::from_slice(bytes).expect("could not import glb from slice");
     let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
@@ -45,8 +49,14 @@ pub fn parse_gltf_primitives(load_ctx: &LoadContext, bytes: &[u8]) -> Vec<GltfPr
             .unwrap_or(format!("Mesh{}", mesh.index()));
 
         for primitive in mesh.primitives() {
-            let primitive =
-                parse_gltf_primitive(load_ctx, &buffer, &mut gltf_cache, primitive, &name);
+            let primitive = parse_gltf_primitive(
+                load_ctx,
+                &buffer,
+                &mut gltf_cache,
+                primitive,
+                &name,
+                required_attributes,
+            );
             primitives.push(primitive);
         }
     }
@@ -89,7 +99,7 @@ fn parse_gltf_node(
 ) -> AssetHandle<GltfNode> {
     if let Some(node_handle) = gltf_cache.nodes.get(&node.index()) {
         // tracing::error!("REUSE NODE {}", node.index());
-        return *node_handle;
+        return node_handle.clone();
     }
 
     let name = node
@@ -121,9 +131,11 @@ fn parse_gltf_node(
         children,
     });
 
-    gltf_cache.nodes.insert(node.index(), node_handle);
+    gltf_cache.nodes.insert(node.index(), node_handle.clone());
     if let Some(name) = node.name() {
-        gltf_cache.named_nodes.insert(Box::from(name), node_handle);
+        gltf_cache
+            .named_nodes
+            .insert(Box::from(name), node_handle.clone());
     }
     node_handle
 }
@@ -136,7 +148,7 @@ fn parse_gltf_mesh(
 ) -> AssetHandle<GltfMesh> {
     if let Some(mesh_handle) = gltf_cache.meshes.get(&mesh.index()) {
         // tracing::error!("REUSE MESH {}", mesh.index());
-        return *mesh_handle;
+        return mesh_handle.clone();
     }
 
     let name = mesh
@@ -146,15 +158,17 @@ fn parse_gltf_mesh(
 
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
-        let primitive = parse_gltf_primitive(load_ctx, buffer, gltf_cache, primitive, &name);
+        let primitive = parse_gltf_primitive(load_ctx, buffer, gltf_cache, primitive, &name, None); // TODO: maybe add this option
         primitives.push(primitive);
     }
 
     let mesh_handle = load_ctx.insert(GltfMesh { name, primitives });
     if let Some(name) = mesh.name() {
-        gltf_cache.named_meshes.insert(Box::from(name), mesh_handle);
+        gltf_cache
+            .named_meshes
+            .insert(Box::from(name), mesh_handle.clone());
     }
-    gltf_cache.meshes.insert(mesh.index(), mesh_handle);
+    gltf_cache.meshes.insert(mesh.index(), mesh_handle.clone());
     mesh_handle
 }
 
@@ -164,6 +178,7 @@ fn parse_gltf_primitive(
     gltf_cache: &mut GltfLoadCache,
     primitive: gltf::Primitive<'_>,
     mesh_name: &str,
+    required_attributes: Option<&BTreeSet<VertexAttributeId>>,
 ) -> GltfPrimitive {
     let primitive_topology = match primitive.mode() {
         gltf::mesh::Mode::Points => wgpu::PrimitiveTopology::PointList,
@@ -282,11 +297,15 @@ fn parse_gltf_primitive(
         indices
     });
 
-    let mesh = render::Mesh {
+    let mut mesh = render::Mesh {
         primitive_topology,
         attributes,
         indices,
     };
+
+    if let Some(attr) = required_attributes {
+        mesh.extract_attributes(attr.clone()); // TODO: clone here?
+    }
 
     // let name = format!("{}_Primitive{}", mesh_name, primitive.index());
     let name = mesh_name.to_string();
@@ -308,9 +327,8 @@ pub fn parse_gltf_material(
 ) -> AssetHandle<Material> {
     // TODO: have default material on None?
     if let Some(index) = material.index() {
-        // tracing::error!("REUSE MATERIAL {index}");
         if let Some(material) = gltf_cache.materials.get(&index) {
-            return *material;
+            return material.clone();
         }
     }
 
@@ -502,7 +520,7 @@ pub fn parse_gltf_material(
     });
 
     if let Some(index) = material.index() {
-        gltf_cache.materials.insert(index, material_handle);
+        gltf_cache.materials.insert(index, material_handle.clone());
     }
 
     material_handle

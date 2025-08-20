@@ -96,11 +96,11 @@ impl Callbacks for App {
 
         let helmet_mesh = AssetBuilder::load(
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new("mesh_damaged_helmet"),
+            MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
         )
         .watch(cache)
         .build(cache);
-        let sponza_gltf = AssetBuilder::load("assets/models/sponza.glb", GltfLoader {})
+        let sponza_gltf = AssetBuilder::load("assets/models/sponza-2.glb", GltfLoader {})
             .watch(cache)
             .build(cache);
 
@@ -168,7 +168,7 @@ impl Callbacks for App {
             self.camera.flying_controls(ctx);
         }
 
-        if cache.handle_just_loaded(self.helmet_mesh) {
+        if cache.handle_just_loaded(self.helmet_mesh.clone()) {
             let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
@@ -177,8 +177,8 @@ impl Callbacks for App {
             }
         }
 
-        if cache.handle_just_loaded(self.sponza_gltf) {
-            let gltf = cache.get(self.sponza_gltf).unwrap().clone();
+        if self.sponza_gltf.loaded(&cache) {
+            let gltf = cache.get(self.sponza_gltf.clone()).unwrap().clone();
 
             for mesh in gltf.meshes.iter().clone() {
                 let prim = &mesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
@@ -197,7 +197,7 @@ impl Callbacks for App {
                 let node = node.get(cache).unwrap();
                 tracing::info!("node {:#?}", node);
 
-                if let Some(mesh) = node.mesh {
+                if let Some(mesh) = node.mesh.clone() {
                     let prim = &mesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
                     prim.mesh
                         .get_mut(cache)
@@ -220,7 +220,7 @@ impl Callbacks for App {
 
         // Render
         let mut meshes = vec![(
-            self.helmet_mesh,
+            self.helmet_mesh.clone(),
             Transform3D::default()
                 .with_pos(vec3(0.0, 5.0, 0.0))
                 .with_scale(Vec3::ONE * 5.0),
@@ -228,11 +228,11 @@ impl Callbacks for App {
 
         let i = 0;
         let j = 4;
-        if cache.handle_loaded(self.sponza_gltf) {
+        if self.sponza_gltf.loaded(cache) {
             for node in &self.sponza_gltf.get(cache).unwrap().clone().nodes {
                 let node = node.get(cache).unwrap();
                 let transform = node.transform.clone();
-                if let Some(mesh) = node.mesh {
+                if let Some(mesh) = node.mesh.clone() {
                     let mesh = mesh.get(cache).unwrap();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);

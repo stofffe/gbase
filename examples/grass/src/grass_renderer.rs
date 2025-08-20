@@ -429,7 +429,7 @@ impl GrassRenderer {
                     depth_buffer,
                 } => {
                     let render_shader =
-                        asset::convert_asset(ctx, cache, self.render_forward_shader_handle)
+                        asset::convert_asset(ctx, cache, self.render_forward_shader_handle.clone())
                             .unwrap();
 
                     let render_pipeline = render::RenderPipelineBuilder::new(
@@ -454,9 +454,12 @@ impl GrassRenderer {
                         });
                 }
                 RenderMode::Deferred { buffers } => {
-                    let render_shader =
-                        asset::convert_asset(ctx, cache, self.render_deferred_shader_handle)
-                            .unwrap();
+                    let render_shader = asset::convert_asset(
+                        ctx,
+                        cache,
+                        self.render_deferred_shader_handle.clone(),
+                    )
+                    .unwrap();
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),

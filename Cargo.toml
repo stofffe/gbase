@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 winit = { version = "0.30.9", features = ["rwh_05", "rwh_06"] }
-wgpu = { version = "24.0.0", features = [] }
+wgpu = { version = "25.0.0", features = [] }
 glam = { version = "0.24.2", features = ["serde"] }
 bytemuck = { version = "1.14.0", features = ["derive"] }
 encase = { version = "0.6.1", features = ["glam"] }

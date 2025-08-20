@@ -154,7 +154,7 @@ impl AssetCache {
         self.currently_loading.insert(handle.as_any());
 
         let path_clone = path.clone();
-        let handle_clone = handle;
+        let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
         let load_context = self.load_ctx.clone();
 
@@ -190,7 +190,7 @@ impl AssetCache {
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
     ) -> Option<ArcHandle<G>> {
-        if self.get(handle).is_none() {
+        if self.get(handle.clone()).is_none() {
             tracing::warn!("could not get source asset");
             return None;
         };
@@ -198,14 +198,15 @@ impl AssetCache {
         let key = (handle.clone().as_any(), TypeId::of::<G>());
         let render_asset_exists = self.render_cache.contains_key(&key);
         if !render_asset_exists {
-            match G::convert(ctx, self, handle) {
+            match G::convert(ctx, self, handle.clone()) {
                 Ok(render_asset) => {
                     let render_asset_handle = ArcHandle::new(render_asset).upcast();
                     // actual cache
-                    self.render_cache.insert(key, render_asset_handle.clone());
+                    self.render_cache
+                        .insert(key.clone(), render_asset_handle.clone());
                     // last valid cache
                     self.render_cache_last_valid
-                        .insert(key, render_asset_handle);
+                        .insert(key.clone(), render_asset_handle);
                     // invalidate lookup
                     self.render_cache_invalidate_lookup
                         .entry(handle.as_any())
@@ -254,7 +255,7 @@ impl AssetCache {
     pub fn poll_loaded(&mut self) {
         while let Ok(Some((handle, asset))) = self.load_receiver.try_next() {
             // insert in cache
-            self.cache.insert(handle, asset);
+            self.cache.insert(handle.clone(), asset);
 
             // remove from currently loaded
             self.currently_loading.remove(&handle.as_any());
@@ -263,12 +264,24 @@ impl AssetCache {
             invalidate_render_cache(
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                handle,
+                handle.clone(),
             );
 
             //
             self.just_loaded.insert(handle);
         }
+    }
+
+    pub fn clear_cpu_handles(&mut self) {
+        // TODO: clear all other stuff related to this handle
+        self.cache
+            .retain(|handle, _| Arc::strong_count(&handle.id) > 1);
+    }
+
+    pub fn clear_gpu_handles(&mut self) {
+        // TODO: clear all other stuff related to this handle
+        self.render_cache
+            .retain(|(handle, _), _| Arc::strong_count(&handle.id) > 1);
     }
 
     pub fn all_loaded(&self) -> bool {
@@ -449,7 +462,7 @@ impl AssetCacheExt {
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
                     println!("reload {:?}", path);
-                    just_loaded.insert(*handle);
+                    just_loaded.insert(handle.clone());
 
                     let ty_id = self
                         .handle_to_type
@@ -464,7 +477,7 @@ impl AssetCacheExt {
                     let asset = loader_fn(self.load_ctx.clone(), &path);
 
                     // insert into cache
-                    cache.insert(*handle, asset);
+                    cache.insert(handle.clone(), asset);
 
                     // invalidate render cache
                     invalidate_render_cache(
@@ -485,26 +498,29 @@ pub fn invalidate_render_cache(
 ) {
     if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {
         for render_type in render_types {
-            render_cache.remove(&(handle, *render_type));
+            render_cache.remove(&(handle.clone(), *render_type));
         }
     }
 }
 
 impl<T: Asset + 'static> AssetHandle<T> {
-    pub fn loaded(self, cache: &AssetCache) -> bool {
-        cache.handle_loaded(self)
+    pub fn loaded(&self, cache: &AssetCache) -> bool {
+        cache.handle_loaded(self.clone())
     }
-    pub fn get(self, cache: &mut AssetCache) -> Option<&T> {
-        cache.get(self)
+    pub fn just_loaded(&self, cache: &AssetCache) -> bool {
+        cache.handle_just_loaded(self.clone())
     }
-    pub fn get_mut(self, cache: &mut AssetCache) -> Option<&mut T> {
-        cache.get_mut(self)
+    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Option<&'a T> {
+        cache.get(self.clone())
+    }
+    pub fn get_mut<'a>(&self, cache: &'a mut AssetCache) -> Option<&'a mut T> {
+        cache.get_mut(self.clone())
     }
     pub fn convert<G: ConvertableRenderAsset<SourceAsset = T>>(
-        self,
+        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
     ) -> Option<ArcHandle<G>> {
-        cache.convert(ctx, self)
+        cache.convert(ctx, self.clone())
     }
 }
