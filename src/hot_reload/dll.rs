@@ -13,12 +13,14 @@ type ResizeFunc<T> = fn(
 );
 type ReloadFunc<T> =
     fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
+type RenderEguiFunc<T> = fn(callbacks: &mut T, ui: &egui::Context);
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
     render_callback: Option<RenderFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
     reload_callback: Option<ReloadFunc<T>>,
+    render_egui_callback: Option<RenderEguiFunc<T>>,
 }
 
 /// Wrapper for callbacks + dll
@@ -68,6 +70,14 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         #[allow(clippy::single_match)]
         match self.dll.resize_callback {
             Some(resize) => resize(&mut self.callbacks, ctx, cache, new_size),
+            None => {}
+        }
+    }
+
+    fn render_egui(&mut self, ui: &egui::Context) {
+        #[allow(clippy::single_match)]
+        match self.dll.render_egui_callback {
+            Some(render_egui) => render_egui(&mut self.callbacks, ui),
             None => {}
         }
     }
@@ -127,11 +137,19 @@ fn load_dll<T>() -> DllApi<T> {
             None
         }
     };
+    let render_egui_callback = match unsafe { lib.symbol::<RenderEguiFunc<T>>("render_egui") } {
+        Ok(f) => Some(*f),
+        Err(err) => {
+            tracing::warn!("could not find function egui: {}", err);
+            None
+        }
+    };
 
     DllApi {
         new_callback,
         render_callback,
         resize_callback,
         reload_callback,
+        render_egui_callback,
     }
 }

@@ -17,6 +17,12 @@ image = "0.25.6"
 futures-channel = "0.3.31"
 rustc-hash = "2.1.1"
 
+# egui
+egui = "0.32.1"
+egui-wgpu = "0.32.1"
+egui-winit = "0.32.1"
+egui_extras = { version = "0.32.1", features = ["image"] }
+
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }

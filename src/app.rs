@@ -1,7 +1,7 @@
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
-use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
+use crate::{asset::AssetCache, audio, egui_ui, filesystem, input, random, render, time, Context};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
@@ -44,7 +44,7 @@ pub trait Callbacks {
     ) {
     }
 
-    fn window_event(&mut self, _ctx: &mut Context, _event: &winit::event::WindowEvent) {}
+    fn render_egui(&mut self, _ui: &egui::Context) {}
 }
 
 pub async fn run<C: Callbacks>() {
@@ -129,6 +129,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(window, &builder).await;
             let random = random::RandomContext::new();
+            let egui = egui_ui::EguiContext::new(&render);
 
             let ctx = Context {
                 input,
@@ -137,6 +138,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 audio,
                 render,
                 random,
+                egui,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),
@@ -228,8 +230,10 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             return;
         };
 
+        // callbacks.window_event(ctx, &event);
+
         // TODO: temp for egui
-        callbacks.window_event(ctx, &event);
+        ctx.egui.window_event(&ctx.render.window, &event);
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -338,6 +342,18 @@ fn update_and_render(
     if callbacks.render(ctx, cache, &view) {
         return true;
     }
+
+    // egui
+    ctx.egui.render(
+        &ctx.render.window,
+        &ctx.render.device,
+        &ctx.render.queue,
+        ctx.render.window_size,
+        &view,
+        |ui| {
+            callbacks.render_egui(ui);
+        },
+    );
 
     output.present();
 

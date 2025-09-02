@@ -5,6 +5,7 @@ mod app;
 pub mod asset;
 pub mod audio;
 pub mod collision; // TODO: move to utils?
+pub mod egui_ui;
 pub mod filesystem;
 pub mod input;
 pub mod random;
@@ -27,6 +28,7 @@ pub use app::*;
 pub use bytemuck;
 pub use encase;
 
+pub use egui;
 pub use futures_channel;
 pub use glam;
 pub use rustc_hash;
@@ -47,6 +49,8 @@ pub struct Context {
     pub(crate) audio: audio::AudioContext,
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
+
+    pub egui: egui_ui::EguiContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,
