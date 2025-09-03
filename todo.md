@@ -66,6 +66,12 @@
     [] use more references for asset handles, vectors etc
     [] make camera matrices cached
 
+[] egui
+    [] add egui flag to engine
+    [] fix dll on mac
+    [x] move egui from ctx to app
+
+
 [] shadows
     [] fade out when reaching limit
     [] pcss

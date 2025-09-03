@@ -50,8 +50,6 @@ pub struct Context {
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
 
-    pub egui: egui_ui::EguiContext,
-
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,
 }

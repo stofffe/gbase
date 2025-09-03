@@ -25,7 +25,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render_egui(&mut self, ui: &egui::Context) {
+    fn render_egui(&mut self, _ctx: &mut Context, ui: &egui::Context) {
         egui::Window::new("Stats").show(ui, |ui| {
             ui.heading("My egui Application");
             ui.horizontal(|ui| {

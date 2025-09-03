@@ -13,7 +13,7 @@ type ResizeFunc<T> = fn(
 );
 type ReloadFunc<T> =
     fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
-type RenderEguiFunc<T> = fn(callbacks: &mut T, ui: &egui::Context);
+type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, ui: &egui::Context);
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
@@ -74,10 +74,10 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         }
     }
 
-    fn render_egui(&mut self, ui: &egui::Context) {
+    fn render_egui(&mut self, ctx: &mut crate::Context, ui: &egui::Context) {
         #[allow(clippy::single_match)]
         match self.dll.render_egui_callback {
-            Some(render_egui) => render_egui(&mut self.callbacks, ui),
+            Some(render_egui) => render_egui(&mut self.callbacks, ctx, ui),
             None => {}
         }
     }

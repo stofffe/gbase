@@ -44,7 +44,7 @@ pub trait Callbacks {
     ) {
     }
 
-    fn render_egui(&mut self, _ui: &egui::Context) {}
+    fn render_egui(&mut self, _ctx: &mut Context, _ui: &egui::Context) {}
 }
 
 pub async fn run<C: Callbacks>() {
@@ -75,14 +75,17 @@ pub fn run_sync<C: Callbacks>() {
 #[allow(clippy::large_enum_variant)]
 enum App<C: Callbacks> {
     Uninitialized {
-        proxy: Option<winit::event_loop::EventLoopProxy<Context>>,
         builder: ContextBuilder,
+        proxy: Option<winit::event_loop::EventLoopProxy<Context>>,
     },
     Initialized {
         ctx: Context,
 
         cache: AssetCache,
 
+        ui: egui_ui::EguiContext,
+
+        // Callbacks
         #[cfg(not(feature = "hot_reload"))]
         callbacks: C,
         #[cfg(feature = "hot_reload")]
@@ -95,9 +98,11 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         // TODO: init here?
         let mut cache = AssetCache::new();
 
+        let ui = egui_ui::EguiContext::new(&ctx.render);
+
+        // Callbacks
         #[cfg(not(feature = "hot_reload"))]
         let callbacks = C::new(&mut ctx, &mut cache);
-
         #[cfg(feature = "hot_reload")]
         let callbacks = DllCallbacks::new(&mut ctx, &mut cache);
 
@@ -105,6 +110,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             callbacks,
             ctx,
             cache,
+            ui,
         };
     }
 
@@ -129,7 +135,6 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(window, &builder).await;
             let random = random::RandomContext::new();
-            let egui = egui_ui::EguiContext::new(&render);
 
             let ctx = Context {
                 input,
@@ -138,7 +143,6 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 audio,
                 render,
                 random,
-                egui,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),
@@ -224,6 +228,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             ref mut ctx,
             callbacks,
             cache,
+            ui,
         } = self
         else {
             tracing::warn!("app not initialized while receiving window event -> skipping");
@@ -233,7 +238,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         // callbacks.window_event(ctx, &event);
 
         // TODO: temp for egui
-        ctx.egui.window_event(&ctx.render.window, &event);
+        ui.window_event(&ctx.render.window, &event);
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -251,7 +256,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 }
 
                 // update
-                if update_and_render(ctx, cache, callbacks) {
+                if update_and_render(ctx, cache, ui, callbacks) {
                     event_loop.exit();
                 }
             }
@@ -307,6 +312,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 fn update_and_render(
     ctx: &mut Context,
     cache: &mut AssetCache,
+    ui: &mut egui_ui::EguiContext,
     callbacks: &mut impl Callbacks,
 ) -> bool {
     // time
@@ -342,19 +348,9 @@ fn update_and_render(
     if callbacks.render(ctx, cache, &view) {
         return true;
     }
-
-    // egui
-    ctx.egui.render(
-        &ctx.render.window,
-        &ctx.render.device,
-        &ctx.render.queue,
-        ctx.render.window_size,
-        &view,
-        |ui| {
-            callbacks.render_egui(ui);
-        },
-    );
-
+    ui.render(ctx, &view, |ctx, ui| {
+        callbacks.render_egui(ctx, ui);
+    });
     output.present();
 
     // input

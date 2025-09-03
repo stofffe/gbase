@@ -1,4 +1,4 @@
-use crate::render;
+use crate::{render, Context};
 
 pub(crate) struct EguiContext {
     pub(crate) context: egui::Context,
@@ -39,18 +39,15 @@ impl EguiContext {
 
     pub fn render(
         &mut self,
-        window: &winit::window::Window,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        surface_size: winit::dpi::PhysicalSize<u32>,
+        ctx: &mut Context,
         screen_view: &wgpu::TextureView,
-        mut callback: impl FnMut(&egui::Context),
+        mut callback: impl FnMut(&mut Context, &egui::Context),
     ) {
         // TODO: on_mouse_motion also?
+        let input = self.state.take_egui_input(render::window(ctx));
+        let output = self.context.run(input, |ui| callback(ctx, ui));
 
-        let input = self.state.take_egui_input(window);
-        let output = self.context.run(input, |ui| callback(ui));
-
+        let window = render::window(ctx);
         self.state
             .handle_platform_output(window, output.platform_output);
 
@@ -58,12 +55,14 @@ impl EguiContext {
             .context
             .tessellate(output.shapes, window.scale_factor() as f32);
 
+        let device = render::device(ctx);
+        let queue = render::queue(ctx);
+        let surface_size = render::surface_size(ctx);
         for (id, image_delta) in &output.textures_delta.set {
             self.renderer
                 .update_texture(device, queue, *id, image_delta);
         }
 
-        // let mut encoder = render::EncoderBuilder::new().build(ctx);
         let mut encoder =
             device.create_command_encoder(&wgpu::wgt::CommandEncoderDescriptor { label: None });
         let screen_descriptor = egui_wgpu::ScreenDescriptor {
