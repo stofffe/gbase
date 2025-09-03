@@ -1,5 +1,4 @@
-use egui_wgpu::ScreenDescriptor;
-use gbase::{render, tracing, wgpu, winit, Callbacks, Context};
+use gbase::{tracing, Callbacks, Context};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -25,21 +24,23 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render_egui(&mut self, _ctx: &mut Context, ui: &egui::Context) {
-        egui::Window::new("Stats").show(ui, |ui| {
+    fn render_egui(&mut self, _ctx: &mut Context, ui: &gbase::egui::Context) {
+        gbase::egui::Window::new("Stats").show(ui, |ui| {
             ui.heading("My egui Application");
             ui.horizontal(|ui| {
                 let name_label = ui.label("Your name: ");
                 ui.text_edit_singleline(&mut self.name)
                     .labelled_by(name_label.id);
             });
-            ui.add(egui::Slider::new(&mut self.age, 0..=120).text("age"));
+            ui.add(gbase::egui::Slider::new(&mut self.age, 0..=120).text("age"));
             if ui.button("Increment").clicked() {
                 self.age += 1;
             }
             ui.label(format!("Hello '{}', age {}", self.name, self.age));
 
-            ui.image(egui::include_image!("../assets/textures/perlin_noise.png"));
+            ui.image(gbase::egui::include_image!(
+                "../assets/textures/perlin_noise.png"
+            ));
         });
     }
 }

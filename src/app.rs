@@ -1,7 +1,7 @@
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
-use crate::{asset::AssetCache, audio, egui_ui, filesystem, input, random, render, time, Context};
+use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
@@ -44,6 +44,10 @@ pub trait Callbacks {
     ) {
     }
 
+    /// Render debug UI using egui
+    ///
+    /// Called after main rendering pass
+    #[cfg(feature = "egui")]
     fn render_egui(&mut self, _ctx: &mut Context, _ui: &egui::Context) {}
 }
 
@@ -69,9 +73,9 @@ pub fn run_sync<C: Callbacks>() {
     pollster::block_on(run::<C>())
 }
 
-/// general engine state
+/// General engine state
 ///
-/// can be both initialized and uninitialized
+/// Can be both initialized and uninitialized
 #[allow(clippy::large_enum_variant)]
 enum App<C: Callbacks> {
     Uninitialized {
@@ -83,13 +87,15 @@ enum App<C: Callbacks> {
 
         cache: AssetCache,
 
-        ui: egui_ui::EguiContext,
-
         // Callbacks
         #[cfg(not(feature = "hot_reload"))]
         callbacks: C,
         #[cfg(feature = "hot_reload")]
         callbacks: DllCallbacks<C>,
+
+        // egui
+        #[cfg(feature = "egui")]
+        ui: crate::egui_ui::EguiContext,
     },
 }
 
@@ -98,8 +104,6 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         // TODO: init here?
         let mut cache = AssetCache::new();
 
-        let ui = egui_ui::EguiContext::new(&ctx.render);
-
         // Callbacks
         #[cfg(not(feature = "hot_reload"))]
         let callbacks = C::new(&mut ctx, &mut cache);
@@ -107,10 +111,12 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         let callbacks = DllCallbacks::new(&mut ctx, &mut cache);
 
         *self = App::Initialized {
+            #[cfg(feature = "egui")]
+            ui: crate::egui_ui::EguiContext::new(&ctx),
+
             callbacks,
             ctx,
             cache,
-            ui,
         };
     }
 
@@ -119,9 +125,33 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         let App::Uninitialized { proxy, builder } = self else {
             return;
         };
-        if proxy.is_none() {
-            return;
+        let Some(proxy) = proxy.take() else { return };
+
+        let mut builder = builder.clone();
+        #[cfg(target_arch = "wasm32")]
+        {
+            use web_sys::wasm_bindgen::JsCast;
+            use winit::platform::web::WindowAttributesExtWebSys;
+
+            let win = web_sys::window().unwrap();
+            let document = win.document().unwrap();
+            let canvas = document.get_element_by_id("gbase").unwrap();
+            // let html_canvas_element = canvas.unchecked_into();
+            let canvas = document
+                .get_element_by_id("gbase")
+                .expect("could not find canvas")
+                .dyn_into::<web_sys::HtmlCanvasElement>()
+                .expect("element was not a canvas");
+            let (width, height) = (canvas.width(), canvas.height());
+            builder.window_attributes = builder
+                .window_attributes
+                .with_canvas(Some(canvas))
+                .with_inner_size(winit::dpi::LogicalSize::new(width, height));
         }
+
+        let window = event_loop
+            .create_window(builder.window_attributes.clone())
+            .expect("could not create window");
 
         // initialize context
         async fn init(
@@ -152,37 +182,9 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             assert!(sucess, "could not send context event");
         }
 
-        let proxy = proxy.take().unwrap();
-        let mut builder = builder.clone();
-
-        #[cfg(target_arch = "wasm32")]
-        {
-            use web_sys::wasm_bindgen::JsCast;
-            use winit::platform::web::WindowAttributesExtWebSys;
-
-            let win = web_sys::window().unwrap();
-            let document = win.document().unwrap();
-            let canvas = document.get_element_by_id("gbase").unwrap();
-            // let html_canvas_element = canvas.unchecked_into();
-            let canvas = document
-                .get_element_by_id("gbase")
-                .expect("could not find canvas")
-                .dyn_into::<web_sys::HtmlCanvasElement>()
-                .expect("element was not a canvas");
-            let (width, height) = (canvas.width(), canvas.height());
-            builder.window_attributes = builder
-                .window_attributes
-                .with_canvas(Some(canvas))
-                .with_inner_size(winit::dpi::LogicalSize::new(width, height));
-        }
-
-        let window = event_loop
-            .create_window(builder.window_attributes.clone())
-            .expect("could not create window");
-
+        // spawn init function
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(init(window, builder, proxy));
-
         #[cfg(not(target_arch = "wasm32"))]
         pollster::block_on(init(window, builder, proxy));
     }
@@ -228,6 +230,8 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             ref mut ctx,
             callbacks,
             cache,
+
+            #[cfg(feature = "egui")]
             ui,
         } = self
         else {
@@ -238,25 +242,32 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         // callbacks.window_event(ctx, &event);
 
         // TODO: temp for egui
+        #[cfg(feature = "egui")]
         ui.window_event(&ctx.render.window, &event);
 
         match event {
             WindowEvent::RedrawRequested => {
                 // hot reload
+
                 #[cfg(feature = "hot_reload")]
-                {
-                    if ctx.hot_reload.should_reload() {
-                        tracing::info!("Hot reload");
-                        callbacks.hot_reload(ctx, cache);
-                    }
-                    if ctx.hot_reload.should_restart() {
-                        tracing::info!("Hot restart");
-                        callbacks.hot_restart(ctx, cache);
-                    }
+                if ctx.hot_reload.should_reload() {
+                    tracing::info!("Hot reload");
+                    callbacks.hot_reload(ctx, cache);
+                }
+                #[cfg(feature = "hot_reload")]
+                if ctx.hot_reload.should_restart() {
+                    tracing::info!("Hot restart");
+                    callbacks.hot_restart(ctx, cache);
                 }
 
                 // update
-                if update_and_render(ctx, cache, ui, callbacks) {
+                if update_and_render(
+                    ctx,
+                    cache,
+                    callbacks,
+                    #[cfg(feature = "egui")]
+                    ui,
+                ) {
                     event_loop.exit();
                 }
             }
@@ -312,13 +323,14 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 fn update_and_render(
     ctx: &mut Context,
     cache: &mut AssetCache,
-    ui: &mut egui_ui::EguiContext,
     callbacks: &mut impl Callbacks,
+    #[cfg(feature = "egui")] ui: &mut crate::egui_ui::EguiContext,
 ) -> bool {
-    // time
-    ctx.time.pre_update();
     #[cfg(feature = "hot_reload")]
     ctx.hot_reload.pre_update();
+
+    // time
+    ctx.time.pre_update();
 
     // render
     let surface = render::surface(ctx);
@@ -344,19 +356,22 @@ fn update_and_render(
             format: Some(render::surface_format(ctx)), // TODO: add option to avoid gamma correction
             ..Default::default()
         });
-
     if callbacks.render(ctx, cache, &view) {
         return true;
     }
+
+    #[cfg(feature = "egui")]
     ui.render(ctx, &view, |ctx, ui| {
         callbacks.render_egui(ctx, ui);
     });
+
     output.present();
 
     // input
     ctx.input.post_update();
     ctx.time.post_update();
 
+    // TODO: make this optional
     ctx.render.gpu_profiler.readback(
         &ctx.render.device,
         &ctx.render.queue,

@@ -8,13 +8,8 @@ default = []
 hot_reload = ["gbase/hot_reload"]
 
 [dependencies]
-gbase = { path = "../.." }
+gbase = { path = "../..", features = ["egui"] }
 gbase_utils = { path = "../../utils/gbase_utils" }
-
-egui = "0.32.1"
-egui-wgpu = "0.32.1"
-egui-winit = "0.32.1"
-egui_extras = { version = "0.32.1", features = ["image"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.88"

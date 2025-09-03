@@ -65,10 +65,11 @@
         [] input?
     [] use more references for asset handles, vectors etc
     [] make camera matrices cached
+    [] remove unecessary features from crates
 
 [] egui
-    [] add egui flag to engine
     [] fix dll on mac
+    [x] add egui flag to engine
     [x] move egui from ctx to app
 
 

@@ -7,20 +7,25 @@ pub(crate) struct EguiContext {
 }
 
 impl EguiContext {
-    pub(crate) fn new(render: &render::RenderContext) -> Self {
+    pub(crate) fn new(ctx: &Context) -> Self {
         let context = egui::Context::default();
         egui_extras::install_image_loaders(&context); // TODO: have this here?
 
         let state = egui_winit::State::new(
             context.clone(),
             context.viewport_id(),
-            &render.window,
-            Some(render.window.scale_factor() as f32),
+            render::window(ctx),
+            Some(render::window(ctx).scale_factor() as f32),
             None,
             None,
         );
-        let renderer =
-            egui_wgpu::Renderer::new(&render.device, render.surface_config.format, None, 1, false);
+        let renderer = egui_wgpu::Renderer::new(
+            render::device(ctx),
+            render::surface_format(ctx),
+            None,
+            1,
+            false,
+        );
 
         Self {
             context,

@@ -18,10 +18,12 @@ futures-channel = "0.3.31"
 rustc-hash = "2.1.1"
 
 # egui
-egui = "0.32.1"
-egui-wgpu = "0.32.1"
-egui-winit = "0.32.1"
-egui_extras = { version = "0.32.1", features = ["image"] }
+egui = { version = "0.32.1", optional = true }
+egui-wgpu = { version = "0.32.1", optional = true }
+egui-winit = { version = "0.32.1", optional = true, default-features = false, features = [
+    "links",
+] }
+egui_extras = { version = "0.32.1", optional = true, features = ["image"] }
 
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -49,6 +51,7 @@ reqwest = "0.12.19"
 [features]
 default = []
 
+egui = ["dep:egui", "dep:egui-winit", "dep:egui-wgpu", "dep:egui_extras"]
 hot_reload = ["dep:dlopen"]
 trace = []
 trace_tracy = ["dep:tracing-tracy"]
