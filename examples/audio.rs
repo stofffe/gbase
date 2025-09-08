@@ -2,7 +2,7 @@ use gbase::{
     audio::{self, SoundSource},
     filesystem,
     input::{self, KeyCode},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 
 pub fn main() {
@@ -25,7 +25,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::winit::keyboard::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -35,6 +35,6 @@ impl Callbacks for App {
             audio::play_audio_source(ctx, &self.sound);
         }
 
-        false
+        CallbackResult::Continue
     }
 }

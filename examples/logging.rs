@@ -1,6 +1,6 @@
 use gbase::{
     input::{self, KeyCode},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 
 pub fn main() {
@@ -21,7 +21,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("print");
         }
@@ -29,7 +29,7 @@ impl Callbacks for App {
             tracing::error!("log error");
             tracing::info!("log info");
         }
-        false
+        CallbackResult::Continue
     }
 }
 

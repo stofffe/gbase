@@ -1,6 +1,10 @@
 use std::time::Duration;
 
-use gbase::{input, tracing, wgpu, Callbacks, Context};
+use gbase::{
+    input, tracing,
+    wgpu::{self, CompositeAlphaMode},
+    CallbackResult, Callbacks, Context,
+};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -22,8 +26,13 @@ impl Callbacks for App {
         Self {}
     }
 
-    fn fixed_update(&mut self, ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) {
+    fn fixed_update(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut gbase::asset::AssetCache,
+    ) -> CallbackResult {
         tracing::info!("fixed update called");
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -32,13 +41,13 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if input::key_just_pressed(ctx, input::KeyCode::Space) {
             tracing::error!("LAG SPIKE");
             std::thread::sleep(Duration::from_millis(2000));
         }
         tracing::info!("render called");
-        false
+        CallbackResult::Continue
     }
 }
 

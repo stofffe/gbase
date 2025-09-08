@@ -1,16 +1,18 @@
+use crate::CallbackResult;
+
 type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> T;
 type RenderFunc<T> = fn(
     callbacks: &mut T,
     ctx: &mut crate::Context,
     cache: &mut crate::asset::AssetCache,
     screen_view: &wgpu::TextureView,
-) -> bool;
+) -> CallbackResult;
 type ResizeFunc<T> = fn(
     callbacks: &mut T,
     ctx: &mut crate::Context,
     cache: &mut crate::asset::AssetCache,
     new_size: winit::dpi::PhysicalSize<u32>,
-);
+) -> CallbackResult;
 type ReloadFunc<T> =
     fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
 type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, ui: &egui::Context);
@@ -54,10 +56,10 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         ctx: &mut crate::Context,
         cache: &mut crate::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         match self.dll.render_callback {
             Some(render) => render(&mut self.callbacks, ctx, cache, screen_view),
-            None => false,
+            None => CallbackResult::Continue,
         }
     }
 
@@ -66,11 +68,11 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         ctx: &mut crate::Context,
         cache: &mut crate::asset::AssetCache,
         new_size: winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         #[allow(clippy::single_match)]
         match self.dll.resize_callback {
             Some(resize) => resize(&mut self.callbacks, ctx, cache, new_size),
-            None => {}
+            None => CallbackResult::Continue,
         }
     }
 

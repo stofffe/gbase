@@ -8,7 +8,7 @@ use gbase::{
     render::{self, UniformBufferBuilder},
     time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,
@@ -192,7 +192,7 @@ impl gbase::Callbacks for App {
         ctx: &mut gbase::Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         #[cfg(feature = "hot_reload")]
         if input::key_just_pressed(ctx, input::KeyCode::KeyR)
             && input::modifier_pressed(ctx, input::KeyModifier::LCtrl)
@@ -287,7 +287,7 @@ impl gbase::Callbacks for App {
         self.ui_renderer
             .render(ctx, screen_view, render::surface_format(ctx));
 
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -296,10 +296,12 @@ impl gbase::Callbacks for App {
         ctx: &mut gbase::Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.gizmo_renderer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
+
+        CallbackResult::Continue
     }
 }
 

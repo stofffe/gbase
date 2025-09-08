@@ -8,7 +8,7 @@ use gbase::{
     render::{self, MeshBuilder},
     time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     CameraFrustum, Direction, GpuMaterial, MeshLod, PbrLightUniforms, PbrMaterial, PixelCache,
@@ -154,7 +154,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
@@ -168,7 +168,7 @@ impl Callbacks for App {
                 vec4(1.0, 1.0, 1.0, 1.0),
                 false,
             );
-            return false;
+            return CallbackResult::Continue;
         }
 
         self.camera.flying_controls(ctx);
@@ -282,7 +282,7 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -291,11 +291,13 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.gizmo_renderer.resize(ctx, new_size);
         self.framebuffer.resize(ctx, new_size);
         self.depth_buffer.resize(ctx, new_size);
         self.gui_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
+
+        CallbackResult::Continue
     }
 }

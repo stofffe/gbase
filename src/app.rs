@@ -11,6 +11,11 @@ use winit::{
     window::WindowAttributes,
 };
 
+pub enum CallbackResult {
+    Continue,
+    Exit,
+}
+
 /// User callbaks
 pub trait Callbacks {
     /// Use a custom `ContextBuilder`
@@ -31,11 +36,13 @@ pub trait Callbacks {
         _ctx: &mut Context,
         _cache: &mut AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
-        false
+    ) -> CallbackResult {
+        CallbackResult::Continue
     }
 
-    fn fixed_update(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {}
+    fn fixed_update(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) -> CallbackResult {
+        CallbackResult::Continue
+    }
 
     /// Called after window resize
     fn resize(
@@ -43,7 +50,8 @@ pub trait Callbacks {
         _ctx: &mut Context,
         _cache: &mut AssetCache,
         _new_size: winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
+        CallbackResult::Continue
     }
 
     /// Render debug UI using egui
@@ -129,9 +137,9 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         };
         let Some(proxy) = proxy.take() else { return };
 
-        let mut builder = builder.clone();
+        let builder = builder.clone();
         #[cfg(target_arch = "wasm32")]
-        {
+        let builder = {
             use web_sys::wasm_bindgen::JsCast;
             use winit::platform::web::WindowAttributesExtWebSys;
 
@@ -145,11 +153,13 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 .dyn_into::<web_sys::HtmlCanvasElement>()
                 .expect("element was not a canvas");
             let (width, height) = (canvas.width(), canvas.height());
+            let mut builder = builder;
             builder.window_attributes = builder
                 .window_attributes
                 .with_canvas(Some(canvas))
                 .with_inner_size(winit::dpi::LogicalSize::new(width, height));
-        }
+            builder
+        };
 
         let window = event_loop
             .create_window(builder.window_attributes.clone())
@@ -263,14 +273,15 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 }
 
                 // update
-                if update_and_render(
+                match update_and_render(
                     ctx,
                     cache,
                     callbacks,
                     #[cfg(feature = "egui")]
                     ui,
                 ) {
-                    event_loop.exit();
+                    CallbackResult::Exit => event_loop.exit(),
+                    CallbackResult::Continue => {}
                 }
             }
             WindowEvent::CloseRequested => event_loop.exit(),
@@ -327,13 +338,13 @@ fn update_and_render(
     cache: &mut AssetCache,
     callbacks: &mut impl Callbacks,
     #[cfg(feature = "egui")] ui: &mut crate::egui_ui::EguiContext,
-) -> bool {
+) -> CallbackResult {
     //
     // hot reload
     //
 
     #[cfg(feature = "hot_reload")]
-    ctx.hot_reload.pre_update();
+    ctx.hot_reload.clear_state();
 
     //
     // time + fixed update
@@ -350,20 +361,19 @@ fn update_and_render(
     //
 
     let surface = render::surface(ctx);
-    let output = surface.get_current_texture();
-    let output = match output {
+    let output = match surface.get_current_texture() {
         Ok(val) => val,
         Err(SurfaceError::Timeout) => {
             tracing::error!("timed out getting surface");
-            return true;
+            return CallbackResult::Exit;
         }
         Err(SurfaceError::Lost | SurfaceError::Outdated) => {
             ctx.render.recover_window();
-            return false;
+            return CallbackResult::Continue;
         }
         Err(err) => {
             tracing::warn!("{}", err);
-            return false;
+            return CallbackResult::Continue;
         }
     };
     let view = output // TODO: make this ARC?
@@ -372,8 +382,9 @@ fn update_and_render(
             format: Some(render::surface_format(ctx)), // TODO: add option to avoid gamma correction
             ..Default::default()
         });
-    if callbacks.render(ctx, cache, &view) {
-        return true;
+    match callbacks.render(ctx, cache, &view) {
+        CallbackResult::Exit => return CallbackResult::Exit,
+        CallbackResult::Continue => {}
     }
 
     #[cfg(feature = "egui")]
@@ -387,8 +398,11 @@ fn update_and_render(
     // input
     //
 
-    ctx.input.post_update();
-    ctx.time.post_update();
+    ctx.time.finish_profiler();
+
+    ctx.input.mouse.store_state();
+    ctx.input.keyboard.store_state();
+
     // TODO: make this optional
     ctx.render.gpu_profiler.readback(
         &ctx.render.device,
@@ -405,7 +419,7 @@ fn update_and_render(
     cache.clear_cpu_handles();
     cache.clear_gpu_handles();
 
-    false
+    CallbackResult::Continue
 }
 
 //
@@ -475,19 +489,6 @@ impl ContextBuilder {
         self.window_attributes = window_attributes;
         self
     }
-}
-
-// TODO: rework logging?
-
-/// What level of info that should be logged
-#[derive(Debug, Clone, Copy)]
-pub enum LogLevel {
-    None,
-    Info,
-    Warn,
-    Error,
-    Debug,
-    Trace,
 }
 
 impl ContextBuilder {

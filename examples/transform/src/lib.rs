@@ -2,7 +2,7 @@ use gbase::{
     filesystem,
     glam::{Quat, Vec3},
     render::{self, ArcBindGroup, ArcRenderPipeline, Vertex, VertexTrait as _},
-    tracing, wgpu, Callbacks, Context,
+    tracing, wgpu, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::Transform3D;
 
@@ -24,7 +24,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(tracing::Level::TRACE)
+            .log_level(tracing::Level::INFO)
             .device_features(wgpu::Features::TIMESTAMP_QUERY)
     }
     #[no_mangle]
@@ -84,7 +84,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         // Transform movement
         let t = gbase::time::time_since_start(ctx);
         self.transform.pos.x = t.sin() * 0.5;
@@ -124,7 +124,7 @@ impl Callbacks for App {
         drop(render_pass);
         queue.submit(Some(encoder.finish()));
 
-        false
+        CallbackResult::Continue
     }
 }
 

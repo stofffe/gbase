@@ -6,7 +6,7 @@ use gbase::{
     input::{self, mouse_button_pressed},
     load_b,
     render::{self},
-    time, tracing, wgpu, winit, Callbacks, Context,
+    time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     Alignment, Direction, Gltf, GltfLoader, MeshLod, MeshLodLoader, PbrLightUniforms, PbrRenderer,
@@ -163,7 +163,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
@@ -403,7 +403,7 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -412,7 +412,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.depth_buffer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
@@ -420,6 +420,8 @@ impl Callbacks for App {
         self.hdr_framebuffer_2.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
         self.camera.resize(new_size);
+
+        CallbackResult::Continue
     }
 }
 

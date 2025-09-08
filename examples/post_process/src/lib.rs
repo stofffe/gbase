@@ -2,7 +2,7 @@ use gbase::{
     filesystem,
     input::{self, KeyCode},
     render::{self, ArcTextureView},
-    wgpu, winit, Callbacks, Context,
+    wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
 
@@ -37,8 +37,9 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.framebuffer.resize(ctx, new_size);
+        CallbackResult::Continue
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
@@ -126,7 +127,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if input::key_just_pressed(ctx, KeyCode::Backspace)
             || input::key_just_pressed(ctx, KeyCode::KeyR)
         {
@@ -274,6 +275,6 @@ impl Callbacks for App {
             screen_view,
             render::surface_format(ctx),
         );
-        false
+        CallbackResult::Continue
     }
 }

@@ -8,7 +8,7 @@ use gbase::{
     render::{self},
     time, wgpu,
     winit::dpi::PhysicalSize,
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 use gbase_utils::Transform3D;
 
@@ -56,7 +56,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -128,7 +128,7 @@ impl Callbacks for App {
             render::surface_format(ctx),
             &self.camera_buffer,
         );
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -137,8 +137,9 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.gizmo_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
+        CallbackResult::Continue
     }
 }

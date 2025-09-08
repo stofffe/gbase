@@ -2,7 +2,7 @@ use gbase::{
     asset::{self, AssetBuilder, AssetCache, AssetHandle},
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, render, time, tracing, wgpu, winit, Callbacks, Context,
+    load_b, render, time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D,
@@ -180,7 +180,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
             let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {
@@ -355,7 +355,7 @@ impl Callbacks for App {
         self.ui_renderer
             .render(ctx, screen_view, render::surface_format(ctx));
 
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -364,13 +364,15 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.depth_buffer.resize(ctx, new_size);
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
         self.hdr_framebuffer_1.resize(ctx, new_size);
         self.ldr_framebuffer.resize(ctx, new_size);
         self.camera.resize(new_size);
+
+        CallbackResult::Continue
     }
 }
 

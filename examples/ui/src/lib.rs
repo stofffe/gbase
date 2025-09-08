@@ -1,4 +1,4 @@
-use gbase::{filesystem, input, render, wgpu, winit::dpi::PhysicalSize, Callbacks, Context};
+use gbase::{filesystem, input, render, wgpu, winit::dpi::PhysicalSize, CallbackResult, Callbacks, Context};
 use gbase_utils::{Alignment, Direction, SizeKind, Widget, BLUE, GRAY, GREEN, RED, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -33,7 +33,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render(&mut self, ctx: &mut Context,cache: &mut gbase::asset::AssetCache, screen_view: &wgpu::TextureView) -> bool {
+    fn render(&mut self, ctx: &mut Context,cache: &mut gbase::asset::AssetCache, screen_view: &wgpu::TextureView) -> CallbackResult {
         if input::key_just_pressed(ctx, input::KeyCode::KeyR) {
             render::clear_cache(ctx);
             *self = Self::new(ctx, cache);
@@ -180,12 +180,13 @@ impl Callbacks for App {
 
         // self.gui_renderer.display_debug_info(ctx);
         self.gui_renderer.render(ctx, screen_view, render::surface_format(ctx));
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
-    fn resize(&mut self, ctx: &mut Context,_cache: &mut gbase::asset::AssetCache, new_size: PhysicalSize<u32>) {
+    fn resize(&mut self, ctx: &mut Context,_cache: &mut gbase::asset::AssetCache, new_size: PhysicalSize<u32>)->CallbackResult {
         self.gui_renderer.resize(ctx, new_size);
+        CallbackResult::Continue
     }
 }
 

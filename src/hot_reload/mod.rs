@@ -27,7 +27,7 @@ pub(crate) struct HotReloadContext {
 }
 
 impl HotReloadContext {
-    pub(crate) fn pre_update(&mut self) {
+    pub(crate) fn clear_state(&mut self) {
         self.force_reload = false;
         self.force_restart = false;
     }

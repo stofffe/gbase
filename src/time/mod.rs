@@ -58,7 +58,7 @@ impl TimeContext {
         self.last_time = now;
     }
 
-    pub(crate) fn post_update(&mut self) {
+    pub(crate) fn finish_profiler(&mut self) {
         self.profiler.finish();
     }
 }

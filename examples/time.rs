@@ -1,6 +1,7 @@
 use std::time::Duration;
 
-use gbase::{time, Callbacks, Context};
+use gbase::{time, CallbackResult, Callbacks, Context};
+use wgpu::CompositeAlphaMode;
 
 pub fn main() {
     gbase::run_sync::<App>();
@@ -21,7 +22,7 @@ impl Callbacks for App {
         _ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if self.timer.just_ticked() {
             tracing::info!("timer just ticked");
             self.timer.reset();
@@ -30,6 +31,6 @@ impl Callbacks for App {
             tracing::info!("timer has ticked");
         }
 
-        false
+        CallbackResult::Continue
     }
 }

@@ -1,4 +1,4 @@
-use gbase::{filesystem, render, Callbacks, Context};
+use gbase::{filesystem, render, CallbackResult, Callbacks, Context};
 use std::sync::mpsc;
 
 fn main() {
@@ -71,7 +71,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -110,7 +110,7 @@ impl Callbacks for App {
         let data: Vec<u32> = read_buffer_sync(device, self.cpu_buffer.buffer_ref());
         println!("DATA {:?}", data);
 
-        false
+        CallbackResult::Continue
     }
 }
 

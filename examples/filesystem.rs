@@ -1,8 +1,9 @@
 use gbase::{
     filesystem,
     input::{self, KeyCode},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
+use wgpu::CompositeAlphaMode;
 
 pub fn main() {
     gbase::run_sync::<App>();
@@ -20,7 +21,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         let str_path = "tmp/string";
         if input::key_just_pressed(ctx, KeyCode::Digit1) {
             println!("write string");
@@ -41,6 +42,6 @@ impl Callbacks for App {
             filesystem::store_bytes_tmp(ctx, bytes_path, &[1, 2, 3]).unwrap();
         }
 
-        false
+        CallbackResult::Continue
     }
 }

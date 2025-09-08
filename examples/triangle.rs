@@ -1,7 +1,7 @@
 use gbase::{
     filesystem,
     render::{self, ArcRenderPipeline},
-    wgpu, Callbacks, Context,
+    wgpu, CallbackResult, Callbacks, Context,
 };
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -46,7 +46,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
@@ -60,6 +60,6 @@ impl Callbacks for App {
             });
         encoder.submit(ctx);
 
-        false
+        CallbackResult::Continue
     }
 }

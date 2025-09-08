@@ -9,7 +9,7 @@ use gbase::{
     input::{self, KeyCode},
     load_b, random, render, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
 use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
@@ -453,7 +453,7 @@ impl Callbacks for App {
         ctx: &mut gbase::Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
@@ -753,7 +753,7 @@ impl Callbacks for App {
             &self.camera_buffer,
         );
 
-        false
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -762,11 +762,13 @@ impl Callbacks for App {
         ctx: &mut gbase::Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.ui_renderer.resize(ctx, new_size);
         self.gizmo_renderer.resize(ctx, new_size);
         self.sprite_renderer.resize(ctx, new_size);
         self.camera.resize(new_size);
+
+        CallbackResult::Continue
     }
 }
 

@@ -21,7 +21,7 @@ impl KeyboardContext {
             previous_pressed_modifiers: HashSet::new(),
         }
     }
-    pub(crate) fn post_update(&mut self) {
+    pub(crate) fn store_state(&mut self) {
         self.store_keys();
         self.store_modifiers();
     }

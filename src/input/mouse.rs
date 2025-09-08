@@ -25,7 +25,7 @@ impl MouseContext {
             scroll_delta: (0.0, 0.0),
         }
     }
-    pub(crate) fn post_update(&mut self) {
+    pub(crate) fn store_state(&mut self) {
         self.store_buttons();
         self.set_mouse_delta((0.0, 0.0));
     }

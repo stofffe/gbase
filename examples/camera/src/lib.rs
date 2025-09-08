@@ -7,7 +7,7 @@ use gbase::{
     render::{self},
     wgpu,
     winit::keyboard::KeyCode,
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -83,8 +83,9 @@ impl Callbacks for App {
         _ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         new_size: gbase::winit::dpi::PhysicalSize<u32>,
-    ) {
+    ) -> CallbackResult {
         self.camera.resize(new_size);
+        CallbackResult::Continue
     }
 
     #[no_mangle]
@@ -93,7 +94,7 @@ impl Callbacks for App {
         ctx: &mut Context,
         _cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         let dt = gbase::time::delta_time(ctx);
 
         if input::key_just_pressed(ctx, KeyCode::KeyR) {
@@ -141,7 +142,7 @@ impl Callbacks for App {
                 pass.draw(0..TRIANGLE_VERTICES.len() as u32, 0..1);
             });
 
-        false
+        CallbackResult::Continue
     }
 }
 

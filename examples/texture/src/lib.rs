@@ -2,7 +2,7 @@ use gbase::{
     asset::{self, AssetHandle, ImageLoader, ShaderLoader},
     render::{self, ArcPipelineLayout, GpuImage, Image},
     wgpu::{self},
-    Callbacks, Context,
+    CallbackResult, Callbacks, Context,
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -75,18 +75,19 @@ impl Callbacks for App {
             mesh_handle,
         }
     }
+
     #[no_mangle]
     fn render(
         &mut self,
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
-    ) -> bool {
+    ) -> CallbackResult {
         if !asset::handle_loaded(cache, self.mesh_handle.clone())
             || !asset::handle_loaded(cache, self.shader_handle.clone())
             || !asset::handle_loaded(cache, self.texture_handle.clone())
         {
-            return false;
+            return CallbackResult::Continue;
         }
         let mesh =
             asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone()).unwrap();
@@ -127,6 +128,6 @@ impl Callbacks for App {
                 render_pass.draw_indexed(0..mesh.index_count.unwrap(), 0, 0..1);
             });
 
-        false
+        CallbackResult::Continue
     }
 }
