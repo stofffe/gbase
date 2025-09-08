@@ -7,6 +7,11 @@ type RenderFunc<T> = fn(
     cache: &mut crate::asset::AssetCache,
     screen_view: &wgpu::TextureView,
 ) -> CallbackResult;
+type FixedUpdateFunc<T> = fn(
+    callbacks: &mut T,
+    ctx: &mut crate::Context,
+    cache: &mut crate::asset::AssetCache,
+) -> CallbackResult;
 type ResizeFunc<T> = fn(
     callbacks: &mut T,
     ctx: &mut crate::Context,
@@ -20,6 +25,7 @@ type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, ui: &eg
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
     render_callback: Option<RenderFunc<T>>,
+    fixed_update_callback: Option<FixedUpdateFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
     reload_callback: Option<ReloadFunc<T>>,
     render_egui_callback: Option<RenderEguiFunc<T>>,
@@ -59,6 +65,17 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     ) -> CallbackResult {
         match self.dll.render_callback {
             Some(render) => render(&mut self.callbacks, ctx, cache, screen_view),
+            None => CallbackResult::Continue,
+        }
+    }
+
+    fn fixed_update(
+        &mut self,
+        ctx: &mut crate::Context,
+        cache: &mut crate::asset::AssetCache,
+    ) -> CallbackResult {
+        match self.dll.fixed_update_callback {
+            Some(fixed_update) => fixed_update(&mut self.callbacks, ctx, cache),
             None => CallbackResult::Continue,
         }
     }
@@ -125,6 +142,13 @@ fn load_dll<T>() -> DllApi<T> {
             None
         }
     };
+    let fixed_update_callback = match unsafe { lib.symbol::<FixedUpdateFunc<T>>("fixed_update") } {
+        Ok(f) => Some(*f),
+        Err(err) => {
+            tracing::warn!("could not find function render: {}", err);
+            None
+        }
+    };
     let resize_callback = match unsafe { lib.symbol::<ResizeFunc<T>>("resize") } {
         Ok(f) => Some(*f),
         Err(err) => {
@@ -150,6 +174,7 @@ fn load_dll<T>() -> DllApi<T> {
     DllApi {
         new_callback,
         render_callback,
+        fixed_update_callback,
         resize_callback,
         reload_callback,
         render_egui_callback,

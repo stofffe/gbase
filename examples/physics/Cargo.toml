@@ -10,6 +10,7 @@ hot_reload = ["gbase/hot_reload"]
 [dependencies]
 gbase = { path = "../.." }
 gbase_utils = { path = "../../utils/gbase_utils" }
+rapier3d = { version = "0.29.0", features = [] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.88"
