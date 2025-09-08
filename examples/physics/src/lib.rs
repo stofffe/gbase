@@ -117,6 +117,7 @@ impl Callbacks for App {
         }
     }
 
+    #[no_mangle]
     fn fixed_update(
         &mut self,
         _ctx: &mut Context,

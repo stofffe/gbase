@@ -20,6 +20,7 @@ type ResizeFunc<T> = fn(
 ) -> CallbackResult;
 type ReloadFunc<T> =
     fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
+#[cfg(feature = "egui")]
 type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, ui: &egui::Context);
 
 pub struct DllApi<T> {
@@ -28,6 +29,8 @@ pub struct DllApi<T> {
     fixed_update_callback: Option<FixedUpdateFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
     reload_callback: Option<ReloadFunc<T>>,
+
+    #[cfg(feature = "egui")]
     render_egui_callback: Option<RenderEguiFunc<T>>,
 }
 
@@ -93,6 +96,7 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         }
     }
 
+    #[cfg(feature = "egui")]
     fn render_egui(&mut self, ctx: &mut crate::Context, ui: &egui::Context) {
         #[allow(clippy::single_match)]
         match self.dll.render_egui_callback {
@@ -163,6 +167,7 @@ fn load_dll<T>() -> DllApi<T> {
             None
         }
     };
+    #[cfg(feature = "egui")]
     let render_egui_callback = match unsafe { lib.symbol::<RenderEguiFunc<T>>("render_egui") } {
         Ok(f) => Some(*f),
         Err(err) => {
@@ -177,6 +182,8 @@ fn load_dll<T>() -> DllApi<T> {
         fixed_update_callback,
         resize_callback,
         reload_callback,
+
+        #[cfg(feature = "egui")]
         render_egui_callback,
     }
 }
