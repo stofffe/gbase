@@ -35,6 +35,8 @@ pub trait Callbacks {
         false
     }
 
+    fn fixed_update(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {}
+
     /// Called after window resize
     fn resize(
         &mut self,
@@ -326,13 +328,27 @@ fn update_and_render(
     callbacks: &mut impl Callbacks,
     #[cfg(feature = "egui")] ui: &mut crate::egui_ui::EguiContext,
 ) -> bool {
+    //
+    // hot reload
+    //
+
     #[cfg(feature = "hot_reload")]
     ctx.hot_reload.pre_update();
 
-    // time
-    ctx.time.pre_update();
+    //
+    // time + fixed update
+    //
 
+    ctx.time.update_delta_time();
+    while ctx.time.fixed_accumulator >= time::FIXED_UPDATE_TIME {
+        callbacks.fixed_update(ctx, cache);
+        ctx.time.fixed_accumulator -= time::FIXED_UPDATE_TIME;
+    }
+
+    //
     // render
+    //
+
     let surface = render::surface(ctx);
     let output = surface.get_current_texture();
     let output = match output {
@@ -367,10 +383,12 @@ fn update_and_render(
 
     output.present();
 
+    //
     // input
+    //
+
     ctx.input.post_update();
     ctx.time.post_update();
-
     // TODO: make this optional
     ctx.render.gpu_profiler.readback(
         &ctx.render.device,
@@ -378,9 +396,12 @@ fn update_and_render(
         ctx.time.profiler.clone(),
     );
 
-    cache.poll();
+    //
+    // cache
+    //
 
-    // TODO: dont do this every frame
+    cache.poll();
+    // TODO: dont do this every frame?
     cache.clear_cpu_handles();
     cache.clear_gpu_handles();
 

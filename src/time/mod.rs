@@ -10,12 +10,18 @@ pub use instant::Instant;
 #[cfg(not(target_arch = "wasm32"))]
 pub use std::time::Instant;
 
+// TODO: contextbuilder options
+pub const FIXED_UPDATE_TIME: f32 = 1.0 / 50.0;
+pub const FIXED_UPADTE_MAX_TIME: f32 = 0.25;
+
 pub(crate) struct TimeContext {
     // dt
     start_time: Instant,
     last_time: Instant,
     delta_time: f32,
     time_since_start: f32,
+
+    pub(crate) fixed_accumulator: f32,
 
     pub(crate) profiler: ProfilerWrapper,
 }
@@ -27,6 +33,7 @@ impl Default for TimeContext {
             start_time,
             last_time: start_time,
             delta_time: 0.0,
+            fixed_accumulator: 0.0,
 
             time_since_start: 0.0,
 
@@ -36,10 +43,13 @@ impl Default for TimeContext {
 }
 
 impl TimeContext {
-    pub(crate) fn pre_update(&mut self) {
+    pub(crate) fn update_delta_time(&mut self) {
         let now = Instant::now();
 
         self.delta_time = now.duration_since(self.last_time).as_secs_f32();
+
+        let clamped_delta_time = self.delta_time.min(FIXED_UPADTE_MAX_TIME); // TODO: is this problematic?
+        self.fixed_accumulator += clamped_delta_time;
 
         self.profiler.add_total_frame_time_sample(self.delta_time);
 
