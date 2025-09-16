@@ -38,7 +38,7 @@ pub struct RenderContext {
 
     pub(crate) cache: RenderCache,
 
-    pub(crate) gpu_profiler: profiler::GpuProfiler,
+    pub gpu_profiler: profiler::GpuProfiler,
 }
 
 impl RenderContext {
@@ -72,10 +72,26 @@ impl RenderContext {
             .expect("could not create adapter");
 
         // tracing::error!("Using backend: {:?}", adapter.get_info().backend);
+        let mut required_features = context_builder.device_features;
+        if adapter.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
+            required_features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
+        if adapter
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_ENCODERS)
+        {
+            required_features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
+        if adapter
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY_INSIDE_PASSES)
+        {
+            required_features |= wgpu::Features::TIMESTAMP_QUERY;
+        }
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                required_features: context_builder.device_features,
+                required_features,
                 required_limits: adapter.limits(),
                 label: None,
                 memory_hints: wgpu::MemoryHints::Performance,
@@ -115,11 +131,8 @@ impl RenderContext {
 
         let cache = RenderCache::empty();
 
-        let gpu_profiler = profiler::GpuProfiler::new(
-            &device,
-            context_builder.gpu_profiler_enabled,
-            context_builder.gpu_profiler_capacity,
-        );
+        let gpu_profiler =
+            profiler::GpuProfiler::new(&device, context_builder.gpu_profiler_capacity);
 
         Self {
             device: Arc::new(device),

@@ -7,7 +7,8 @@ use gbase::{
     asset::{self, AssetHandle, ShaderLoader},
     glam::{Mat4, Vec3},
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
-    tracing, wgpu, Context,
+    tracing::{self, instrument::WithSubscriber},
+    wgpu, Context,
 };
 use std::collections::BTreeSet;
 

@@ -65,9 +65,7 @@ impl Callbacks for App {
             .log_level(tracing::Level::INFO)
             .vsync(false)
             .device_features(
-                wgpu::Features::POLYGON_MODE_LINE
-                    | wgpu::Features::TIMESTAMP_QUERY
-                    | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
+                wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
             )
             .window_attributes(winit::window::Window::default_attributes().with_maximized(true))
             .gpu_profiler_enabled(false)
@@ -349,6 +347,15 @@ impl Callbacks for App {
                         .text_color(WHITE)
                         .render(renderer);
                 }
+
+                for (label, time) in time::profiler(ctx).get_gpu_samples() {
+                    Widget::new()
+                        .width(SizeKind::TextSize)
+                        .height(SizeKind::TextSize)
+                        .text(format!("GPU: {:.5} {}", time * 1000.0, label))
+                        .text_color(WHITE)
+                        .render(renderer);
+                }
             });
 
         self.ui_renderer.display_debug_info(ctx);
@@ -380,6 +387,6 @@ impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
-        render::set_vsync(_ctx, false);
+        // render::set_vsync(_ctx, false);
     }
 }

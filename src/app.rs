@@ -404,11 +404,12 @@ fn update_and_render(
     ctx.input.keyboard.store_state();
 
     // TODO: make this optional
-    ctx.render.gpu_profiler.readback(
-        &ctx.render.device,
-        &ctx.render.queue,
-        ctx.time.profiler.clone(),
-    );
+    ctx.render
+        .gpu_profiler
+        .readback_async(&ctx.render.device, &ctx.render.queue);
+    ctx.render
+        .gpu_profiler
+        .poll_readbacks(&ctx.render.queue, &mut ctx.time.profiler);
 
     //
     // cache
@@ -446,7 +447,7 @@ impl ContextBuilder {
             log_level: tracing::Level::INFO,
             assets_path: PathBuf::from("assets"),
             vsync_enabled: true,
-            device_features: wgpu::Features::default() | wgpu::Features::TIMESTAMP_QUERY,
+            device_features: wgpu::Features::default(),
             window_attributes: WindowAttributes::default(),
 
             gpu_profiler_enabled: false,
