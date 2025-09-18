@@ -178,7 +178,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     );
 
     if true {
-        return vec4f(normal, 1.0);
+    // return vec4f(normal, 1.0);
     // return vec4f(in.N, 1.0);
     // return vec4f(in.uv, 0.0, 1.0);
     // return vec4f(visibility, visibility, visibility, 1.0);
@@ -191,9 +191,12 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 //
 
 fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
+    // translate the examined point into camera view space
     let view_space_pos = camera.view * vec4f(pos, 1.0);
     let view_space_dist = -view_space_pos.z;
 
+    // check if point is in shadow maps
+    // start at higest detail and move up
     var index = 2;
     for (var i = 0; i < 3; i++) {
         let light_pos = shadow_matrices[i] * vec4f(pos, 1.0);
@@ -202,6 +205,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         shadow_uv.y = shadow_uv.y * 0.5 + 0.5;
         shadow_uv.y = 1.0 - shadow_uv.y;
 
+        // check for inside camera view bounds
         let pixel_depth = shadow_uv.z; // important to clamp [0,1]
         if pixel_depth >= 0.0 && pixel_depth <= 1.0 && all(shadow_uv.xy >= vec2f(0.0)) && all(shadow_uv.xy <= vec2f(1.0)) {
             index = i;
@@ -209,6 +213,7 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         }
     }
 
+    // translate point into shadow map space to get distance
     let light_pos = shadow_matrices[index] * vec4f(pos, 1.0);
     var shadow_uv = light_pos / light_pos.w;
     shadow_uv.x = shadow_uv.x * 0.5 + 0.5;
@@ -232,6 +237,8 @@ fn shadow(pos: vec3f, normal: vec3f, light_dir: vec3f) -> f32 {
         pixel_depth, // TODO: bias as param?
     );
 
+    // compare distance from point to closest in shadow map
+    // uses offsetted sampling
     const PCF_KERNEL_SIZE = 1;
     let texel_size = 1.0 / vec2f(textureDimensions(shadow_map_texture));
     for (var x = 0; x < PCF_KERNEL_SIZE * 2; x++) {
