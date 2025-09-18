@@ -68,7 +68,7 @@ impl Callbacks for App {
                 wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
             )
             .window_attributes(winit::window::Window::default_attributes().with_maximized(true))
-            .gpu_profiler_enabled(false)
+            .gpu_profiler_enabled(true)
     }
 
     #[no_mangle]
@@ -179,6 +179,13 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> CallbackResult {
+        if input::key_just_pressed(ctx, input::KeyCode::F1) {
+            render::enable_gpu_profiling(ctx, true);
+        }
+        if input::key_just_pressed(ctx, input::KeyCode::F2) {
+            render::enable_gpu_profiling(ctx, false);
+        }
+
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
             let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
             for (mesh, _) in mesh_lod.meshes.clone() {

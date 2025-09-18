@@ -1,11 +1,7 @@
+use crate::time::ProfilerWrapper;
 use std::sync::mpsc;
 
-use crate::{
-    time::{self, ProfilerWrapper},
-    Context,
-};
-
-const READBACK_BUFFER_SIZE: usize = 32;
+const READBACK_BUFFER_SIZE: usize = 8;
 
 #[derive(Debug, Clone)]
 pub struct GpuProfileQuery {
@@ -23,23 +19,25 @@ pub struct GpuProfileResult {
 #[derive(Debug)]
 struct ReadbackBuffer {
     buffer: wgpu::Buffer,
-    sender: mpsc::Sender<()>,
-    receiver: mpsc::Receiver<()>,
     queries: Vec<GpuProfileQuery>,
+    buffer_mapped_sender: mpsc::Sender<Result<(), wgpu::BufferAsyncError>>,
+    buffer_mapped_receiver: mpsc::Receiver<Result<(), wgpu::BufferAsyncError>>,
+    occupied: bool,
 }
 
 #[derive(Debug)]
 pub struct GpuProfiler {
-    new_times: Vec<GpuProfileQuery>,
+    enabled: bool,
+
+    current_queries: Vec<GpuProfileQuery>,
     next_free_timestamp: u32,
-    capacity: u32,
+    timestamp_capacity: u32,
 
     queries_supported: bool,
     queries_supported_inside_encoder: bool,
     queries_supported_inside_pass: bool,
 
     timestamp_query_set: Option<wgpu::QuerySet>,
-    readback_times: Vec<GpuProfileResult>,
     timestamp_query_buffer: wgpu::Buffer,
 
     // readback
@@ -48,7 +46,7 @@ pub struct GpuProfiler {
 }
 
 impl GpuProfiler {
-    pub(crate) fn new(device: &wgpu::Device, capacity: u32) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, capacity: u32, enabled: bool) -> Self {
         if capacity > wgpu::QUERY_SET_MAX_QUERIES {
             tracing::warn!(
                 "gpu profiler has max capacity of {}, using it instead of {}",
@@ -76,8 +74,6 @@ impl GpuProfiler {
             None
         };
 
-        dbg!(&timestamp_query_set);
-
         let buffer_size = capacity as u64 * std::mem::size_of::<u64>() as u64;
         let timestamp_query_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("gpu profiler timestamp query buffer"),
@@ -97,21 +93,22 @@ impl GpuProfiler {
             let (sender, receiver) = std::sync::mpsc::channel();
             readback_buffers.push(ReadbackBuffer {
                 buffer: timestamp_readback_buffer,
-                sender,
-                receiver,
+                buffer_mapped_sender: sender,
+                buffer_mapped_receiver: receiver,
                 queries: Vec::new(),
+                occupied: false,
             });
         }
 
         let times = Vec::with_capacity(capacity as usize);
-        let last_frame_times = Vec::with_capacity(capacity as usize);
         let next_free_timestamp = 0;
 
         Self {
-            new_times: times,
+            enabled,
+
+            current_queries: times,
             next_free_timestamp,
-            capacity,
-            readback_times: last_frame_times,
+            timestamp_capacity: capacity,
 
             timestamp_query_set,
             timestamp_query_buffer,
@@ -126,7 +123,7 @@ impl GpuProfiler {
     }
 
     pub(crate) fn readback_async(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
-        if !self.queries_supported || self.new_times.is_empty() {
+        if !self.enabled || !self.queries_supported || self.current_queries.is_empty() {
             return;
         }
         let Some(query_set) = &self.timestamp_query_set else {
@@ -136,6 +133,10 @@ impl GpuProfiler {
         // get next available buffer
         let readback_buffer_index = self.readback_buffer_next_index % self.readback_buffers.len();
         let readback_buffer = &mut self.readback_buffers[readback_buffer_index];
+        assert!(
+            !readback_buffer.occupied,
+            "readback buffer occupied, increase count"
+        );
 
         // get nex available timestamp
         let timestamp_count = self.next_free_timestamp;
@@ -161,47 +162,58 @@ impl GpuProfiler {
         queue.submit([encoder.finish()]);
 
         // map buffer
-        let sender = readback_buffer.sender.clone();
+        let sender = readback_buffer.buffer_mapped_sender.clone();
         readback_buffer
             .buffer
             .slice(..readback_size)
-            .map_async(wgpu::MapMode::Read, move |_res| {
-                sender.send(()).expect("could not send");
+            .map_async(wgpu::MapMode::Read, move |res| {
+                sender.send(res).expect("could not send");
             });
         device
             .poll(wgpu::MaintainBase::Poll)
             .expect("could not poll");
 
-        readback_buffer.queries = std::mem::take(&mut self.new_times);
+        readback_buffer.queries = std::mem::take(&mut self.current_queries);
+        readback_buffer.occupied = true;
 
         self.readback_buffer_next_index += 1;
 
         // reset timestamp query
         self.next_free_timestamp = 0;
-        self.new_times.clear();
+        self.current_queries.clear();
     }
 
     pub fn poll_readbacks(&mut self, queue: &wgpu::Queue, profiler: &mut ProfilerWrapper) {
         let mut query_results = Vec::new();
 
-        for (i, readback) in self.readback_buffers.iter_mut().enumerate() {
-            if readback.receiver.try_recv().is_ok() {
-                let data = readback.buffer.slice(..).get_mapped_range();
-                let timestamps: Vec<u64> = bytemuck::cast_slice(&data).to_vec();
-                drop(data);
-                readback.buffer.unmap();
+        for readback in self.readback_buffers.iter_mut() {
+            if let Ok(res) = readback.buffer_mapped_receiver.try_recv() {
+                if res.is_ok() {
+                    // read mapped data
+                    let data = readback.buffer.slice(..).get_mapped_range();
+                    let timestamps: Vec<u64> = bytemuck::cast_slice(&data).to_vec();
+                    drop(data);
+                    readback.buffer.unmap();
 
-                for query in readback.queries.iter() {
-                    let diff = timestamps[query.timestamp_end as usize]
-                        - timestamps[query.timestamp_start as usize];
-                    let time_ns = diff as f32 * queue.get_timestamp_period();
-                    let time_s = time_ns / 1_000_000_000.0;
-                    query_results.push(GpuProfileResult {
-                        label: query.label,
-                        time: time_s,
-                    });
+                    // convert timestamps to profile results
+                    for query in readback.queries.iter() {
+                        let timestamp_start = timestamps[query.timestamp_start as usize];
+                        let timestamp_end = timestamps[query.timestamp_end as usize];
+                        let diff = timestamp_end - timestamp_start;
+                        let time_ns = diff as f32 * queue.get_timestamp_period();
+                        let time_s = time_ns / 1_000_000_000.0;
+                        query_results.push(GpuProfileResult {
+                            label: query.label,
+                            time: time_s,
+                        });
+                    }
+
+                    // clear readback info
+                    readback.queries.clear();
+                    readback.occupied = false;
+                } else {
+                    tracing::error!("error mapping timestamp query readback buffer");
                 }
-                readback.queries.clear();
             }
         }
 
@@ -209,10 +221,6 @@ impl GpuProfiler {
         for res in query_results.iter() {
             profiler.add_gpu_sample(res.label, res.time);
         }
-    }
-
-    pub fn resize(&mut self, device: &wgpu::Device, capacity: u32) {
-        *self = Self::new(device, capacity);
     }
 
     pub fn profile_compute_pass(
@@ -225,10 +233,10 @@ impl GpuProfiler {
         let Some(query_set) = &self.timestamp_query_set else {
             return None;
         };
-        if self.next_free_timestamp > self.capacity {
+        if self.next_free_timestamp > self.timestamp_capacity {
             tracing::warn!(
                 "reached timestamp query capacity {}, ignoring {}",
-                self.capacity,
+                self.timestamp_capacity,
                 label,
             );
             return None;
@@ -240,7 +248,7 @@ impl GpuProfiler {
             beginning_of_pass_write_index: Some(start),
             end_of_pass_write_index: Some(end),
         };
-        self.new_times.push(GpuProfileQuery {
+        self.current_queries.push(GpuProfileQuery {
             label,
             timestamp_start: start,
             timestamp_end: end,
@@ -260,10 +268,10 @@ impl GpuProfiler {
         let Some(query_set) = &self.timestamp_query_set else {
             return None;
         };
-        if self.next_free_timestamp > self.capacity {
+        if self.next_free_timestamp > self.timestamp_capacity {
             tracing::warn!(
                 "reached timestamp query capacity {}, ignoring {}",
-                self.capacity,
+                self.timestamp_capacity,
                 label,
             );
             return None;
@@ -276,7 +284,7 @@ impl GpuProfiler {
             beginning_of_pass_write_index: Some(start),
             end_of_pass_write_index: Some(end),
         };
-        self.new_times.push(GpuProfileQuery {
+        self.current_queries.push(GpuProfileQuery {
             label,
             timestamp_start: start,
             timestamp_end: end,
@@ -288,7 +296,7 @@ impl GpuProfiler {
 
     // TODO: inside pass
 
-    pub fn readback_times(&self) -> Vec<GpuProfileResult> {
-        self.readback_times.clone()
+    pub fn set_enabled(&mut self, enabled: bool) {
+        self.enabled = enabled;
     }
 }

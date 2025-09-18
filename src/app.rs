@@ -457,7 +457,6 @@ impl ContextBuilder {
 
     pub fn gpu_profiler_enabled(mut self, enabled: bool) -> Self {
         self.gpu_profiler_enabled = enabled;
-        // self.device_features |= wgpu::Features::TIMESTAMP_QUERY;
         self
     }
 
