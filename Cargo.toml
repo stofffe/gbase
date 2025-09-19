@@ -11,11 +11,15 @@ bytemuck = { version = "1.14.0", features = ["derive"] }
 encase = { version = "0.6.1", features = ["glam"] }
 anyhow = "1.0.95"
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
-tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
 image = "0.25.6"
 futures-channel = "0.3.31"
 rustc-hash = "2.1.1"
+
+# tracing
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+tracing-tracy = { version = "0.11.0", optional = true }
+tracy-client = { version = "0.18.2", optional = true }
 
 # egui
 egui = { version = "0.32.1", optional = true }
@@ -29,7 +33,6 @@ egui_extras = { version = "0.32.1", optional = true, features = ["image"] }
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pollster = { version = "0.3.0", features = ["macro"] }
 notify-debouncer-mini = "0.6.0"
-tracing-tracy = { version = "0.11.4", optional = true }
 dlopen = { version = "0.1.8", features = [], optional = true }
 
 # wasm
@@ -54,7 +57,7 @@ default = []
 egui = ["dep:egui", "dep:egui-winit", "dep:egui-wgpu", "dep:egui_extras"]
 hot_reload = ["dep:dlopen"]
 trace = []
-trace_tracy = ["dep:tracing-tracy"]
+trace_tracy = ["dep:tracing-tracy", "dep:tracy-client"]
 
 [workspace]
 members = [

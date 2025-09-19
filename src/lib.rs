@@ -7,6 +7,7 @@ pub mod audio;
 pub mod collision; // TODO: move to utils?
 pub mod filesystem;
 pub mod input;
+pub mod profile;
 pub mod random;
 pub mod render;
 pub mod time;
@@ -15,6 +16,9 @@ pub mod time;
 pub mod egui_ui;
 #[cfg(feature = "egui")]
 pub use egui;
+
+#[cfg(feature = "trace_tracy")]
+pub use tracy_client;
 
 #[cfg(all(feature = "hot_reload", not(target_arch = "wasm32")))]
 pub mod hot_reload;
@@ -47,6 +51,7 @@ pub struct Context {
     pub(crate) audio: audio::AudioContext,
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
+    pub profile: profile::ProfileContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,

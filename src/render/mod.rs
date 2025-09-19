@@ -5,7 +5,6 @@ mod cache;
 mod framebuffer;
 mod mesh;
 mod pipeline;
-mod profiler;
 mod render_pass;
 mod shader;
 mod texture;
@@ -17,7 +16,6 @@ pub use cache::*;
 pub use framebuffer::*;
 pub use mesh::*;
 pub use pipeline::*;
-pub use profiler::*;
 pub use render_pass::*;
 pub use shader::*;
 pub use texture::*;
@@ -37,14 +35,12 @@ pub struct RenderContext {
     pub(crate) window_size: winit::dpi::PhysicalSize<u32>,
 
     pub(crate) cache: RenderCache,
-
-    pub gpu_profiler: profiler::GpuProfiler,
 }
 
 impl RenderContext {
     pub(crate) async fn new(
-        window: winit::window::Window,
         context_builder: &ContextBuilder,
+        window: winit::window::Window,
     ) -> Self {
         let window = Arc::new(window);
 
@@ -131,12 +127,6 @@ impl RenderContext {
 
         let cache = RenderCache::empty();
 
-        let gpu_profiler = profiler::GpuProfiler::new(
-            &device,
-            context_builder.gpu_profiler_capacity,
-            context_builder.gpu_profiler_enabled,
-        );
-
         Self {
             device: Arc::new(device),
             adapter: Arc::new(adapter),
@@ -148,8 +138,6 @@ impl RenderContext {
             window,
 
             cache,
-
-            gpu_profiler,
         }
     }
 
@@ -182,14 +170,6 @@ impl RenderContext {
 }
 
 // Getter functions for render and window operations
-
-pub fn enable_gpu_profiling(ctx: &mut Context, enabled: bool) {
-    ctx.render.gpu_profiler.set_enabled(enabled);
-}
-pub fn gpu_profiler(ctx: &mut Context) -> &mut GpuProfiler {
-    &mut ctx.render.gpu_profiler
-}
-
 pub fn aspect_ratio(ctx: &Context) -> f32 {
     ctx.render.aspect_ratio()
 }

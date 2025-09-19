@@ -1,7 +1,7 @@
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
-use crate::{asset::AssetCache, audio, filesystem, input, random, render, time, Context};
+use crate::{asset::AssetCache, audio, filesystem, input, profile, random, render, time, Context};
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
@@ -175,8 +175,9 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let time = time::TimeContext::default();
             let filesystem = filesystem::FileSystemContext::new();
             let audio = audio::AudioContext::new();
-            let render = render::RenderContext::new(window, &builder).await;
+            let render = render::RenderContext::new(&builder, window).await;
             let random = random::RandomContext::new();
+            let profile = profile::ProfileContext::new(&builder, &render.device);
 
             let ctx = Context {
                 input,
@@ -185,6 +186,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 audio,
                 render,
                 random,
+                profile,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),
@@ -404,10 +406,10 @@ fn update_and_render(
     ctx.input.keyboard.store_state();
 
     // TODO: make this optional
-    ctx.render
+    ctx.profile
         .gpu_profiler
         .readback_async(&ctx.render.device, &ctx.render.queue);
-    ctx.render
+    ctx.profile
         .gpu_profiler
         .poll_readbacks(&ctx.render.queue, &mut ctx.time.profiler);
 
@@ -526,6 +528,9 @@ impl ContextBuilder {
                     tracing::error!("could not initialize tracing subscriber: {}", err)
                 }
             }
+
+            #[cfg(feature = "trace_tracy")]
+            let client = tracy_client::Client::start();
         }
     }
 }

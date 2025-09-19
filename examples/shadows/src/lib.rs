@@ -2,7 +2,9 @@ use gbase::{
     asset::{self, AssetBuilder, AssetCache, AssetHandle},
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, render, time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
+    load_b, profile, render, time,
+    tracing::{self, instrument, span},
+    wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D,
@@ -179,11 +181,13 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> CallbackResult {
+        let _render_span = span!(tracing::Level::INFO, "render").entered();
+
         if input::key_just_pressed(ctx, input::KeyCode::F1) {
-            render::enable_gpu_profiling(ctx, true);
+            profile::enable_gpu_profiling(ctx, true);
         }
         if input::key_just_pressed(ctx, input::KeyCode::F2) {
-            render::enable_gpu_profiling(ctx, false);
+            profile::enable_gpu_profiling(ctx, false);
         }
 
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
@@ -287,6 +291,7 @@ impl Callbacks for App {
 
         // self.pbr_renderer
         //     .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
+        let _pbr_span = span!(tracing::Level::INFO, "pbr").entered();
         self.pbr_renderer.render(
             ctx,
             cache,
@@ -302,6 +307,7 @@ impl Callbacks for App {
             &self.shadow_pass.light_matrices_buffer,
             &self.shadow_pass.light_matrices_distances,
         );
+        _pbr_span.exit();
 
         self.gizmo_renderer.render(
             ctx,

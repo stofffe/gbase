@@ -206,7 +206,7 @@ impl<'a> RenderPassBuilder<'a> {
 
     // TODO: send label and do this in build instead?
     pub fn trace_gpu(mut self, ctx: &'a mut Context, label: &'static str) -> Self {
-        self.timestamp_writes = ctx.render.gpu_profiler.profile_render_pass(label);
+        self.timestamp_writes = ctx.profile.gpu_profiler.profile_render_pass(label);
         self
     }
 }
@@ -269,7 +269,7 @@ impl<'a> ComputePassBuilder<'a> {
     //     self
     // }
     pub fn trace_gpu(mut self, ctx: &'a mut Context, label: &'static str) -> Self {
-        self.timestamp_writes = ctx.render.gpu_profiler.profile_compute_pass(label);
+        self.timestamp_writes = ctx.profile.gpu_profiler.profile_compute_pass(label);
         self
     }
 }

@@ -114,11 +114,13 @@
     [] use single triangle (https://wallisc.github.io/rendering/2021/04/18/Fullscreen-Pass.html)
 
 [] profiling
+    [] remove custom cpu profiling and use tracing_tracy only?
+    [] connect cpu and/or gpu to tracing?
+    [] separate gpu and cpu profiling?
+    [] tracy doesnt work with hot reload (probably fine)
     [x] cpu with mutex?
     [x] put profiling in ctx
-    [] async timestamp query readback?
-    [] connect cpu to tracing?
-    [] separate gpu and cpu profiling
+    [x] async timestamp query readback?
 
 [x] tracing
     [x] tracing wasm
