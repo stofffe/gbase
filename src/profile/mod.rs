@@ -30,7 +30,7 @@ impl ProfileContext {
             context_builder.gpu_profiler_capacity,
             context_builder.gpu_profiler_enabled,
         );
-        let cpu_profiler = cpu_profiler::ProfilerWrapper::new();
+        let cpu_profiler = context_builder.profiler.clone();
 
         Self {
             cpu_profiler,

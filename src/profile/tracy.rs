@@ -1,5 +1,3 @@
-use std::mem;
-
 pub struct TracyContext {
     pub tracy_cpu_client: tracy_client::Client,
     pub tracy_gpu_client: tracy_client::GpuContext,
@@ -108,13 +106,13 @@ fn gather_gpu_timestamp_sync(device: &wgpu::Device, queue: &wgpu::Queue) -> u64 
         0,
         &readback_buffer,
         0,
-        mem::size_of::<u64>() as u64,
+        std::mem::size_of::<u64>() as u64,
     );
 
     queue.submit(Some(encoder.finish()));
 
     // readback timestamp query result
-    let buffer_slice = readback_buffer.slice(0..mem::size_of::<u64>() as u64);
+    let buffer_slice = readback_buffer.slice(0..std::mem::size_of::<u64>() as u64);
     buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
     device
         .poll(wgpu::MaintainBase::Wait)

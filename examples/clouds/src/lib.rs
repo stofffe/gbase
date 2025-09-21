@@ -8,7 +8,7 @@ use gbase::{
     render::{self, UniformBufferBuilder},
     time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
-    CallbackResult, Callbacks, Context,
+    CallbackResult, Callbacks, Context, ContextBuilder,
 };
 use gbase_utils::{
     gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,

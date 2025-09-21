@@ -1,9 +1,17 @@
 #[cfg(feature = "hot_reload")]
 use crate::hot_reload::{self, DllCallbacks};
 
-use crate::{asset::AssetCache, audio, filesystem, input, profile, random, render, time, Context};
-use std::path::PathBuf;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use crate::{
+    asset::AssetCache,
+    audio, filesystem, input,
+    profile::{self, ProfilerWrapper},
+    random, render, time, Context,
+};
+use std::{collections::HashMap, path::PathBuf, time::Instant};
+use tracing::{span::Attributes, Event, Id, Subscriber};
+use tracing_subscriber::{
+    layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt, Layer,
+};
 use wgpu::SurfaceError;
 use winit::{
     event::{self, DeviceEvent, WindowEvent},
@@ -62,7 +70,8 @@ pub trait Callbacks {
 }
 
 pub async fn run<C: Callbacks>() {
-    C::init_ctx().init_logging();
+    let context_builder = C::init_ctx();
+    context_builder.init_logging();
 
     let event_loop = winit::event_loop::EventLoop::with_user_event()
         .build()
@@ -70,7 +79,7 @@ pub async fn run<C: Callbacks>() {
 
     let mut app = App::Uninitialized::<C> {
         proxy: Some(event_loop.create_proxy()),
-        builder: C::init_ctx(),
+        builder: context_builder,
     };
 
     event_loop
@@ -403,6 +412,7 @@ fn update_and_render(
     //
     // profiling
     //
+
     ctx.profile.cpu_profiler.finish();
     ctx.profile
         .gpu_profiler
@@ -445,6 +455,7 @@ pub struct ContextBuilder {
 
     pub(crate) gpu_profiler_enabled: bool, // can be set later
     pub(crate) gpu_profiler_capacity: u32, // can be set later
+    pub(crate) profiler: ProfilerWrapper,
 }
 
 #[allow(clippy::new_without_default)]
@@ -459,6 +470,7 @@ impl ContextBuilder {
 
             gpu_profiler_enabled: false,
             gpu_profiler_capacity: 64,
+            profiler: profile::ProfilerWrapper::new(),
         }
     }
 
@@ -499,6 +511,15 @@ impl ContextBuilder {
 }
 
 impl ContextBuilder {
+    /// Initialize a new logger with an existing profiler
+    ///
+    /// Should only be to reinitialize logging after hot reloading
+    pub fn init_logging_with_profiler<C: Callbacks>(ctx: &Context) {
+        let mut context_builder = C::init_ctx();
+        context_builder.profiler = ctx.profile.cpu_profiler.clone();
+        context_builder.init_logging();
+    }
+
     /// Initialize init_logging
     ///
     /// Panics if called multiple times
@@ -520,9 +541,11 @@ impl ContextBuilder {
         {
             let filter_layer = tracing_subscriber::filter::LevelFilter::from(self.log_level);
             let format_layer = tracing_subscriber::fmt::layer();
+            let cpu_profiler_layer = profile::CpuProfilingLayer::new(self.profiler.clone());
             let subscriber = tracing_subscriber::registry()
                 .with(filter_layer)
-                .with(format_layer);
+                .with(format_layer)
+                .with(cpu_profiler_layer);
 
             #[cfg(feature = "trace_tracy")]
             let subscriber = subscriber.with(tracing_tracy::TracyLayer::default());

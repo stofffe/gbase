@@ -121,11 +121,11 @@
     [x] cpu with mutex?
     [x] put profiling in ctx
     [x] async timestamp query readback?
+    [x] tracing
+        [x] tracing wasm
+        [x] tracy
+        [x] tracy_client gpu
 
-[x] tracing
-    [x] tracing wasm
-    [x] tracy
-    [] tracy_client has gpu support?
 
 [] remove vsync, log level, (asset path) from init_ctx()
     some are needed for wasm (log level)

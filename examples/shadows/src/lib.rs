@@ -4,7 +4,7 @@ use gbase::{
     input::{self, mouse_button_pressed},
     load_b, profile, render, time,
     tracing::{self, span},
-    wgpu, winit, CallbackResult, Callbacks, Context,
+    wgpu, winit, CallbackResult, Callbacks, Context, ContextBuilder,
 };
 use gbase_utils::{
     Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D,
@@ -216,8 +216,6 @@ impl Callbacks for App {
             *self = Self::new(ctx, cache);
         }
 
-        let _render_timer = profile::ProfileTimer::new(ctx, "render");
-
         // update buffers
         let _prepare_span = tracing::span!(tracing::Level::INFO, "prepare").entered();
         self.camera_buffer.write(ctx, &self.camera.uniform());
@@ -348,7 +346,7 @@ impl Callbacks for App {
             }
         }
 
-        _render_timer.finish();
+        _render_span.exit();
 
         let _ui_span = span!(tracing::Level::INFO, "ui").entered();
         Widget::new()
@@ -407,8 +405,7 @@ impl Callbacks for App {
 
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, _ctx: &mut Context) {
-        Self::init_ctx().init_logging();
-        // render::set_vsync(_ctx, false);
+    fn hot_reload(&mut self, ctx: &mut Context) {
+        ContextBuilder::init_logging_with_profiler::<Self>(ctx);
     }
 }

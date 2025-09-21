@@ -3,11 +3,13 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use tracing::span::Id;
+
 use crate::{time, Context};
 
 const SAMPLES: usize = 25;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ProfilerWrapper {
     inner: Arc<Mutex<Profiler>>,
 }
@@ -39,6 +41,7 @@ impl ProfilerWrapper {
 }
 
 /// Averages profiling samples over time
+#[derive(Debug)]
 struct Profiler {
     cpu_samples: HashMap<&'static str, VecDeque<f32>>,
     cpu_recent: HashSet<&'static str>,
@@ -124,6 +127,61 @@ impl Profiler {
     }
 }
 
+//
+// Tracing layer
+//
+
+/// Converts tracing spans to timestamps in `Profiler`
+pub(crate) struct CpuProfilingLayer {
+    profiler: ProfilerWrapper,
+    spans: std::sync::Mutex<HashMap<tracing::span::Id, time::Instant>>,
+}
+
+impl CpuProfilingLayer {
+    pub fn new(profiler: ProfilerWrapper) -> Self {
+        Self {
+            spans: std::sync::Mutex::new(HashMap::new()),
+            profiler,
+        }
+    }
+}
+
+impl<S> tracing_subscriber::Layer<S> for CpuProfilingLayer
+where
+    S: tracing::subscriber::Subscriber + for<'a> tracing_subscriber::registry::LookupSpan<'a>,
+{
+    fn on_new_span(
+        &self,
+        _attrs: &tracing::span::Attributes<'_>,
+        id: &Id,
+        _ctx: tracing_subscriber::layer::Context<'_, S>,
+    ) {
+        let mut spans = self.spans.lock().unwrap();
+        spans.insert(id.clone(), time::Instant::now());
+    }
+
+    fn on_exit(&self, id: &Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+        let mut spans = self.spans.lock().unwrap();
+        if let Some(start) = spans.remove(id) {
+            let duration = start.elapsed();
+
+            let label = _ctx
+                .span(id)
+                .map(|span| span.metadata().name())
+                .unwrap_or("[NO LABEL]");
+
+            self.profiler
+                .clone()
+                .add_cpu_sample(label, duration.as_secs_f32());
+        }
+    }
+}
+
+//
+// Timer
+//
+
+/// Times a timespan and sends to Profiler
 pub struct ProfileTimer {
     profiler: ProfilerWrapper,
     label: &'static str,
