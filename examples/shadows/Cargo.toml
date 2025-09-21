@@ -9,7 +9,7 @@ hot_reload = ["gbase/hot_reload"]
 trace_tracy = ["gbase/trace_tracy"]
 
 [dependencies]
-gbase = { path = "../..", features = [] }
+gbase = { path = "../..", features = ["trace_tracy"] }
 gbase_utils = { path = "../../utils/gbase_utils" }
 bytemuck = { version = "1.14.0", features = ["derive"] }
 encase = { version = "0.6.1", features = ["glam"] }

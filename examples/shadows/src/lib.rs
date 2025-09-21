@@ -3,7 +3,7 @@ use gbase::{
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile, render, time,
-    tracing::{self, instrument, span},
+    tracing::{self, span},
     wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
@@ -216,7 +216,7 @@ impl Callbacks for App {
             *self = Self::new(ctx, cache);
         }
 
-        let _render_timer = time::ProfileTimer::new(ctx, "render");
+        let _render_timer = profile::ProfileTimer::new(ctx, "render");
 
         // update buffers
         self.camera_buffer.write(ctx, &self.camera.uniform());
@@ -352,7 +352,7 @@ impl Callbacks for App {
                     .height(SizeKind::PercentOfParent(0.5))
                     .render(renderer);
 
-                for (label, time) in time::profiler(ctx).get_cpu_samples() {
+                for (label, time) in profile::profiler(ctx).get_cpu_samples() {
                     Widget::new()
                         .width(SizeKind::TextSize)
                         .height(SizeKind::TextSize)
@@ -361,7 +361,7 @@ impl Callbacks for App {
                         .render(renderer);
                 }
 
-                for (label, time) in time::profiler(ctx).get_gpu_samples() {
+                for (label, time) in profile::profiler(ctx).get_gpu_samples() {
                     Widget::new()
                         .width(SizeKind::TextSize)
                         .height(SizeKind::TextSize)

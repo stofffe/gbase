@@ -1,7 +1,5 @@
-use crate::time::ProfilerWrapper;
+use crate::profile::ProfilerWrapper;
 use std::sync::mpsc;
-
-use super::ProfileContext;
 
 const READBACK_BUFFER_SIZE: usize = 8;
 
@@ -16,6 +14,8 @@ pub struct GpuProfileQuery {
 pub struct GpuProfileResult {
     pub label: &'static str,
     pub time: f32,
+
+    query: GpuProfileQuery,
 }
 
 #[derive(Debug)]
@@ -189,7 +189,7 @@ impl GpuProfiler {
         &mut self,
         queue: &wgpu::Queue,
         profiler: &mut ProfilerWrapper,
-        #[cfg(feature = "trace_tracy")] tracy: &mut tracy_client::GpuContext,
+        #[cfg(feature = "trace_tracy")] tracy: &mut super::tracy::TracyContext,
     ) {
         let mut query_results = Vec::new();
 
@@ -212,17 +212,12 @@ impl GpuProfiler {
                         query_results.push(GpuProfileResult {
                             label: query.label,
                             time: time_s,
+                            query: query.clone(),
                         });
 
+                        // insert into tracy if feature is enabled
                         #[cfg(feature = "trace_tracy")]
-                        {
-                            let mut span = tracy
-                                .span_alloc(query.label, "", "", 1)
-                                .expect("could not allocate span");
-                            span.end_zone();
-                            span.upload_timestamp_start(timestamp_start as i64);
-                            span.upload_timestamp_end(timestamp_end as i64);
-                        }
+                        tracy.insert_gpu_span_post(query.label, timestamp_start, timestamp_end);
                     }
 
                     // clear readback info
@@ -238,10 +233,6 @@ impl GpuProfiler {
         for res in query_results.iter() {
             profiler.add_gpu_sample(res.label, res.time);
         }
-
-        // TODO: probably do this somewhere else
-        #[cfg(feature = "trace_tracy")]
-        tracy_client::frame_mark();
     }
 
     pub fn profile_compute_pass(

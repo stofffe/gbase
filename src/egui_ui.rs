@@ -34,7 +34,7 @@ impl EguiContext {
         }
     }
 
-    pub fn window_event(
+    pub fn push_window_event(
         &mut self,
         window: &winit::window::Window,
         event: &winit::event::WindowEvent,

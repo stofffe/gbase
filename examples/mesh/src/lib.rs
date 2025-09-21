@@ -4,7 +4,7 @@ use gbase::{
     asset::{AssetBuilder, AssetHandle},
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
-    load_b,
+    load_b, profile,
     render::{self},
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
@@ -256,7 +256,7 @@ impl Callbacks for App {
         );
 
         {
-            let _timer = time::ProfileTimer::new(ctx, "render");
+            let _timer = profile::ProfileTimer::new(ctx, "render");
             self.pbr_renderer.render(
                 ctx,
                 cache,
@@ -274,7 +274,7 @@ impl Callbacks for App {
             );
         }
 
-        time::ProfileTimer::scoped(ctx, "gizmo", |ctx| {
+        profile::ProfileTimer::scoped(ctx, "gizmo", |ctx| {
             self.gizmo_renderer.render(
                 ctx,
                 self.hdr_framebuffer_1.view_ref(),
@@ -368,7 +368,7 @@ impl Callbacks for App {
                     .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                     .render(renderer);
 
-                for (label, time) in time::profiler(ctx).get_cpu_samples() {
+                for (label, time) in profile::profiler(ctx).get_cpu_samples() {
                     Widget::new()
                         .width(SizeKind::TextSize)
                         .height(SizeKind::TextSize)
@@ -377,7 +377,7 @@ impl Callbacks for App {
                         .render(renderer);
                 }
 
-                for (label, time) in time::profiler(ctx).get_gpu_samples() {
+                for (label, time) in profile::profiler(ctx).get_gpu_samples() {
                     Widget::new()
                         .width(SizeKind::TextSize)
                         .height(SizeKind::TextSize)

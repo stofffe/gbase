@@ -4,7 +4,7 @@ use gbase::{
     asset::{self, AssetHandle},
     filesystem,
     glam::{vec2, vec3, vec4, Quat, Vec3},
-    input,
+    input, profile,
     render::{self, MeshBuilder},
     time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
@@ -254,7 +254,7 @@ impl Callbacks for App {
                 .text_color(vec4(1.0, 1.0, 1.0, 1.0))
                 .render(renderer);
 
-            for (label, time) in time::profiler(ctx).get_cpu_samples() {
+            for (label, time) in profile::profiler(ctx).get_cpu_samples() {
                 Widget::new()
                     .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)
@@ -263,7 +263,7 @@ impl Callbacks for App {
                     .render(renderer);
             }
 
-            for (label, time) in time::profiler(ctx).get_gpu_samples() {
+            for (label, time) in profile::profiler(ctx).get_gpu_samples() {
                 Widget::new()
                     .width(SizeKind::TextSize)
                     .height(SizeKind::TextSize)

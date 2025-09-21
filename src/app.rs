@@ -97,13 +97,11 @@ enum App<C: Callbacks> {
 
         cache: AssetCache,
 
-        // Callbacks
         #[cfg(not(feature = "hot_reload"))]
         callbacks: C,
         #[cfg(feature = "hot_reload")]
         callbacks: DllCallbacks<C>,
 
-        // egui
         #[cfg(feature = "egui")]
         ui: crate::egui_ui::EguiContext,
     },
@@ -255,9 +253,8 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
 
         // callbacks.window_event(ctx, &event);
 
-        // TODO: temp for egui
         #[cfg(feature = "egui")]
-        ui.window_event(&ctx.render.window, &event);
+        ui.push_window_event(&ctx.render.window, &event);
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -400,21 +397,24 @@ fn update_and_render(
     // input
     //
 
-    ctx.time.finish_profiler();
-
     ctx.input.mouse.store_state();
     ctx.input.keyboard.store_state();
 
-    // TODO: make this optional
+    //
+    // profiling
+    //
+    ctx.profile.cpu_profiler.finish();
     ctx.profile
         .gpu_profiler
         .readback_async(&ctx.render.device, &ctx.render.queue);
     ctx.profile.gpu_profiler.poll_readbacks(
         &ctx.render.queue,
-        &mut ctx.time.profiler,
+        &mut ctx.profile.cpu_profiler,
         #[cfg(feature = "trace_tracy")]
-        &mut ctx.profile.tracy_gpu_client,
+        &mut ctx.profile.tracy,
     );
+    #[cfg(feature = "trace_tracy")]
+    ctx.profile.tracy.set_frame_mark();
 
     //
     // cache
@@ -431,6 +431,8 @@ fn update_and_render(
 //
 // Context builder
 //
+
+// TODO: add ability to set fixed timestep size
 
 /// Build the context for running an application
 #[derive(Debug, Clone)]
