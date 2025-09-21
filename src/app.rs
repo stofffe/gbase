@@ -177,7 +177,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(&builder, window).await;
             let random = random::RandomContext::new();
-            let profile = profile::ProfileContext::new(&builder, &render.device);
+            let profile = profile::ProfileContext::new(&builder, &render.device, &render.queue);
 
             let ctx = Context {
                 input,
@@ -409,9 +409,12 @@ fn update_and_render(
     ctx.profile
         .gpu_profiler
         .readback_async(&ctx.render.device, &ctx.render.queue);
-    ctx.profile
-        .gpu_profiler
-        .poll_readbacks(&ctx.render.queue, &mut ctx.time.profiler);
+    ctx.profile.gpu_profiler.poll_readbacks(
+        &ctx.render.queue,
+        &mut ctx.time.profiler,
+        #[cfg(feature = "trace_tracy")]
+        &mut ctx.profile.tracy_gpu_client,
+    );
 
     //
     // cache
@@ -528,9 +531,6 @@ impl ContextBuilder {
                     tracing::error!("could not initialize tracing subscriber: {}", err)
                 }
             }
-
-            #[cfg(feature = "trace_tracy")]
-            let client = tracy_client::Client::start();
         }
     }
 }

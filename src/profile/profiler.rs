@@ -1,6 +1,8 @@
 use crate::time::ProfilerWrapper;
 use std::sync::mpsc;
 
+use super::ProfileContext;
+
 const READBACK_BUFFER_SIZE: usize = 8;
 
 #[derive(Debug, Clone)]
@@ -183,7 +185,12 @@ impl GpuProfiler {
         self.current_queries.clear();
     }
 
-    pub fn poll_readbacks(&mut self, queue: &wgpu::Queue, profiler: &mut ProfilerWrapper) {
+    pub fn poll_readbacks(
+        &mut self,
+        queue: &wgpu::Queue,
+        profiler: &mut ProfilerWrapper,
+        #[cfg(feature = "trace_tracy")] tracy: &mut tracy_client::GpuContext,
+    ) {
         let mut query_results = Vec::new();
 
         for readback in self.readback_buffers.iter_mut() {
@@ -206,6 +213,16 @@ impl GpuProfiler {
                             label: query.label,
                             time: time_s,
                         });
+
+                        #[cfg(feature = "trace_tracy")]
+                        {
+                            let mut span = tracy
+                                .span_alloc(query.label, "", "", 1)
+                                .expect("could not allocate span");
+                            span.end_zone();
+                            span.upload_timestamp_start(timestamp_start as i64);
+                            span.upload_timestamp_end(timestamp_end as i64);
+                        }
                     }
 
                     // clear readback info
@@ -221,6 +238,10 @@ impl GpuProfiler {
         for res in query_results.iter() {
             profiler.add_gpu_sample(res.label, res.time);
         }
+
+        // TODO: probably do this somewhere else
+        #[cfg(feature = "trace_tracy")]
+        tracy_client::frame_mark();
     }
 
     pub fn profile_compute_pass(

@@ -65,7 +65,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(false)
+            // .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE | wgpu::Features::RG11B10UFLOAT_RENDERABLE,
             )

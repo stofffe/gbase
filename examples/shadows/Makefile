@@ -33,4 +33,4 @@ debug:
 	cargo run --debug
 
 release:
-	cargo run --release
+	cargo run --release --features "trace_tracy"
