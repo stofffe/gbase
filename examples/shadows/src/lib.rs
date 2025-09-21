@@ -219,6 +219,7 @@ impl Callbacks for App {
         let _render_timer = profile::ProfileTimer::new(ctx, "render");
 
         // update buffers
+        let _prepare_span = tracing::span!(tracing::Level::INFO, "prepare").entered();
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
@@ -279,7 +280,9 @@ impl Callbacks for App {
             .collect::<Vec<_>>();
 
         self.lights.main_light_dir = vec3(1.0, -1.0, 0.0);
+        _prepare_span.exit();
 
+        let _shadow_span = tracing::span!(tracing::Level::INFO, "shadow pass").entered();
         self.shadow_pass.render(
             ctx,
             cache,
@@ -288,6 +291,7 @@ impl Callbacks for App {
             // TODO: doesnt work for (0,-1,0)
             self.lights.main_light_dir.normalize(),
         );
+        _shadow_span.exit();
 
         // self.pbr_renderer
         //     .render_bounding_boxes(ctx, cache, &mut self.gizmo_renderer, &self.camera);
@@ -309,12 +313,14 @@ impl Callbacks for App {
         );
         _pbr_span.exit();
 
+        let _gizmo_span = span!(tracing::Level::INFO, "gizmo").entered();
         self.gizmo_renderer.render(
             ctx,
             self.hdr_framebuffer_1.view_ref(),
             self.hdr_framebuffer_1.format(),
             &self.camera_buffer,
         );
+        _gizmo_span.exit();
 
         self.framebuffer_renderer.render(
             ctx,
@@ -344,6 +350,7 @@ impl Callbacks for App {
 
         _render_timer.finish();
 
+        let _ui_span = span!(tracing::Level::INFO, "ui").entered();
         Widget::new()
             .width(SizeKind::PercentOfParent(1.0))
             .height(SizeKind::PercentOfParent(1.0))
@@ -374,6 +381,8 @@ impl Callbacks for App {
         self.ui_renderer.display_debug_info(ctx);
         self.ui_renderer
             .render(ctx, screen_view, render::surface_format(ctx));
+
+        _ui_span.exit();
 
         CallbackResult::Continue
     }

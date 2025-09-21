@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use gbase::{time, CallbackResult, Callbacks, Context};
-use wgpu::CompositeAlphaMode;
 
 pub fn main() {
     gbase::run_sync::<App>();

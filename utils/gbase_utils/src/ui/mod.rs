@@ -188,8 +188,8 @@ impl GUIRenderer {
             .label("ui")
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(screen_view))])
             // .timestamp_writes(render::gpu_profiler(ctx).profile_render_pass("ui"))
-            .trace_gpu(ctx, "ui")
-            .build_run(&mut encoder, |mut render_pass| {
+            .trace_gpu("ui")
+            .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
                 render_pass.set_vertex_buffer(0, self.vertices.slice(..));
                 render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));

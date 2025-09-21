@@ -176,13 +176,13 @@ impl FrameBuffer {
         winit::dpi::PhysicalSize::new(self.width(), self.height())
     }
 
-    pub fn clear(&self, ctx: &Context, color: wgpu::Color) {
+    pub fn clear(&self, ctx: &mut Context, color: wgpu::Color) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(self.view_ref()).clear(color),
             )])
-            .build(&mut encoder);
+            .build(ctx, &mut encoder);
         render::queue(ctx).submit(Some(encoder.finish()));
     }
 }
@@ -292,11 +292,11 @@ impl DepthBuffer {
     pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
         self.framebuffer.resize(ctx, new_size);
     }
-    pub fn clear(&mut self, ctx: &Context) {
+    pub fn clear(&mut self, ctx: &mut Context) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .depth_stencil_attachment(self.depth_render_attachment_clear())
-            .build(&mut encoder);
+            .build(ctx, &mut encoder);
         render::queue(ctx).submit(Some(encoder.finish()));
     }
 }

@@ -8,11 +8,7 @@ use gbase::{
     render::{self, BoundingBox, VertexAttributeId},
     tracing,
 };
-use std::{
-    collections::{self, BTreeSet},
-    ops::Deref,
-    primitive,
-};
+use std::{collections::BTreeSet, ops::Deref};
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {

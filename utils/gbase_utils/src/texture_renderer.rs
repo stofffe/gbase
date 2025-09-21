@@ -117,7 +117,7 @@ impl TextureRenderer {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
                 let gpu_mesh = self
@@ -188,7 +188,7 @@ impl TextureRenderer {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
                 if let Some(viewport) = viewport {
                     render_pass
                         .set_viewport(viewport.x, viewport.y, viewport.w, viewport.h, 0.0, 1.0);

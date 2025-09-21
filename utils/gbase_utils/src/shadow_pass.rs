@@ -253,7 +253,8 @@ impl ShadowPass {
                     }),
                     stencil_ops: Default::default(),
                 })
-                .build_run(&mut encoder, |mut pass: wgpu::RenderPass| {
+                .trace_gpu("shadow pass")
+                .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                     pass.set_pipeline(&pipeline);
                     pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
 

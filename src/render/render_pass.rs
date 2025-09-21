@@ -108,7 +108,7 @@ pub struct RenderPassBuilder<'a> {
     label: Option<&'a str>,
     color_attachments: &'a [Option<RenderPassColorAttachment<'a>>],
     depth_stencil_attachment: Option<wgpu::RenderPassDepthStencilAttachment<'a>>,
-    timestamp_writes: Option<wgpu::RenderPassTimestampWrites<'a>>,
+    timestamp_writes_label: Option<&'static str>,
     occlusion_query_set: Option<&'a wgpu::QuerySet>,
 }
 
@@ -118,13 +118,17 @@ impl<'a> RenderPassBuilder<'a> {
             label: None,
             color_attachments: &[],
             depth_stencil_attachment: None,
-            timestamp_writes: None,
+            timestamp_writes_label: None,
             occlusion_query_set: None,
         }
     }
 
     /// Build render pass
-    pub fn build(self, encoder: &'a mut wgpu::CommandEncoder) -> wgpu::RenderPass<'a> {
+    pub fn build(
+        self,
+        ctx: &mut Context,
+        encoder: &'a mut wgpu::CommandEncoder,
+    ) -> wgpu::RenderPass<'a> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
             color_attachments: &self
@@ -133,7 +137,9 @@ impl<'a> RenderPassBuilder<'a> {
                 .map(|att| att.clone().map(RenderPassColorAttachment::into))
                 .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
-            timestamp_writes: self.timestamp_writes,
+            timestamp_writes: self
+                .timestamp_writes_label
+                .and_then(|label| ctx.profile.gpu_profiler.profile_render_pass(label)),
             occlusion_query_set: self.occlusion_query_set,
         })
     }
@@ -141,8 +147,9 @@ impl<'a> RenderPassBuilder<'a> {
     /// Build render pass and immediately run ```run_func```
     pub fn build_run(
         self,
+        ctx: &mut Context,
         encoder: &'a mut wgpu::CommandEncoder,
-        run_func: impl FnOnce(wgpu::RenderPass<'a>),
+        run_func: impl FnOnce(&mut Context, wgpu::RenderPass<'a>),
     ) {
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
@@ -152,17 +159,20 @@ impl<'a> RenderPassBuilder<'a> {
                 .map(|att| att.clone().map(RenderPassColorAttachment::into))
                 .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
-            timestamp_writes: self.timestamp_writes,
+            timestamp_writes: self
+                .timestamp_writes_label
+                .and_then(|label| ctx.profile.gpu_profiler.profile_render_pass(label)),
             occlusion_query_set: self.occlusion_query_set,
         });
-        (run_func)(render_pass);
+        (run_func)(ctx, render_pass);
     }
 
     /// Builds render pass and immediately run ```run-func```
     ///
     /// Creates and submits a new encoder
-    pub fn build_run_submit(self, ctx: &Context, run_func: impl FnOnce(wgpu::RenderPass<'_>)) {
+    pub fn build_run_submit(self, ctx: &mut Context, run_func: impl FnOnce(wgpu::RenderPass<'_>)) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
+
         let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: self.label,
             color_attachments: &self
@@ -171,7 +181,9 @@ impl<'a> RenderPassBuilder<'a> {
                 .map(|att| att.clone().map(RenderPassColorAttachment::into))
                 .collect::<Vec<_>>(),
             depth_stencil_attachment: self.depth_stencil_attachment,
-            timestamp_writes: self.timestamp_writes,
+            timestamp_writes: self
+                .timestamp_writes_label
+                .and_then(|label| ctx.profile.gpu_profiler.profile_render_pass(label)),
             occlusion_query_set: self.occlusion_query_set,
         });
         (run_func)(render_pass);
@@ -205,8 +217,9 @@ impl<'a> RenderPassBuilder<'a> {
     }
 
     // TODO: send label and do this in build instead?
-    pub fn trace_gpu(mut self, ctx: &'a mut Context, label: &'static str) -> Self {
-        self.timestamp_writes = ctx.profile.gpu_profiler.profile_render_pass(label);
+    pub fn trace_gpu(mut self, label: &'static str) -> Self {
+        // self.timestamp_writes = ctx.profile.gpu_profiler.profile_render_pass(label);
+        self.timestamp_writes_label = Some(label);
         self
     }
 }

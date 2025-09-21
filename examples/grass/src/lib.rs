@@ -4,18 +4,15 @@ use gbase::{
     asset::{self, AssetHandle},
     filesystem,
     glam::{vec2, vec3, vec4, Quat, Vec3},
-    input, profile,
-    render::{self, MeshBuilder},
-    time, tracing, wgpu,
+    input, profile, render, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
-    CameraFrustum, Direction, GpuMaterial, MeshLod, PbrLightUniforms, PbrMaterial, PixelCache,
-    SizeKind, Transform3D, Widget,
+    CameraFrustum, Direction, MeshLod, PbrLightUniforms, PixelCache, SizeKind, Transform3D, Widget,
 };
 use grass_renderer::GrassRenderer;
-use std::{f32::consts::PI, sync::Arc};
+use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -61,9 +58,6 @@ impl Callbacks for App {
 
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        // let mut image_cache = AssetCache::new();
-        let mut pixel_cache = PixelCache::new();
-
         // Framebuffer
         let framebuffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)

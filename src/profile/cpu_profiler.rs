@@ -122,10 +122,6 @@ impl Profiler {
         filtered_samples.sort_by_key(|(label, _)| *label);
         filtered_samples
     }
-
-    fn cpu_samples(&self) -> &HashMap<&'static str, VecDeque<f32>> {
-        &self.cpu_samples
-    }
 }
 
 pub struct ProfileTimer {

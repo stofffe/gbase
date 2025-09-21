@@ -238,7 +238,7 @@ impl SpriteRenderer {
                     store: wgpu::StoreOp::Discard,
                 }),
             })
-            .build_run(&mut encoder, |mut pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                 pass.set_stencil_reference(stencil_reference);
                 pass.set_pipeline(&self.pipeline);
                 pass.set_bind_group(0, bindgroup.as_ref(), &[]);

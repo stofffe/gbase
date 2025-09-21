@@ -23,7 +23,7 @@ impl Callbacks for App {
     fn render(
         &mut self,
         ctx: &mut Context,
-        cache: &mut gbase::asset::AssetCache,
+        _cache: &mut gbase::asset::AssetCache,
         _screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         #[cfg(feature = "hot_reload")]

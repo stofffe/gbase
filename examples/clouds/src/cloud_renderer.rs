@@ -193,7 +193,7 @@ impl CloudRenderer {
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
                 mesh_gpu.bind_to_render_pass(&mut render_pass);

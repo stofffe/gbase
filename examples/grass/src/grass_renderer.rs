@@ -446,7 +446,7 @@ impl GrassRenderer {
                         .label(&format!("grass render {}", i))
                         .color_attachments(&[Some(RenderPassColorAttachment::new(view))])
                         .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-                        .build_run(&mut encoder, |mut render_pass| {
+                        .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                             render_pass.set_pipeline(&render_pipeline);
                             render_pass.set_vertex_buffer(0, self.instances[i_cur].slice(..));
                             render_pass.set_bind_group(0, Some(render_bindgroup.as_ref()), &[]);
@@ -474,7 +474,7 @@ impl GrassRenderer {
                     render::RenderPassBuilder::new()
                         .color_attachments(attachments)
                         .depth_stencil_attachment(buffers.depth.depth_render_attachment_load())
-                        .build_run(&mut encoder, |mut render_pass| {
+                        .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                             render_pass.set_pipeline(&render_pipeline);
                             render_pass.set_vertex_buffer(0, self.instances[i_cur].slice(..));
                             render_pass.set_bind_group(0, Some(render_bindgroup.as_ref()), &[]);

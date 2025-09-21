@@ -177,7 +177,7 @@ impl Callbacks for App {
             }
         }
 
-        if self.sponza_gltf.loaded(&cache) {
+        if self.sponza_gltf.loaded(cache) {
             let gltf = cache.get(self.sponza_gltf.clone()).unwrap().clone();
 
             for mesh in gltf.meshes.iter().clone() {

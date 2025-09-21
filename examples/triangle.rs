@@ -52,7 +52,7 @@ impl Callbacks for App {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(screen_view).clear(wgpu::Color::BLUE),
             )])
-            .build_run(&mut encoder, |mut render_pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                 render_pass.set_pipeline(&self.pipeline);
 
                 self.mesh.bind_to_render_pass(&mut render_pass);

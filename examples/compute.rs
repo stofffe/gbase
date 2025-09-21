@@ -128,7 +128,9 @@ fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
     buffer_slice.map_async(wgpu::MapMode::Read, move |res| {
         sc.send(res).unwrap();
     });
-    device.poll(wgpu::MaintainBase::Wait);
+    device
+        .poll(wgpu::MaintainBase::Wait)
+        .expect("could not poll device");
     let _ = rc.recv().unwrap();
     let data = buffer_slice.get_mapped_range();
     let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();

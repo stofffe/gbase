@@ -383,11 +383,11 @@ impl Bloom {
 
         render::RenderPassBuilder::new()
             .label("extract")
-            .trace_gpu(ctx, "extract")
+            .trace_gpu("extract")
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(
                 &downsample_views[0],
             ))])
-            .build_run(&mut encoder, |mut pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                 pass.set_pipeline(&extract_pipeline);
                 pass.set_vertex_buffer(0, self.vertices.slice(..));
                 pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -435,7 +435,7 @@ impl Bloom {
                 .color_attachments(&[Some(render::RenderPassColorAttachment::new(
                     &downsample_views[i],
                 ))])
-                .build_run(&mut encoder, |mut pass| {
+                .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                     pass.set_pipeline(&downsample_pipeline);
                     pass.set_vertex_buffer(0, self.vertices.slice(..));
                     pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -492,7 +492,7 @@ impl Bloom {
                     render::RenderPassColorAttachment::new(&upsample_views[i])
                         .clear(wgpu::Color::BLACK),
                 )])
-                .build_run(&mut encoder, |mut pass| {
+                .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                     pass.set_pipeline(&upsample_pipeline);
                     pass.set_vertex_buffer(0, self.vertices.slice(..));
                     pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);
@@ -548,8 +548,8 @@ impl Bloom {
                     .clear(wgpu::Color::BLACK),
             )])
             .label("combine")
-            .trace_gpu(ctx, "combine")
-            .build_run(&mut encoder, |mut pass| {
+            .trace_gpu("combine")
+            .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                 pass.set_pipeline(&combine_pipeline);
                 pass.set_vertex_buffer(0, self.vertices.slice(..));
                 pass.set_index_buffer(self.indices.slice(..), wgpu::IndexFormat::Uint32);

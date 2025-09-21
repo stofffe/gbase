@@ -4,11 +4,10 @@ use crate::{
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle, ShaderLoader},
+    asset::{self, AssetHandle},
     glam::{Mat4, Vec3},
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
-    tracing::{self, instrument::WithSubscriber},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
 
@@ -371,9 +370,9 @@ impl PbrRenderer {
         render::RenderPassBuilder::new()
             .label("pbr")
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
-            .trace_gpu(ctx, "pbr")
+            .trace_gpu("pbr")
             .depth_stencil_attachment(depth_buffer.depth_render_attachment_load())
-            .build_run(&mut encoder, |mut pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                 pass.set_pipeline(&pipeline);
 
                 for (i, range) in ranges.windows(2).enumerate() {

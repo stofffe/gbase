@@ -3,7 +3,6 @@ use gbase::{
     input::{self, KeyCode},
     CallbackResult, Callbacks, Context,
 };
-use wgpu::CompositeAlphaMode;
 
 pub fn main() {
     gbase::run_sync::<App>();

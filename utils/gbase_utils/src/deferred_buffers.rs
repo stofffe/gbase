@@ -91,14 +91,13 @@ impl DeferredBuffers {
     /// Clear buffers
     ///
     /// Usually called at start of frame
-    pub fn clear(&self, ctx: &Context) {
-        let queue = render::queue(ctx);
+    pub fn clear(&self, ctx: &mut Context) {
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&self.color_attachments_clear())
             .depth_stencil_attachment(self.depth.depth_render_attachment_clear())
-            .build(&mut encoder);
-        queue.submit(Some(encoder.finish()));
+            .build(ctx, &mut encoder);
+        render::queue(ctx).submit(Some(encoder.finish()));
     }
 
     // TODO add loadop option
