@@ -260,10 +260,13 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             return;
         };
 
-        // callbacks.window_event(ctx, &event);
-
         #[cfg(feature = "egui")]
-        ui.push_window_event(&ctx.render.window, &event);
+        {
+            let event_consumed = ui.push_window_event(&ctx.render.window, &event);
+            if event_consumed {
+                return;
+            }
+        }
 
         match event {
             WindowEvent::RedrawRequested => {
@@ -541,11 +544,11 @@ impl ContextBuilder {
         {
             let filter_layer = tracing_subscriber::filter::LevelFilter::from(self.log_level);
             let format_layer = tracing_subscriber::fmt::layer();
-            let cpu_profiler_layer = profile::CpuProfilingLayer::new(self.profiler.clone());
+            let timing_layer = profile::CpuProfilingLayer::new(self.profiler.clone());
             let subscriber = tracing_subscriber::registry()
                 .with(filter_layer)
                 .with(format_layer)
-                .with(cpu_profiler_layer);
+                .with(timing_layer);
 
             #[cfg(feature = "trace_tracy")]
             let subscriber = subscriber.with(tracing_tracy::TracyLayer::default());

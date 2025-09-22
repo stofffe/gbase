@@ -34,12 +34,16 @@ impl EguiContext {
         }
     }
 
+    /// Push a window event to egui
+    ///
+    /// Returns wether the event was consumed or not
     pub fn push_window_event(
         &mut self,
         window: &winit::window::Window,
         event: &winit::event::WindowEvent,
-    ) {
-        let _response = self.state.on_window_event(window, event);
+    ) -> bool {
+        let response = self.state.on_window_event(window, event);
+        response.consumed
     }
 
     pub fn render(
