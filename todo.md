@@ -66,9 +66,11 @@
     [] use more references for asset handles, vectors etc
     [] make camera matrices cached
     [] remove unecessary features from crates
+    [] have window_event and device_event callbacks which can consume the events
 
 [] egui
     [] fix dll on mac
+    [?] make egui part of ctx and let user decide when stuff is rendererd
     [x] add egui flag to engine
     [x] move egui from ctx to app
 

@@ -16,6 +16,10 @@ pub mod time;
 pub mod egui_ui;
 #[cfg(feature = "egui")]
 pub use egui;
+#[cfg(feature = "egui")]
+pub use egui_wgpu;
+#[cfg(feature = "egui")]
+pub use egui_winit;
 
 #[cfg(feature = "trace_tracy")]
 pub use tracy_client;

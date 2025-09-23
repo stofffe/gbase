@@ -1,6 +1,7 @@
 use gbase::{
     asset::{self, AssetBuilder, AssetCache, AssetHandle},
-    egui,
+    egui::{self, load::SizedTexture},
+    egui_ui, egui_wgpu,
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile, render, time,
@@ -42,6 +43,8 @@ struct App {
     plane_mesh: AssetHandle<MeshLod>,
 
     shadow_pass: ShadowPass,
+
+    egui_display_tex_1: Option<egui::TextureId>,
 }
 
 fn mesh_to_lod_mesh(
@@ -152,6 +155,8 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
+        let egui_display_tex_1 = None;
+
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
@@ -172,6 +177,8 @@ impl Callbacks for App {
             plane_mesh,
 
             shadow_pass,
+
+            egui_display_tex_1,
         }
     }
 
@@ -349,72 +356,26 @@ impl Callbacks for App {
 
         _render_span.exit();
 
-        // let _ui_span = span!(tracing::Level::INFO, "ui").entered();
-        // Widget::new()
-        //     .width(SizeKind::PercentOfParent(1.0))
-        //     .height(SizeKind::PercentOfParent(1.0))
-        //     .layout(&mut self.ui_renderer, |renderer| {
-        //         Widget::new()
-        //             .height(SizeKind::PercentOfParent(0.5))
-        //             .render(renderer);
-        //
-        //         for (label, time) in profile::profiler(ctx).get_cpu_samples() {
-        //             Widget::new()
-        //                 .width(SizeKind::TextSize)
-        //                 .height(SizeKind::TextSize)
-        //                 .text(format!("CPU: {:.5} {}", time * 1000.0, label))
-        //                 .text_color(WHITE)
-        //                 .render(renderer);
-        //         }
-        //
-        //         for (label, time) in profile::profiler(ctx).get_gpu_samples() {
-        //             Widget::new()
-        //                 .width(SizeKind::TextSize)
-        //                 .height(SizeKind::TextSize)
-        //                 .text(format!("GPU: {:.5} {}", time * 1000.0, label))
-        //                 .text_color(WHITE)
-        //                 .render(renderer);
-        //         }
-        //     });
-        //
-        // self.ui_renderer.display_debug_info(ctx);
-        // self.ui_renderer
-        //     .render(ctx, screen_view, render::surface_format(ctx));
-        //
-        // _ui_span.exit();
-
         CallbackResult::Continue
     }
 
     #[no_mangle]
-    fn render_egui(&mut self, ctx: &mut Context, ui: &gbase::egui::Context) {
-        let mut style = (*ui.style()).clone();
-        style.text_styles = [
-            (
-                egui::TextStyle::Heading,
-                egui::FontId::new(20.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Body,
-                egui::FontId::new(18.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Button,
-                egui::FontId::new(10.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Small,
-                egui::FontId::new(10.0, egui::FontFamily::Proportional),
-            ),
-            (
-                egui::TextStyle::Monospace,
-                egui::FontId::new(16.0, egui::FontFamily::Monospace),
-            ),
-        ]
-        .into();
-        ui.set_style(style);
+    fn render_egui(&mut self, ctx: &mut Context, egui_ctx: &mut egui_ui::EguiContext) {
+        egui_ctx.ctx().style_mut(|style| {
+            style.text_styles = [
+                (
+                    egui::TextStyle::Heading,
+                    egui::FontId::new(20.0, egui::FontFamily::Proportional),
+                ),
+                (
+                    egui::TextStyle::Body,
+                    egui::FontId::new(18.0, egui::FontFamily::Proportional),
+                ),
+            ]
+            .into();
+        });
 
-        egui::Window::new("Profiling").show(ui, |ui| {
+        egui::Window::new("Profiling").show(egui_ctx.ctx(), |ui| {
             ui.heading("Total:");
             ui.label(format!("{:.4} fps", time::fps(ctx)));
             ui.label(format!("{:.4} ms", time::frame_time(ctx) * 1000.0));
@@ -427,6 +388,18 @@ impl Callbacks for App {
             for (label, time) in profile::profiler(ctx).get_gpu_samples() {
                 ui.label(format!("{:.4} {}", time * 1000.0, label));
             }
+        });
+
+        let tex_id = egui_ctx.register_wgpu_texture_cached(
+            ctx,
+            render::TextureViewBuilder::new(self.hdr_framebuffer_1.texture()),
+            render::SamplerBuilder::new(),
+        );
+
+        egui::Window::new("Depth maps").show(egui_ctx.ctx(), |ui| {
+            let tex = SizedTexture::new(tex_id, [512.0, 512.0]);
+            ui.image(tex);
+            ui.label(format!("{:?}", tex_id));
         });
     }
 

@@ -7,11 +7,8 @@ use crate::{
     profile::{self, ProfilerWrapper},
     random, render, time, Context,
 };
-use std::{collections::HashMap, path::PathBuf, time::Instant};
-use tracing::{span::Attributes, Event, Id, Subscriber};
-use tracing_subscriber::{
-    layer::SubscriberExt, registry::LookupSpan, util::SubscriberInitExt, Layer,
-};
+use std::path::PathBuf;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use wgpu::SurfaceError;
 use winit::{
     event::{self, DeviceEvent, WindowEvent},
@@ -66,7 +63,7 @@ pub trait Callbacks {
     ///
     /// Called after main rendering pass
     #[cfg(feature = "egui")]
-    fn render_egui(&mut self, _ctx: &mut Context, _ui: &egui::Context) {}
+    fn render_egui(&mut self, _ctx: &mut Context, _egui_ctx: &mut crate::egui_ui::EguiContext) {}
 }
 
 pub async fn run<C: Callbacks>() {
@@ -399,8 +396,8 @@ fn update_and_render(
     }
 
     #[cfg(feature = "egui")]
-    ui.render(ctx, &view, |ctx, ui| {
-        callbacks.render_egui(ctx, ui);
+    ui.render(ctx, &view, |ctx, egui_ctx| {
+        callbacks.render_egui(ctx, egui_ctx);
     });
 
     output.present();

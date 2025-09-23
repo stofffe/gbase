@@ -58,11 +58,11 @@ impl SamplerBuilder {
         }
     }
 
-    pub fn build_uncached_inner(&self, device: &wgpu::Device) -> ArcSampler {
+    pub fn descriptor(&self) -> wgpu::SamplerDescriptor<'_> {
         let lod_min_clamp_f32 = self.lod_min_clamp_u32 as f32 / 10.0;
         let lod_max_clamp_f32 = self.lod_max_clamp_u32 as f32 / 10.0;
 
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        wgpu::SamplerDescriptor {
             label: self.label.as_deref(),
             address_mode_u: self.address_mode_u,
             address_mode_v: self.address_mode_v,
@@ -75,8 +75,11 @@ impl SamplerBuilder {
             anisotropy_clamp: self.anisotropy_clamp,
             compare: self.compare,
             border_color: self.border_color,
-        });
+        }
+    }
 
+    pub fn build_uncached_inner(&self, device: &wgpu::Device) -> ArcSampler {
+        let sampler = device.create_sampler(&self.descriptor());
         ArcSampler::new(sampler)
     }
 

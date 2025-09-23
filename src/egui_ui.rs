@@ -1,9 +1,12 @@
 use crate::{render, Context};
+use std::collections::HashMap;
 
-pub(crate) struct EguiContext {
-    pub(crate) context: egui::Context,
-    pub(crate) state: egui_winit::State,
-    pub(crate) renderer: egui_wgpu::Renderer,
+pub struct EguiContext {
+    pub context: egui::Context,
+    pub state: egui_winit::State,
+    pub renderer: egui_wgpu::Renderer,
+
+    texture_cache: HashMap<(render::TextureViewBuilder, render::SamplerBuilder), egui::TextureId>,
 }
 
 impl EguiContext {
@@ -31,7 +34,36 @@ impl EguiContext {
             context,
             state,
             renderer,
+
+            texture_cache: HashMap::new(),
         }
+    }
+
+    pub fn ctx(&self) -> &egui::Context {
+        &self.context
+    }
+
+    pub fn register_wgpu_texture_cached(
+        &mut self,
+        ctx: &mut Context,
+        view_builder: render::TextureViewBuilder,
+        sampler_builder: render::SamplerBuilder,
+    ) -> egui::TextureId {
+        if let Some(id) = self
+            .texture_cache
+            .get(&(view_builder.clone(), sampler_builder.clone()))
+        {
+            return *id;
+        }
+
+        let id = self.renderer.register_native_texture_with_sampler_options(
+            &render::device_arc(ctx),
+            &view_builder.clone().build(ctx),
+            sampler_builder.descriptor(),
+        );
+        self.texture_cache
+            .insert((view_builder, sampler_builder), id);
+        id
     }
 
     /// Push a window event to egui
@@ -50,11 +82,15 @@ impl EguiContext {
         &mut self,
         ctx: &mut Context,
         screen_view: &wgpu::TextureView,
-        mut callback: impl FnMut(&mut Context, &egui::Context),
+        mut callback: impl FnMut(&mut Context, &mut EguiContext),
     ) {
         // TODO: on_mouse_motion also?
         let input = self.state.take_egui_input(render::window(ctx));
-        let output = self.context.run(input, |ui| callback(ctx, ui));
+
+        // callbacks
+        self.context.begin_pass(input);
+        callback(ctx, self);
+        let output = self.context.end_pass();
 
         let window = render::window(ctx);
         self.state
