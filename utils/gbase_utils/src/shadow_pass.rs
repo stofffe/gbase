@@ -19,11 +19,11 @@ pub struct ShadowPass {
     pub light_matrices_distances: render::StorageBuffer<Vec<f32>>,
 }
 
-const MAX_SHADOW_INSTANCES: u64 = 10000;
-const MAX_SHADOW_CASCADES: u64 = 3;
-const SHADOW_MAP_RESOLUTION: u32 = 2048;
-const SHADOW_MAP_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
-const SHADOW_MAP_SNAP_VALUE: f32 = 16.0; // TODO: whats best value here?
+pub const MAX_SHADOW_INSTANCES: u64 = 10000;
+pub const MAX_SHADOW_CASCADES: u32 = 3;
+pub const SHADOW_MAP_RESOLUTION: u32 = 2048;
+pub const SHADOW_MAP_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth16Unorm;
+pub const SHADOW_MAP_SNAP_VALUE: f32 = 16.0; // TODO: whats best value here?
 
 const DEPTH_BIAS_STATE_CONSTANT: i32 = 4;
 const DEPTH_BIAS_STATE_SLOPE_SCALE: f32 = 8.0;
@@ -68,19 +68,19 @@ impl ShadowPass {
         // TODO: maybe use 16 bits?
         .with_format(SHADOW_MAP_FORMAT)
         .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-        .depth_or_array_layers(MAX_SHADOW_CASCADES as u32)
+        .depth_or_array_layers(MAX_SHADOW_CASCADES)
         .build(ctx);
 
         let light_matrices_index = render::UniformBufferBuilder::new().build(ctx);
 
         let light_matrices_distances = render::StorageBufferBuilder::new(
-            MAX_SHADOW_CASCADES * std::mem::size_of::<u32>() as u64,
+            MAX_SHADOW_CASCADES as u64 * std::mem::size_of::<u32>() as u64,
         )
         .label("light matrices distances")
         .build(ctx);
 
         let light_matrices_buffer = render::StorageBufferBuilder::new(
-            MAX_SHADOW_CASCADES * std::mem::size_of::<Mat4>() as u64,
+            MAX_SHADOW_CASCADES as u64 * std::mem::size_of::<Mat4>() as u64,
         )
         .label("light matrices")
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)

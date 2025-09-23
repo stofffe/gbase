@@ -45,6 +45,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var depth = textureSample(tex, samp, in.uv);
     // depth = linearize_depth_normalized(depth, camera.near, camera.far);
 
+    // return vec4f(1.0);
     return vec4f(depth, depth, depth, 1.0);
 }
 

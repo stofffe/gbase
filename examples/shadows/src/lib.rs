@@ -42,6 +42,9 @@ struct App {
     plane_mesh: AssetHandle<MeshLod>,
 
     shadow_pass: ShadowPass,
+    shadow_map_rgb: render::ArcTexture,
+
+    toggle_debug_ui: bool,
 }
 
 fn mesh_to_lod_mesh(
@@ -152,6 +155,16 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
+        let shadow_map_rgb = render::TextureBuilder::new(render::TextureSource::Empty(
+            gbase_utils::SHADOW_MAP_RESOLUTION,
+            gbase_utils::SHADOW_MAP_RESOLUTION,
+        ))
+        .label("shadow map rgb")
+        .with_format(wgpu::TextureFormat::Rgba8Unorm)
+        .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+        .depth_or_array_layers(gbase_utils::MAX_SHADOW_CASCADES)
+        .build(ctx);
+
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
@@ -172,6 +185,9 @@ impl Callbacks for App {
             plane_mesh,
 
             shadow_pass,
+            shadow_map_rgb,
+
+            toggle_debug_ui: true,
         }
     }
 
@@ -329,22 +345,25 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        if input::key_pressed(ctx, input::KeyCode::F1) {
-            for i in 0..3 {
-                let view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
-                    .base_array_layer(i)
-                    .dimension(wgpu::TextureViewDimension::D2)
-                    .build(ctx);
-                self.framebuffer_renderer.render_depth(
-                    ctx,
-                    cache,
-                    view,
-                    screen_view,
-                    render::surface_format(ctx),
-                    &self.camera_buffer,
-                    Some(ViewPort::new_ndc(ctx, 0.75, 0.25 * i as f32, 0.25, 0.25)),
-                );
-            }
+        // render depth
+        for i in 0..3 {
+            let shadow_view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
+                .base_array_layer(i)
+                .dimension(wgpu::TextureViewDimension::D2)
+                .build(ctx);
+            let shadow_view_rgb = render::TextureViewBuilder::new(self.shadow_map_rgb.clone())
+                .base_array_layer(i)
+                .dimension(wgpu::TextureViewDimension::D2)
+                .build(ctx);
+            self.framebuffer_renderer.render_depth(
+                ctx,
+                cache,
+                shadow_view,
+                &shadow_view_rgb,
+                wgpu::TextureFormat::Rgba8Unorm,
+                &self.camera_buffer,
+                None,
+            );
         }
 
         _render_span.exit();
@@ -358,6 +377,13 @@ impl Callbacks for App {
         ctx: &mut Context,
         egui_ctx: &mut egui_ui::EguiContext,
     ) -> CallbackResult {
+        if input::key_just_pressed(ctx, input::KeyCode::Escape) {
+            self.toggle_debug_ui = !self.toggle_debug_ui;
+        }
+        if !self.toggle_debug_ui {
+            return CallbackResult::Continue;
+        }
+
         egui_ctx.ctx().style_mut(|style| {
             style.text_styles = [
                 (
@@ -387,15 +413,22 @@ impl Callbacks for App {
             }
         });
 
-        let tex_id = egui_ctx.register_wgpu_texture_cached(
-            ctx,
-            render::TextureViewBuilder::new(self.hdr_framebuffer_1.texture()),
-            render::SamplerBuilder::new(),
-        );
+        let mut tex_ids = Vec::new();
+        for i in 0..gbase_utils::MAX_SHADOW_CASCADES {
+            let tex_id = egui_ctx.register_wgpu_texture_cached(
+                ctx,
+                render::TextureViewBuilder::new(self.shadow_map_rgb.clone())
+                    .base_array_layer(i)
+                    .dimension(wgpu::TextureViewDimension::D2),
+                render::SamplerBuilder::new(),
+            );
+            tex_ids.push(tex_id);
+        }
 
         egui::Window::new("Depth maps").show(egui_ctx.ctx(), |ui| {
-            ui.image(SizedTexture::new(tex_id, [256.0, 256.0]));
-            ui.label(format!("{:?}", tex_id));
+            for tex_id in tex_ids {
+                ui.image(SizedTexture::new(tex_id, [256.0, 256.0]));
+            }
         });
 
         CallbackResult::Continue

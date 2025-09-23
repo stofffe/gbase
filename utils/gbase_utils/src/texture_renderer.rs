@@ -143,7 +143,7 @@ impl TextureRenderer {
         camera: &render::UniformBuffer<CameraUniform>,
         viewport: Option<ViewPort>,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
+        if !asset::handle_loaded(cache, self.shader_depth_handle.clone()) {
             return;
         }
 
