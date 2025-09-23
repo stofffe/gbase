@@ -59,6 +59,12 @@ pub trait Callbacks {
         CallbackResult::Continue
     }
 
+    /// Called when hot reload is triggered
+    ///
+    /// Certain functionality such as logging must be reinitialized here
+    #[cfg(feature = "hot_reload")]
+    fn hot_reload(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {}
+
     /// Render debug UI using egui
     ///
     /// Called after main rendering pass
@@ -533,8 +539,13 @@ impl ContextBuilder {
     ///
     /// Panics if called multiple times
     pub fn init_logging(&self) {
+        // platform independent layers
+        let cpu_profile_layer = profile::CpuProfilingLayer::new(self.profiler.clone());
+        let subscriber = tracing_subscriber::registry().with(cpu_profile_layer);
+
+        // wasm dependent layers and logging
         #[cfg(target_arch = "wasm32")]
-        {
+        let subscriber = {
             console_error_panic_hook::set_once();
 
             let wasm_layer = tracing_wasm::WASMLayer::new(
@@ -542,28 +553,26 @@ impl ContextBuilder {
                     .set_max_level(self.log_level)
                     .build(),
             );
-            let subscriber = tracing_subscriber::registry().with(wasm_layer);
-            subscriber.init();
-        }
+            subscriber.with(wasm_layer)
+        };
 
+        // non wasm dependent layers
         #[cfg(not(target_arch = "wasm32"))]
-        {
+        let subscriber = {
             let filter_layer = tracing_subscriber::filter::LevelFilter::from(self.log_level);
             let format_layer = tracing_subscriber::fmt::layer();
-            let timing_layer = profile::CpuProfilingLayer::new(self.profiler.clone());
-            let subscriber = tracing_subscriber::registry()
-                .with(filter_layer)
-                .with(format_layer)
-                .with(timing_layer);
+            let subscriber = subscriber.with(filter_layer).with(format_layer);
 
             #[cfg(feature = "trace_tracy")]
             let subscriber = subscriber.with(tracing_tracy::TracyLayer::default());
 
-            match subscriber.try_init() {
-                Ok(_) => tracing::info!("sucessfully initialized tracing subscriber"),
-                Err(err) => {
-                    tracing::error!("could not initialize tracing subscriber: {}", err)
-                }
+            subscriber
+        };
+
+        match subscriber.try_init() {
+            Ok(_) => tracing::info!("sucessfully initialized tracing subscriber"),
+            Err(err) => {
+                tracing::error!("could not initialize tracing subscriber: {}", err)
             }
         }
     }

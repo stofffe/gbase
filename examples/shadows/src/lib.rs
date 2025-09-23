@@ -1,7 +1,7 @@
 use gbase::{
     asset::{self, AssetBuilder, AssetCache, AssetHandle},
     egui::{self, load::SizedTexture},
-    egui_ui, egui_wgpu,
+    egui_ui,
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile, render, time,
@@ -9,8 +9,7 @@ use gbase::{
     wgpu, winit, CallbackResult, Callbacks, Context, ContextBuilder,
 };
 use gbase_utils::{
-    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D,
-    ViewPort, Widget, WHITE,
+    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, Transform3D, ViewPort,
 };
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
@@ -43,8 +42,6 @@ struct App {
     plane_mesh: AssetHandle<MeshLod>,
 
     shadow_pass: ShadowPass,
-
-    egui_display_tex_1: Option<egui::TextureId>,
 }
 
 fn mesh_to_lod_mesh(
@@ -155,8 +152,6 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
-        let egui_display_tex_1 = None;
-
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
             ldr_framebuffer,
@@ -177,8 +172,6 @@ impl Callbacks for App {
             plane_mesh,
 
             shadow_pass,
-
-            egui_display_tex_1,
         }
     }
 
@@ -401,8 +394,7 @@ impl Callbacks for App {
         );
 
         egui::Window::new("Depth maps").show(egui_ctx.ctx(), |ui| {
-            let tex = SizedTexture::new(tex_id, [512.0, 512.0]);
-            ui.image(tex);
+            ui.image(SizedTexture::new(tex_id, [256.0, 256.0]));
             ui.label(format!("{:?}", tex_id));
         });
 
@@ -425,11 +417,10 @@ impl Callbacks for App {
 
         CallbackResult::Continue
     }
-}
 
-impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, ctx: &mut Context) {
+    #[cfg(feature = "hot_reload")]
+    fn hot_reload(&mut self, ctx: &mut Context, _cache: &mut AssetCache) {
         ContextBuilder::init_logging_with_profiler::<Self>(ctx);
     }
 }
