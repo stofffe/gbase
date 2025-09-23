@@ -1,4 +1,4 @@
-use crate::{render, Context};
+use crate::{render, CallbackResult, Context};
 use std::collections::HashMap;
 
 pub struct EguiContext {
@@ -82,14 +82,14 @@ impl EguiContext {
         &mut self,
         ctx: &mut Context,
         screen_view: &wgpu::TextureView,
-        mut callback: impl FnMut(&mut Context, &mut EguiContext),
-    ) {
+        mut callback: impl FnMut(&mut Context, &mut EguiContext) -> CallbackResult,
+    ) -> CallbackResult {
         // TODO: on_mouse_motion also?
         let input = self.state.take_egui_input(render::window(ctx));
 
         // callbacks
         self.context.begin_pass(input);
-        callback(ctx, self);
+        let callback_result = callback(ctx, self);
         let output = self.context.end_pass();
 
         let window = render::window(ctx);
@@ -141,5 +141,7 @@ impl EguiContext {
         for id in &output.textures_delta.free {
             self.renderer.free_texture(id)
         }
+
+        callback_result
     }
 }

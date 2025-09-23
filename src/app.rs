@@ -63,7 +63,13 @@ pub trait Callbacks {
     ///
     /// Called after main rendering pass
     #[cfg(feature = "egui")]
-    fn render_egui(&mut self, _ctx: &mut Context, _egui_ctx: &mut crate::egui_ui::EguiContext) {}
+    fn render_egui(
+        &mut self,
+        _ctx: &mut Context,
+        _egui_ctx: &mut crate::egui_ui::EguiContext,
+    ) -> CallbackResult {
+        CallbackResult::Continue
+    }
 }
 
 pub async fn run<C: Callbacks>() {
@@ -396,9 +402,12 @@ fn update_and_render(
     }
 
     #[cfg(feature = "egui")]
-    ui.render(ctx, &view, |ctx, egui_ctx| {
-        callbacks.render_egui(ctx, egui_ctx);
-    });
+    match ui.render(ctx, &view, |ctx, egui_ctx| {
+        callbacks.render_egui(ctx, egui_ctx)
+    }) {
+        CallbackResult::Exit => return CallbackResult::Exit,
+        CallbackResult::Continue => {}
+    }
 
     output.present();
 

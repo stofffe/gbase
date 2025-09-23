@@ -360,7 +360,11 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render_egui(&mut self, ctx: &mut Context, egui_ctx: &mut egui_ui::EguiContext) {
+    fn render_egui(
+        &mut self,
+        ctx: &mut Context,
+        egui_ctx: &mut egui_ui::EguiContext,
+    ) -> CallbackResult {
         egui_ctx.ctx().style_mut(|style| {
             style.text_styles = [
                 (
@@ -401,6 +405,8 @@ impl Callbacks for App {
             ui.image(tex);
             ui.label(format!("{:?}", tex_id));
         });
+
+        CallbackResult::Continue
     }
 
     #[no_mangle]

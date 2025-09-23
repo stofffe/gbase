@@ -1,4 +1,4 @@
-use gbase::{egui_ui, tracing, Callbacks, Context};
+use gbase::{egui_ui, tracing, CallbackResult, Callbacks, Context};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -24,7 +24,13 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn render_egui(&mut self, _ctx: &mut Context, egui_ctx: &mut gbase::egui_ui::EguiContext) {
+    fn render_egui(
+        &mut self,
+        _ctx: &mut Context,
+        egui_ctx: &mut gbase::egui_ui::EguiContext,
+    ) -> CallbackResult {
+        let mut callback_result = CallbackResult::Continue;
+
         gbase::egui::Window::new("Stats").show(egui_ctx.ctx(), |ui| {
             ui.heading("My egui Application");
             ui.horizontal(|ui| {
@@ -41,7 +47,13 @@ impl Callbacks for App {
             ui.image(gbase::egui::include_image!(
                 "../assets/textures/perlin_noise.png"
             ));
+
+            if ui.button("Exit").clicked() {
+                callback_result = CallbackResult::Exit;
+            }
         });
+
+        callback_result
     }
 }
 

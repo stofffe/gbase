@@ -67,6 +67,7 @@
     [] make camera matrices cached
     [] remove unecessary features from crates
     [] have window_event and device_event callbacks which can consume the events
+    [] move hot reload dll callback into Callbacks
 
 [] egui
     [] fix dll on mac
