@@ -24,6 +24,7 @@ type ReloadFunc<T> =
 type RenderEguiFunc<T> = fn(
     callbacks: &mut T,
     ctx: &mut crate::Context,
+    cache: &mut crate::asset::AssetCache,
     egui_ctx: &mut crate::egui_ui::EguiContext,
 ) -> CallbackResult;
 
@@ -104,11 +105,12 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     fn render_egui(
         &mut self,
         ctx: &mut crate::Context,
+        cache: &mut crate::asset::AssetCache,
         egui_ctx: &mut crate::egui_ui::EguiContext,
     ) -> CallbackResult {
         #[allow(clippy::single_match)]
         match self.dll.render_egui_callback {
-            Some(render_egui) => render_egui(&mut self.callbacks, ctx, egui_ctx),
+            Some(render_egui) => render_egui(&mut self.callbacks, ctx, cache, egui_ctx),
             None => CallbackResult::Continue,
         }
     }

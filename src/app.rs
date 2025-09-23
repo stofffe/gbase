@@ -72,6 +72,7 @@ pub trait Callbacks {
     fn render_egui(
         &mut self,
         _ctx: &mut Context,
+        _cache: &mut AssetCache,
         _egui_ctx: &mut crate::egui_ui::EguiContext,
     ) -> CallbackResult {
         CallbackResult::Continue
@@ -408,8 +409,8 @@ fn update_and_render(
     }
 
     #[cfg(feature = "egui")]
-    match ui.render(ctx, &view, |ctx, egui_ctx| {
-        callbacks.render_egui(ctx, egui_ctx)
+    match ui.render(ctx, cache, &view, |ctx, cache, egui_ctx| {
+        callbacks.render_egui(ctx, cache, egui_ctx)
     }) {
         CallbackResult::Exit => return CallbackResult::Exit,
         CallbackResult::Continue => {}

@@ -33,6 +33,7 @@ impl TextureRenderer {
         .build(cache);
 
         let sampler = render::SamplerBuilder::new()
+            .mip_map_filer(wgpu::FilterMode::Nearest)
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
             .build(ctx);
 
@@ -155,7 +156,7 @@ impl TextureRenderer {
                     .fragment(),
                 // sampler
                 render::BindGroupLayoutEntry::new()
-                    .sampler_filtering()
+                    .sampler_nonfiltering()
                     .fragment(),
                 // camera
                 render::BindGroupLayoutEntry::new().uniform().fragment(),

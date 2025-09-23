@@ -345,27 +345,6 @@ impl Callbacks for App {
             render::surface_format(ctx),
         );
 
-        // render depth
-        for i in 0..3 {
-            let shadow_view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
-                .base_array_layer(i)
-                .dimension(wgpu::TextureViewDimension::D2)
-                .build(ctx);
-            let shadow_view_rgb = render::TextureViewBuilder::new(self.shadow_map_rgb.clone())
-                .base_array_layer(i)
-                .dimension(wgpu::TextureViewDimension::D2)
-                .build(ctx);
-            self.framebuffer_renderer.render_depth(
-                ctx,
-                cache,
-                shadow_view,
-                &shadow_view_rgb,
-                wgpu::TextureFormat::Rgba8Unorm,
-                &self.camera_buffer,
-                None,
-            );
-        }
-
         _render_span.exit();
 
         CallbackResult::Continue
@@ -375,6 +354,7 @@ impl Callbacks for App {
     fn render_egui(
         &mut self,
         ctx: &mut Context,
+        cache: &mut AssetCache,
         egui_ctx: &mut egui_ui::EguiContext,
     ) -> CallbackResult {
         if input::key_just_pressed(ctx, input::KeyCode::Escape) {
@@ -412,6 +392,30 @@ impl Callbacks for App {
                 ui.label(format!("{:.4} {}", time * 1000.0, label));
             }
         });
+
+        //
+        // render depth
+        //
+
+        for i in 0..3 {
+            let shadow_view = render::TextureViewBuilder::new(self.shadow_pass.shadow_map.clone())
+                .base_array_layer(i)
+                .dimension(wgpu::TextureViewDimension::D2)
+                .build(ctx);
+            let shadow_view_rgb = render::TextureViewBuilder::new(self.shadow_map_rgb.clone())
+                .base_array_layer(i)
+                .dimension(wgpu::TextureViewDimension::D2)
+                .build(ctx);
+            self.framebuffer_renderer.render_depth(
+                ctx,
+                cache,
+                shadow_view,
+                &shadow_view_rgb,
+                wgpu::TextureFormat::Rgba8Unorm,
+                &self.camera_buffer,
+                None,
+            );
+        }
 
         let mut tex_ids = Vec::new();
         for i in 0..gbase_utils::MAX_SHADOW_CASCADES {

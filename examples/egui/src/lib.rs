@@ -1,4 +1,4 @@
-use gbase::{egui_ui, tracing, CallbackResult, Callbacks, Context};
+use gbase::{asset::AssetCache, egui_ui, tracing, CallbackResult, Callbacks, Context};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -27,6 +27,7 @@ impl Callbacks for App {
     fn render_egui(
         &mut self,
         _ctx: &mut Context,
+        _cache: &mut AssetCache,
         egui_ctx: &mut gbase::egui_ui::EguiContext,
     ) -> CallbackResult {
         let mut callback_result = CallbackResult::Continue;
