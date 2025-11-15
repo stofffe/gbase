@@ -22,7 +22,8 @@ pub(crate) struct HotReloadContext {
     force_restart: bool,
 
     #[allow(dead_code)]
-    dll_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>, // keep reference alive
+    dll_watcher:
+        notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>, // keep reference alive
     dll_update_channel: mpsc::Receiver<()>,
 }
 

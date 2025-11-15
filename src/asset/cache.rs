@@ -346,7 +346,8 @@ pub struct AssetCacheExt {
     // reloading
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
     reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
-    reload_watcher: notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::FsEventWatcher>,
+    reload_watcher:
+        notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
     reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
 
     // writing
