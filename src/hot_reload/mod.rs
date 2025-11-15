@@ -6,7 +6,7 @@ use std::{path::Path, sync::mpsc, time::Duration};
 pub(crate) fn dllname() -> String {
     let dll_name = std::env::current_exe()
         .unwrap()
-        .file_name()
+        .file_stem()
         .unwrap()
         .to_str()
         .unwrap()
