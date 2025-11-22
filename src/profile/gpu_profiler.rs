@@ -239,7 +239,7 @@ impl GpuProfiler {
         &mut self,
         label: &'static str,
     ) -> Option<wgpu::ComputePassTimestampWrites<'_>> {
-        if !self.queries_supported {
+        if !self.enabled || !self.queries_supported {
             return None;
         }
         let Some(query_set) = &self.timestamp_query_set else {
@@ -274,7 +274,7 @@ impl GpuProfiler {
         &mut self,
         label: &'static str,
     ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
-        if !self.queries_supported {
+        if !self.enabled || !self.queries_supported {
             return None;
         }
         let Some(query_set) = &self.timestamp_query_set else {
