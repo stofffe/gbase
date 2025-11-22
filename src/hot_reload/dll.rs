@@ -1,32 +1,19 @@
-use crate::CallbackResult;
+use crate::{asset, CallbackResult};
 
-type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> T;
-type RenderFunc<T> = fn(
-    callbacks: &mut T,
-    ctx: &mut crate::Context,
-    cache: &mut crate::asset::AssetCache,
-    screen_view: &wgpu::TextureView,
-) -> CallbackResult;
-type FixedUpdateFunc<T> = fn(
-    callbacks: &mut T,
-    ctx: &mut crate::Context,
-    cache: &mut crate::asset::AssetCache,
-) -> CallbackResult;
-type ResizeFunc<T> = fn(
-    callbacks: &mut T,
-    ctx: &mut crate::Context,
-    cache: &mut crate::asset::AssetCache,
-    new_size: winit::dpi::PhysicalSize<u32>,
-) -> CallbackResult;
-type ReloadFunc<T> =
-    fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache);
+#[rustfmt::skip]
+type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut asset::AssetCache) -> T;
+#[rustfmt::skip]
+type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache, screen_view: &wgpu::TextureView) -> CallbackResult;
+#[rustfmt::skip]
+type FixedUpdateFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache,) -> CallbackResult;
+#[rustfmt::skip]
+type ResizeFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache, new_size: winit::dpi::PhysicalSize<u32>,) -> CallbackResult;
+#[rustfmt::skip]
+type ReloadFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache);
+
 #[cfg(feature = "egui")]
-type RenderEguiFunc<T> = fn(
-    callbacks: &mut T,
-    ctx: &mut crate::Context,
-    cache: &mut crate::asset::AssetCache,
-    egui_ctx: &mut crate::egui_ui::EguiContext,
-) -> CallbackResult;
+#[rustfmt::skip]
+type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache, egui_ctx: &mut crate::egui_ui::EguiContext,) -> CallbackResult;
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
@@ -43,6 +30,7 @@ pub struct DllApi<T> {
 pub struct DllCallbacks<T> {
     pub callbacks: T,
     pub dll: DllApi<T>,
+    pub dll_index: u32,
 }
 
 impl<T> crate::Callbacks for DllCallbacks<T> {
@@ -53,8 +41,9 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
         panic!("init_ctx on DllCallbacks should never be called");
     }
 
-    fn new(ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) -> Self {
-        let dll = load_dll();
+    fn new(ctx: &mut crate::Context, cache: &mut asset::AssetCache) -> Self {
+        let dll_index = 0;
+        let dll = load_dll(dll_index);
 
         let mut callbacks = (dll.new_callback)(ctx, cache);
 
@@ -62,38 +51,31 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
             hot_reload(&mut callbacks, ctx, cache);
         }
 
-        Self { callbacks, dll }
+        Self {
+            callbacks,
+            dll,
+            dll_index,
+        }
     }
 
-    fn render(
-        &mut self,
-        ctx: &mut crate::Context,
-        cache: &mut crate::asset::AssetCache,
-        screen_view: &wgpu::TextureView,
-    ) -> CallbackResult {
+    #[rustfmt::skip]
+    fn render(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache, screen_view: &wgpu::TextureView) -> CallbackResult {
         match self.dll.render_callback {
             Some(render) => render(&mut self.callbacks, ctx, cache, screen_view),
             None => CallbackResult::Continue,
         }
     }
 
-    fn fixed_update(
-        &mut self,
-        ctx: &mut crate::Context,
-        cache: &mut crate::asset::AssetCache,
-    ) -> CallbackResult {
+    #[rustfmt::skip]
+    fn fixed_update(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache) -> CallbackResult {
         match self.dll.fixed_update_callback {
             Some(fixed_update) => fixed_update(&mut self.callbacks, ctx, cache),
             None => CallbackResult::Continue,
         }
     }
 
-    fn resize(
-        &mut self,
-        ctx: &mut crate::Context,
-        cache: &mut crate::asset::AssetCache,
-        new_size: winit::dpi::PhysicalSize<u32>,
-    ) -> CallbackResult {
+    #[rustfmt::skip]
+    fn resize(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache, new_size: winit::dpi::PhysicalSize<u32>) -> CallbackResult {
         #[allow(clippy::single_match)]
         match self.dll.resize_callback {
             Some(resize) => resize(&mut self.callbacks, ctx, cache, new_size),
@@ -102,12 +84,8 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     }
 
     #[cfg(feature = "egui")]
-    fn render_egui(
-        &mut self,
-        ctx: &mut crate::Context,
-        cache: &mut crate::asset::AssetCache,
-        egui_ctx: &mut crate::egui_ui::EguiContext,
-    ) -> CallbackResult {
+    #[rustfmt::skip]
+    fn render_egui(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache, egui_ctx: &mut crate::egui_ui::EguiContext) -> CallbackResult {
         #[allow(clippy::single_match)]
         match self.dll.render_egui_callback {
             Some(render_egui) => render_egui(&mut self.callbacks, ctx, cache, egui_ctx),
@@ -120,8 +98,9 @@ impl<T> DllCallbacks<T> {
     /// reload dll file
     ///
     /// keep game state
-    pub fn hot_reload(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) {
-        self.dll = load_dll();
+    pub fn hot_reload(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache) {
+        self.dll_index += 1;
+        self.dll = load_dll(self.dll_index);
 
         if let Some(hot_reload) = self.dll.reload_callback {
             hot_reload(&mut self.callbacks, ctx, cache);
@@ -131,14 +110,19 @@ impl<T> DllCallbacks<T> {
     /// reload dll file
     ///
     /// reset game state
-    pub fn hot_restart(&mut self, ctx: &mut crate::Context, cache: &mut crate::asset::AssetCache) {
+    pub fn hot_restart(&mut self, ctx: &mut crate::Context, cache: &mut asset::AssetCache) {
         self.hot_reload(ctx, cache);
         self.callbacks = (self.dll.new_callback)(ctx, cache);
     }
 }
 
-fn load_dll<T>() -> DllApi<T> {
-    let lib = dlopen::symbor::Library::open(super::dllname()).unwrap();
+fn load_dll<T>(dll_index: u32) -> DllApi<T> {
+    let input = super::format_dll_input();
+    let output = super::format_dll_output(dll_index);
+
+    std::fs::copy(&input, &output).expect("could not copy dll");
+
+    let lib = dlopen::symbor::Library::open(&output).unwrap();
 
     let new_callback = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
         Ok(f) => *f,

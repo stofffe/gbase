@@ -1,20 +1,50 @@
 mod dll;
 pub use dll::*;
+use notify_debouncer_mini::notify::Watcher;
 extern crate dlopen;
-use std::{path::Path, sync::mpsc, time::Duration};
+use std::{env, path::PathBuf, sync::mpsc, time::Duration};
 
-pub(crate) fn dllname() -> String {
-    let dll_name = std::env::current_exe()
-        .unwrap()
+fn format_dll_input() -> PathBuf {
+    let current_exe = env::current_exe().expect("could not get current exe path");
+    let folder_path = current_exe
+        .parent()
+        .expect("could not get current exe parent folder");
+    let file_name = current_exe
         .file_stem()
-        .unwrap()
+        .expect("could not get current exe file stem");
+    let file_name = file_name
         .to_str()
-        .unwrap()
-        .to_string();
-    dlopen::utils::platform_file_name(dll_name)
+        .expect("could not convert os string to &str")
+        .replace("-", "_");
+    let path = PathBuf::new()
+        .join(folder_path)
+        .join(dlopen::utils::platform_file_name(file_name));
+
+    path
+}
+
+fn format_dll_output(dll_index: u32) -> PathBuf {
+    let current_exe = env::current_exe().expect("could not get current exe path");
+    let folder_path = current_exe
+        .parent()
+        .expect("could not get current exe parent folder");
+    let file_name = current_exe
+        .file_stem()
+        .expect("could not get current exe file stem");
+    let file_name = file_name
         .to_str()
-        .unwrap()
-        .to_string()
+        .expect("could not convert os string to &str")
+        .replace("-", "_");
+
+    let file_name = format!("{file_name}_{dll_index}");
+
+    let path = PathBuf::new()
+        .join(folder_path)
+        .join(dlopen::utils::platform_file_name(file_name));
+
+    println!("OUTPUT {:?}", path.to_str().unwrap());
+
+    path
 }
 
 pub(crate) struct HotReloadContext {
@@ -22,8 +52,9 @@ pub(crate) struct HotReloadContext {
     force_restart: bool,
 
     #[allow(dead_code)]
-    dll_watcher:
-        notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>, // keep reference alive
+    // dll_watcher:
+    //     notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>, // keep reference alive
+    dll_watcher: notify_debouncer_mini::notify::RecommendedWatcher, // keep reference alive
     dll_update_channel: mpsc::Receiver<()>,
 }
 
@@ -40,22 +71,35 @@ impl HotReloadContext {
 
         let (tx, rx) = mpsc::channel();
 
-        let mut dll_watcher = notify_debouncer_mini::new_debouncer(
-            Duration::from_millis(100),
-            move |res: notify_debouncer_mini::DebounceEventResult| match res {
-                Ok(_) => tx.send(()).expect("could not send dll change event"),
+        let mut dll_watcher =
+            notify_debouncer_mini::notify::recommended_watcher(move |res| match res {
+                Ok(ev) => {
+                    tracing::error!("{:?}", ev);
+                    tx.send(()).expect("could not send dll change event");
+                }
                 Err(err) => println!("debounced result error: {}", err),
-            },
-        )
-        .expect("could not create watcher");
+            })
+            .unwrap();
+        // let mut dll_watcher = notify_debouncer_mini::new_debouncer(
+        //     Duration::from_millis(100),
+        //     move |res: notify_debouncer_mini::DebounceEventResult| match res {
+        //         Ok(_) => tx.send(()).expect("could not send dll change event"),
+        //         Err(err) => println!("debounced result error: {}", err),
+        //     },
+        // )
+        // .expect("could not create watcher");
 
         dll_watcher
-            .watcher()
             .watch(
-                Path::new(&dllname()),
+                &format_dll_input(),
                 notify_debouncer_mini::notify::RecursiveMode::NonRecursive,
             )
-            .expect("could not watch dll");
+            .unwrap();
+        // .watch(
+        //     &format_dll_input(),
+        //     notify_debouncer_mini::notify::RecursiveMode::NonRecursive,
+        // )
+        // .expect("could not watch dll");
 
         Self {
             force_reload: false,
