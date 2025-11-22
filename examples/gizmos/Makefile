@@ -1,15 +1,16 @@
+name = gizmos
+port = 8000
+
 # dll debug
 hot_reload_compile:
-	cargo build --target-dir target --features "hot_reload"
-	mv target/debug/libgizmos.dylib libgizmos.dylib
+	cargo build --features "hot_reload"
 
 hot_reload_compile_run:
 	make hot_reload_compile
 	cargo run --features "hot_reload"
 
 hot_reload_compile_release:
-	cargo build --target-dir target --features "hot_reload" --release
-	mv target/release/libgizmos.dylib libgizmos.dylib
+	cargo build --features "hot_reload" --release
 
 hot_reload_compile_run_release:
 	make hot_reload_compile_release
@@ -23,11 +24,11 @@ web_run:
 	@python3 -m http.server
 
 web_open:
-	@open -na "Google Chrome" --args --incognito "http://localhost:8000"
+	@open -na "Google Chrome" --args --incognito "http://localhost:$(port)"
 
 # static
 debug:
 	cargo run --debug
 
 release:
-	cargo run --release
+	cargo run --release --features "trace_tracy"

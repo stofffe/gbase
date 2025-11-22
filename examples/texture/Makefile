@@ -3,16 +3,14 @@ port = 8000
 
 # dll debug
 hot_reload_compile:
-	cargo build --target-dir target --features "hot_reload"
-	mv target/debug/lib$(name).dylib lib$(name).dylib
+	cargo build --features "hot_reload"
 
 hot_reload_compile_run:
 	make hot_reload_compile
 	cargo run --features "hot_reload"
 
 hot_reload_compile_release:
-	cargo build --target-dir target --features "hot_reload" --release
-	mv target/release/lib$(name).dylib lib$(name).dylib
+	cargo build --features "hot_reload" --release
 
 hot_reload_compile_run_release:
 	make hot_reload_compile_release
