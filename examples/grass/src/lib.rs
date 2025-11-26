@@ -154,18 +154,18 @@ impl Callbacks for App {
             self.paused = !self.paused;
         }
         if self.paused {
-            self.gui_renderer.text(
-                "pause (esc)",
-                vec2(0.0, 0.0),
-                vec2(0.5, 0.5),
-                0.05,
-                vec4(1.0, 1.0, 1.0, 1.0),
-                false,
-            );
-            return CallbackResult::Continue;
+            // self.gui_renderer.text(
+            //     "pause (esc)",
+            //     vec2(0.0, 0.0),
+            //     vec2(22.5, 22.5),
+            //     100.0,
+            //     vec4(1.0, 1.0, 1.0, 1.0),
+            //     false,
+            // );
+        } else {
+            self.camera.flying_controls(ctx);
         }
 
-        self.camera.flying_controls(ctx);
         // TODO: temp
 
         // update buffers
