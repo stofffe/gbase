@@ -1,6 +1,19 @@
 #![deny(elided_lifetimes_in_paths)]
 #![allow(clippy::new_without_default)]
 
+//
+// Feature incompatability checks
+//
+
+#[cfg(all(feature = "hot_reload", target_arch = "wasm32"))]
+compile_error!("The 'hot_reload' feature is not supported on wasm32");
+#[cfg(all(feature = "trace_tracy", target_arch = "wasm32"))]
+compile_error!("The 'trace_tracy' feature is not supported on wasm32");
+
+//
+// Modules
+//
+
 mod app;
 pub mod asset;
 pub mod audio;
@@ -60,12 +73,3 @@ pub struct Context {
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,
 }
-
-//
-// Feature incompatability checks
-//
-
-#[cfg(all(feature = "hot_reload", target_arch = "wasm32"))]
-compile_error!("The 'hot_reload' feature is not supported on wasm32");
-#[cfg(all(feature = "trace_tracy", target_arch = "wasm32"))]
-compile_error!("The 'trace_tracy' feature is not supported on wasm32");
