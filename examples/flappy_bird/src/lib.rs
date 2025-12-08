@@ -4,14 +4,14 @@ mod sprite_renderer;
 use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
-    audio, collision, filesystem,
+    audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
     load_b, random, render, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     CallbackResult, Callbacks, Context,
 };
-use gbase_utils::{Alignment, SizeKind, Transform2D, Transform3D, Widget};
+use gbase_utils::{collision_2d, Alignment, SizeKind, Transform2D, Transform3D, Widget};
 use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
 use std::{f32::consts::PI, time::Duration};
 
@@ -190,24 +190,24 @@ impl EntityHandler {
             Collision::None => false,
             Collision::Circle { radius: r1 } => match e2.collision {
                 Collision::None => false,
-                Collision::Circle { radius: r2 } => collision::circle_circle_collision(
-                    collision::Circle { origin: self.calc_pos(e1), radius: r1, },
-                    collision::Circle { origin: self.calc_pos(e2), radius: r2, },
+                Collision::Circle { radius: r2 } => collision_2d::circle_circle_collision(
+                    collision_2d::Circle { origin: self.calc_pos(e1), radius: r1, },
+                    collision_2d::Circle { origin: self.calc_pos(e2), radius: r2, },
                 ),
-                Collision::Quad { size: s2 } => collision::circle_aabb_collision(
-                    collision::Circle { origin: self.calc_pos(e1), radius: r1, },
-                    collision::AABB { center: self.calc_pos(e2), size: s2, },
+                Collision::Quad { size: s2 } => collision_2d::circle_aabb_collision(
+                    collision_2d::Circle { origin: self.calc_pos(e1), radius: r1, },
+                    collision_2d::AABB { center: self.calc_pos(e2), size: s2, },
                 ),
             },
             Collision::Quad { size: s1 } => match e2.collision {
                 Collision::None => false,
-                Collision::Circle { radius: r2 } => collision::circle_aabb_collision(
-                    collision::Circle { origin: self.calc_pos(e2), radius: r2, },
-                    collision::AABB { center: self.calc_pos(e1), size: s1, },
+                Collision::Circle { radius: r2 } => collision_2d::circle_aabb_collision(
+                    collision_2d::Circle { origin: self.calc_pos(e2), radius: r2, },
+                    collision_2d::AABB { center: self.calc_pos(e1), size: s1, },
                 ),
-                Collision::Quad { size: s2 } => collision::aabb_aabb_collision(
-                    collision::AABB { center: self.calc_pos(e1), size: s1, },
-                    collision::AABB { center: self.calc_pos(e2), size: s2, },
+                Collision::Quad { size: s2 } => collision_2d::aabb_aabb_collision(
+                    collision_2d::AABB { center: self.calc_pos(e1), size: s1, },
+                    collision_2d::AABB { center: self.calc_pos(e2), size: s2, },
                 ),
             },
         }

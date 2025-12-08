@@ -17,7 +17,6 @@ compile_error!("The 'trace_tracy' feature is not supported on wasm32");
 mod app;
 pub mod asset;
 pub mod audio;
-pub mod collision; // TODO: move to utils?
 pub mod filesystem;
 pub mod input;
 pub mod profile;

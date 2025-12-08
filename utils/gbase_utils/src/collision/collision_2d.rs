@@ -1,4 +1,4 @@
-use glam::Vec2;
+use gbase::glam::Vec2;
 
 //
 // Types
@@ -100,7 +100,7 @@ mod test {
         aabb_aabb_collision, circle_aabb_collision, circle_circle_collision, point_point_collision,
         Circle, AABB,
     };
-    use glam::vec2;
+    use gbase::glam::vec2;
 
     //
     // Self intersection

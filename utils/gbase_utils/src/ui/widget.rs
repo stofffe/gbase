@@ -1,6 +1,7 @@
+use crate::{collision, AABB};
+
 use super::{GUIRenderer, BLACK};
 use gbase::{
-    collision::{self, AABB},
     glam::{vec2, vec4, Vec2, Vec4},
     input,
     render::{self},

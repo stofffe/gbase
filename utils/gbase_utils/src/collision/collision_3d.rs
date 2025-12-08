@@ -1,7 +1,5 @@
 use encase::ShaderType;
-use glam::Vec3;
-
-// use crate::render::Transform;
+use gbase::glam::Vec3;
 
 #[derive(Debug, Clone, Copy, ShaderType)]
 pub struct Box3D {
