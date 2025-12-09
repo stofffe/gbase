@@ -28,6 +28,8 @@ pub trait Callbacks {
         ContextBuilder::new()
     }
 
+    fn shutdown(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {}
+
     /// Called after context initilization and before game/update loop
     fn new(_ctx: &mut Context, cache: &mut AssetCache) -> Self;
 
@@ -351,6 +353,22 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             _ => {}
         }
     }
+    fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
+        let App::Initialized {
+            ref mut ctx,
+            callbacks,
+            cache,
+            ..
+        } = self
+        else {
+            tracing::warn!("app not initialized while receiving exit event -> skipping");
+            return;
+        };
+
+        callbacks.shutdown(ctx, cache);
+
+        shutdown(ctx, cache);
+    }
 }
 
 /// Functions implemented on App
@@ -453,6 +471,8 @@ fn update_and_render(
 
     CallbackResult::Continue
 }
+
+fn shutdown(_ctx: &mut Context, _cache: &mut AssetCache) {}
 
 //
 // Context builder

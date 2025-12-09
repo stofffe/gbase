@@ -1,7 +1,9 @@
-use crate::{asset, CallbackResult};
+use crate::{asset, CallbackResult, Context};
 
 #[rustfmt::skip]
 type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut asset::AssetCache) -> T;
+#[rustfmt::skip]
+type ShutdownFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache);
 #[rustfmt::skip]
 type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache, screen_view: &wgpu::TextureView) -> CallbackResult;
 #[rustfmt::skip]
@@ -17,6 +19,7 @@ type RenderEguiFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: 
 
 pub struct DllApi<T> {
     new_callback: NewFunc<T>,
+    shutdown_callback: Option<ShutdownFunc<T>>,
     render_callback: Option<RenderFunc<T>>,
     fixed_update_callback: Option<FixedUpdateFunc<T>>,
     resize_callback: Option<ResizeFunc<T>>,
@@ -56,6 +59,18 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
             dll,
             dll_index,
         }
+    }
+
+    #[rustfmt::skip]
+    fn shutdown(&mut self, ctx: &mut Context, cache: &mut asset::AssetCache) {
+        // call user shutdown
+        match self.dll.shutdown_callback {
+            Some(shutdown) => shutdown(&mut self.callbacks, ctx, cache),
+            None => (),
+        }
+
+        // remove current dll
+        remove_dll(self.dll_index);
     }
 
     #[rustfmt::skip]
@@ -120,9 +135,15 @@ fn load_dll<T>(dll_index: u32) -> DllApi<T> {
     let input = super::format_dll_input();
     let output = super::format_dll_output(dll_index);
 
+    // copy dll to avoid collisions
     std::fs::copy(&input, &output).expect("could not copy dll");
 
     let lib = dlopen::symbor::Library::open(&output).unwrap();
+
+    // remove old dlls
+    if dll_index > 0 {
+        remove_dll(dll_index - 1);
+    }
 
     let new_callback = match unsafe { lib.symbol::<NewFunc<T>>("new") } {
         Ok(f) => *f,
@@ -133,6 +154,15 @@ fn load_dll<T>(dll_index: u32) -> DllApi<T> {
             panic!("{}", err);
         }
     };
+
+    let shutdown_callback = match unsafe { lib.symbol::<ShutdownFunc<T>>("shutdown") } {
+        Ok(f) => Some(*f),
+        Err(err) => {
+            tracing::warn!("could not find function shutdown: {}", err);
+            None
+        }
+    };
+
     let render_callback = match unsafe { lib.symbol::<RenderFunc<T>>("render") } {
         Ok(f) => Some(*f),
         Err(err) => {
@@ -172,6 +202,7 @@ fn load_dll<T>(dll_index: u32) -> DllApi<T> {
 
     DllApi {
         new_callback,
+        shutdown_callback,
         render_callback,
         fixed_update_callback,
         resize_callback,
@@ -180,4 +211,10 @@ fn load_dll<T>(dll_index: u32) -> DllApi<T> {
         #[cfg(feature = "egui")]
         render_egui_callback,
     }
+}
+
+pub(crate) fn remove_dll(dll_index: u32) {
+    let previous_output = super::format_dll_output(dll_index);
+    // TODO: maybe just log on error
+    std::fs::remove_file(previous_output).expect("could not remove old dll");
 }
