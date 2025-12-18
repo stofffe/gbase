@@ -1,6 +1,9 @@
 // from GGEZ https://github.com/ggez/ggez
 
-use gbase::{render::ArcBuffer, wgpu};
+use gbase::{
+    render::{self, next_id, ArcBuffer},
+    wgpu, Context,
+};
 
 /// Simple buffer sub-allocation helper.
 ///
@@ -16,19 +19,16 @@ pub struct GrowingBufferArena {
 }
 
 impl GrowingBufferArena {
-    pub fn new(
-        device: &wgpu::Device,
-        alignment: u64,
-        desc: wgpu::BufferDescriptor<'static>,
-    ) -> Self {
+    pub fn new(ctx: &mut Context, alignment: u64, desc: wgpu::BufferDescriptor<'static>) -> Self {
+        let buffer = render::device(ctx).create_buffer(&desc);
         GrowingBufferArena {
-            buffers: vec![(ArcBuffer::new(device.create_buffer(&desc)), 0)],
+            buffers: vec![(ArcBuffer::new(next_id(ctx), buffer), 0)],
             alignment,
             desc,
         }
     }
 
-    pub fn allocate(&mut self, device: &wgpu::Device, size: u64) -> ArenaAllocation {
+    pub fn allocate(&mut self, ctx: &mut Context, size: u64) -> ArenaAllocation {
         let size = align(self.alignment, size);
         assert!(size <= self.desc.size);
 
@@ -43,8 +43,8 @@ impl GrowingBufferArena {
             }
         }
 
-        self.grow(device);
-        self.allocate(device, size)
+        self.grow(ctx);
+        self.allocate(ctx, size)
     }
 
     /// This frees **all** the allocations at once.
@@ -54,9 +54,9 @@ impl GrowingBufferArena {
         }
     }
 
-    fn grow(&mut self, device: &wgpu::Device) {
-        self.buffers
-            .push((ArcBuffer::new(device.create_buffer(&self.desc)), 0));
+    fn grow(&mut self, ctx: &mut Context) {
+        let buffer = render::device(ctx).create_buffer(&self.desc);
+        self.buffers.push((ArcBuffer::new(next_id(ctx), buffer), 0));
     }
 }
 

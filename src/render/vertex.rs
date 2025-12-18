@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, ArcBuffer},
+    render::{self, next_id, ArcBuffer},
     Context,
 };
 use std::{marker::PhantomData, ops::RangeBounds};
@@ -32,7 +32,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         }
     }
-    pub fn build(self, ctx: &Context) -> VertexBuffer<T> {
+    pub fn build(self, ctx: &mut Context) -> VertexBuffer<T> {
         let device = render::device(ctx);
 
         match self.source {
@@ -43,7 +43,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
                     contents: bytemuck::cast_slice(&data),
                 });
                 VertexBuffer {
-                    buffer: ArcBuffer::new(buffer),
+                    buffer: ArcBuffer::new(next_id(ctx), buffer),
                     capacity: data.len(),
                     len: data.len() as u32,
                     ty: PhantomData::<T>,
@@ -57,7 +57,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
                     mapped_at_creation: false,
                 });
                 VertexBuffer {
-                    buffer: ArcBuffer::new(buffer),
+                    buffer: ArcBuffer::new(next_id(ctx), buffer),
                     capacity: capacity as usize,
                     len: 0,
                     ty: PhantomData::<T>,

@@ -4,6 +4,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc},
 };
 
+// TODO: remove like arc handles
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
 
 // TODO: make while arc?

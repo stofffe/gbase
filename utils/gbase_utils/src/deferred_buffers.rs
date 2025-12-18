@@ -10,7 +10,7 @@ pub struct DeferredBuffers {
 
 impl DeferredBuffers {
     // TODO: go over formats
-    pub fn new(ctx: &Context) -> Self {
+    pub fn new(ctx: &mut Context) -> Self {
         let position = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Rgba16Float)
@@ -144,7 +144,7 @@ impl DeferredBuffers {
     /// * Normal
     /// * Roughness
     /// * Depth
-    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
         self.position.resize(ctx, new_size);
         self.albedo.resize(ctx, new_size);
         self.normal.resize(ctx, new_size);

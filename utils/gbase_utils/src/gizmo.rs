@@ -109,7 +109,7 @@ impl GizmoRenderer {
         self.dynamic_index_buffer.clear();
     }
 
-    pub fn resize(&mut self, ctx: &Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, ctx: &mut Context, new_size: gbase::winit::dpi::PhysicalSize<u32>) {
         self.depth_buffer.resize(ctx, new_size);
     }
 

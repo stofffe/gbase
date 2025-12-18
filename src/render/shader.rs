@@ -1,5 +1,8 @@
 use super::{ArcHandle, ArcShaderModule};
-use crate::{render, Context};
+use crate::{
+    render::{self, next_id},
+    Context,
+};
 
 //
 // Shader Builder
@@ -22,16 +25,17 @@ impl ShaderBuilder {
     /// Create shader module
     ///
     /// panics if source is invalid
-    pub fn build(&self, ctx: &Context) -> ArcShaderModule {
-        ArcHandle::new(self.build_non_arc(ctx))
+    pub fn build(&self, ctx: &mut Context) -> ArcShaderModule {
+        ArcHandle::new(next_id(ctx), self.build_non_arc(ctx))
     }
 
     /// Create shader module
     ///
     /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn build_err(&self, ctx: &Context) -> Result<ArcShaderModule, wgpu::Error> {
-        self.build_err_non_arc(ctx).map(ArcHandle::new)
+    pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
+        self.build_err_non_arc(ctx)
+            .map(|module| ArcHandle::new(next_id(ctx), module))
     }
 
     #[cfg(not(target_arch = "wasm32"))]

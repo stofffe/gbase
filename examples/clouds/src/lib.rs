@@ -8,7 +8,7 @@ use gbase::{
     render::{self, UniformBufferBuilder},
     time, tracing, wgpu,
     winit::{self, dpi::PhysicalSize, window::Window},
-    CallbackResult, Callbacks, Context, ContextBuilder,
+    CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     gaussian_filter, Alignment, Direction, SizeKind, Transform3D, Widget, BLUE, GRAY, GREEN, RED,
@@ -404,7 +404,7 @@ impl App {
         }
     }
 
-    fn ui(&mut self, ctx: &Context) {
+    fn ui(&mut self, ctx: &mut Context) {
         let params_old = self.cloud_params.clone();
 
         let renderer = &mut self.ui_renderer;
@@ -738,7 +738,7 @@ fn texture_to_buffer_gamma(
 }
 
 fn texture_to_buffer_sync(
-    ctx: &Context,
+    ctx: &mut Context,
     texture: &wgpu::Texture,
     width: u32,
     height: u32,

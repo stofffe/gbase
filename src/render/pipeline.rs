@@ -1,4 +1,7 @@
-use crate::{render, Context};
+use crate::{
+    render::{self, next_id},
+    Context,
+};
 use render::{
     ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule,
 };
@@ -25,7 +28,7 @@ impl PipelineLayoutBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> ArcPipelineLayout {
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcPipelineLayout {
         let device = render::device(ctx);
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -38,7 +41,7 @@ impl PipelineLayoutBuilder {
             push_constant_ranges: &self.push_constants,
         });
 
-        ArcPipelineLayout::new(layout)
+        ArcPipelineLayout::new(next_id(ctx), layout)
     }
     pub fn build(&self, ctx: &mut Context) -> ArcPipelineLayout {
         if let Some(pipeline_layout) = ctx.render.cache.pipeline_layouts.get(self) {
@@ -181,7 +184,7 @@ impl RenderPipelineBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> ArcRenderPipeline {
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcRenderPipeline {
         let device = render::device(ctx);
 
         let mut location = 0;
@@ -256,7 +259,7 @@ impl RenderPipelineBuilder {
             cache: None,
         });
 
-        ArcRenderPipeline::new(pipeline)
+        ArcRenderPipeline::new(next_id(ctx), pipeline)
     }
     pub fn build(self, ctx: &mut Context) -> ArcRenderPipeline {
         if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(&self) {
@@ -349,7 +352,7 @@ impl ComputePipelineBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> ArcComputePipeline {
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcComputePipeline {
         let device = render::device(ctx);
 
         let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
@@ -361,7 +364,7 @@ impl ComputePipelineBuilder {
             cache: None,
         });
 
-        ArcComputePipeline::new(pipeline)
+        ArcComputePipeline::new(next_id(ctx), pipeline)
     }
 
     pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {

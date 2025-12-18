@@ -2,7 +2,10 @@ use super::{
     Asset, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset, DynAsset, DynAssetHandle,
     DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
-use crate::{render::ArcHandle, Context};
+use crate::{
+    render::{next_id, ArcHandle},
+    Context,
+};
 use futures_channel::mpsc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
@@ -200,7 +203,7 @@ impl AssetCache {
         if !render_asset_exists {
             match G::convert(ctx, self, handle.clone()) {
                 Ok(render_asset) => {
-                    let render_asset_handle = ArcHandle::new(render_asset).upcast();
+                    let render_asset_handle = ArcHandle::new(next_id(ctx), render_asset).upcast();
                     // actual cache
                     self.render_cache
                         .insert(key.clone(), render_asset_handle.clone());

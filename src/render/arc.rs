@@ -1,14 +1,6 @@
 // from GGEZ https://github.com/ggez/ggez
 
-use std::{
-    any::Any,
-    sync::{
-        atomic::{AtomicU64, Ordering::SeqCst},
-        Arc,
-    },
-};
-
-static NEXT_ID: AtomicU64 = AtomicU64::new(0);
+use std::{any::Any, sync::Arc};
 
 /// Arc'd WGPU handles are used widely across the graphics module.
 ///
@@ -21,10 +13,11 @@ pub struct ArcHandle<T: ?Sized + 'static> {
 }
 
 impl<T: 'static> ArcHandle<T> {
-    pub fn new(handle: T) -> Self {
+    // TODO: maybe take ctx directly instead?
+    pub fn new(id: u64, handle: T) -> Self {
         ArcHandle {
             handle: Arc::new(handle),
-            id: NEXT_ID.fetch_add(1, SeqCst),
+            id,
         }
     }
 
@@ -80,6 +73,7 @@ impl<T: Any + 'static> ArcHandle<T> {
         }
     }
 }
+
 impl ArcHandle<dyn Any> {
     pub fn downcast<G: Clone>(&self) -> Option<ArcHandle<G>> {
         if let Some(handle) = self.handle.clone().downcast_ref::<G>() {

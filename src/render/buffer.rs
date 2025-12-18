@@ -1,4 +1,7 @@
-use crate::{render, Context};
+use crate::{
+    render::{self, next_id},
+    Context,
+};
 use bytemuck::NoUninit;
 use encase::{internal::WriteInto, ShaderType};
 use render::ArcBuffer;
@@ -25,7 +28,7 @@ impl<T: NoUninit> RawBufferBuilder<T> {
         }
     }
 
-    pub fn build(self, ctx: &Context) -> RawBuffer<T> {
+    pub fn build(self, ctx: &mut Context) -> RawBuffer<T> {
         let device = render::device(ctx);
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: self.label.as_deref(),
@@ -35,7 +38,7 @@ impl<T: NoUninit> RawBufferBuilder<T> {
         });
 
         RawBuffer {
-            buffer: ArcBuffer::new(buffer),
+            buffer: ArcBuffer::new(next_id(ctx), buffer),
             ty: PhantomData::<T>,
         }
     }
@@ -99,7 +102,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
         }
     }
 
-    pub fn build(self, ctx: &Context) -> UniformBuffer<T> {
+    pub fn build(self, ctx: &mut Context) -> UniformBuffer<T> {
         let device = render::device(ctx);
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -110,7 +113,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
         });
 
         UniformBuffer {
-            buffer: ArcBuffer::new(buffer),
+            buffer: ArcBuffer::new(next_id(ctx), buffer),
             ty: PhantomData,
         }
     }
@@ -175,7 +178,7 @@ impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
         }
     }
 
-    pub fn build(self, ctx: &Context) -> StorageBuffer<T> {
+    pub fn build(self, ctx: &mut Context) -> StorageBuffer<T> {
         let device = render::device(ctx);
 
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
@@ -186,7 +189,7 @@ impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
         });
 
         StorageBuffer {
-            buffer: ArcBuffer::new(buffer),
+            buffer: ArcBuffer::new(next_id(ctx), buffer),
             ty: PhantomData,
         }
     }

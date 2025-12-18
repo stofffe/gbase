@@ -1,5 +1,8 @@
 use super::ArcHandle;
-use crate::{render, Context};
+use crate::{
+    render::{self, next_id},
+    Context,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameBufferBuilder {
@@ -26,7 +29,7 @@ impl FrameBufferBuilder {
             mip_level_count: 1,
         }
     }
-    pub fn build(self, ctx: &Context) -> FrameBuffer {
+    pub fn build(self, ctx: &mut Context) -> FrameBuffer {
         let device = render::device(ctx);
         let texture = device.create_texture(&wgpu::TextureDescriptor {
             label: self.label.as_deref(),
@@ -51,8 +54,8 @@ impl FrameBufferBuilder {
         });
         FrameBuffer {
             label: self.label,
-            texture: render::ArcTexture::new(texture),
-            view: render::ArcTextureView::new(view),
+            texture: render::ArcTexture::new(next_id(ctx), texture),
+            view: render::ArcTextureView::new(next_id(ctx), view),
         }
     }
 
@@ -125,7 +128,7 @@ impl FrameBuffer {
             },
         }
     }
-    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
         if self.size() == new_size {
             return;
         }
@@ -159,8 +162,8 @@ impl FrameBuffer {
         });
         *self = FrameBuffer {
             label: self.label.clone(),
-            texture: ArcHandle::new(texture),
-            view: ArcHandle::new(view),
+            texture: ArcHandle::new(next_id(ctx), texture),
+            view: ArcHandle::new(next_id(ctx), view),
         }
     }
     pub fn format(&self) -> wgpu::TextureFormat {
@@ -207,7 +210,7 @@ impl DepthBufferBuilder {
             depth_write_enabled: true,
         }
     }
-    pub fn build(self, ctx: &Context) -> DepthBuffer {
+    pub fn build(self, ctx: &mut Context) -> DepthBuffer {
         let framebuffer = self.framebuffer_builder.clone().build(ctx);
         DepthBuffer {
             framebuffer,
@@ -289,7 +292,7 @@ impl DepthBuffer {
     pub fn framebuffer(&self) -> &FrameBuffer {
         &self.framebuffer
     }
-    pub fn resize(&mut self, ctx: &Context, new_size: winit::dpi::PhysicalSize<u32>) {
+    pub fn resize(&mut self, ctx: &mut Context, new_size: winit::dpi::PhysicalSize<u32>) {
         self.framebuffer.resize(ctx, new_size);
     }
     pub fn clear(&mut self, ctx: &mut Context) {

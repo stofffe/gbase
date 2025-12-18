@@ -1,6 +1,9 @@
 use std::num::NonZero;
 
-use crate::{render, Context};
+use crate::{
+    render::{self, next_id},
+    Context,
+};
 use render::{ArcBindGroup, ArcBindGroupLayout, ArcBuffer, ArcSampler, ArcTextureView};
 
 //
@@ -20,7 +23,7 @@ impl BindGroupLayoutBuilder {
             entries: Vec::new(),
         }
     }
-    pub fn build_uncached(&self, ctx: &Context) -> ArcBindGroupLayout {
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcBindGroupLayout {
         let device = render::device(ctx);
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: self.label.as_deref(),
@@ -37,7 +40,7 @@ impl BindGroupLayoutBuilder {
                 .collect::<Vec<_>>(),
         });
 
-        ArcBindGroupLayout::new(layout)
+        ArcBindGroupLayout::new(next_id(ctx), layout)
     }
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroupLayout {
@@ -209,7 +212,7 @@ impl BindGroupBuilder {
             entries: Vec::new(),
         }
     }
-    pub fn build_uncached(&self, ctx: &Context) -> ArcBindGroup {
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcBindGroup {
         let device = render::device(ctx);
 
         let bindgroup = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -226,7 +229,7 @@ impl BindGroupBuilder {
                 .collect::<Vec<_>>(),
         });
 
-        ArcBindGroup::new(bindgroup)
+        ArcBindGroup::new(next_id(ctx), bindgroup)
     }
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroup {

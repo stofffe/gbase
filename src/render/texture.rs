@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, ArcSampler, ArcTexture, ArcTextureView},
+    render::{self, next_id, ArcSampler, ArcTexture, ArcTextureView},
     Context,
 };
 
@@ -78,26 +78,27 @@ impl SamplerBuilder {
         }
     }
 
-    pub fn build_uncached_inner(&self, device: &wgpu::Device) -> ArcSampler {
+    pub fn build_uncached_inner(&self, ctx: &mut Context) -> ArcSampler {
+        let device = &ctx.render.device;
         let sampler = device.create_sampler(&self.descriptor());
-        ArcSampler::new(sampler)
+        ArcSampler::new(next_id(ctx), sampler)
     }
 
-    pub fn build_uncached(&self, ctx: &Context) -> ArcSampler {
-        let device = render::device(ctx);
-        self.build_uncached_inner(device)
+    pub fn build_uncached(&self, ctx: &mut Context) -> ArcSampler {
+        self.build_uncached_inner(ctx)
     }
 
     pub fn build(self, ctx: &mut Context) -> ArcSampler {
-        let render_cache = &mut ctx.render.cache;
-        let device = &ctx.render.device;
-        if let Some(sampler) = render_cache.samplers.get(&self) {
+        if let Some(sampler) = ctx.render.cache.samplers.get(&self) {
             return sampler.clone();
         }
 
         tracing::info!("Create cached sampler");
-        let sampler = self.build_uncached_inner(device);
-        render_cache.samplers.insert(self.clone(), sampler.clone());
+        let sampler = self.build_uncached_inner(ctx);
+        ctx.render
+            .cache
+            .samplers
+            .insert(self.clone(), sampler.clone());
         sampler
     }
 }
@@ -200,7 +201,7 @@ impl TextureBuilder {
         }
     }
 
-    pub fn build(&self, ctx: &Context) -> render::ArcTexture {
+    pub fn build(&self, ctx: &mut Context) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         match self.source {
@@ -220,7 +221,7 @@ impl TextureBuilder {
                     view_formats: &self.view_formats,
                 });
 
-                ArcTexture::new(texture)
+                ArcTexture::new(next_id(ctx), texture)
             }
             TextureSource::Data(width, height, ref bytes) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -256,7 +257,7 @@ impl TextureBuilder {
                     texture.size(),
                 );
 
-                ArcTexture::new(texture)
+                ArcTexture::new(next_id(ctx), texture)
             }
         }
     }
@@ -335,7 +336,7 @@ impl TextureViewBuilder {
         }
     }
 
-    pub fn build_uncached(&self) -> render::ArcTextureView {
+    pub fn build_uncached(&self, ctx: &mut Context) -> render::ArcTextureView {
         let view = self.texture.create_view(&wgpu::TextureViewDescriptor {
             label: self.label.as_deref(),
             format: self.format,
@@ -348,18 +349,17 @@ impl TextureViewBuilder {
             usage: self.usage,
         });
 
-        render::ArcTextureView::new(view)
+        render::ArcTextureView::new(next_id(ctx), view)
     }
 
     pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {
-        let render_cache = &mut ctx.render.cache;
-        if let Some(view) = render_cache.texture_views.get(&self) {
+        if let Some(view) = ctx.render.cache.texture_views.get(&self) {
             return view.clone();
         }
 
         tracing::info!("Create cached texture view");
-        let view = self.build_uncached();
-        render_cache.texture_views.insert(self, view.clone());
+        let view = self.build_uncached(ctx);
+        ctx.render.cache.texture_views.insert(self, view.clone());
         view
     }
 }
