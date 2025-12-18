@@ -295,3 +295,10 @@ impl Callbacks for App {
         CallbackResult::Continue
     }
 }
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, ctx: &mut Context) {
+        Self::init_ctx().init_logging();
+    }
+}

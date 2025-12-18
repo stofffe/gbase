@@ -103,7 +103,7 @@ impl AssetCache {
 
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new();
-        self.cache.insert(handle.clone().as_any(), Box::new(data));
+        self.cache.insert(handle.as_any(), Box::new(data));
         handle
     }
 
