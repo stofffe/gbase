@@ -3,6 +3,7 @@ use super::{
     DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{
+    asset,
     render::{next_id, ArcHandle},
     Context,
 };
@@ -12,7 +13,7 @@ use std::{
     any::{Any, TypeId},
     fs,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
     time::Duration,
 };
 
@@ -28,7 +29,9 @@ pub struct AssetCache {
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
     currently_loading: FxHashSet<DynAssetHandle>,
+
     load_ctx: LoadContext,
+    asset_handle_ctx: AssetHandleContext,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
@@ -62,12 +65,13 @@ impl AssetCache {
             (reload_watcher, reload_receiver)
         };
 
-        let load_ctx = LoadContext {
-            sender: load_sender.clone(),
-        };
+        let asset_handle_ctx = AssetHandleContext::new();
+        let load_ctx = LoadContext::new(load_sender.clone(), asset_handle_ctx.clone());
 
         Self {
             load_ctx: load_ctx.clone(),
+            asset_handle_ctx,
+
             just_loaded: FxHashSet::default(),
 
             cache: FxHashMap::default(),
@@ -91,6 +95,7 @@ impl AssetCache {
                 write_handles: FxHashMap::default(),
                 write_functions: FxHashMap::default(),
                 write_dirty: FxHashSet::default(),
+
                 load_ctx,
             },
         }
@@ -100,12 +105,16 @@ impl AssetCache {
         &self.load_ctx
     }
 
+    pub fn asset_handle_ctx(&self) -> &AssetHandleContext {
+        &self.asset_handle_ctx
+    }
+
     //
     // Assets
     //
 
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new();
+        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.cache.insert(handle.as_any(), Box::new(data));
         handle
     }
@@ -315,15 +324,22 @@ impl AssetCache {
 #[derive(Debug, Clone)]
 pub struct LoadContext {
     sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+    asset_handle_ctx: AssetHandleContext,
 }
 
 impl LoadContext {
-    pub fn new(sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>) -> Self {
-        Self { sender }
+    pub fn new(
+        sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+        asset_handle_ctx: AssetHandleContext,
+    ) -> Self {
+        Self {
+            sender,
+            asset_handle_ctx,
+        }
     }
 
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new();
+        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.sender
             .unbounded_send((handle.as_any(), Box::new(value)))
             .unwrap();
@@ -360,6 +376,25 @@ pub struct AssetCacheExt {
 
     // load context
     load_ctx: LoadContext,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssetHandleContext {
+    id: Arc<Mutex<u64>>,
+}
+
+impl AssetHandleContext {
+    fn new() -> Self {
+        Self {
+            id: Arc::new(Mutex::new(0)),
+        }
+    }
+    pub fn next_id(&self) -> u64 {
+        let mut id_guard = self.id.lock().expect("could not unlock asset id lock");
+        let id = *id_guard;
+        *id_guard += 1;
+        id
+    }
 }
 
 // TODO: check if canoicalize is necessary

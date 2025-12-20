@@ -43,11 +43,11 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
         let shader_handle =
-            asset::AssetBuilder::load("assets/shaders/texture.wgsl", ShaderLoader {})
+            asset::AssetBuilder::load(cache, "assets/shaders/texture.wgsl", ShaderLoader {})
                 .watch(cache)
                 .build(cache);
         let texture_handle =
-            asset::AssetBuilder::load("assets/textures/texture.jpeg", ImageLoader {})
+            asset::AssetBuilder::load(cache, "assets/textures/texture.jpeg", ImageLoader {})
                 // TODO:
                 // .on_load(|img| {
                 //     img.texture = img

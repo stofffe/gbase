@@ -32,7 +32,7 @@ const DEPTH_BIAS_STATE_CLAMP: f32 = 0.0; // disable with 0.0
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let shader_handle =
-            asset::AssetBuilder::load("assets/shaders/shadow_pass.wgsl", ShaderLoader {})
+            asset::AssetBuilder::load(cache, "assets/shaders/shadow_pass.wgsl", ShaderLoader {})
                 .watch(cache)
                 .build(cache);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()

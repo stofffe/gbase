@@ -1,14 +1,6 @@
 use super::DynAsset;
-use std::{
-    marker::PhantomData,
-    sync::{atomic::AtomicU64, Arc},
-};
-
-// TODO: remove like arc handles
-static NEXT_ID: AtomicU64 = AtomicU64::new(0);
-
-// TODO: make while arc?
-// then you can have type_id inside
+use crate::asset;
+use std::{marker::PhantomData, sync::Arc};
 
 // TODO: is ty_id needed?
 #[derive(Debug)]
@@ -19,8 +11,8 @@ pub struct AssetHandle<T: 'static> {
 
 impl<T: 'static> AssetHandle<T> {
     #![allow(clippy::new_without_default)]
-    pub fn new() -> Self {
-        let id = NEXT_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    pub fn new(asset_handle_ctx: &asset::AssetHandleContext) -> Self {
+        let id = asset_handle_ctx.next_id();
         Self {
             id: Arc::new(id),
             ty: PhantomData,

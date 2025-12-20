@@ -112,13 +112,14 @@ impl Callbacks for App {
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
         let helmet_mesh = AssetBuilder::load(
+            cache,
             "assets/models/helmet_lod.glb",
             MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
         )
         .watch(cache)
         .build(cache);
 
-        let ak47_mesh = AssetBuilder::load("assets/models/ak47.glb", MeshLodLoader::new())
+        let ak47_mesh = AssetBuilder::load(cache, "assets/models/ak47.glb", MeshLodLoader::new())
             .watch(cache)
             .build(cache);
 

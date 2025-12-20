@@ -21,12 +21,13 @@ impl AssetBuilder {
         InsertAssetBuilder::<T> { value }
     }
     pub fn load<T: AssetLoader + 'static>(
+        cache: &AssetCache,
         path: impl Into<PathBuf>,
         loader: T,
     ) -> LoadedAssetBuilder<T> {
         LoadedAssetBuilder::<T> {
             loader,
-            handle: AssetHandle::new(),
+            handle: AssetHandle::new(cache.asset_handle_ctx()),
             path: path.into(),
         }
     }
