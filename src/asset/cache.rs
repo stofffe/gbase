@@ -3,7 +3,7 @@ use super::{
     DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{
-    asset,
+    asset::{self, InsertAssetBuilder, LoadedAssetBuilder},
     render::{next_id, ArcHandle},
     Context,
 };
@@ -148,6 +148,22 @@ impl AssetCache {
                 .downcast_mut::<T>()
                 .expect("could not downcast")
         })
+    }
+
+    //
+    // Asset builders
+    //
+
+    pub fn insert_builder<T: Asset>(&mut self, value: T) -> InsertAssetBuilder<T> {
+        asset::AssetBuilder::insert(value)
+    }
+
+    pub fn load_builder<T: AssetLoader + 'static>(
+        &mut self,
+        path: impl Into<PathBuf>,
+        loader: T,
+    ) -> LoadedAssetBuilder<T> {
+        asset::AssetBuilder::load(self, path, loader)
     }
 
     //

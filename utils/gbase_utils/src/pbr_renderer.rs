@@ -4,7 +4,7 @@ use crate::{
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{self, AssetHandle, ShaderLoader},
     glam::{Mat4, Vec3},
     render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
@@ -29,13 +29,16 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        // let forward_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        // let forward_shader_handle = asset::AssetBuilder::load(
         //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
+        //     ShaderLoader {},
         // )
         // .watch(cache)
         // .build(cache);
-        // let deferred_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        //
+        // let deferred_shader_handle = asset::AssetBuilder::load(
         //     "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl",
+        //     ShaderLoader {},
         // )
         // .watch(cache)
         // .build(cache);
@@ -135,6 +138,7 @@ impl PbrRenderer {
         ]);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()
+            .label("pbr renderer")
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
 

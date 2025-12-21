@@ -2,7 +2,6 @@ use super::DynAsset;
 use crate::asset;
 use std::{marker::PhantomData, sync::Arc};
 
-// TODO: is ty_id needed?
 #[derive(Debug)]
 pub struct AssetHandle<T: 'static> {
     pub(crate) id: Arc<u64>, // TODO: use strong and weak outside/inside cache
@@ -66,5 +65,3 @@ impl<T: 'static> Clone for AssetHandle<T> {
         }
     }
 }
-
-// impl<T: 'static> Copy for AssetHandle<T> {}
