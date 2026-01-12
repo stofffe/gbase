@@ -163,7 +163,7 @@ pub fn seed_with_time(ctx: &mut Context) {
     #[cfg(not(target_arch = "wasm32"))]
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .expect("could not get duration since UNIX EPOCH")
         .as_nanos() as u32;
 
     seed(ctx, nanos);

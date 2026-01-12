@@ -162,9 +162,11 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             use web_sys::wasm_bindgen::JsCast;
             use winit::platform::web::WindowAttributesExtWebSys;
 
-            let win = web_sys::window().unwrap();
-            let document = win.document().unwrap();
-            let canvas = document.get_element_by_id("gbase").unwrap();
+            let win = web_sys::window().expect("could not get window");
+            let document = win.document().expect("could not get document");
+            let canvas = document
+                .get_element_by_id("gbase")
+                .expect("could not get canvas");
             // let html_canvas_element = canvas.unchecked_into();
             let canvas = document
                 .get_element_by_id("gbase")

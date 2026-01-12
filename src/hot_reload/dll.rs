@@ -138,7 +138,7 @@ fn load_dll<T>(dll_index: u32) -> DllApi<T> {
     // copy dll to avoid collisions
     std::fs::copy(&input, &output).expect("could not copy dll");
 
-    let lib = dlopen::symbor::Library::open(&output).unwrap();
+    let lib = dlopen::symbor::Library::open(&output).expect("could not open dll");
 
     // remove old dlls
     if dll_index > 0 {

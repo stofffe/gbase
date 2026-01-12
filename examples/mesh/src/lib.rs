@@ -101,7 +101,7 @@ impl Callbacks for App {
         )
         .watch(cache)
         .build(cache);
-        let sponza_gltf = AssetBuilder::load(cache, "assets/models/sponza-2.glb", GltfLoader {})
+        let sponza_gltf = AssetBuilder::load(cache, "assets/models/sponza.glb", GltfLoader {})
             .watch(cache)
             .build(cache);
 
@@ -206,8 +206,6 @@ impl Callbacks for App {
                         .extract_attributes(self.pbr_renderer.required_attributes().clone());
                 }
             }
-
-            dbg!(&gltf.named_nodes);
         }
 
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();

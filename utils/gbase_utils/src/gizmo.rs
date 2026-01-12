@@ -2,8 +2,8 @@ use super::CameraUniform;
 use gbase::{
     glam::{vec4, Vec3, Vec4Swizzles},
     render::{
-        self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule, RenderPipelineBuilder,
-        ShaderBuilder, VertexColor,
+        self, ArcBindGroupLayout, ArcPipelineLayout, ArcShaderModule, BindGroupBindable,
+        RenderPipelineBuilder, ShaderBuilder, VertexColor,
     },
     wgpu, Context,
 };
@@ -68,12 +68,13 @@ impl GizmoRenderer {
             resolution: GIZMO_RESOLUTION,
         }
     }
+
     pub fn render(
         &mut self,
         ctx: &mut Context,
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
-        camera_buffer: &render::UniformBuffer<CameraUniform>,
+        camera_buffer: &impl BindGroupBindable<CameraUniform>,
     ) {
         self.vertex_buffer.write(ctx, &self.dynamic_vertex_buffer);
         self.index_buffer.write(ctx, &self.dynamic_index_buffer);
@@ -81,7 +82,7 @@ impl GizmoRenderer {
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // camera
-                render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                camera_buffer.bindgroup_entry(),
             ])
             .build(ctx);
 

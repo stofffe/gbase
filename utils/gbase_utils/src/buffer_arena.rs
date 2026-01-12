@@ -1,16 +1,22 @@
-// from GGEZ https://github.com/ggez/ggez
+// based of GGEZ GrowingBufferArena https://github.com/ggez/ggez
 
+use std::marker::PhantomData;
+
+use encase::{internal::WriteInto, ShaderType};
 use gbase::{
-    render::{self, next_id, ArcBuffer},
+    render::{self, ArcBuffer, BindGroupBindable},
     wgpu, Context,
 };
 
-/// Simple buffer sub-allocation helper.
-///
-/// In short, the allocator is:
-/// - linear: i.e., just a moving cursor into each buffer -- individual deallocations are not possible
-/// - growing: When the allocator is unable to find a buffer with enough free space for an allocation, it creates a new buffer
-/// - aligned: This is particularly important for uniform buffers as GPUs have a restriction on min alignment for dynamic offsets into UBOs
+fn align_to(alignment: u64, size: u64) -> u64 {
+    debug_assert!(alignment.is_power_of_two());
+    (size + alignment - 1) & !(alignment - 1)
+}
+
+//
+// Generic arena
+//
+
 #[derive(Debug)]
 pub struct GrowingBufferArena {
     buffers: Vec<(ArcBuffer, u64)>,
@@ -22,23 +28,35 @@ impl GrowingBufferArena {
     pub fn new(ctx: &mut Context, alignment: u64, desc: wgpu::BufferDescriptor<'static>) -> Self {
         let buffer = render::device(ctx).create_buffer(&desc);
         GrowingBufferArena {
-            buffers: vec![(ArcBuffer::new(next_id(ctx), buffer), 0)],
+            buffers: vec![(ArcBuffer::new(render::next_id(ctx), buffer), 0)],
             alignment,
             desc,
         }
     }
 
-    pub fn allocate(&mut self, ctx: &mut Context, size: u64) -> ArenaAllocation {
-        let size = align(self.alignment, size);
-        assert!(size <= self.desc.size);
+    pub fn new_uniform_alignment(ctx: &mut Context, desc: wgpu::BufferDescriptor<'static>) -> Self {
+        const UNIFORM_BUFFER_MIN_ALIGNMENT: u64 = 256;
+
+        let buffer = render::device(ctx).create_buffer(&desc);
+        GrowingBufferArena {
+            buffers: vec![(ArcBuffer::new(render::next_id(ctx), buffer), 0)],
+            alignment: UNIFORM_BUFFER_MIN_ALIGNMENT,
+            desc,
+        }
+    }
+
+    pub fn allocate(&mut self, ctx: &mut Context, size: u64) -> BufferArenaAllocation {
+        let size = align_to(self.alignment, size);
+        debug_assert!(size <= self.desc.size);
 
         for (buffer, cursor) in &mut self.buffers {
             if size <= self.desc.size - *cursor {
                 let offset = *cursor;
                 *cursor += size;
-                return ArenaAllocation {
+                return BufferArenaAllocation {
                     buffer: buffer.clone(),
                     offset,
+                    size,
                 };
             }
         }
@@ -47,25 +65,61 @@ impl GrowingBufferArena {
         self.allocate(ctx, size)
     }
 
+    pub fn allocate_with_uniform<T: ShaderType + WriteInto>(
+        &mut self,
+        ctx: &mut Context,
+        uniform: &T,
+    ) -> UniformBufferArenaAllocation<T> {
+        let allocation = self.allocate(ctx, uniform.size().into());
+
+        let mut buffer = encase::UniformBuffer::new(Vec::new());
+        buffer
+            .write(&uniform)
+            .expect("could not write to uniform buffer");
+        render::queue(ctx).write_buffer(
+            &allocation.buffer,
+            allocation.offset,
+            &buffer.into_inner(),
+        );
+
+        UniformBufferArenaAllocation {
+            allocation,
+            ty: PhantomData,
+        }
+    }
+
+    fn grow(&mut self, ctx: &mut Context) {
+        let buffer = render::device(ctx).create_buffer(&self.desc);
+        self.buffers
+            .push((ArcBuffer::new(render::next_id(ctx), buffer), 0));
+    }
+
     /// This frees **all** the allocations at once.
     pub fn free(&mut self) {
         for (_, cursor) in &mut self.buffers {
             *cursor = 0;
         }
     }
-
-    fn grow(&mut self, ctx: &mut Context) {
-        let buffer = render::device(ctx).create_buffer(&self.desc);
-        self.buffers.push((ArcBuffer::new(next_id(ctx), buffer), 0));
-    }
 }
 
 #[derive(Debug, Clone)]
-pub struct ArenaAllocation {
+pub struct BufferArenaAllocation {
     pub buffer: ArcBuffer,
     pub offset: u64,
+    pub size: u64,
 }
 
-fn align(alignment: u64, size: u64) -> u64 {
-    (size + alignment - 1) & !(alignment - 1)
+pub struct UniformBufferArenaAllocation<T: ShaderType + WriteInto> {
+    pub allocation: BufferArenaAllocation,
+    ty: PhantomData<T>,
+}
+
+impl<T: ShaderType + WriteInto> BindGroupBindable<T> for UniformBufferArenaAllocation<T> {
+    fn bindgroup_entry(&self) -> render::BindGroupEntry {
+        render::BindGroupEntry::BufferSlice {
+            buffer: self.allocation.buffer.clone(),
+            offset: self.allocation.offset,
+            size: self.allocation.size,
+        }
+    }
 }

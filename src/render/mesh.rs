@@ -86,7 +86,13 @@ impl Mesh {
         if self.attributes.is_empty() {
             return false;
         }
-        let first_attribute_len = self.attributes.iter().next().unwrap().1.len();
+        let first_attribute_len = self
+            .attributes
+            .iter()
+            .next()
+            .expect("could not get first attribute")
+            .1
+            .len();
         for (_, values) in self.attributes.iter().skip(1) {
             if values.len() != first_attribute_len {
                 return false;

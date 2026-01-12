@@ -28,7 +28,8 @@ pub const DARK_GREY: Vec4 = vec4(0.2, 0.2, 0.2, 1.0);
 impl FontAtlas {
     pub(crate) fn new(ctx: &mut Context, font_bytes: &[u8], supported_chars: &str) -> Self {
         // texture
-        let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default()).unwrap();
+        let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default())
+            .expect("could not load font from bytes");
 
         let chars = supported_chars
             .chars()
@@ -40,8 +41,16 @@ impl FontAtlas {
         // chars.sort_by(|a, b| a.0.height.partial_cmp(&b.0.height).unwrap());
         let texture_dim = FONT_ATLAS_SIZE;
 
-        let max_neg_yoffset = chars.iter().map(|(m, _, _)| -m.ymin).max().unwrap() as u32;
-        let max_height = chars.iter().map(|(m, _, _)| m.height).max().unwrap() as u32;
+        let max_neg_yoffset = chars
+            .iter()
+            .map(|(m, _, _)| -m.ymin)
+            .max()
+            .expect("chars are empty") as u32;
+        let max_height = chars
+            .iter()
+            .map(|(m, _, _)| m.height)
+            .max()
+            .expect("chars are empty") as u32;
 
         let font_info = FontInfo {
             base_offset: max_neg_yoffset as f32 / max_height as f32,

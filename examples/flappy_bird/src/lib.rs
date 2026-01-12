@@ -388,7 +388,7 @@ impl Callbacks for App {
         let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let texture = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
-            .unwrap()
+            .expect("could not load texture from image bytes")
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .build(ctx);
         let sampler = render::SamplerBuilder::new()

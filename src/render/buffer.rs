@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, next_id},
+    render::{self, next_id, BindGroupBindable},
     Context,
 };
 use bytemuck::NoUninit;
@@ -157,6 +157,12 @@ impl<T: ShaderType + WriteInto> UniformBuffer<T> {
     }
 }
 
+impl<T: ShaderType + WriteInto> BindGroupBindable<T> for UniformBuffer<T> {
+    fn bindgroup_entry(&self) -> render::BindGroupEntry {
+        render::BindGroupEntry::Buffer(self.buffer.clone())
+    }
+}
+
 //
 // Storage buffer
 //
@@ -255,22 +261,3 @@ pub fn read_buffer_sync<T: bytemuck::AnyBitPattern>(
     buffer.unmap();
     result
 }
-
-// pub fn read_buffer_async<T: bytemuck::AnyBitPattern>(
-//     device: &wgpu::Device,
-//     buffer: &wgpu::Buffer,
-//     offset: u64,
-//     size: u64,
-// ) -> Vec<T> {
-//     debug_assert!(buffer.usage().contains(wgpu::BufferUsages::MAP_READ));
-//     let buffer_slice = buffer.slice(offset..offset + size);
-//     buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
-//     device
-//         .poll(wgpu::MaintainBase::Wait)
-//         .expect("could not poll");
-//     let data = buffer_slice.get_mapped_range();
-//     let result: Vec<T> = bytemuck::cast_slice(&data).to_vec();
-//     drop(data);
-//     buffer.unmap();
-//     result
-// }

@@ -56,7 +56,11 @@ impl AssetLoader for ShaderLoader {
         let source = filesystem::load_str(path).await;
 
         Self::Asset {
-            label: Some(path.to_str().unwrap().to_string()),
+            label: Some(
+                path.to_str()
+                    .expect("could not convert path to string")
+                    .to_string(),
+            ),
             source,
         }
     }

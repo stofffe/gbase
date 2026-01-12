@@ -5,12 +5,12 @@ use gbase::{
     glam::{vec2, Vec2, Vec3Swizzles},
     input,
     render::{
-        self, ArcBindGroupLayout, ArcPipelineLayout, ColorTargetState, GpuImage,
+        self, ArcBindGroupLayout, ArcPipelineLayout, BindGroupBindable, ColorTargetState, GpuImage,
         RenderPassColorAttachment,
     },
     wgpu, Context,
 };
-use gbase_utils::{CameraFrustum, DeferredBuffers};
+use gbase_utils::{BufferArenaAllocation, CameraFrustum, CameraUniform, DeferredBuffers};
 use std::{mem::size_of, ops::Div};
 
 const TILE_SIZE: f32 = 128.0;
@@ -246,8 +246,8 @@ impl GrassRenderer {
         ctx: &mut Context,
         cache: &mut gbase::asset::AssetCache,
         camera: &gbase_utils::Camera,
-        camera_buffer: &render::UniformBuffer<gbase_utils::CameraUniform>,
-        frustum_buffer: &render::UniformBuffer<CameraFrustum>,
+        camera_buffer: &impl BindGroupBindable<CameraUniform>,
+        frustum_buffer: &impl BindGroupBindable<CameraFrustum>,
         render_mode: RenderMode,
     ) {
         if !asset::handle_loaded(cache, self.draw_shader_handle.clone())
@@ -319,9 +319,9 @@ impl GrassRenderer {
                         // perlin texture sampler
                         render::BindGroupEntry::Sampler(self.perlin_noise_texture.sampler()),
                         // camera
-                        render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                        camera_buffer.bindgroup_entry(),
                         // camera frustum
-                        render::BindGroupEntry::Buffer(frustum_buffer.buffer()),
+                        frustum_buffer.bindgroup_entry(),
                         // app info
                         render::BindGroupEntry::Buffer(self.app_info.buffer()),
                         // debug input
@@ -342,9 +342,9 @@ impl GrassRenderer {
                         // perlin texture sampler
                         render::BindGroupEntry::Sampler(self.perlin_noise_texture.sampler()),
                         // camera
-                        render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                        camera_buffer.bindgroup_entry(),
                         // camera frustum
-                        render::BindGroupEntry::Buffer(frustum_buffer.buffer()),
+                        frustum_buffer.bindgroup_entry(),
                         // app info
                         render::BindGroupEntry::Buffer(self.app_info.buffer()),
                         // debug input
@@ -416,7 +416,7 @@ impl GrassRenderer {
                     .label("render")
                     .entries(vec![
                         // Camera
-                        render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                        camera_buffer.bindgroup_entry(),
                         // Debug
                         render::BindGroupEntry::Buffer(self.debug_input.buffer()),
                         // App info

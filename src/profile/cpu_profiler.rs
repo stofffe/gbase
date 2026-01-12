@@ -23,20 +23,35 @@ impl ProfilerWrapper {
         }
     }
     pub fn finish(&mut self) {
-        self.inner.lock().unwrap().finish();
+        self.inner
+            .lock()
+            .expect("could not lock profiler mutex")
+            .finish();
     }
 
     pub fn add_cpu_sample(&mut self, label: &'static str, time: f32) {
-        self.inner.lock().unwrap().add_cpu_sample(label, time);
+        self.inner
+            .lock()
+            .expect("could not lock profiler mutex")
+            .add_cpu_sample(label, time);
     }
     pub fn get_cpu_samples(&self) -> Vec<(&'static str, f32)> {
-        self.inner.lock().unwrap().get_cpu_samples()
+        self.inner
+            .lock()
+            .expect("could not lock profiler mutex")
+            .get_cpu_samples()
     }
     pub fn add_gpu_sample(&mut self, label: &'static str, time: f32) {
-        self.inner.lock().unwrap().add_gpu_sample(label, time);
+        self.inner
+            .lock()
+            .expect("could not lock profiler mutex")
+            .add_gpu_sample(label, time);
     }
     pub fn get_gpu_samples(&self) -> Vec<(&'static str, f32)> {
-        self.inner.lock().unwrap().get_gpu_samples()
+        self.inner
+            .lock()
+            .expect("could not lock profiler mutex")
+            .get_gpu_samples()
     }
 }
 
@@ -156,12 +171,18 @@ where
         id: &Id,
         _ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
-        let mut spans = self.spans.lock().unwrap();
+        let mut spans = self
+            .spans
+            .lock()
+            .expect("could not lock profiler spans mutex");
         spans.insert(id.clone(), time::Instant::now());
     }
 
     fn on_exit(&self, id: &Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
-        let mut spans = self.spans.lock().unwrap();
+        let mut spans = self
+            .spans
+            .lock()
+            .expect("could not lock profiler spans mutex");
         if let Some(start) = spans.remove(id) {
             let duration = start.elapsed();
 

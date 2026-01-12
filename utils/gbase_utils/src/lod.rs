@@ -83,7 +83,6 @@ impl AssetLoader for MeshLodLoader {
         match &self.node_name {
             Some(node_name) => {
                 for prim in primitives.iter() {
-                    dbg!(&prim.name);
                     if let Some(a) = prim.name.strip_prefix(node_name) {
                         if let Some(a) = a.strip_prefix("_LOD") {
                             let lod_level = a.parse::<usize>().expect("could not parse lod level");

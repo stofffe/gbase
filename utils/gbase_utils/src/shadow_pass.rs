@@ -263,7 +263,9 @@ impl ShadowPass {
                         let mesh = draws[i].clone();
 
                         mesh.bind_to_render_pass(&mut pass);
-                        pass.draw_indexed(0..mesh.index_count.unwrap(), 0, from as u32..to as u32);
+
+                        let index_count = mesh.index_count.expect("no indices found");
+                        pass.draw_indexed(0..index_count, 0, from as u32..to as u32);
                     }
                 });
             render::queue(ctx).submit([encoder.finish()]);

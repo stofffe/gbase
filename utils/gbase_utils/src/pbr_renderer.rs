@@ -1,12 +1,12 @@
 use crate::{
-    BoundingBoxWrapper, BoundingSphere, Camera, CameraFrustum, CameraProjection, Material, MeshLod,
-    PixelCache, Transform3D, THRESHOLDS,
+    BoundingBoxWrapper, BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
+    Material, MeshLod, PixelCache, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle, ShaderLoader},
+    asset::{self, AssetHandle},
     glam::{Mat4, Vec3},
-    render::{self, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
+    render::{self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -168,8 +168,8 @@ impl PbrRenderer {
         view: &wgpu::TextureView,
         view_format: wgpu::TextureFormat,
         camera: &Camera,
-        camera_buffer: &render::UniformBuffer<crate::CameraUniform>,
-        lights: &render::UniformBuffer<PbrLightUniforms>,
+        camera_buffer: &impl BindGroupBindable<CameraUniform>,
+        lights_buffer: &impl BindGroupBindable<PbrLightUniforms>,
         depth_buffer: &render::DepthBuffer,
         frustum: &CameraFrustum,
         frame_meshes: Vec<(AssetHandle<MeshLod>, Transform3D)>,
@@ -320,9 +320,9 @@ impl PbrRenderer {
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
                 .entries(vec![
                     // camera
-                    render::BindGroupEntry::Buffer(camera_buffer.buffer()),
+                    camera_buffer.bindgroup_entry(),
                     // lights
-                    render::BindGroupEntry::Buffer(lights.buffer()),
+                    lights_buffer.bindgroup_entry(),
                     // instances
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                     // base color texture
@@ -385,7 +385,8 @@ impl PbrRenderer {
 
                     mesh.bind_to_render_pass(&mut pass);
                     pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                    pass.draw_indexed(0..mesh.index_count.unwrap(), 0, from as u32..to as u32);
+                    let index_count = mesh.index_count.expect("no indices found");
+                    pass.draw_indexed(0..index_count, 0, from as u32..to as u32);
                 }
             });
 

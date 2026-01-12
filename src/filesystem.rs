@@ -19,7 +19,11 @@ pub async fn load_bytes(path: impl AsRef<Path>) -> Vec<u8> {
         let location = window.location();
         let origin = location.origin().expect("could not get origin");
 
-        let url = format!("{}/{}", origin, path.as_ref().to_str().unwrap());
+        let url = format!(
+            "{}/{}",
+            origin,
+            path.as_ref().to_str().expect("could not get url")
+        );
         tracing::info!("URL {}", url);
         let bytes = reqwest::Client::new()
             .get(url)
@@ -33,7 +37,8 @@ pub async fn load_bytes(path: impl AsRef<Path>) -> Vec<u8> {
     };
 
     #[cfg(not(target_arch = "wasm32"))]
-    let bytes = std::fs::read(path).unwrap();
+    let bytes = std::fs::read(&path)
+        .unwrap_or_else(|err| panic!("could not load file {}: {:?}", path.as_ref().display(), err));
 
     bytes
 }
@@ -46,7 +51,11 @@ pub async fn load_str(path: impl AsRef<Path>) -> String {
         let location = window.location();
         let origin = location.origin().expect("could not get origin");
 
-        let url = format!("{}/{}", origin, path.as_ref().to_str().unwrap());
+        let url = format!(
+            "{}/{}",
+            origin,
+            path.as_ref().to_str().expect("could not get url")
+        );
         tracing::info!("URL {}", url);
         let bytes = reqwest::Client::new()
             .get(url)
@@ -60,7 +69,8 @@ pub async fn load_str(path: impl AsRef<Path>) -> String {
     };
 
     #[cfg(not(target_arch = "wasm32"))]
-    let text = std::fs::read_to_string(path).unwrap();
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("could not load file {}: {:?}", path.as_ref().display(), err));
 
     text
 }

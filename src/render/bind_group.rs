@@ -286,3 +286,7 @@ impl BindGroupEntry {
         }
     }
 }
+
+pub trait BindGroupBindable<T> {
+    fn bindgroup_entry(&self) -> BindGroupEntry;
+}

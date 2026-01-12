@@ -3,13 +3,13 @@ mod grass_renderer;
 use gbase::{
     asset::{self, AssetHandle},
     filesystem,
-    glam::{vec2, vec3, vec4, Quat, Vec3},
+    glam::{vec3, vec4, Quat, Vec3},
     input, profile, render, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
-    CameraFrustum, Direction, MeshLod, PbrLightUniforms, PixelCache, SizeKind, Transform3D, Widget,
+    Direction, GrowingBufferArena, MeshLod, PbrLightUniforms, SizeKind, Transform3D, Widget,
 };
 use grass_renderer::GrassRenderer;
 use std::f32::consts::PI;
@@ -23,10 +23,9 @@ const PLANE_SIZE: f32 = 1000.0;
 const PLANE_COLOR: [f32; 4] = [0.3, 1.0, 0.2, 1.0];
 
 pub struct App {
+    uniform_buffer_arena: GrowingBufferArena,
+
     camera: gbase_utils::Camera,
-    camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
-    frustum_buffer: render::UniformBuffer<CameraFrustum>,
-    light_buffer: render::UniformBuffer<PbrLightUniforms>,
     light: PbrLightUniforms,
 
     depth_buffer: render::DepthBuffer,
@@ -79,20 +78,10 @@ impl Callbacks for App {
         .pos(vec3(-1.0, 8.0, -1.0))
         .yaw(PI / 4.0);
 
-        let camera_buffer = render::UniformBufferBuilder::new()
-            .label("camera buf")
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx);
-        let frustum_buffer = render::UniformBufferBuilder::new()
-            .label("frustum")
-            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
-            .build(ctx);
-
         let light = gbase_utils::PbrLightUniforms {
             main_light_dir: vec3(1.0, -1.0, 1.0).normalize(),
             main_light_insensity: 1.0,
         };
-        let light_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         // Renderers
         let depth_buffer = render::DepthBufferBuilder::new()
@@ -120,15 +109,24 @@ impl Callbacks for App {
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 
+        let uniform_buffer_arena = gbase_utils::GrowingBufferArena::new_uniform_alignment(
+            ctx,
+            wgpu::wgt::BufferDescriptor {
+                label: Some("Uniform buffer arena"),
+                size: 32768,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            },
+        );
+
         Self {
+            uniform_buffer_arena,
+
             camera,
-            camera_buffer,
-            frustum_buffer,
             gui_renderer,
             gizmo_renderer,
             pbr_renderer,
             plane_mesh,
-            light_buffer,
             light,
             depth_buffer,
             grass_renderer,
@@ -149,6 +147,8 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        self.uniform_buffer_arena.free();
+
         // pausing
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
@@ -169,14 +169,20 @@ impl Callbacks for App {
         // TODO: temp
 
         // update buffers
-        self.camera_buffer.write(ctx, &self.camera.uniform());
-        let frustum = self.camera.calculate_frustum();
-
-        self.frustum_buffer.write(ctx, &frustum);
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
         self.depth_buffer.clear(ctx);
 
-        self.light_buffer.write(ctx, &self.light);
+        let camera_buffer = self
+            .uniform_buffer_arena
+            .allocate_with_uniform(ctx, &self.camera.uniform());
+
+        let frustum_buffer = self
+            .uniform_buffer_arena
+            .allocate_with_uniform(ctx, &self.camera.calculate_frustum());
+
+        let light_buffer = self
+            .uniform_buffer_arena
+            .allocate_with_uniform(ctx, &self.light);
 
         // Render
         let meshes = vec![(
@@ -196,8 +202,8 @@ impl Callbacks for App {
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
             &self.camera,
-            &self.camera_buffer,
-            &self.light_buffer,
+            &camera_buffer,
+            &light_buffer,
             &self.depth_buffer,
             &self.camera.calculate_frustum(),
             meshes,
@@ -210,8 +216,8 @@ impl Callbacks for App {
             ctx,
             cache,
             &self.camera,
-            &self.camera_buffer,
-            &self.frustum_buffer,
+            &camera_buffer,
+            &frustum_buffer,
             grass_renderer::RenderMode::Forward {
                 view: self.framebuffer.view_ref(),
                 view_format: self.framebuffer.format(),
@@ -223,8 +229,9 @@ impl Callbacks for App {
             ctx,
             self.framebuffer.view_ref(),
             self.framebuffer.format(),
-            &self.camera_buffer,
+            &camera_buffer,
         );
+
         // self.gui_renderer.display_debug_info(ctx);
         let outer = Widget::new()
             .label("outer")

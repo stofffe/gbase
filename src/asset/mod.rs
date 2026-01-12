@@ -12,6 +12,16 @@ use crate::{render::ArcHandle, Context};
 use std::path::PathBuf;
 
 //
+// Errors
+//
+
+// #[derive(thiserror::Error, Debug)]
+// pub enum AssetError {
+//     #[error("asset path not found")]
+//     PathNotFound,
+// }
+
+//
 // Builder
 //
 

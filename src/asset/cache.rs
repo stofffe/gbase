@@ -358,7 +358,7 @@ impl LoadContext {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.sender
             .unbounded_send((handle.as_any(), Box::new(value)))
-            .unwrap();
+            .expect("could not send asset handle");
         handle
     }
 
@@ -426,7 +426,8 @@ impl AssetCacheExt {
         loader: T,
     ) {
         // need absolute path since notify uses them
-        let absolute_path = fs::canonicalize(path).unwrap();
+        let absolute_path = fs::canonicalize(path)
+            .unwrap_or_else(|err| panic!("could not find path {}: {:?}", path.display(), err));
 
         // start watching path
         self.reload_watcher
@@ -435,7 +436,7 @@ impl AssetCacheExt {
                 &absolute_path,
                 notify_debouncer_mini::notify::RecursiveMode::Recursive, // TODO: non recursive?
             )
-            .unwrap();
+            .unwrap_or_else(|err| panic!("could not watch {}: {:?}", absolute_path.display(), err));
 
         // map path to handle
         let handles = self.reload_handles.entry(absolute_path).or_default();

@@ -74,11 +74,17 @@ impl HotReloadContext {
             }
             Err(err) => println!("debounced result error: {}", err),
         })
-        .unwrap();
+        .expect("could not create hot reload dll watcher");
 
         dll_watcher
             .watch(&format_dll_input(), notify::RecursiveMode::NonRecursive)
-            .unwrap();
+            .unwrap_or_else(|err| {
+                panic!(
+                    "could not watch {}: {:?}",
+                    format_dll_input().display(),
+                    err
+                )
+            });
 
         Self {
             force_reload: false,
