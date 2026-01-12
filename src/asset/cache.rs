@@ -18,25 +18,25 @@ use std::{
 };
 
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
+
 pub struct AssetCache {
     cache: FxHashMap<DynAssetHandle, DynAsset>,
-    just_loaded: FxHashSet<DynAssetHandle>,
+
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
 
     // async loading
+    currently_loading: FxHashSet<DynAssetHandle>,
+    just_loaded: FxHashSet<DynAssetHandle>,
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
-    currently_loading: FxHashSet<DynAssetHandle>,
 
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
-    // specialized caches
-    // pixel textures
 }
 
 impl AssetCache {
@@ -69,19 +69,19 @@ impl AssetCache {
         let load_ctx = LoadContext::new(load_sender.clone(), asset_handle_ctx.clone());
 
         Self {
-            load_ctx: load_ctx.clone(),
-            asset_handle_ctx,
-
-            just_loaded: FxHashSet::default(),
-
             cache: FxHashMap::default(),
+
             render_cache: FxHashMap::default(),
             render_cache_last_valid: FxHashMap::default(),
             render_cache_invalidate_lookup: FxHashMap::default(),
 
             currently_loading: FxHashSet::default(),
+            just_loaded: FxHashSet::default(),
             load_sender,
             load_receiver,
+
+            load_ctx,
+            asset_handle_ctx,
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
@@ -95,8 +95,6 @@ impl AssetCache {
                 write_handles: FxHashMap::default(),
                 write_functions: FxHashMap::default(),
                 write_dirty: FxHashSet::default(),
-
-                load_ctx,
             },
         }
     }
@@ -272,6 +270,7 @@ impl AssetCache {
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
                 &mut self.just_loaded,
+                self.load_ctx.clone(),
             );
             self.ext.poll_write(&mut self.cache);
         }
@@ -389,9 +388,6 @@ pub struct AssetCacheExt {
     write_handles: FxHashMap<DynAssetHandle, PathBuf>,
     write_functions: FxHashMap<TypeId, DynAssetWriteFn>,
     write_dirty: FxHashSet<DynAssetHandle>,
-
-    // load context
-    load_ctx: LoadContext,
 }
 
 #[derive(Debug, Clone)]
@@ -512,6 +508,7 @@ impl AssetCacheExt {
         render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         just_loaded: &mut FxHashSet<DynAssetHandle>,
+        load_ctx: LoadContext,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
             println!("1 reload {:?}", path);
@@ -530,7 +527,7 @@ impl AssetCacheExt {
                         .reload_functions
                         .get(ty_id)
                         .expect("could not get loader fn");
-                    let asset = loader_fn(self.load_ctx.clone(), &path);
+                    let asset = loader_fn(load_ctx.clone(), &path);
 
                     // insert into cache
                     cache.insert(handle.clone(), asset);
