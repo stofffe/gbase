@@ -25,7 +25,7 @@ impl ConvertableRenderAsset for render::GpuMesh {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
-            GetAssetResult::Loaded(source) => source,
+            GetAssetResult::Success(source) => source,
         };
         let gpu_mesh = render::GpuMesh::new(ctx, source);
         ConvertAssetStatus::Success(gpu_mesh)
@@ -45,7 +45,7 @@ impl ConvertableRenderAsset for render::BoundingBox {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
-            GetAssetResult::Loaded(source) => source,
+            GetAssetResult::Success(source) => source,
         };
 
         let bounding_box = source.calculate_bounding_box();
@@ -96,12 +96,13 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
-            GetAssetResult::Loaded(source) => source,
+            GetAssetResult::Success(source) => source,
         };
 
         #[cfg(target_arch = "wasm32")]
         {
-            Ok(source.build_non_arc(ctx))
+            let shader_module = source.build_non_arc(ctx);
+            crate::asset::ConvertAssetStatus::Success(shader_module)
         }
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -163,7 +164,7 @@ impl ConvertableRenderAsset for render::GpuImage {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
-            GetAssetResult::Loaded(source) => source,
+            GetAssetResult::Success(source) => source,
         };
 
         let sampler = source.sampler.clone().build(ctx);

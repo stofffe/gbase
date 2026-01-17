@@ -155,7 +155,7 @@ impl AssetCache {
             .downcast_ref::<T>()
             .expect("could not downcast");
 
-        GetAssetResult::Loaded(asset)
+        GetAssetResult::Success(asset)
     }
 
     pub fn get_mut<'a, T: Asset + 'static>(
@@ -253,9 +253,21 @@ impl AssetCache {
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
             let data = loader.load(load_context, &path_clone).await;
-            loaded_sender_clone
-                .unbounded_send((handle_clone.as_any(), Box::new(data)))
-                .expect("could not send");
+
+            match data {
+                Ok(asset) => loaded_sender_clone
+                    .unbounded_send((
+                        handle_clone.as_any(),
+                        LoadAssetResult::Success(Box::new(asset)),
+                    ))
+                    .expect("could not send"),
+                Err(err) => {
+                    tracing::error!("error loading asset {:?}: {}", path, err);
+                    loaded_sender_clone
+                        .unbounded_send((handle_clone.as_any(), LoadAssetResult::Error))
+                        .expect("could not send")
+                }
+            }
         });
 
         handle

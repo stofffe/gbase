@@ -113,17 +113,16 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
     cache.handle_just_loaded(handle.clone())
 }
 
-// TODO: move justloaded here?
 pub enum GetAssetResult<'a, T: Asset> {
     Loading,
-    Loaded(&'a T),
+    Success(&'a T),
     Failed,
 }
 
 impl<'a, T: Asset> GetAssetResult<'a, T> {
     pub fn unwrap_loaded(self) -> &'a T {
         match self {
-            GetAssetResult::Loaded(asset) => asset,
+            GetAssetResult::Success(asset) => asset,
             GetAssetResult::Loading => panic!("Asset is still loading"),
             GetAssetResult::Failed => panic!("Asset failed to load"),
         }
