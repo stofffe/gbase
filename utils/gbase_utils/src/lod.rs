@@ -1,11 +1,11 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset,
-        LoadContext, RenderAsset,
+        self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertRenderAssetResult,
+        ConvertableRenderAsset, EmptyError, LoadContext, RenderAsset,
     },
     filesystem,
-    render::{self, BoundingBox, VertexAttributeId},
+    render::{self, next_id, ArcHandle, BoundingBox, VertexAttributeId},
     tracing,
 };
 use std::{collections::BTreeSet, ops::Deref};
@@ -69,8 +69,13 @@ impl MeshLodLoader {
 
 impl AssetLoader for MeshLodLoader {
     type Asset = MeshLod;
+    type Error = EmptyError;
 
-    async fn load(&self, load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(
+        &self,
+        load_ctx: LoadContext,
+        path: &std::path::Path,
+    ) -> Result<Self::Asset, Self::Error> {
         let bytes = filesystem::load_bytes(path).await;
         let primitives =
             parse_gltf_primitives(&load_ctx, &bytes, self.required_attributes.as_ref());
@@ -108,7 +113,7 @@ impl AssetLoader for MeshLodLoader {
             .map(|(i, (_, mesh))| (mesh, THRESHOLDS[i]))
             .collect::<Vec<_>>();
 
-        MeshLod { meshes, material }
+        Ok(MeshLod { meshes, material })
     }
 }
 
@@ -123,10 +128,15 @@ pub struct GltfLoader {}
 
 impl AssetLoader for GltfLoader {
     type Asset = Gltf;
+    type Error = EmptyError;
 
-    async fn load(&self, load_ctx: LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(
+        &self,
+        load_ctx: LoadContext,
+        path: &std::path::Path,
+    ) -> Result<Self::Asset, Self::Error> {
         let bytes = filesystem::load_bytes(path).await;
-        parse_gltf_file(&load_ctx, &bytes)
+        Ok(parse_gltf_file(&load_ctx, &bytes))
     }
 }
 
@@ -144,17 +154,20 @@ impl Deref for BoundingBoxWrapper {
 impl RenderAsset for BoundingBoxWrapper {}
 impl ConvertableRenderAsset for BoundingBoxWrapper {
     type SourceAsset = MeshLod;
-    type Error = bool;
+    type Error = EmptyError;
 
     fn convert(
-        _ctx: &mut gbase::Context,
+        ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source.clone()).unwrap();
+    ) -> ConvertRenderAssetResult<Self> {
+        let source = cache.get(source.clone()).unwrap_loaded();
         let handle = source.meshes[0].0.clone();
-        Ok(BoundingBoxWrapper(
-            handle.get(cache).unwrap().calculate_bounding_box(),
-        ))
+
+        let handle = ArcHandle::new(
+            next_id(ctx),
+            BoundingBoxWrapper(handle.get(cache).unwrap_loaded().calculate_bounding_box()),
+        );
+        ConvertRenderAssetResult::Success(handle)
     }
 }

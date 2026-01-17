@@ -3,24 +3,34 @@ use super::{
     DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{
-    asset::{self, InsertAssetBuilder, LoadedAssetBuilder},
+    asset::{
+        self, ConvertRenderAssetResult, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
+        LoadedAssetBuilder,
+    },
     render::{next_id, ArcHandle},
     Context,
 };
 use futures_channel::mpsc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
-    any::{Any, TypeId},
+    any::{type_name, Any, TypeId},
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
+use wgpu::wgc::id::markers::ShaderModule;
+
+pub enum AssetResult {
+    Loading,
+    Loaded(DynAsset),
+    Error,
+}
 
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
 
 pub struct AssetCache {
-    cache: FxHashMap<DynAssetHandle, DynAsset>,
+    cache: FxHashMap<DynAssetHandle, AssetResult>,
 
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
@@ -29,8 +39,8 @@ pub struct AssetCache {
     // async loading
     currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
-    load_sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
-    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, DynAsset)>,
+    load_sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
+    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, AssetResult)>,
 
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
@@ -113,21 +123,46 @@ impl AssetCache {
 
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.cache.insert(handle.as_any(), Box::new(data));
+        self.cache
+            .insert(handle.as_any(), AssetResult::Loaded(Box::new(data)));
         handle
     }
 
     // TODO: add get_or_default (e.g. 1x1 white pixel for image)
     // could return error union [Ok, Invalid, Loading]
-    pub fn get<T: Asset + 'static>(&self, handle: AssetHandle<T>) -> Option<&T> {
-        self.cache.get(&handle.as_any()).map(|asset| {
-            (asset.as_ref() as &dyn Any)
-                .downcast_ref::<T>()
-                .expect("could not downcast")
-        })
+    pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
+        let Some(asset) = self.cache.get(&handle.as_any()) else {
+            return GetAssetResult::Failed;
+        };
+
+        let AssetResult::Loaded(asset) = asset else {
+            return GetAssetResult::Loading;
+        };
+
+        // TODO: errors as well?
+        let asset = (asset.as_ref() as &dyn Any)
+            .downcast_ref::<T>()
+            .expect("could not downcast");
+
+        GetAssetResult::Loaded(asset)
     }
 
-    pub fn get_mut<T: Asset + 'static>(&mut self, handle: AssetHandle<T>) -> Option<&mut T> {
+    pub fn get_mut<'a, T: Asset + 'static>(
+        &'a mut self,
+        handle: AssetHandle<T>,
+    ) -> GetAssetResultMut<'a, T> {
+        let Some(asset) = self.cache.get_mut(&handle.as_any()) else {
+            return GetAssetResultMut::Failed;
+        };
+
+        let AssetResult::Loaded(asset) = asset else {
+            return GetAssetResultMut::Loading;
+        };
+
+        let asset = (asset.as_mut() as &mut dyn Any)
+            .downcast_mut::<T>()
+            .expect("could not downcast");
+
         // invalidate gpu cache
         invalidate_render_cache(
             &mut self.render_cache,
@@ -140,12 +175,7 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         self.ext.write_dirty.insert(handle.clone().as_any());
 
-        // get value and convert to T
-        self.cache.get_mut(&handle.as_any()).map(|asset| {
-            (asset.as_mut() as &mut dyn Any)
-                .downcast_mut::<T>()
-                .expect("could not downcast")
-        })
+        GetAssetResultMut::Loaded(asset)
     }
 
     //
@@ -184,15 +214,28 @@ impl AssetCache {
         let loaded_sender_clone = self.load_sender.clone();
         let load_context = self.load_ctx.clone();
 
+        // TODO: insert loading before actually loading
+
         // load async
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             pollster::block_on(async {
                 let data = loader.load(load_context, &path_clone).await;
-                // let data = T::load(load_context, &path_clone).await;
-                loaded_sender_clone
-                    .unbounded_send((handle_clone.as_any(), Box::new(data)))
-                    .expect("could not send");
+
+                match data {
+                    Ok(asset) => loaded_sender_clone
+                        .unbounded_send((
+                            handle_clone.as_any(),
+                            AssetResult::Loaded(Box::new(asset)),
+                        ))
+                        .expect("could not send"),
+                    Err(err) => {
+                        tracing::error!("error loading asset {:?}: {}", path, err);
+                        loaded_sender_clone
+                            .unbounded_send((handle_clone.as_any(), AssetResult::Error))
+                            .expect("could not send");
+                    }
+                }
             })
         });
 
@@ -215,45 +258,62 @@ impl AssetCache {
         &mut self,
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
-    ) -> Option<ArcHandle<G>> {
-        if self.get(handle.clone()).is_none() {
-            tracing::warn!("could not get source asset");
-            return None;
+    ) -> ConvertRenderAssetResult<G> {
+        let key = (handle.clone().as_any(), TypeId::of::<G>());
+
+        let render_asset_handle = match self.render_cache.get(&key) {
+            Some(render_asset_handle) => render_asset_handle.clone(),
+            // Some(render_asset_handle) => todo!(),
+            None => {
+                match G::convert(ctx, self, handle.clone()) {
+                    ConvertRenderAssetResult::AssetLoading => {
+                        return ConvertRenderAssetResult::AssetLoading
+                    }
+
+                    // TODO: insert last valid so we dont hit this each time?
+                    ConvertRenderAssetResult::Failed => {
+                        match self.render_cache_last_valid.get(&key) {
+                            Some(asset_handle) => {
+                                tracing::warn!(
+                                    "assert conversion failed, using last valid version instead"
+                                );
+                                self.render_cache.insert(key.clone(), asset_handle.clone());
+                                asset_handle.clone()
+                            }
+                            None => {
+                                tracing::error!(
+                                    "asset conversion failed, no last valid version was found"
+                                );
+                                return ConvertRenderAssetResult::Failed;
+                            }
+                        }
+                    }
+
+                    ConvertRenderAssetResult::Success(render_asset_handle) => {
+                        let render_asset_any_handle = render_asset_handle.upcast();
+                        // actual cache
+                        self.render_cache
+                            .insert(key.clone(), render_asset_any_handle.clone());
+                        // last valid cache
+                        self.render_cache_last_valid
+                            .insert(key.clone(), render_asset_any_handle.clone());
+                        // invalidate lookup
+                        self.render_cache_invalidate_lookup
+                            .entry(handle.as_any())
+                            .or_default()
+                            .insert(TypeId::of::<G>());
+
+                        render_asset_any_handle
+                    }
+                }
+            }
         };
 
-        let key = (handle.clone().as_any(), TypeId::of::<G>());
-        let render_asset_exists = self.render_cache.contains_key(&key);
-        if !render_asset_exists {
-            match G::convert(ctx, self, handle.clone()) {
-                Ok(render_asset) => {
-                    let render_asset_handle = ArcHandle::new(next_id(ctx), render_asset).upcast();
-                    // actual cache
-                    self.render_cache
-                        .insert(key.clone(), render_asset_handle.clone());
-                    // last valid cache
-                    self.render_cache_last_valid
-                        .insert(key.clone(), render_asset_handle);
-                    // invalidate lookup
-                    self.render_cache_invalidate_lookup
-                        .entry(handle.as_any())
-                        .or_default()
-                        .insert(TypeId::of::<G>());
-                }
-                Err(err) => {
-                    tracing::warn!("could not convert {}", err);
-                }
-            };
-        }
+        let typed_handle = render_asset_handle
+            .downcast::<G>()
+            .expect("could not downcast render any handle");
 
-        self.render_cache
-            .get(&key)
-            .map(|a| a.downcast::<G>().expect("could not downcast"))
-            .or_else(|| {
-                // try last valid
-                self.render_cache_last_valid
-                    .get(&key)
-                    .map(|a| a.downcast::<G>().expect("could not downcast"))
-            })
+        ConvertRenderAssetResult::Success(typed_handle)
     }
 
     //
@@ -294,7 +354,6 @@ impl AssetCache {
                 handle.clone(),
             );
 
-            //
             self.just_loaded.insert(handle);
         }
     }
@@ -338,13 +397,13 @@ impl AssetCache {
 
 #[derive(Debug, Clone)]
 pub struct LoadContext {
-    sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+    sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
     asset_handle_ctx: AssetHandleContext,
 }
 
 impl LoadContext {
     pub fn new(
-        sender: mpsc::UnboundedSender<(DynAssetHandle, DynAsset)>,
+        sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
         asset_handle_ctx: AssetHandleContext,
     ) -> Self {
         Self {
@@ -356,7 +415,7 @@ impl LoadContext {
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.sender
-            .unbounded_send((handle.as_any(), Box::new(value)))
+            .unbounded_send((handle.as_any(), AssetResult::Loaded(Box::new(value))))
             .expect("could not send asset handle");
         handle
     }
@@ -447,7 +506,14 @@ impl AssetCacheExt {
             .entry(TypeId::of::<T::Asset>())
             .or_insert_with(|| {
                 Box::new(move |load_ctx, path| {
-                    Box::new(pollster::block_on(loader.clone().load(load_ctx, path)))
+                    let result = pollster::block_on(loader.clone().load(load_ctx, path));
+                    match result {
+                        Ok(asset) => AssetResult::Loaded(Box::new(asset)),
+                        Err(err) => {
+                            tracing::error!("could not reload asset {:?}: {}", path, err);
+                            AssetResult::Error
+                        }
+                    }
                 })
             });
     }
@@ -464,21 +530,22 @@ impl AssetCacheExt {
         self.handle_to_type
             .insert(handle.as_any(), TypeId::of::<T::Asset>());
 
+        // TODO:
         // store reload function
-        self.write_functions
-            .entry(TypeId::of::<T::Asset>())
-            .or_insert_with(|| {
-                Box::new(|asset, path| {
-                    let typed = (asset.as_mut() as &mut dyn Any)
-                        .downcast_mut::<T::Asset>()
-                        .expect("could not cast during write");
-                    T::write(typed, path);
-                })
-            });
+        // self.write_functions
+        //     .entry(TypeId::of::<T::Asset>())
+        //     .or_insert_with(|| {
+        //         Box::new(|asset, path| {
+        //             let typed = (asset.as_mut() as &mut dyn Any)
+        //                 .downcast_mut::<T::Asset>()
+        //                 .expect("could not cast during write");
+        //             T::write(typed, path);
+        //         })
+        //     });
     }
 
     // check if any files are scheduled for writing to disk
-    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, DynAsset>) {
+    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, AssetResult>) {
         for handle in self.write_dirty.drain() {
             if let Some(path) = self.write_handles.get(&handle) {
                 let asset = cache.get_mut(&handle);
@@ -504,17 +571,16 @@ impl AssetCacheExt {
     // checks if any files changed and spawns a thread which reloads the data
     pub fn poll_reload(
         &mut self,
-        cache: &mut FxHashMap<DynAssetHandle, DynAsset>,
+        cache: &mut FxHashMap<DynAssetHandle, AssetResult>,
         render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         just_loaded: &mut FxHashSet<DynAssetHandle>,
         load_ctx: LoadContext,
     ) {
         while let Ok(Some(path)) = self.reload_receiver.try_next() {
-            println!("1 reload {:?}", path);
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
-                    println!("reload {:?}", path);
+                    // println!("reload {:?}", path);
                     just_loaded.insert(handle.clone());
 
                     let ty_id = self
@@ -563,17 +629,17 @@ impl<T: Asset + 'static> AssetHandle<T> {
     pub fn just_loaded(&self, cache: &AssetCache) -> bool {
         cache.handle_just_loaded(self.clone())
     }
-    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Option<&'a T> {
+    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
         cache.get(self.clone())
     }
-    pub fn get_mut<'a>(&self, cache: &'a mut AssetCache) -> Option<&'a mut T> {
+    pub fn get_mut<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResultMut<'a, T> {
         cache.get_mut(self.clone())
     }
     pub fn convert<G: ConvertableRenderAsset<SourceAsset = T>>(
         &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-    ) -> Option<ArcHandle<G>> {
+    ) -> ConvertRenderAssetResult<G> {
         cache.convert(ctx, self.clone())
     }
 }

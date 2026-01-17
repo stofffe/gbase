@@ -63,7 +63,7 @@ impl Tonemap {
 
         let shader =
             asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone())
-                .unwrap();
+                .unwrap_success();
         let pipeline =
             render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone()).build(ctx);
 
@@ -374,7 +374,7 @@ impl Bloom {
                 .build(ctx);
 
         let extract_shader =
-            asset::convert_asset(ctx, cache, self.extract_shader_handle.clone()).unwrap();
+            asset::convert_asset(ctx, cache, self.extract_shader_handle.clone()).unwrap_success();
         let extract_pipeline = render::RenderPipelineBuilder::new(
             extract_shader,
             self.extract_pipeline_layout.clone(),
@@ -413,7 +413,7 @@ impl Bloom {
             cache,
             self.downsample_shader_handle.clone(),
         )
-        .unwrap();
+        .unwrap_success();
         let downsample_pipeline = render::RenderPipelineBuilder::new(
             downsample_shader.clone(),
             self.downsample_pipeline_layout.clone(),
@@ -462,7 +462,7 @@ impl Bloom {
             cache,
             self.upsample_shader_handle.clone(),
         )
-        .unwrap();
+        .unwrap_success();
         let upsample_pipeline = render::RenderPipelineBuilder::new(
             upsample_shader.clone(),
             self.upsample_pipeline_layout.clone(),
@@ -538,7 +538,7 @@ impl Bloom {
             cache,
             self.combine_shader_handle.clone(),
         )
-        .unwrap();
+        .unwrap_success();
         let combine_pipeline = render::RenderPipelineBuilder::new(
             combine_shader,
             self.combine_pipeline_layout.clone(),

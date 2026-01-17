@@ -106,10 +106,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone()).unwrap();
+        let shader = asset::convert_asset(ctx, cache, self.shader_handle.clone()).unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap().buffer_layout())
+            .buffers(self.vertices.get(cache).unwrap_loaded().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
@@ -125,7 +125,7 @@ impl TextureRenderer {
                     .vertices
                     .clone()
                     .convert::<GpuMesh>(ctx, cache)
-                    .unwrap();
+                    .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);
@@ -177,10 +177,11 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(ctx, cache, self.shader_depth_handle.clone()).unwrap();
+        let shader =
+            asset::convert_asset(ctx, cache, self.shader_depth_handle.clone()).unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap().buffer_layout())
+            .buffers(self.vertices.get(cache).unwrap_loaded().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
@@ -200,7 +201,7 @@ impl TextureRenderer {
                     .vertices
                     .clone()
                     .convert::<GpuMesh>(ctx, cache)
-                    .unwrap();
+                    .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);

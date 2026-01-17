@@ -89,13 +89,13 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
-        let mesh =
-            asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone()).unwrap();
+        let mesh = asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone())
+            .unwrap_success();
         let shader =
             asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone())
-                .unwrap();
-        let texture =
-            asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle.clone()).unwrap();
+                .unwrap_success();
+        let texture = asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle.clone())
+            .unwrap_success();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -108,7 +108,7 @@ impl Callbacks for App {
 
         // TODO: place this on gpumesh instead?
         let buffer_layout = asset::get(cache, self.mesh_handle.clone())
-            .unwrap()
+            .unwrap_loaded()
             .buffer_layout();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::from_current_screen(ctx))

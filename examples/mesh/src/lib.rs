@@ -170,39 +170,39 @@ impl Callbacks for App {
         }
 
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
+            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
-                    .unwrap()
+                    .unwrap_loaded()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
         }
 
         if self.sponza_gltf.loaded(cache) {
-            let gltf = cache.get(self.sponza_gltf.clone()).unwrap().clone();
+            let gltf = cache.get(self.sponza_gltf.clone()).unwrap_loaded().clone();
 
             for mesh in gltf.meshes.iter().clone() {
-                let prim = &mesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
+                let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
                 prim.mesh
                     .get_mut(cache)
-                    .unwrap()
+                    .unwrap_loaded()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
 
-                let mesh = mesh.get(cache).unwrap();
+                let mesh = mesh.get(cache).unwrap_loaded();
                 for primitive in mesh.primitives.iter().clone() {
                     tracing::info!("prim {:#?}", primitive);
                 }
             }
 
             for node in gltf.nodes.iter() {
-                let node = node.get(cache).unwrap();
+                let node = node.get(cache).unwrap_loaded();
                 tracing::info!("node {:#?}", node);
 
                 if let Some(mesh) = node.mesh.clone() {
-                    let prim = &mesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
+                    let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
                     prim.mesh
                         .get_mut(cache)
-                        .unwrap()
+                        .unwrap_loaded()
                         .extract_attributes(self.pbr_renderer.required_attributes().clone());
                 }
             }
@@ -228,11 +228,11 @@ impl Callbacks for App {
         let i = 0;
         let j = 4;
         if self.sponza_gltf.loaded(cache) {
-            for node in &self.sponza_gltf.get(cache).unwrap().clone().nodes {
-                let node = node.get(cache).unwrap();
+            for node in &self.sponza_gltf.get(cache).unwrap_loaded().clone().nodes {
+                let node = node.get(cache).unwrap_loaded();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
-                    let mesh = mesh.get(cache).unwrap();
+                    let mesh = mesh.get(cache).unwrap_loaded();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
                     meshes.push((cache.insert(lod), transform));

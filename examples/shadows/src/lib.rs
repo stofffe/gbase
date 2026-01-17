@@ -209,18 +209,18 @@ impl Callbacks for App {
         }
 
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap();
+            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
-                    .unwrap()
+                    .unwrap_loaded()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
         }
         if cache.handle_just_loaded(self.ak47_mesh.clone()) {
-            let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap();
+            let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap_loaded();
             for (mesh, _) in mesh_lod.meshes.clone() {
                 mesh.get_mut(cache)
-                    .unwrap()
+                    .unwrap_loaded()
                     .extract_attributes(self.pbr_renderer.required_attributes().clone());
             }
         }

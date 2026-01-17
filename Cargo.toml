@@ -28,6 +28,7 @@ egui-winit = { version = "0.32.1", optional = true, default-features = false, fe
     "links",
 ] }
 egui_extras = { version = "0.32.1", optional = true, features = ["image"] }
+thiserror = "2.0.17"
 
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

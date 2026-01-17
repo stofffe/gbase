@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
 use crate::{
+    asset::{ConvertRenderAssetResult, EmptyError, GetAssetResult},
     filesystem,
-    render::{self, GpuImage},
+    render::{self, next_id, ArcHandle, GpuImage},
     Context,
 };
 
@@ -14,30 +17,41 @@ impl Asset for render::Mesh {}
 impl RenderAsset for render::GpuMesh {}
 impl ConvertableRenderAsset for render::GpuMesh {
     type SourceAsset = render::Mesh;
-    type Error = bool;
+    type Error = EmptyError;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source.clone()).unwrap();
-        Ok(render::GpuMesh::new(ctx, source))
+    ) -> ConvertRenderAssetResult<Self> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
+            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loaded(source) => source,
+        };
+        let handle = ArcHandle::new(next_id(ctx), render::GpuMesh::new(ctx, source));
+        ConvertRenderAssetResult::Success(handle)
     }
 }
 
 impl RenderAsset for render::BoundingBox {}
 impl ConvertableRenderAsset for render::BoundingBox {
     type SourceAsset = render::Mesh;
-    type Error = bool;
+    type Error = EmptyError;
 
     fn convert(
-        _ctx: &mut Context,
+        ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source.clone()).unwrap();
-        Ok(source.calculate_bounding_box())
+    ) -> ConvertRenderAssetResult<Self> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
+            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loaded(source) => source,
+        };
+
+        let handle = ArcHandle::new(next_id(ctx), source.calculate_bounding_box());
+        ConvertRenderAssetResult::Success(handle)
     }
 }
 
@@ -51,18 +65,23 @@ impl Asset for render::ShaderBuilder {}
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
     type Asset = render::ShaderBuilder;
+    type Error = EmptyError;
 
-    async fn load(&self, _load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(
+        &self,
+        _load_ctx: super::LoadContext,
+        path: &std::path::Path,
+    ) -> Result<Self::Asset, Self::Error> {
         let source = filesystem::load_str(path).await;
 
-        Self::Asset {
+        Ok(Self::Asset {
             label: Some(
                 path.to_str()
                     .expect("could not convert path to string")
                     .to_string(),
             ),
             source,
-        }
+        })
     }
 }
 
@@ -75,8 +94,13 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source.clone()).unwrap();
+    ) -> ConvertRenderAssetResult<Self> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
+            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loaded(source) => source,
+        };
+
         #[cfg(target_arch = "wasm32")]
         {
             Ok(source.build_non_arc(ctx))
@@ -84,7 +108,15 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            source.build_err_non_arc(ctx)
+            match source.build_err_non_arc(ctx) {
+                Ok(shader_module) => {
+                    ConvertRenderAssetResult::Success(ArcHandle::new(next_id(ctx), shader_module))
+                }
+                Err(err) => {
+                    tracing::error!("could not load shader module: {}", err);
+                    ConvertRenderAssetResult::Failed
+                }
+            }
         }
     }
 }
@@ -99,8 +131,13 @@ impl Asset for render::Image {}
 pub struct ImageLoader {}
 impl AssetLoader for ImageLoader {
     type Asset = render::Image;
+    type Error = EmptyError;
 
-    async fn load(&self, _load_ctx: super::LoadContext, path: &std::path::Path) -> Self::Asset {
+    async fn load(
+        &self,
+        _load_ctx: super::LoadContext,
+        path: &std::path::Path,
+    ) -> Result<Self::Asset, Self::Error> {
         let bytes = filesystem::load_bytes(path).await;
 
         let img = image::load_from_memory(&bytes)
@@ -112,7 +149,7 @@ impl AssetLoader for ImageLoader {
             img.to_vec(),
         ));
         let sampler = render::SamplerBuilder::new();
-        Self::Asset { texture, sampler }
+        Ok(Self::Asset { texture, sampler })
     }
 }
 
@@ -120,17 +157,24 @@ impl RenderAsset for render::GpuImage {}
 
 impl ConvertableRenderAsset for render::GpuImage {
     type SourceAsset = render::Image;
-    type Error = bool;
+    type Error = EmptyError;
 
     fn convert(
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> Result<Self, Self::Error> {
-        let source = cache.get(source.clone()).unwrap();
+    ) -> ConvertRenderAssetResult<Self> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
+            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loaded(source) => source,
+        };
+
         let sampler = source.sampler.clone().build(ctx);
         let texture = source.texture.build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-        Ok(GpuImage::new(texture, view, sampler))
+
+        let handle = ArcHandle::new(next_id(ctx), GpuImage::new(texture, view, sampler));
+        ConvertRenderAssetResult::Success(handle)
     }
 }

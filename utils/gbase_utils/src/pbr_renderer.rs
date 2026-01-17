@@ -190,7 +190,8 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset(ctx, cache, self.forward_shader_handle.clone()).unwrap();
+        let shader =
+            asset::convert_asset(ctx, cache, self.forward_shader_handle.clone()).unwrap_success();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -224,7 +225,7 @@ impl PbrRenderer {
             let bounds = mesh_lod
                 .clone()
                 .convert::<BoundingBoxWrapper>(ctx, cache)
-                .unwrap();
+                .unwrap_success();
             frustum.sphere_inside(&bounds, transform)
         });
 
@@ -237,7 +238,7 @@ impl PbrRenderer {
             let bounds = mesh_lod
                 .clone()
                 .convert::<BoundingBoxWrapper>(ctx, cache)
-                .unwrap();
+                .unwrap_success();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
@@ -263,7 +264,7 @@ impl PbrRenderer {
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
-            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap();
+            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap_loaded();
             let material = mesh_lod.material.clone();
             let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
@@ -278,7 +279,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = material.get(cache).unwrap().clone();
+            } = material.get(cache).unwrap_loaded().clone();
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),
@@ -298,17 +299,18 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh).unwrap();
+            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh).unwrap_success();
             let base_color_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, base_color_texture).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, base_color_texture).unwrap_success();
             let normal_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, normal_texture).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, normal_texture).unwrap_success();
             let metallic_roughness_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, metallic_roughness_texture).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, metallic_roughness_texture)
+                    .unwrap_success();
             let occlusion_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, occlusion_texture).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, occlusion_texture).unwrap_success();
             let emissive_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, emissive_texture).unwrap();
+                asset::convert_asset::<GpuImage>(ctx, cache, emissive_texture).unwrap_success();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()

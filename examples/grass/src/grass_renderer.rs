@@ -353,7 +353,8 @@ impl GrassRenderer {
                     .build(ctx),
             ];
             let instance_shader =
-                asset::convert_asset(ctx, cache, self.instance_shader_handle.clone()).unwrap(); // TODO:
+                asset::convert_asset(ctx, cache, self.instance_shader_handle.clone())
+                    .unwrap_success(); // TODO:
 
             let instance_pipeline = render::ComputePipelineBuilder::new(
                 instance_shader,
@@ -392,7 +393,7 @@ impl GrassRenderer {
             ];
 
             let draw_compute_shader =
-                asset::convert_asset(ctx, cache, self.draw_shader_handle.clone()).unwrap(); // TODO:
+                asset::convert_asset(ctx, cache, self.draw_shader_handle.clone()).unwrap_success(); // TODO:
 
             let draw_pipeline = render::ComputePipelineBuilder::new(
                 draw_compute_shader,
@@ -432,7 +433,7 @@ impl GrassRenderer {
                 } => {
                     let render_shader =
                         asset::convert_asset(ctx, cache, self.render_forward_shader_handle.clone())
-                            .unwrap();
+                            .unwrap_success();
 
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
@@ -461,7 +462,7 @@ impl GrassRenderer {
                         cache,
                         self.render_deferred_shader_handle.clone(),
                     )
-                    .unwrap();
+                    .unwrap_success();
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),

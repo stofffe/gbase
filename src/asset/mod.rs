@@ -9,17 +9,18 @@ pub use implementations::*;
 pub use types::*;
 
 use crate::{render::ArcHandle, Context};
+use core::error;
 use std::path::PathBuf;
 
 //
 // Errors
 //
 
-// #[derive(thiserror::Error, Debug)]
-// pub enum AssetError {
-//     #[error("asset path not found")]
-//     PathNotFound,
-// }
+#[derive(thiserror::Error, Debug)]
+pub enum AssetError {
+    #[error("asset path not found")]
+    PathNotFound,
+}
 
 //
 // Builder
@@ -112,14 +113,51 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
     cache.handle_just_loaded(handle.clone())
 }
 
-pub fn get<T: Asset + 'static>(cache: &AssetCache, handle: AssetHandle<T>) -> Option<&T> {
+// TODO: move justloaded here?
+pub enum GetAssetResult<'a, T: Asset> {
+    Loading,
+    Loaded(&'a T),
+    Failed,
+}
+
+impl<'a, T: Asset> GetAssetResult<'a, T> {
+    pub fn unwrap_loaded(self) -> &'a T {
+        match self {
+            GetAssetResult::Loaded(asset) => asset,
+            GetAssetResult::Loading => panic!("Asset is still loading"),
+            GetAssetResult::Failed => panic!("Asset failed to load"),
+        }
+    }
+}
+
+impl<'a, T: Asset> GetAssetResultMut<'a, T> {
+    pub fn unwrap_loaded(self) -> &'a mut T {
+        match self {
+            GetAssetResultMut::Loaded(asset) => asset,
+            GetAssetResultMut::Loading => panic!("Asset is still loading"),
+            GetAssetResultMut::Failed => panic!("Asset failed to load"),
+        }
+    }
+}
+
+pub fn get<'a, T: Asset + 'static>(
+    cache: &'a AssetCache,
+    handle: AssetHandle<T>,
+) -> GetAssetResult<'a, T> {
     cache.get(handle)
 }
 
-pub fn get_mut<T: Asset + 'static>(
-    cache: &mut AssetCache,
+// TODO: move justloaded here?
+pub enum GetAssetResultMut<'a, T: Asset> {
+    Loading,
+    Loaded(&'a mut T),
+    Failed,
+}
+
+pub fn get_mut<'a, T: Asset + 'static>(
+    cache: &'a mut AssetCache,
     handle: AssetHandle<T>,
-) -> Option<&mut T> {
+) -> GetAssetResultMut<'a, T> {
     cache.get_mut(handle)
 }
 
@@ -127,6 +165,6 @@ pub fn convert_asset<G: ConvertableRenderAsset>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     handle: AssetHandle<G::SourceAsset>,
-) -> Option<ArcHandle<G>> {
+) -> ConvertRenderAssetResult<G> {
     cache.convert(ctx, handle)
 }
