@@ -2,6 +2,8 @@
 
 use std::{any::Any, sync::Arc};
 
+use crate::{render::next_id, Context};
+
 /// Arc'd WGPU handles are used widely across the graphics module.
 ///
 /// Beyond allowing for Clone, they also allow different GPU resources to be
@@ -14,10 +16,10 @@ pub struct ArcHandle<T: ?Sized + 'static> {
 
 impl<T: 'static> ArcHandle<T> {
     // TODO: maybe take ctx directly instead?
-    pub fn new(id: u64, handle: T) -> Self {
+    pub fn new(ctx: &mut Context, handle: T) -> Self {
         ArcHandle {
             handle: Arc::new(handle),
-            id,
+            id: ctx.render.cache.next_id(),
         }
     }
 

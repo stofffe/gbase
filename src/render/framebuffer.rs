@@ -54,8 +54,8 @@ impl FrameBufferBuilder {
         });
         FrameBuffer {
             label: self.label,
-            texture: render::ArcTexture::new(next_id(ctx), texture),
-            view: render::ArcTextureView::new(next_id(ctx), view),
+            texture: render::ArcTexture::new(ctx, texture),
+            view: render::ArcTextureView::new(ctx, view),
         }
     }
 
@@ -162,8 +162,8 @@ impl FrameBuffer {
         });
         *self = FrameBuffer {
             label: self.label.clone(),
-            texture: ArcHandle::new(next_id(ctx), texture),
-            view: ArcHandle::new(next_id(ctx), view),
+            texture: ArcHandle::new(ctx, texture),
+            view: ArcHandle::new(ctx, view),
         }
     }
     pub fn format(&self) -> wgpu::TextureFormat {

@@ -43,7 +43,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
                     contents: bytemuck::cast_slice(&data),
                 });
                 VertexBuffer {
-                    buffer: ArcBuffer::new(next_id(ctx), buffer),
+                    buffer: ArcBuffer::new(ctx, buffer),
                     capacity: data.len(),
                     len: data.len() as u32,
                     ty: PhantomData::<T>,
@@ -57,7 +57,7 @@ impl<T: VertexTrait> VertexBufferBuilder<T> {
                     mapped_at_creation: false,
                 });
                 VertexBuffer {
-                    buffer: ArcBuffer::new(next_id(ctx), buffer),
+                    buffer: ArcBuffer::new(ctx, buffer),
                     capacity: capacity as usize,
                     len: 0,
                     ty: PhantomData::<T>,

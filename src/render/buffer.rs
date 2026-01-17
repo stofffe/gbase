@@ -38,7 +38,7 @@ impl<T: NoUninit> RawBufferBuilder<T> {
         });
 
         RawBuffer {
-            buffer: ArcBuffer::new(next_id(ctx), buffer),
+            buffer: ArcBuffer::new(ctx, buffer),
             ty: PhantomData::<T>,
         }
     }
@@ -113,7 +113,7 @@ impl<T: ShaderType + WriteInto> UniformBufferBuilder<T> {
         });
 
         UniformBuffer {
-            buffer: ArcBuffer::new(next_id(ctx), buffer),
+            buffer: ArcBuffer::new(ctx, buffer),
             ty: PhantomData,
         }
     }
@@ -195,7 +195,7 @@ impl<T: ShaderType + WriteInto> StorageBufferBuilder<T> {
         });
 
         StorageBuffer {
-            buffer: ArcBuffer::new(next_id(ctx), buffer),
+            buffer: ArcBuffer::new(ctx, buffer),
             ty: PhantomData,
         }
     }

@@ -532,16 +532,16 @@ impl AssetCacheExt {
 
         // TODO:
         // store reload function
-        // self.write_functions
-        //     .entry(TypeId::of::<T::Asset>())
-        //     .or_insert_with(|| {
-        //         Box::new(|asset, path| {
-        //             let typed = (asset.as_mut() as &mut dyn Any)
-        //                 .downcast_mut::<T::Asset>()
-        //                 .expect("could not cast during write");
-        //             T::write(typed, path);
-        //         })
-        //     });
+        self.write_functions
+            .entry(TypeId::of::<T::Asset>())
+            .or_insert_with(|| {
+                Box::new(|asset, path| {
+                    let typed = (asset.as_mut() as &mut dyn Any)
+                        .downcast_mut::<T::Asset>()
+                        .expect("could not cast during write");
+                    T::write(typed, path);
+                })
+            });
     }
 
     // check if any files are scheduled for writing to disk
@@ -552,6 +552,10 @@ impl AssetCacheExt {
 
                 // write if loaded
                 if let Some(asset) = asset {
+                    let AssetResult::Loaded(asset) = asset else {
+                        panic!("tried to poll write on asset not loaded");
+                    };
+
                     let ty_id = self
                         .handle_to_type
                         .get(&handle)

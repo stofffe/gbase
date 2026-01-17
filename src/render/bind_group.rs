@@ -40,7 +40,7 @@ impl BindGroupLayoutBuilder {
                 .collect::<Vec<_>>(),
         });
 
-        ArcBindGroupLayout::new(next_id(ctx), layout)
+        ArcBindGroupLayout::new(ctx, layout)
     }
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroupLayout {
@@ -229,7 +229,7 @@ impl BindGroupBuilder {
                 .collect::<Vec<_>>(),
         });
 
-        ArcBindGroup::new(next_id(ctx), bindgroup)
+        ArcBindGroup::new(ctx, bindgroup)
     }
 
     pub fn build(self, ctx: &mut Context) -> ArcBindGroup {

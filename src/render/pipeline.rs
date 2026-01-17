@@ -41,7 +41,7 @@ impl PipelineLayoutBuilder {
             push_constant_ranges: &self.push_constants,
         });
 
-        ArcPipelineLayout::new(next_id(ctx), layout)
+        ArcPipelineLayout::new(ctx, layout)
     }
     pub fn build(&self, ctx: &mut Context) -> ArcPipelineLayout {
         if let Some(pipeline_layout) = ctx.render.cache.pipeline_layouts.get(self) {
@@ -259,7 +259,7 @@ impl RenderPipelineBuilder {
             cache: None,
         });
 
-        ArcRenderPipeline::new(next_id(ctx), pipeline)
+        ArcRenderPipeline::new(ctx, pipeline)
     }
     pub fn build(self, ctx: &mut Context) -> ArcRenderPipeline {
         if let Some(render_pipeline) = ctx.render.cache.render_pipelines.get(&self) {
@@ -364,7 +364,7 @@ impl ComputePipelineBuilder {
             cache: None,
         });
 
-        ArcComputePipeline::new(next_id(ctx), pipeline)
+        ArcComputePipeline::new(ctx, pipeline)
     }
 
     pub fn build(&self, ctx: &mut Context) -> ArcComputePipeline {

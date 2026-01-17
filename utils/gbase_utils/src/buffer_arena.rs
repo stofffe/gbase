@@ -28,7 +28,7 @@ impl GrowingBufferArena {
     pub fn new(ctx: &mut Context, alignment: u64, desc: wgpu::BufferDescriptor<'static>) -> Self {
         let buffer = render::device(ctx).create_buffer(&desc);
         GrowingBufferArena {
-            buffers: vec![(ArcBuffer::new(render::next_id(ctx), buffer), 0)],
+            buffers: vec![(ArcBuffer::new(ctx, buffer), 0)],
             alignment,
             desc,
         }
@@ -39,7 +39,7 @@ impl GrowingBufferArena {
 
         let buffer = render::device(ctx).create_buffer(&desc);
         GrowingBufferArena {
-            buffers: vec![(ArcBuffer::new(render::next_id(ctx), buffer), 0)],
+            buffers: vec![(ArcBuffer::new(ctx, buffer), 0)],
             alignment: UNIFORM_BUFFER_MIN_ALIGNMENT,
             desc,
         }
@@ -90,8 +90,7 @@ impl GrowingBufferArena {
 
     fn grow(&mut self, ctx: &mut Context) {
         let buffer = render::device(ctx).create_buffer(&self.desc);
-        self.buffers
-            .push((ArcBuffer::new(render::next_id(ctx), buffer), 0));
+        self.buffers.push((ArcBuffer::new(ctx, buffer), 0));
     }
 
     /// This frees **all** the allocations at once.

@@ -26,7 +26,7 @@ impl ShaderBuilder {
     ///
     /// panics if source is invalid
     pub fn build(&self, ctx: &mut Context) -> ArcShaderModule {
-        ArcHandle::new(next_id(ctx), self.build_non_arc(ctx))
+        ArcHandle::new(ctx, self.build_non_arc(ctx))
     }
 
     /// Create shader module
@@ -35,7 +35,7 @@ impl ShaderBuilder {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
         self.build_err_non_arc(ctx)
-            .map(|module| ArcHandle::new(next_id(ctx), module))
+            .map(|module| ArcHandle::new(ctx, module))
     }
 
     #[cfg(not(target_arch = "wasm32"))]

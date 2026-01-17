@@ -63,7 +63,7 @@ impl RenderCache {
             .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
     }
 
-    pub fn next_id(&mut self) -> u64 {
+    pub(crate) fn next_id(&mut self) -> u64 {
         let id = self.unique_arc_id;
         self.unique_arc_id += 1;
         id

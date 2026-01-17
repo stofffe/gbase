@@ -7,7 +7,7 @@ pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynRenderAsset = ArcHandle<dyn Any>;
 pub type DynAssetLoadFn = Box<dyn Fn(LoadContext, &Path) -> AssetResult>;
-pub type DynAssetWriteFn = Box<dyn Fn(&mut AssetResult, &Path)>;
+pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
 

@@ -81,7 +81,7 @@ impl SamplerBuilder {
     pub fn build_uncached_inner(&self, ctx: &mut Context) -> ArcSampler {
         let device = &ctx.render.device;
         let sampler = device.create_sampler(&self.descriptor());
-        ArcSampler::new(next_id(ctx), sampler)
+        ArcSampler::new(ctx, sampler)
     }
 
     pub fn build_uncached(&self, ctx: &mut Context) -> ArcSampler {
@@ -221,7 +221,7 @@ impl TextureBuilder {
                     view_formats: &self.view_formats,
                 });
 
-                ArcTexture::new(next_id(ctx), texture)
+                ArcTexture::new(ctx, texture)
             }
             TextureSource::Data(width, height, ref bytes) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -257,7 +257,7 @@ impl TextureBuilder {
                     texture.size(),
                 );
 
-                ArcTexture::new(next_id(ctx), texture)
+                ArcTexture::new(ctx, texture)
             }
         }
     }
@@ -349,7 +349,7 @@ impl TextureViewBuilder {
             usage: self.usage,
         });
 
-        render::ArcTextureView::new(next_id(ctx), view)
+        render::ArcTextureView::new(ctx, view)
     }
 
     pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {

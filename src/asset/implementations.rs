@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
 use crate::{
     asset::{ConvertRenderAssetResult, EmptyError, GetAssetResult},
@@ -29,7 +27,8 @@ impl ConvertableRenderAsset for render::GpuMesh {
             GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
             GetAssetResult::Loaded(source) => source,
         };
-        let handle = ArcHandle::new(next_id(ctx), render::GpuMesh::new(ctx, source));
+        let gpu_mesh = render::GpuMesh::new(ctx, source);
+        let handle = ArcHandle::new(ctx, gpu_mesh);
         ConvertRenderAssetResult::Success(handle)
     }
 }
@@ -50,7 +49,7 @@ impl ConvertableRenderAsset for render::BoundingBox {
             GetAssetResult::Loaded(source) => source,
         };
 
-        let handle = ArcHandle::new(next_id(ctx), source.calculate_bounding_box());
+        let handle = ArcHandle::new(ctx, source.calculate_bounding_box());
         ConvertRenderAssetResult::Success(handle)
     }
 }
@@ -110,7 +109,7 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         {
             match source.build_err_non_arc(ctx) {
                 Ok(shader_module) => {
-                    ConvertRenderAssetResult::Success(ArcHandle::new(next_id(ctx), shader_module))
+                    ConvertRenderAssetResult::Success(ArcHandle::new(ctx, shader_module))
                 }
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);
@@ -174,7 +173,7 @@ impl ConvertableRenderAsset for render::GpuImage {
         let texture = source.texture.build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
 
-        let handle = ArcHandle::new(next_id(ctx), GpuImage::new(texture, view, sampler));
+        let handle = ArcHandle::new(ctx, GpuImage::new(texture, view, sampler));
         ConvertRenderAssetResult::Success(handle)
     }
 }

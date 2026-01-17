@@ -165,7 +165,7 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
         let handle = source.meshes[0].0.clone();
 
         let handle = ArcHandle::new(
-            next_id(ctx),
+            ctx,
             BoundingBoxWrapper(handle.get(cache).unwrap_loaded().calculate_bounding_box()),
         );
         ConvertRenderAssetResult::Success(handle)
