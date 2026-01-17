@@ -130,16 +130,6 @@ impl<'a, T: Asset> GetAssetResult<'a, T> {
     }
 }
 
-impl<'a, T: Asset> GetAssetResultMut<'a, T> {
-    pub fn unwrap_loaded(self) -> &'a mut T {
-        match self {
-            GetAssetResultMut::Loaded(asset) => asset,
-            GetAssetResultMut::Loading => panic!("Asset is still loading"),
-            GetAssetResultMut::Failed => panic!("Asset failed to load"),
-        }
-    }
-}
-
 pub fn get<'a, T: Asset + 'static>(
     cache: &'a AssetCache,
     handle: AssetHandle<T>,
@@ -154,6 +144,16 @@ pub enum GetAssetResultMut<'a, T: Asset> {
     Failed,
 }
 
+impl<'a, T: Asset> GetAssetResultMut<'a, T> {
+    pub fn unwrap_loaded(self) -> &'a mut T {
+        match self {
+            GetAssetResultMut::Loaded(asset) => asset,
+            GetAssetResultMut::Loading => panic!("Asset is still loading"),
+            GetAssetResultMut::Failed => panic!("Asset failed to load"),
+        }
+    }
+}
+
 pub fn get_mut<'a, T: Asset + 'static>(
     cache: &'a mut AssetCache,
     handle: AssetHandle<T>,
@@ -165,6 +165,6 @@ pub fn convert_asset<G: ConvertableRenderAsset>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     handle: AssetHandle<G::SourceAsset>,
-) -> ConvertRenderAssetResult<G> {
+) -> ConvertAssetResult<G> {
     cache.convert(ctx, handle)
 }

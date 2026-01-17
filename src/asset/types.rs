@@ -1,15 +1,29 @@
 use super::{AssetCache, AssetHandle, LoadContext};
-use crate::{asset::AssetResult, render::ArcHandle, Context};
+use crate::{asset::LoadAssetResult, render::ArcHandle, Context};
 use core::error;
-use std::{any::Any, fmt::Debug, future::Future, path::Path};
+use std::{
+    any::{Any, TypeId},
+    fmt::Debug,
+    future::Future,
+    path::Path,
+};
+
+//
+// Types
+//
 
 pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynRenderAsset = ArcHandle<dyn Any>;
-pub type DynAssetLoadFn = Box<dyn Fn(LoadContext, &Path) -> AssetResult>;
+pub type DynAssetLoadFn = Box<dyn Fn(LoadContext, &Path) -> LoadAssetResult>;
 pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
+pub type RenderAssetKey = (DynAssetHandle, TypeId);
+
+//
+// Traits
+//
 
 pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
@@ -30,29 +44,6 @@ pub trait AssetWriter: AssetLoader {
 
 pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
 
-// TODO: should this be archandle or just arc?
-pub enum ConvertRenderAssetResult<T: ConvertableRenderAsset> {
-    AssetLoading,
-    Success(ArcHandle<T>),
-    Failed,
-}
-
-impl<T: ConvertableRenderAsset> ConvertRenderAssetResult<T> {
-    pub fn unwrap_success(self) -> ArcHandle<T> {
-        match self {
-            ConvertRenderAssetResult::AssetLoading => panic!("unwrap success failed"),
-            ConvertRenderAssetResult::Failed => panic!("unwrap success failed"),
-            ConvertRenderAssetResult::Success(arc_handle) => arc_handle,
-        }
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
-pub enum EmptyError {
-    #[error("empty")]
-    Err,
-}
-
 // TODO: should this actually return arc handles or should caching system handle that?
 pub trait ConvertableRenderAsset: RenderAsset + Clone {
     type SourceAsset: Asset;
@@ -62,5 +53,22 @@ pub trait ConvertableRenderAsset: RenderAsset + Clone {
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-    ) -> ConvertRenderAssetResult<Self>;
+    ) -> ConvertAssetStatus<Self>;
+}
+
+//
+// Other
+//
+
+// TODO: should this be archandle or just arc?
+pub enum ConvertAssetStatus<T: ConvertableRenderAsset> {
+    Loading,
+    Success(T),
+    Failed,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum EmptyError {
+    #[error("empty")]
+    Err,
 }

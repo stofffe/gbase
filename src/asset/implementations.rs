@@ -1,8 +1,8 @@
 use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
 use crate::{
-    asset::{ConvertRenderAssetResult, EmptyError, GetAssetResult},
+    asset::{ConvertAssetStatus, EmptyError, GetAssetResult},
     filesystem,
-    render::{self, next_id, ArcHandle, GpuImage},
+    render::{self, GpuImage},
     Context,
 };
 
@@ -21,15 +21,14 @@ impl ConvertableRenderAsset for render::GpuMesh {
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertRenderAssetResult<Self> {
+    ) -> ConvertAssetStatus<Self> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
-            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Loaded(source) => source,
         };
         let gpu_mesh = render::GpuMesh::new(ctx, source);
-        let handle = ArcHandle::new(ctx, gpu_mesh);
-        ConvertRenderAssetResult::Success(handle)
+        ConvertAssetStatus::Success(gpu_mesh)
     }
 }
 
@@ -39,18 +38,18 @@ impl ConvertableRenderAsset for render::BoundingBox {
     type Error = EmptyError;
 
     fn convert(
-        ctx: &mut Context,
+        _ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertRenderAssetResult<Self> {
+    ) -> ConvertAssetStatus<Self> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
-            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Loaded(source) => source,
         };
 
-        let handle = ArcHandle::new(ctx, source.calculate_bounding_box());
-        ConvertRenderAssetResult::Success(handle)
+        let bounding_box = source.calculate_bounding_box();
+        ConvertAssetStatus::Success(bounding_box)
     }
 }
 
@@ -93,10 +92,10 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertRenderAssetResult<Self> {
+    ) -> ConvertAssetStatus<Self> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
-            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Loaded(source) => source,
         };
 
@@ -108,12 +107,10 @@ impl ConvertableRenderAsset for wgpu::ShaderModule {
         #[cfg(not(target_arch = "wasm32"))]
         {
             match source.build_err_non_arc(ctx) {
-                Ok(shader_module) => {
-                    ConvertRenderAssetResult::Success(ArcHandle::new(ctx, shader_module))
-                }
+                Ok(shader_module) => ConvertAssetStatus::Success(shader_module),
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);
-                    ConvertRenderAssetResult::Failed
+                    ConvertAssetStatus::Failed
                 }
             }
         }
@@ -162,10 +159,10 @@ impl ConvertableRenderAsset for render::GpuImage {
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertRenderAssetResult<Self> {
+    ) -> ConvertAssetStatus<Self> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertRenderAssetResult::AssetLoading,
-            GetAssetResult::Failed => return ConvertRenderAssetResult::Failed,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Loaded(source) => source,
         };
 
@@ -173,7 +170,7 @@ impl ConvertableRenderAsset for render::GpuImage {
         let texture = source.texture.build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
 
-        let handle = ArcHandle::new(ctx, GpuImage::new(texture, view, sampler));
-        ConvertRenderAssetResult::Success(handle)
+        let gpu_image = GpuImage::new(texture, view, sampler);
+        ConvertAssetStatus::Success(gpu_image)
     }
 }

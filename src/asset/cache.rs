@@ -4,33 +4,46 @@ use super::{
 };
 use crate::{
     asset::{
-        self, ConvertRenderAssetResult, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
-        LoadedAssetBuilder,
+        self, ConvertAssetStatus, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
+        LoadedAssetBuilder, RenderAssetKey,
     },
-    render::{next_id, ArcHandle},
+    render::ArcHandle,
     Context,
 };
 use futures_channel::mpsc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
-    any::{type_name, Any, TypeId},
+    any::{Any, TypeId},
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
 };
-use wgpu::wgc::id::markers::ShaderModule;
 
-pub enum AssetResult {
+pub enum LoadAssetResult {
     Loading,
-    Loaded(DynAsset),
+    Success(DynAsset),
     Error,
 }
 
-pub type RenderAssetKey = (DynAssetHandle, TypeId);
+pub enum ConvertAssetResult<T: ConvertableRenderAsset> {
+    Loading,
+    Success(ArcHandle<T>),
+    Failed,
+}
+
+impl<T: ConvertableRenderAsset> ConvertAssetResult<T> {
+    pub fn unwrap_success(self) -> ArcHandle<T> {
+        match self {
+            ConvertAssetResult::Loading => panic!("unwrap success failed"),
+            ConvertAssetResult::Failed => panic!("unwrap success failed"),
+            ConvertAssetResult::Success(arc_handle) => arc_handle,
+        }
+    }
+}
 
 pub struct AssetCache {
-    cache: FxHashMap<DynAssetHandle, AssetResult>,
+    cache: FxHashMap<DynAssetHandle, LoadAssetResult>,
 
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
@@ -39,8 +52,8 @@ pub struct AssetCache {
     // async loading
     currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
-    load_sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
-    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, AssetResult)>,
+    load_sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
+    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, LoadAssetResult)>,
 
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
@@ -124,18 +137,16 @@ impl AssetCache {
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.cache
-            .insert(handle.as_any(), AssetResult::Loaded(Box::new(data)));
+            .insert(handle.as_any(), LoadAssetResult::Success(Box::new(data)));
         handle
     }
 
-    // TODO: add get_or_default (e.g. 1x1 white pixel for image)
-    // could return error union [Ok, Invalid, Loading]
     pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
         let Some(asset) = self.cache.get(&handle.as_any()) else {
             return GetAssetResult::Failed;
         };
 
-        let AssetResult::Loaded(asset) = asset else {
+        let LoadAssetResult::Success(asset) = asset else {
             return GetAssetResult::Loading;
         };
 
@@ -155,7 +166,7 @@ impl AssetCache {
             return GetAssetResultMut::Failed;
         };
 
-        let AssetResult::Loaded(asset) = asset else {
+        let LoadAssetResult::Success(asset) = asset else {
             return GetAssetResultMut::Loading;
         };
 
@@ -226,13 +237,13 @@ impl AssetCache {
                     Ok(asset) => loaded_sender_clone
                         .unbounded_send((
                             handle_clone.as_any(),
-                            AssetResult::Loaded(Box::new(asset)),
+                            LoadAssetResult::Success(Box::new(asset)),
                         ))
                         .expect("could not send"),
                     Err(err) => {
                         tracing::error!("error loading asset {:?}: {}", path, err);
                         loaded_sender_clone
-                            .unbounded_send((handle_clone.as_any(), AssetResult::Error))
+                            .unbounded_send((handle_clone.as_any(), LoadAssetResult::Error))
                             .expect("could not send");
                     }
                 }
@@ -258,7 +269,7 @@ impl AssetCache {
         &mut self,
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
-    ) -> ConvertRenderAssetResult<G> {
+    ) -> ConvertAssetResult<G> {
         let key = (handle.clone().as_any(), TypeId::of::<G>());
 
         let render_asset_handle = match self.render_cache.get(&key) {
@@ -266,31 +277,28 @@ impl AssetCache {
             // Some(render_asset_handle) => todo!(),
             None => {
                 match G::convert(ctx, self, handle.clone()) {
-                    ConvertRenderAssetResult::AssetLoading => {
-                        return ConvertRenderAssetResult::AssetLoading
-                    }
+                    ConvertAssetStatus::Loading => return ConvertAssetResult::Loading,
 
                     // TODO: insert last valid so we dont hit this each time?
-                    ConvertRenderAssetResult::Failed => {
-                        match self.render_cache_last_valid.get(&key) {
-                            Some(asset_handle) => {
-                                tracing::warn!(
-                                    "assert conversion failed, using last valid version instead"
-                                );
-                                self.render_cache.insert(key.clone(), asset_handle.clone());
-                                asset_handle.clone()
-                            }
-                            None => {
-                                tracing::error!(
-                                    "asset conversion failed, no last valid version was found"
-                                );
-                                return ConvertRenderAssetResult::Failed;
-                            }
+                    ConvertAssetStatus::Failed => match self.render_cache_last_valid.get(&key) {
+                        Some(asset_handle) => {
+                            tracing::warn!(
+                                "assert conversion failed, using last valid version instead"
+                            );
+                            self.render_cache.insert(key.clone(), asset_handle.clone());
+                            asset_handle.clone()
                         }
-                    }
+                        None => {
+                            tracing::error!(
+                                "asset conversion failed, no last valid version was found"
+                            );
+                            return ConvertAssetResult::Failed;
+                        }
+                    },
 
-                    ConvertRenderAssetResult::Success(render_asset_handle) => {
-                        let render_asset_any_handle = render_asset_handle.upcast();
+                    ConvertAssetStatus::Success(render_asset_handle) => {
+                        let render_asset_any_handle =
+                            ArcHandle::new(ctx, render_asset_handle).upcast();
                         // actual cache
                         self.render_cache
                             .insert(key.clone(), render_asset_any_handle.clone());
@@ -313,7 +321,7 @@ impl AssetCache {
             .downcast::<G>()
             .expect("could not downcast render any handle");
 
-        ConvertRenderAssetResult::Success(typed_handle)
+        ConvertAssetResult::Success(typed_handle)
     }
 
     //
@@ -397,13 +405,13 @@ impl AssetCache {
 
 #[derive(Debug, Clone)]
 pub struct LoadContext {
-    sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
+    sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
     asset_handle_ctx: AssetHandleContext,
 }
 
 impl LoadContext {
     pub fn new(
-        sender: mpsc::UnboundedSender<(DynAssetHandle, AssetResult)>,
+        sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
         asset_handle_ctx: AssetHandleContext,
     ) -> Self {
         Self {
@@ -415,7 +423,7 @@ impl LoadContext {
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.sender
-            .unbounded_send((handle.as_any(), AssetResult::Loaded(Box::new(value))))
+            .unbounded_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
             .expect("could not send asset handle");
         handle
     }
@@ -508,10 +516,10 @@ impl AssetCacheExt {
                 Box::new(move |load_ctx, path| {
                     let result = pollster::block_on(loader.clone().load(load_ctx, path));
                     match result {
-                        Ok(asset) => AssetResult::Loaded(Box::new(asset)),
+                        Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
                         Err(err) => {
                             tracing::error!("could not reload asset {:?}: {}", path, err);
-                            AssetResult::Error
+                            LoadAssetResult::Error
                         }
                     }
                 })
@@ -545,14 +553,14 @@ impl AssetCacheExt {
     }
 
     // check if any files are scheduled for writing to disk
-    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, AssetResult>) {
+    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>) {
         for handle in self.write_dirty.drain() {
             if let Some(path) = self.write_handles.get(&handle) {
                 let asset = cache.get_mut(&handle);
 
                 // write if loaded
                 if let Some(asset) = asset {
-                    let AssetResult::Loaded(asset) = asset else {
+                    let LoadAssetResult::Success(asset) = asset else {
                         panic!("tried to poll write on asset not loaded");
                     };
 
@@ -575,7 +583,7 @@ impl AssetCacheExt {
     // checks if any files changed and spawns a thread which reloads the data
     pub fn poll_reload(
         &mut self,
-        cache: &mut FxHashMap<DynAssetHandle, AssetResult>,
+        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
         render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         just_loaded: &mut FxHashSet<DynAssetHandle>,
@@ -643,7 +651,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
         &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-    ) -> ConvertRenderAssetResult<G> {
+    ) -> ConvertAssetResult<G> {
         cache.convert(ctx, self.clone())
     }
 }

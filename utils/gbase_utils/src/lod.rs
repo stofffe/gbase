@@ -1,11 +1,11 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertRenderAssetResult,
+        self, Asset, AssetCache, AssetHandle, AssetLoader, AssetWriter, ConvertAssetStatus,
         ConvertableRenderAsset, EmptyError, LoadContext, RenderAsset,
     },
     filesystem,
-    render::{self, next_id, ArcHandle, BoundingBox, VertexAttributeId},
+    render::{self, BoundingBox, VertexAttributeId},
     tracing,
 };
 use std::{collections::BTreeSet, ops::Deref};
@@ -157,17 +157,15 @@ impl ConvertableRenderAsset for BoundingBoxWrapper {
     type Error = EmptyError;
 
     fn convert(
-        ctx: &mut gbase::Context,
+        _ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertRenderAssetResult<Self> {
+    ) -> ConvertAssetStatus<Self> {
         let source = cache.get(source.clone()).unwrap_loaded();
         let handle = source.meshes[0].0.clone();
 
-        let handle = ArcHandle::new(
-            ctx,
-            BoundingBoxWrapper(handle.get(cache).unwrap_loaded().calculate_bounding_box()),
-        );
-        ConvertRenderAssetResult::Success(handle)
+        let bounding_box =
+            BoundingBoxWrapper(handle.get(cache).unwrap_loaded().calculate_bounding_box());
+        ConvertAssetStatus::Success(bounding_box)
     }
 }
