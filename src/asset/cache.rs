@@ -33,10 +33,15 @@ pub enum ConvertAssetResult<T: ConvertableRenderAsset> {
 }
 
 impl<T: ConvertableRenderAsset> ConvertAssetResult<T> {
+    /// Unwrap the result as a success
+    ///
+    /// Panics for other values than
     pub fn unwrap_success(self) -> ArcHandle<T> {
         match self {
-            ConvertAssetResult::Loading => panic!("unwrap success failed"),
-            ConvertAssetResult::Failed => panic!("unwrap success failed"),
+            ConvertAssetResult::Loading => {
+                panic!("asset conversion loading: unwrap success failed")
+            }
+            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
             ConvertAssetResult::Success(arc_handle) => arc_handle,
         }
     }
