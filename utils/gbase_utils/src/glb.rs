@@ -15,6 +15,9 @@ pub struct GltfLoadCache {
     named_meshes: HashMap<Box<str>, AssetHandle<GltfMesh>>,
 
     materials: HashMap<usize, AssetHandle<Material>>,
+
+    images: HashMap<usize, AssetHandle<Image>>,
+    single_pixel_images: HashMap<[u8; 4], AssetHandle<Image>>,
 }
 
 impl GltfLoadCache {
@@ -25,6 +28,8 @@ impl GltfLoadCache {
             meshes: HashMap::new(),
             named_meshes: HashMap::new(),
             materials: HashMap::new(),
+            images: HashMap::new(),
+            single_pixel_images: HashMap::new(),
         }
     }
 }
@@ -333,10 +338,18 @@ pub fn parse_gltf_material(
     }
 
     fn load_image(
+        load_ctx: &LoadContext,
+        gltf_cache: &mut GltfLoadCache,
         buffer: &[u8],
         texture: &gltf::texture::Texture<'_>,
         format: wgpu::TextureFormat,
-    ) -> Image {
+    ) -> AssetHandle<Image> {
+        if let Some(image) = gltf_cache.images.get(&texture.index()) {
+            tracing::info!("Loaded {:?} from gltf image cache", texture.index());
+            return image.clone();
+        }
+        // TODO: look in cache using index
+
         let image = texture.source();
         let gltf::image::Source::View { view, mime_type } = image.source() else {
             panic!("image source URI not supported");
@@ -357,7 +370,7 @@ pub fn parse_gltf_material(
             .expect("could not load")
             .with_format(format);
 
-        Image {
+        let image = Image {
             texture: texture_builder,
             sampler: SamplerBuilder::new()
                 .min_mag_filter(
@@ -400,16 +413,33 @@ pub fn parse_gltf_material(
                     },
                     wgpu::AddressMode::default(),
                 ),
-        }
+        };
+
+        let handle = load_ctx.insert(image);
+        gltf_cache.images.insert(texture.index(), handle.clone());
+        handle
     }
 
-    fn single_pixel_image(color: [u8; 4]) -> Image {
-        Image {
+    // TODO: use cache here aswell
+    fn single_pixel_image(
+        load_ctx: &LoadContext,
+        gltf_cache: &mut GltfLoadCache,
+        color: [u8; 4],
+    ) -> AssetHandle<Image> {
+        if let Some(image) = gltf_cache.single_pixel_images.get(&color) {
+            tracing::info!("Loaded {:?} from gltf single pixel cache", color);
+            return image.clone();
+        }
+        let image = Image {
             texture: render::TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec()))
                 .with_format(wgpu::TextureFormat::Rgba8Unorm),
             sampler: render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
-        }
+        };
+
+        let handle = load_ctx.insert(image);
+        gltf_cache.single_pixel_images.insert(color, handle.clone());
+        handle
     }
 
     const BASE_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -433,13 +463,15 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (albedo)"
             );
-            let image = load_image(buffer, &info.texture(), BASE_COLOR_FORMAT);
-            load_ctx.insert(image)
+            load_image(
+                load_ctx,
+                gltf_cache,
+                buffer,
+                &info.texture(),
+                BASE_COLOR_FORMAT,
+            )
         }
-        None => {
-            let image = single_pixel_image(BASE_COLOR_DEFAULT);
-            load_ctx.insert(image)
-        }
+        None => single_pixel_image(load_ctx, gltf_cache, BASE_COLOR_DEFAULT),
     };
 
     let roughness_factor = pbr.roughness_factor();
@@ -450,13 +482,15 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (metallic roughness)"
             );
-            let image = load_image(buffer, &info.texture(), METALLIC_ROUGHNESS_FORMAT);
-            load_ctx.insert(image)
+            load_image(
+                load_ctx,
+                gltf_cache,
+                buffer,
+                &info.texture(),
+                METALLIC_ROUGHNESS_FORMAT,
+            )
         }
-        None => {
-            let image = single_pixel_image(METALLIC_ROUGHNESS_DEFAULT);
-            load_ctx.insert(image)
-        }
+        None => single_pixel_image(load_ctx, gltf_cache, METALLIC_ROUGHNESS_DEFAULT),
     };
 
     let (occlusion_texture, occlusion_strength) = match material.occlusion_texture() {
@@ -465,12 +499,18 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (occlusion)"
             );
-            let image = load_image(buffer, &info.texture(), OCCLUSION_FORMAT);
-            (load_ctx.insert(image), info.strength())
+            let image = load_image(
+                load_ctx,
+                gltf_cache,
+                buffer,
+                &info.texture(),
+                OCCLUSION_FORMAT,
+            );
+            (image, info.strength())
         }
         None => {
-            let image = single_pixel_image(OCCLUSION_DEFAULT);
-            (load_ctx.insert(image), 1.0)
+            let image = single_pixel_image(load_ctx, gltf_cache, OCCLUSION_DEFAULT);
+            (image, 1.0)
         }
     };
 
@@ -480,12 +520,12 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (normal)"
             );
-            let image = load_image(buffer, &info.texture(), NORMAL_FORMAT);
-            (load_ctx.insert(image), info.scale())
+            let image = load_image(load_ctx, gltf_cache, buffer, &info.texture(), NORMAL_FORMAT);
+            (image, info.scale())
         }
         None => {
-            let image = single_pixel_image(NORMAL_DEFAULT);
-            (load_ctx.insert(image), 1.0)
+            let image = single_pixel_image(load_ctx, gltf_cache, NORMAL_DEFAULT);
+            (image, 1.0)
         }
     };
 
@@ -496,13 +536,15 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (emissive)"
             );
-            let image = load_image(buffer, &info.texture(), EMMISIVE_FORMAT);
-            load_ctx.insert(image)
+            load_image(
+                load_ctx,
+                gltf_cache,
+                buffer,
+                &info.texture(),
+                EMMISIVE_FORMAT,
+            )
         }
-        None => {
-            let image = single_pixel_image(EMISSIVE_DEFAULT);
-            load_ctx.insert(image)
-        }
+        None => single_pixel_image(load_ctx, gltf_cache, EMISSIVE_DEFAULT),
     };
 
     let material_handle = load_ctx.insert(Material {
