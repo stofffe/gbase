@@ -1,6 +1,9 @@
 use gbase::{
     asset::{AssetCache, AssetHandle, ConvertAssetResult, ShaderLoader},
-    bytemuck, render, wgpu,
+    bytemuck,
+    glam::vec3,
+    render::{self, BindGroupBindable},
+    wgpu,
 };
 
 pub struct UIRenderer {
@@ -8,6 +11,9 @@ pub struct UIRenderer {
     bindgroup_layout: render::ArcBindGroupLayout,
     pipeline_layout: render::ArcPipelineLayout,
     instance_buffer: render::RawBuffer<UIElementInstace>,
+
+    // TODO: replace with simpler glam::ortho projection?
+    camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
 }
 
 impl UIRenderer {
@@ -18,7 +24,10 @@ impl UIRenderer {
             .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
-            .entries(vec![])
+            .entries(vec![
+                // projection
+                render::BindGroupLayoutEntry::new().uniform().vertex(),
+            ])
             .build(ctx);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -26,11 +35,16 @@ impl UIRenderer {
             .build(ctx);
         let instance_buffer = render::RawBufferBuilder::new(max_elements).build(ctx);
 
+        let camera_buffer = render::UniformBufferBuilder::new()
+            .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
+            .build(ctx);
+
         Self {
             pipeline_layout,
             bindgroup_layout,
             shader_handle,
             instance_buffer,
+            camera_buffer,
         }
     }
 
@@ -47,9 +61,24 @@ impl UIRenderer {
         };
 
         self.instance_buffer.write(ctx, &ui_elements);
+        let screen_size = render::surface_size(ctx);
+        self.camera_buffer.write(
+            ctx,
+            &gbase_utils::Camera::new(
+                screen_size.width as f32 / screen_size.height as f32,
+                gbase_utils::CameraProjection::Orthographic {
+                    height: screen_size.height as f32,
+                },
+            )
+            .pos(vec3(0.0, 0.0, 0.1))
+            .uniform(),
+        );
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
-            .entries(vec![])
+            .entries(vec![
+                // camera projection
+                self.camera_buffer.bindgroup_entry(),
+            ])
             .build(ctx);
 
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())

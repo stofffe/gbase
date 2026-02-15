@@ -35,7 +35,7 @@ impl Callbacks for App {
         let elements = vec![
             UIElementInstace {
                 position: [0.0, 0.0],
-                size: [0.1, 0.1],
+                size: [200.0, 100.0],
                 color: [1.0, 0.0, 0.0, 1.0],
             },
             UIElementInstace {
