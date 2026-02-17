@@ -1,21 +1,6 @@
 diagnostic (off, derivative_uniformity);
 
-@group(0) @binding(0) var<uniform> camera: Camera;
-
-struct Camera {
-    pos: vec3f,
-    near: f32,
-    facing: vec3f,
-    far: f32,
-
-    view: mat4x4f,
-    proj: mat4x4f,
-    view_proj: mat4x4f,
-
-    inv_view: mat4x4f,
-    inv_proj: mat4x4f,
-    inv_view_proj: mat4x4f,
-}
+@group(0) @binding(0) var <uniform> projection: mat4x4f;
 
 struct VertexInput {
     // instance
@@ -39,9 +24,11 @@ fn vs_main(
     );
 
     let pixel_pos = in.position + (uv) * in.size;
-    let position = camera.view_proj * vec4f(pixel_pos, 0.0, 1.0);
 
-    out.clip_position = position * vec4f(1.0,-1.0,1.0,1.0);
+    // let position = camera.view_proj * vec4f(pixel_pos, 0.0, 1.0);
+    let position = projection * vec4f(pixel_pos, 0.0, 1.0);
+
+    out.clip_position = position;
     out.uv = uv;
     out.color = in.color;
 

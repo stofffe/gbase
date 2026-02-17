@@ -1,7 +1,7 @@
 use gbase::{
     asset::{AssetCache, AssetHandle, ConvertAssetResult, ShaderLoader},
     bytemuck,
-    glam::vec3,
+    glam::{self, vec3, Mat4},
     render::{self, BindGroupBindable},
     wgpu,
 };
@@ -13,7 +13,8 @@ pub struct UIRenderer {
     instance_buffer: render::RawBuffer<UIElementInstace>,
 
     // TODO: replace with simpler glam::ortho projection?
-    camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    // would probably also solve centering problem
+    projection: render::UniformBuffer<glam::Mat4>, // camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
 }
 
 impl UIRenderer {
@@ -35,7 +36,7 @@ impl UIRenderer {
             .build(ctx);
         let instance_buffer = render::RawBufferBuilder::new(max_elements).build(ctx);
 
-        let camera_buffer = render::UniformBufferBuilder::new()
+        let projection = render::UniformBufferBuilder::new()
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 
@@ -44,7 +45,7 @@ impl UIRenderer {
             bindgroup_layout,
             shader_handle,
             instance_buffer,
-            camera_buffer,
+            projection,
         }
     }
 
@@ -62,22 +63,33 @@ impl UIRenderer {
 
         self.instance_buffer.write(ctx, &ui_elements);
         let screen_size = render::surface_size(ctx);
-        self.camera_buffer.write(
+        self.projection.write(
             ctx,
-            &gbase_utils::Camera::new(
-                screen_size.width as f32 / screen_size.height as f32,
-                gbase_utils::CameraProjection::Orthographic {
-                    height: screen_size.height as f32,
-                },
-            )
-            .pos(vec3(0.0, 0.0, 0.1))
-            .uniform(),
+            &Mat4::orthographic_rh(
+                0.0,
+                screen_size.width as f32,
+                screen_size.height as f32,
+                0.0,
+                0.0,
+                1.0,
+            ),
         );
+        // let projection = self.camera_buffer.write(
+        //     ctx,
+        //     &gbase_utils::Camera::new(
+        //         screen_size.width as f32 / screen_size.height as f32,
+        //         gbase_utils::CameraProjection::Orthographic {
+        //             height: screen_size.height as f32,
+        //         },
+        //     )
+        //     .pos(vec3(0.0, 0.0, 0.1))
+        //     .uniform(),
+        // );
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // camera projection
-                self.camera_buffer.bindgroup_entry(),
+                self.projection.bindgroup_entry(),
             ])
             .build(ctx);
 
