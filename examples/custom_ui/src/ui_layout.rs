@@ -1,10 +1,80 @@
-use gbase::{
-    glam::Vec4,
-    glam::{vec2, Vec2},
-};
+use gbase::glam::{vec2, Vec2, Vec4};
+
+use crate::ui_renderer::UIElementInstace;
+
+const ROOT_ELEMENT: usize = 0;
+
+pub struct UILayouter {
+    // screen_size: Vec2,
+    // elements: Vec<UIElement>,
+}
+
+impl UILayouter {
+    pub fn new() -> Self {
+        Self {
+            // screen_size,
+            // elements: vec![UIElement::root(screen_size.x, screen_size.y)],
+        }
+    }
+
+    // pub fn add_element(&mut self, mut element: UIElement) {
+    //     element.parent = ROOT_ELEMENT;
+    //     self.elements.push(element);
+    //
+    //     let element_index = self.elements.len() - 1;
+    //     self.elements[ROOT_ELEMENT].children.push(element_index);
+    // }
+    //
+    // pub fn clear_elements(&mut self) {
+    //     self.elements = vec![UIElement::root(self.screen_size.x, self.screen_size.y)];
+    // }
+    //
+    // pub fn layout_elements(&mut self) {}
+    // pub fn convert_elements(&self) -> Vec<UIElementInstace> {
+    //     let mut instances = Vec::new();
+    //     for element in self.elements.iter().skip(1) {
+    //         instances.push(UIElementInstace {
+    //             position: element.pos.to_array(),
+    //             size: element.dimensions.to_array(),
+    //             color: element.background_color.to_array(),
+    //         });
+    //     }
+    //     instances
+    // }
+
+    pub fn layout_elements(
+        &mut self,
+        screen_size: Vec2,
+        elements: Vec<UIElement>,
+    ) -> Vec<UIElementInstace> {
+        let root = UIElement {
+            pos: Vec2::ZERO,
+            dimensions: screen_size,
+            background_color: Vec4::ZERO,
+            parent: ROOT_ELEMENT,
+            children: Vec::new(),
+        };
+
+        // layout
+
+        // convert
+
+        let mut instances = Vec::new();
+
+        for element in elements.iter() {
+            instances.push(UIElementInstace {
+                position: element.pos.to_array(),
+                size: element.dimensions.to_array(),
+                color: element.background_color.to_array(),
+            });
+        }
+
+        instances
+    }
+}
 
 #[derive(Debug)]
-struct UIElement {
+pub struct UIElement {
     pos: Vec2,
     dimensions: Vec2,
     background_color: Vec4,
@@ -16,13 +86,22 @@ struct UIElement {
 impl UIElement {
     pub fn new() -> Self {
         Self {
-            pos: vec2(0.0, 0.0),
-            dimensions: vec2(0.0, 0.0),
+            pos: Vec2::ZERO,
+            dimensions: Vec2::ZERO,
+            background_color: Vec4::ZERO,
+            parent: ROOT_ELEMENT,
             children: Vec::new(),
-            background_color: todo!(),
-            parent: 0,
         }
     }
+    // pub fn root(width: f32, height: f32) -> Self {
+    //     Self {
+    //         pos: Vec2::ZERO,
+    //         dimensions: vec2(width, height),
+    //         background_color: Vec4::ZERO,
+    //         parent: 0,
+    //         children: Vec::new(),
+    //     }
+    // }
 
     //
     // Attributes
@@ -45,24 +124,13 @@ impl UIElement {
     // Layout and interaction
     //
 
-    pub fn layout(mut self, children: fn(&mut Self)) -> Self {
+    pub fn draw_with_children(mut self, children: fn(&mut Self)) -> Self {
         children(&mut self);
 
-        self.close();
+        self.draw();
 
         self
     }
 
-    pub fn close(&mut self) {}
-}
-
-struct UILayoutState {
-    root: UIElement,
-}
-
-impl UILayoutState {
-    pub fn new() -> Self {
-        let root = UIElement::new();
-        Self { root }
-    }
+    pub fn draw(&mut self) {}
 }

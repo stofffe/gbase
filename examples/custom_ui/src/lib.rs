@@ -1,9 +1,12 @@
 mod ui_layout;
 mod ui_renderer;
 
-use gbase::{asset, render, wgpu, CallbackResult, Callbacks, Context};
+use gbase::{asset, glam::vec2, render, wgpu, CallbackResult, Callbacks, Context};
 
-use crate::ui_renderer::{UIElementInstace, UIRenderer};
+use crate::{
+    ui_layout::{UIElement, UILayouter},
+    ui_renderer::{UIElementInstace, UIRenderer},
+};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -12,6 +15,7 @@ pub async fn run() {
 
 struct App {
     renderer: UIRenderer,
+    layouter: UILayouter,
 }
 
 impl Callbacks for App {
@@ -22,7 +26,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
         let renderer = UIRenderer::new(ctx, cache, 1024);
-        Self { renderer }
+        let layouter = UILayouter::new();
+        Self { renderer, layouter }
     }
 
     #[no_mangle]
@@ -33,27 +38,39 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         let elements = vec![
-            UIElementInstace {
-                position: [0.0, 0.0],
-                size: [200.0, 100.0],
-                color: [1.0, 0.0, 0.0, 1.0],
-            },
-            UIElementInstace {
-                position: [0.0, 0.5],
-                size: [0.1, 0.2],
-                color: [0.0, 0.0, 1.0, 1.0],
-            },
-            UIElementInstace {
-                position: [0.5, 0.0],
-                size: [0.2, 0.1],
-                color: [0.0, 0.0, 1.0, 1.0],
-            },
-            UIElementInstace {
-                position: [0.5, 0.5],
-                size: [0.2, 0.2],
-                color: [0.0, 0.0, 1.0, 1.0],
-            },
+            UIElement::new()
+                .pos(vec2(0.0, 0.0))
+                .dimensions(vec2(200.0, 100.0)),
+            UIElement::new()
+                .pos(vec2(0.0, 200.0))
+                .dimensions(vec2(30.0, 120.0)), // UIElement {
+                                                //     position: [0.0, 0.0],
+                                                //     size: [200.0, 100.0],
+                                                //     color: [1.0, 0.0, 0.0, 1.0],
+                                                // },
+                                                // UIElement {
+                                                //     position: [0.0, 200.0],
+                                                //     size: [30.0, 120.0],
+                                                //     color: [0.0, 0.0, 1.0, 1.0],
+                                                // },
+                                                // UIElement {
+                                                //     position: [200.0, 0.0],
+                                                //     size: [130.0, 120.0],
+                                                //     color: [0.0, 0.0, 1.0, 1.0],
+                                                // },
+                                                // UIElement {
+                                                //     position: [200.0, 350.0],
+                                                //     size: [500.0, 400.0],
+                                                //     color: [0.0, 0.0, 1.0, 1.0],
+                                                // },
         ];
+
+        let screen_size = render::surface_size(ctx);
+        let elements = self.layouter.layout_elements(
+            vec2(screen_size.width as f32, screen_size.height as f32),
+            elements,
+        );
+
         self.renderer.render(
             ctx,
             cache,

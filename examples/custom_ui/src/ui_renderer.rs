@@ -1,7 +1,7 @@
 use gbase::{
     asset::{AssetCache, AssetHandle, ConvertAssetResult, ShaderLoader},
     bytemuck,
-    glam::{self, vec3, Mat4},
+    glam::{self, Mat4},
     render::{self, BindGroupBindable},
     wgpu,
 };
@@ -10,11 +10,10 @@ pub struct UIRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
     bindgroup_layout: render::ArcBindGroupLayout,
     pipeline_layout: render::ArcPipelineLayout,
+
     instance_buffer: render::RawBuffer<UIElementInstace>,
 
-    // TODO: replace with simpler glam::ortho projection?
-    // would probably also solve centering problem
-    projection: render::UniformBuffer<glam::Mat4>, // camera_buffer: render::UniformBuffer<gbase_utils::CameraUniform>,
+    projection: render::UniformBuffer<glam::Mat4>,
 }
 
 impl UIRenderer {
@@ -74,21 +73,10 @@ impl UIRenderer {
                 1.0,
             ),
         );
-        // let projection = self.camera_buffer.write(
-        //     ctx,
-        //     &gbase_utils::Camera::new(
-        //         screen_size.width as f32 / screen_size.height as f32,
-        //         gbase_utils::CameraProjection::Orthographic {
-        //             height: screen_size.height as f32,
-        //         },
-        //     )
-        //     .pos(vec3(0.0, 0.0, 0.1))
-        //     .uniform(),
-        // );
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
-                // camera projection
+                // projection
                 self.projection.bindgroup_entry(),
             ])
             .build(ctx);
