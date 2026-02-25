@@ -1,8 +1,7 @@
-use std::collections::VecDeque;
-
 use gbase::{
     glam::{f32, vec2, Vec2, Vec4},
     tracing,
+    wgpu::naga::proc::Layouter,
 };
 
 use crate::ui_renderer::UIElementInstace;
@@ -33,9 +32,9 @@ impl UILayouter {
     }
 
     pub fn add_element(&mut self, element: UIElement, children: fn(&mut Self)) {
-        let index = self.open_element(element);
+        self.open_element(element);
         children(self);
-        self.close_element(index);
+        self.close_element();
     }
 
     pub fn open_element(&mut self, mut element: UIElement) -> usize {
@@ -62,58 +61,66 @@ impl UILayouter {
     //
     // TODO: percent should set dimensions to 0?
     // clamp values?
-    pub fn close_element(&mut self, elem: usize) {
-        // padding
-        let padding = self.elems[elem].padding.clone();
-        let padding_left_right = padding.left + padding.right;
-        let padding_top_bottom = padding.bottom + padding.top;
-        self.elems[elem].width = padding_left_right;
-        self.elems[elem].height = padding_top_bottom;
+    pub fn close_element(&mut self) {
+        // TODO: could element stack be used instead of index?
+        // self.element_stack.pop();
+        // let element = &self.elems[elem_index];
+        let element_index = self
+            .element_stack
+            .pop()
+            .expect("element stack should never be empty when closing an element");
+        let element = &self.elems[element_index];
 
-        // huh
-        match self.elems[elem].sizing_x {
-            Sizing::Fixed(width) => self.elems[elem].width += width,
-            Sizing::Fit => {}
-        }
-        match self.elems[elem].sizing_y {
-            Sizing::Fixed(height) => self.elems[elem].height += height,
-            Sizing::Fit => {}
-        }
+        // calculate childrens combined size
+        let mut children_width = 0.0;
+        let mut children_height = 0.0;
 
-        // gap size
-        let child_count = self.elems[elem].children.len().saturating_sub(1);
-        let total_child_gap = child_count as f32 * self.elems[elem].child_gap;
-
-        match self.elems[elem].child_direction {
+        let child_count = element.children.len().saturating_sub(1);
+        let total_child_gap = child_count as f32 * element.child_gap;
+        match element.layout_direction {
             LayoutDirection::LeftToRight => {
                 // gap
-                self.elems[elem].width += total_child_gap;
+                children_width += total_child_gap;
 
                 // accumulate children sizes
-                for child in self.elems[elem].children.clone().into_iter() {
-                    self.elems[elem].width += self.elems[child].width;
-                    self.elems[elem].height = f32::max(
-                        self.elems[elem].height,
-                        self.elems[child].height + padding_top_bottom,
-                    );
+                for child_index in element.children.clone().into_iter() {
+                    let child = &self.elems[child_index];
+                    children_width += child.width;
+                    children_height = f32::max(children_height, child.height);
                 }
             }
             LayoutDirection::TopToBottom => {
                 // gap
-                self.elems[elem].height += total_child_gap;
+                children_height += total_child_gap;
 
                 // accumulate children sizes
-                for child in self.elems[elem].children.clone().into_iter() {
-                    self.elems[elem].height += self.elems[child].height;
-                    self.elems[elem].width = f32::max(
-                        self.elems[elem].width,
-                        self.elems[child].width + padding_left_right,
-                    );
+                for child_index in element.children.clone().into_iter() {
+                    let child = &self.elems[child_index];
+                    children_height += child.height;
+                    children_width = f32::max(children_width, child.width);
                 }
             }
         }
 
-        self.element_stack.pop();
+        // calculate fixed size
+        let width = match element.sizing_x {
+            Sizing::Fixed(fixed_width) => fixed_width,
+            Sizing::Fit => children_width,
+        };
+        let height = match element.sizing_y {
+            Sizing::Fixed(fixed_height) => fixed_height,
+            Sizing::Fit => children_height,
+        };
+
+        // add padding
+        let padding = element.padding.clone();
+        let padding_left_right = padding.left + padding.right;
+        let padding_top_bottom = padding.bottom + padding.top;
+
+        let final_width = width + padding_left_right;
+        let final_height = height + padding_top_bottom;
+        self.elems[element_index].width = final_width;
+        self.elems[element_index].height = final_height;
     }
 
     pub fn layout_elements(&mut self) -> Vec<UIElementInstace> {
@@ -123,6 +130,7 @@ impl UILayouter {
         let mut stack = Vec::new();
         stack.push(ROOT_ELEMENT);
 
+        // DFS from root
         while let Some(elem) = stack.pop() {
             let x = self.elems[elem].x + self.elems[elem].padding.left;
             let y = self.elems[elem].y + self.elems[elem].padding.top;
@@ -130,7 +138,7 @@ impl UILayouter {
             let child_gap = self.elems[elem].child_gap;
             let mut offset = 0.0;
 
-            match self.elems[elem].child_direction {
+            match self.elems[elem].layout_direction {
                 LayoutDirection::LeftToRight => {
                     for child in self.elems[elem].children.clone().into_iter() {
                         self.elems[child].x = x + offset;
@@ -164,57 +172,7 @@ impl UILayouter {
             });
         }
         instances
-
-        // self.layout_size();
-        // self.layout_position();
-        // self.convert()
     }
-
-    fn layout_size(&mut self) {}
-
-    fn layout_position(&mut self) {}
-
-    fn convert(&mut self) -> Vec<UIElementInstace> {
-        let mut instances = Vec::new();
-        for elem in self.elems.iter().skip(1) {
-            instances.push(UIElementInstace {
-                position: [elem.x, elem.y],
-                size: [elem.width, elem.height],
-                color: elem.background_color.to_array(),
-            });
-        }
-        instances
-    }
-
-    //     pub fn layout_elements(
-    //         &mut self,
-    //         screen_size: Vec2,
-    //         elements: Vec<UIElement>,
-    //     ) -> Vec<UIElementInstace> {
-    //         let root = UIElement {
-    //             pos: Vec2::ZERO,
-    //             dimensions: screen_size,
-    //             background_color: Vec4::ZERO,
-    //             parent: ROOT_ELEMENT,
-    //             children: Vec::new(),
-    //         };
-    //
-    //         // layout
-    //
-    //         // convert
-    //
-    //         let mut instances = Vec::new();
-    //
-    //         for element in elements.iter() {
-    //             instances.push(UIElementInstace {
-    //                 position: element.pos.to_array(),
-    //                 size: element.dimensions.to_array(),
-    //                 color: element.background_color.to_array(),
-    //             });
-    //         }
-    //
-    //         instances
-    //     }
 }
 
 #[derive(Debug, Clone)]
@@ -259,7 +217,7 @@ pub struct UIElement {
     sizing_y: Sizing,
 
     background_color: Vec4,
-    child_direction: LayoutDirection,
+    layout_direction: LayoutDirection,
 
     parent: usize,
     children: Vec<usize>,
@@ -273,10 +231,11 @@ impl UIElement {
             y: 0.0,
             width: 0.0,
             height: 0.0,
+
             background_color: Vec4::ZERO,
             sizing_x: Sizing::Fit,
             sizing_y: Sizing::Fit,
-            child_direction: LayoutDirection::LeftToRight,
+            layout_direction: LayoutDirection::LeftToRight,
             padding: Padding {
                 top: 0.0,
                 bottom: 0.0,
@@ -289,23 +248,33 @@ impl UIElement {
         }
     }
     pub fn root(width: f32, height: f32) -> Self {
-        Self::new().dimensions(width, height)
+        Self {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+
+            sizing_x: Sizing::Fixed(width),
+            sizing_y: Sizing::Fixed(height),
+            parent: ROOT_ELEMENT,
+
+            background_color: Vec4::ZERO,
+            layout_direction: LayoutDirection::LeftToRight,
+            padding: Padding {
+                top: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+                right: 0.0,
+            },
+            children: Vec::new(),
+            child_gap: 0.0,
+        }
     }
 
     //
     // Attributes
     //
 
-    pub fn pos(mut self, x: f32, y: f32) -> Self {
-        self.x = x;
-        self.y = y;
-        self
-    }
-    pub fn dimensions(mut self, width: f32, height: f32) -> Self {
-        self.width = width;
-        self.height = height;
-        self
-    }
     pub fn sizing_x(mut self, sizing: Sizing) -> Self {
         self.sizing_x = sizing;
         self
@@ -317,5 +286,16 @@ impl UIElement {
     pub fn background_color(mut self, background_color: Vec4) -> Self {
         self.background_color = background_color;
         self
+    }
+
+    //
+    // Helpers
+    //
+
+    pub fn draw_with_children(self, layouter: &mut UILayouter, children: fn(&mut UILayouter)) {
+        layouter.add_element(self, children);
+    }
+    pub fn draw(self, layouter: &mut UILayouter) {
+        layouter.add_element(self, |_| {});
     }
 }

@@ -42,28 +42,44 @@ impl Callbacks for App {
         cache: &mut asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        self.layouter.add_element(
-            UIElement::new()
-                .sizing_x(ui_layout::Sizing::Fit)
-                .sizing_y(ui_layout::Sizing::Fixed(500.0))
-                .background_color(vec4(1.0, 0.0, 0.0, 0.0)),
-            |layouter| {
-                layouter.add_element(
-                    UIElement::new()
-                        .sizing_x(ui_layout::Sizing::Fixed(500.0))
-                        .sizing_y(ui_layout::Sizing::Fixed(200.0))
-                        .background_color(vec4(0.0, 1.0, 0.0, 0.0)),
-                    |layouter| {},
-                );
-                layouter.add_element(
-                    UIElement::new()
-                        .sizing_x(ui_layout::Sizing::Fixed(100.0))
-                        .sizing_y(ui_layout::Sizing::Fixed(300.0))
-                        .background_color(vec4(0.0, 0.0, 1.0, 0.0)),
-                    |layouter| {},
-                );
-            },
-        );
+        UIElement::new()
+            .sizing_x(ui_layout::Sizing::Fit)
+            .sizing_y(ui_layout::Sizing::Fixed(500.0))
+            .background_color(vec4(1.0, 0.0, 0.0, 0.0))
+            .draw_with_children(&mut self.layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(ui_layout::Sizing::Fixed(500.0))
+                    .sizing_y(ui_layout::Sizing::Fixed(200.0))
+                    .background_color(vec4(0.0, 1.0, 0.0, 0.0))
+                    .draw(layouter);
+                UIElement::new()
+                    .sizing_x(ui_layout::Sizing::Fixed(100.0))
+                    .sizing_y(ui_layout::Sizing::Fixed(300.0))
+                    .background_color(vec4(0.0, 0.0, 1.0, 0.0))
+                    .draw_with_children(layouter, |layouter| {});
+            });
+        // self.layouter.add_element(
+        //     UIElement::new()
+        //         .sizing_x(ui_layout::Sizing::Fit)
+        //         .sizing_y(ui_layout::Sizing::Fixed(500.0))
+        //         .background_color(vec4(1.0, 0.0, 0.0, 0.0)),
+        //     |layouter| {
+        //         layouter.add_element(
+        //             UIElement::new()
+        //                 .sizing_x(ui_layout::Sizing::Fixed(500.0))
+        //                 .sizing_y(ui_layout::Sizing::Fixed(200.0))
+        //                 .background_color(vec4(0.0, 1.0, 0.0, 0.0)),
+        //             |layouter| {},
+        //         );
+        //         layouter.add_element(
+        //             UIElement::new()
+        //                 .sizing_x(ui_layout::Sizing::Fixed(100.0))
+        //                 .sizing_y(ui_layout::Sizing::Fixed(300.0))
+        //                 .background_color(vec4(0.0, 0.0, 1.0, 0.0)),
+        //             |layouter| {},
+        //         );
+        //     },
+        // );
         let ui_elements = self.layouter.layout_elements();
 
         self.renderer.render(
