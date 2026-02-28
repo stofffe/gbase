@@ -8,7 +8,7 @@ use gbase::{
 };
 
 use crate::{
-    ui_layout::{Sizing, UIElement, UILayouter},
+    ui_layout::{LayoutDirection, Padding, Sizing, UIElement, UILayouter},
     ui_renderer::UIRenderer,
 };
 
@@ -43,36 +43,93 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         UIElement::new()
-            .sizing_x(Sizing::Fixed(1600.0))
-            .sizing_y(Sizing::Fit)
-            .background_color(vec4(0.0, 0.0, 1.0, 1.0))
+            .sizing_x(Sizing::Grow)
+            .sizing_y(Sizing::Grow)
+            .layout_direction(LayoutDirection::TopToBottom)
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
-                    .sizing_x(Sizing::Fixed(300.0))
-                    .sizing_y(Sizing::Fixed(300.0))
-                    .background_color(vec4(1.0, 0.8, 0.8, 1.0))
-                    .draw(layouter);
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fit)
+                    .padding(Padding::new(20.0, 20.0, 20.0, 20.0))
+                    .child_gap(20.0)
+                    .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                        UIElement::new().sizing_x(Sizing::Grow).draw(layouter);
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                    });
                 UIElement::new()
                     .sizing_x(Sizing::Grow)
-                    .sizing_y(Sizing::Fixed(500.0))
-                    .background_color(vec4(0.0, 0.8, 0.8, 1.0))
-                    .draw(layouter);
-                UIElement::new()
-                    .sizing_x(Sizing::Grow)
-                    .sizing_y(Sizing::Fixed(300.0))
-                    .background_color(vec4(0.0, 0.0, 0.8, 1.0))
-                    .draw(layouter);
-                UIElement::new()
-                    .sizing_x(Sizing::Fixed(100.0))
                     .sizing_y(Sizing::Grow)
-                    .background_color(vec4(1.0, 1.0, 1.0, 1.0))
-                    .draw(layouter);
+                    .background_color(vec4(0.1, 0.1, 0.1, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Sizing::Percent(0.2))
+                            .sizing_y(Sizing::Grow)
+                            .background_color(vec4(0.6, 0.6, 0.6, 1.0))
+                            .draw_with_children(layouter, |layouter| {});
+                        UIElement::new()
+                            .sizing_x(Sizing::Grow)
+                            .sizing_y(Sizing::Grow)
+                            .draw_with_children(layouter, |layouter| {});
+                    });
                 UIElement::new()
-                    .sizing_x(Sizing::Fixed(100.0))
-                    .sizing_y(Sizing::Fixed(600.0))
-                    .background_color(vec4(1.0, 0.0, 0.0, 1.0))
-                    .draw(layouter);
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fit)
+                    .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                            .draw(layouter);
+                    });
             });
+
+        // UIElement::new()
+        //     .sizing_x(Sizing::Fixed(1600.0))
+        //     .sizing_y(Sizing::Fit)
+        //     .background_color(vec4(0.0, 0.0, 1.0, 1.0))
+        //     .draw_with_children(&mut self.layouter, |layouter| {
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Fixed(300.0))
+        //             .sizing_y(Sizing::Fixed(300.0))
+        //             .background_color(vec4(1.0, 0.8, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Grow)
+        //             .sizing_y(Sizing::Fixed(500.0))
+        //             .background_color(vec4(0.0, 0.8, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Grow)
+        //             .sizing_y(Sizing::Fixed(300.0))
+        //             .background_color(vec4(0.0, 0.0, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Fixed(100.0))
+        //             .sizing_y(Sizing::Grow)
+        //             .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Fixed(100.0))
+        //             .sizing_y(Sizing::Fixed(600.0))
+        //             .background_color(vec4(1.0, 0.0, 0.0, 1.0))
+        //             .draw(layouter);
+        //     });
 
         // UIElement::new()
         //     .sizing_x(Sizing::Fixed(600.0))
@@ -141,7 +198,8 @@ impl Callbacks for App {
         //         );
         //     },
         // );
-        let ui_elements = self.layouter.layout_elements();
+
+        let ui_elements = self.layouter.layout_elements_fullscreen(ctx);
 
         self.renderer.render(
             ctx,

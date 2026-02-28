@@ -1,8 +1,6 @@
-use std::collections::VecDeque;
-
 use gbase::{
     glam::{f32, Vec2, Vec4},
-    tracing,
+    render, Context,
 };
 
 use crate::ui_renderer::UIElementInstace;
@@ -28,7 +26,7 @@ impl UILayouter {
     }
 
     pub fn reset(&mut self) {
-        self.elems = vec![UIElement::root(self.screen_size.x, self.screen_size.y)];
+        self.elems = vec![UIElement::new()];
         self.element_stack = vec![ROOT_ELEMENT];
     }
 
@@ -58,10 +56,7 @@ impl UILayouter {
         element_index
     }
 
-    // NOTE: intrinsic size pass
-    //
-    // TODO: percent should set dimensions to 0?
-    // clamp values?
+    // TODO: clamp values?
     fn close_element(&mut self) {
         let element_index = self
             .element_stack
@@ -73,11 +68,13 @@ impl UILayouter {
         let width = match element.sizing_x {
             Sizing::Fixed(fixed_width) => fixed_width,
             Sizing::Fit => 0.0,
+            Sizing::Percent(_) => 0.0,
             Sizing::Grow => 0.0,
         };
         let height = match element.sizing_y {
             Sizing::Fixed(fixed_height) => fixed_height,
             Sizing::Fit => 0.0,
+            Sizing::Percent(_) => 0.0,
             Sizing::Grow => 0.0,
         };
 
@@ -89,7 +86,14 @@ impl UILayouter {
         self.elems[element_index].height = padded_height;
     }
 
-    pub fn layout_elements(&mut self) -> Vec<UIElementInstace> {
+    pub fn layout_elements_fullscreen(&mut self, ctx: &Context) -> Vec<UIElementInstace> {
+        let screen_size = render::surface_size(ctx);
+        self.layout_elements(screen_size.width as f32, screen_size.height as f32)
+    }
+    pub fn layout_elements(&mut self, root_width: f32, root_height: f32) -> Vec<UIElementInstace> {
+        self.elems[ROOT_ELEMENT].width = root_width;
+        self.elems[ROOT_ELEMENT].height = root_height;
+
         //
         // fit x
         //
@@ -133,16 +137,24 @@ impl UILayouter {
         //
 
         for elem in 0..self.elems.len() {
-            // calculate remaining width
+            // fix sizing
             let element = self.elems[elem].clone();
+
+            // resolve percent
+            for &child in element.children.iter() {
+                if let Sizing::Percent(p) = self.elems[child].sizing_x {
+                    self.elems[child].width = element.width * p;
+                }
+            }
 
             // extract growable
             let mut growable = Vec::new();
             for &child in element.children.iter() {
-                if matches!(self.elems[child].sizing_x, Sizing::Grow) {
+                if let Sizing::Grow = self.elems[child].sizing_x {
                     growable.push(child);
                 }
             }
+
             if growable.is_empty() {
                 continue;
             }
@@ -239,8 +251,14 @@ impl UILayouter {
         //
 
         for elem in 0..self.elems.len() {
-            // calculate remaining width
             let element = self.elems[elem].clone();
+
+            // resolve percent
+            for &child in element.children.iter() {
+                if let Sizing::Percent(p) = self.elems[child].sizing_y {
+                    self.elems[child].height = element.height * p;
+                }
+            }
 
             // extract growable
             let mut growable = Vec::new();
@@ -305,32 +323,28 @@ impl UILayouter {
         //
         // positioning
         //
-        let mut stack = Vec::new();
-        stack.push(ROOT_ELEMENT);
+        for elem in 1..self.elems.len() {
+            let element = &self.elems[elem];
 
-        // DFS from root
-        while let Some(elem) = stack.pop() {
-            let x = self.elems[elem].x + self.elems[elem].padding.left;
-            let y = self.elems[elem].y + self.elems[elem].padding.top;
+            let x = element.x + element.padding.left;
+            let y = element.y + element.padding.top;
 
-            let child_gap = self.elems[elem].child_gap;
+            let child_gap = element.child_gap;
             let mut offset = 0.0;
 
-            match self.elems[elem].layout_direction {
+            match element.layout_direction {
                 LayoutDirection::LeftToRight => {
-                    for child in self.elems[elem].children.clone().into_iter() {
+                    for child in element.children.clone().into_iter() {
                         self.elems[child].x = x + offset;
+                        self.elems[child].y = y;
                         offset += self.elems[child].width + child_gap;
-
-                        stack.push(child);
                     }
                 }
                 LayoutDirection::TopToBottom => {
-                    for child in self.elems[elem].children.clone().into_iter() {
+                    for child in element.children.clone().into_iter() {
+                        self.elems[child].x = x;
                         self.elems[child].y = y + offset;
                         offset += self.elems[child].height + child_gap;
-
-                        stack.push(child);
                     }
                 }
             }
@@ -353,6 +367,7 @@ impl UILayouter {
 pub enum Sizing {
     Fixed(f32),
     Fit,
+    Percent(f32),
     Grow,
 }
 
@@ -476,6 +491,10 @@ impl UIElement {
     }
     pub fn padding(mut self, padding: Padding) -> Self {
         self.padding = padding;
+        self
+    }
+    pub fn child_gap(mut self, child_gap: f32) -> Self {
+        self.child_gap = child_gap;
         self
     }
 
