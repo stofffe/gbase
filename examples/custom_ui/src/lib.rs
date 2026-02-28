@@ -64,7 +64,12 @@ impl Callbacks for App {
                     .draw(layouter);
                 UIElement::new()
                     .sizing_x(Sizing::Fixed(100.0))
-                    .sizing_y(Sizing::Fixed(300.0))
+                    .sizing_y(Sizing::Grow)
+                    .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                    .draw(layouter);
+                UIElement::new()
+                    .sizing_x(Sizing::Fixed(100.0))
+                    .sizing_y(Sizing::Fixed(600.0))
                     .background_color(vec4(1.0, 0.0, 0.0, 1.0))
                     .draw(layouter);
             });

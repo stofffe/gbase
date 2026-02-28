@@ -131,9 +131,8 @@ impl UILayouter {
         //
         // grow x
         //
-        let mut stack = VecDeque::new();
-        stack.push_back(ROOT_ELEMENT);
-        while let Some(elem) = stack.pop_front() {
+
+        for elem in 0..self.elems.len() {
             // calculate remaining width
             let element = self.elems[elem].clone();
 
@@ -144,63 +143,56 @@ impl UILayouter {
                     growable.push(child);
                 }
             }
+            if growable.is_empty() {
+                continue;
+            }
 
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
-                    if !growable.is_empty() {
-                        // calculate remaining width
-                        let mut remaining_width = element.width;
-                        remaining_width -= element.padding.horizontal();
-                        remaining_width -=
-                            (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
-                        for &child in element.children.iter() {
-                            remaining_width -= self.elems[child].width;
+                    // calculate remaining width
+                    let mut remaining_width = element.width;
+                    remaining_width -= element.padding.horizontal();
+                    remaining_width -=
+                        (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
+                    for &child in element.children.iter() {
+                        remaining_width -= self.elems[child].width;
+                    }
+
+                    // distribute remaining width
+                    while remaining_width > 0.0 {
+                        let mut smallest = f32::MAX;
+                        let mut second_smallest = f32::MAX;
+                        let mut width_to_add = remaining_width;
+
+                        for &child in growable.iter() {
+                            let child_width = self.elems[child].width;
+                            if child_width < smallest {
+                                second_smallest = smallest;
+                                smallest = child_width;
+                            }
+                            if child_width > smallest && child_width < second_smallest {
+                                second_smallest = child_width;
+                                width_to_add = second_smallest - remaining_width;
+                            }
                         }
 
-                        // distribute remaining width
-                        while remaining_width > 0.0 {
-                            tracing::error!("remainging {}", remaining_width);
-                            let mut smallest = f32::MAX;
-                            let mut second_smallest = f32::MAX;
-                            let mut width_to_add = remaining_width;
+                        width_to_add = width_to_add.min(remaining_width / growable.len() as f32);
 
-                            for &child in growable.iter() {
-                                let child_width = self.elems[child].width;
-                                if child_width < smallest {
-                                    second_smallest = smallest;
-                                    smallest = child_width;
-                                }
-                                if child_width > smallest && child_width < second_smallest {
-                                    second_smallest = child_width;
-                                    width_to_add = second_smallest - remaining_width;
-                                }
-                            }
-
-                            width_to_add =
-                                width_to_add.min(remaining_width / growable.len() as f32);
-
-                            for &child in growable.iter() {
-                                let child_width = self.elems[child].width;
-                                if child_width == smallest {
-                                    self.elems[child].width += width_to_add;
-                                    remaining_width -= width_to_add;
-                                }
+                        for &child in growable.iter() {
+                            let child_width = self.elems[child].width;
+                            if child_width == smallest {
+                                self.elems[child].width += width_to_add;
+                                remaining_width -= width_to_add;
                             }
                         }
                     }
                 }
                 LayoutDirection::TopToBottom => {
-                    if !growable.is_empty() {
-                        let remaining_width = element.width - element.padding.horizontal();
-                        for &child in growable.iter() {
-                            self.elems[child].width = remaining_width;
-                        }
+                    let remaining_width = element.width - element.padding.horizontal();
+                    for &child in growable.iter() {
+                        self.elems[child].width = remaining_width;
                     }
                 }
-            }
-
-            for &child in element.children.iter() {
-                stack.push_back(child);
             }
         }
 
@@ -243,6 +235,74 @@ impl UILayouter {
         }
 
         //
+        // grow y
+        //
+
+        for elem in 0..self.elems.len() {
+            // calculate remaining width
+            let element = self.elems[elem].clone();
+
+            // extract growable
+            let mut growable = Vec::new();
+            for &child in element.children.iter() {
+                if matches!(self.elems[child].sizing_y, Sizing::Grow) {
+                    growable.push(child);
+                }
+            }
+            if growable.is_empty() {
+                continue;
+            }
+
+            match element.layout_direction {
+                LayoutDirection::TopToBottom => {
+                    // calculate remaining width
+                    let mut remaining_height = element.height;
+                    remaining_height -= element.padding.vertical();
+                    remaining_height -=
+                        (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
+                    for &child in element.children.iter() {
+                        remaining_height -= self.elems[child].height;
+                    }
+
+                    // distribute remaining height
+                    while remaining_height > 0.0 {
+                        let mut smallest = f32::MAX;
+                        let mut second_smallest = f32::MAX;
+                        let mut height_to_add = remaining_height;
+
+                        for &child in growable.iter() {
+                            let child_height = self.elems[child].height;
+                            if child_height < smallest {
+                                second_smallest = smallest;
+                                smallest = child_height;
+                            }
+                            if child_height > smallest && child_height < second_smallest {
+                                second_smallest = child_height;
+                                height_to_add = second_smallest - remaining_height;
+                            }
+                        }
+
+                        height_to_add = height_to_add.min(remaining_height / growable.len() as f32);
+
+                        for &child in growable.iter() {
+                            let child_height = self.elems[child].height;
+                            if child_height == smallest {
+                                self.elems[child].height += height_to_add;
+                                remaining_height -= height_to_add;
+                            }
+                        }
+                    }
+                }
+                LayoutDirection::LeftToRight => {
+                    let remaining_height = element.height - element.padding.vertical();
+                    for &child in growable.iter() {
+                        self.elems[child].height = remaining_height;
+                    }
+                }
+            }
+        }
+
+        //
         // positioning
         //
         let mut stack = Vec::new();
@@ -279,7 +339,6 @@ impl UILayouter {
         // convert
         let mut instances = Vec::new();
         for elem in self.elems.iter().skip(1) {
-            tracing::error!("draw {:?}", elem);
             instances.push(UIElementInstace {
                 position: [elem.x, elem.y],
                 size: [elem.width, elem.height],
