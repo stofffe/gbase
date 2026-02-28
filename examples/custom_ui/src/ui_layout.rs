@@ -69,61 +69,70 @@ impl UILayouter {
             .expect("element stack should never be empty when closing an element");
         let element = &self.elems[element_index];
 
-        // calculate childrens combined size
-        let mut children_width = 0.0;
-        let mut children_height = 0.0;
-
-        let child_count = element.children.len().saturating_sub(1);
-        let total_child_gap = child_count as f32 * element.child_gap;
-        match element.layout_direction {
-            LayoutDirection::LeftToRight => {
-                // gap
-                children_width += total_child_gap;
-
-                // accumulate children sizes
-                for child_index in element.children.clone().into_iter() {
-                    let child = &self.elems[child_index];
-                    children_width += child.width;
-                    children_height = f32::max(children_height, child.height);
-                }
-            }
-            LayoutDirection::TopToBottom => {
-                // gap
-                children_height += total_child_gap;
-
-                // accumulate children sizes
-                for child_index in element.children.clone().into_iter() {
-                    let child = &self.elems[child_index];
-                    children_height += child.height;
-                    children_width = f32::max(children_width, child.width);
-                }
-            }
-        }
-
         // calculate fixed size
         let width = match element.sizing_x {
             Sizing::Fixed(fixed_width) => fixed_width,
-            Sizing::Fit => children_width,
+            Sizing::Fit => 0.0,
             Sizing::Grow => 0.0,
         };
         let height = match element.sizing_y {
             Sizing::Fixed(fixed_height) => fixed_height,
-            Sizing::Fit => children_height,
+            Sizing::Fit => 0.0,
             Sizing::Grow => 0.0,
         };
 
         // add padding
-        let final_width = width + element.padding.horizontal();
-        let final_height = height + element.padding.vertical();
-        self.elems[element_index].width = final_width;
-        self.elems[element_index].height = final_height;
+        let padded_width = width + element.padding.horizontal();
+        let padded_height = height + element.padding.vertical();
+
+        self.elems[element_index].width = padded_width;
+        self.elems[element_index].height = padded_height;
     }
 
     pub fn layout_elements(&mut self) -> Vec<UIElementInstace> {
-        // NOTE: grow pass
+        //
+        // fit x
+        //
+        // iterate backward to visit children before parents
+        for elem in (1..self.elems.len()).rev() {
+            let element = self.elems[elem].clone();
+            if !matches!(element.sizing_x, Sizing::Fit) {
+                continue;
+            }
+
+            // calculate childrens combined size
+            let child_count = element.children.len().saturating_sub(1);
+            let total_child_gap = child_count as f32 * element.child_gap;
+
+            let mut children_width = 0.0;
+            match element.layout_direction {
+                LayoutDirection::LeftToRight => {
+                    // gap
+                    children_width += total_child_gap;
+
+                    // accumulate children sizes
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        children_width += child.width;
+                    }
+                }
+                LayoutDirection::TopToBottom => {
+                    // get max width of children
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        children_width = children_width.max(child.width);
+                    }
+                }
+            }
+
+            self.elems[elem].width += children_width;
+        }
+
+        //
+        // grow x
+        //
         let mut stack = VecDeque::new();
         stack.push_back(ROOT_ELEMENT);
-
         while let Some(elem) = stack.pop_front() {
             // calculate remaining width
             let element = self.elems[elem].clone();
@@ -195,7 +204,47 @@ impl UILayouter {
             }
         }
 
-        // NOTE: positioning pass
+        //
+        // fit y
+        //
+        // iterate backward to visit children before parents
+        for elem in (1..self.elems.len()).rev() {
+            let element = self.elems[elem].clone();
+            if !matches!(element.sizing_y, Sizing::Fit) {
+                continue;
+            }
+
+            // calculate childrens combined size
+            let child_count = element.children.len().saturating_sub(1);
+            let total_child_gap = child_count as f32 * element.child_gap;
+
+            let mut children_height = 0.0;
+            match element.layout_direction {
+                LayoutDirection::TopToBottom => {
+                    // gap
+                    children_height += total_child_gap;
+
+                    // accumulate children sizes
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        children_height += child.height;
+                    }
+                }
+                LayoutDirection::LeftToRight => {
+                    // get max height of children
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        children_height = children_height.max(child.height);
+                    }
+                }
+            }
+
+            self.elems[elem].height += children_height;
+        }
+
+        //
+        // positioning
+        //
         let mut stack = Vec::new();
         stack.push(ROOT_ELEMENT);
 

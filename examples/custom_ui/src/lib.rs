@@ -3,13 +3,13 @@ mod ui_renderer;
 
 use gbase::{
     asset,
-    glam::{vec2, vec4, Vec4},
+    glam::{vec2, vec4},
     render, wgpu, CallbackResult, Callbacks, Context,
 };
 
 use crate::{
-    ui_layout::{Padding, Sizing, UIElement, UILayouter},
-    ui_renderer::{UIElementInstace, UIRenderer},
+    ui_layout::{Sizing, UIElement, UILayouter},
+    ui_renderer::UIRenderer,
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -44,7 +44,7 @@ impl Callbacks for App {
     ) -> CallbackResult {
         UIElement::new()
             .sizing_x(Sizing::Fixed(1600.0))
-            .sizing_y(Sizing::Fixed(600.0))
+            .sizing_y(Sizing::Fit)
             .background_color(vec4(0.0, 0.0, 1.0, 1.0))
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
@@ -54,7 +54,7 @@ impl Callbacks for App {
                     .draw(layouter);
                 UIElement::new()
                     .sizing_x(Sizing::Grow)
-                    .sizing_y(Sizing::Fixed(300.0))
+                    .sizing_y(Sizing::Fixed(500.0))
                     .background_color(vec4(0.0, 0.8, 0.8, 1.0))
                     .draw(layouter);
                 UIElement::new()
