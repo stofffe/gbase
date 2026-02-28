@@ -1,44 +1,12 @@
+next up
+    [] asdads
+
 [] whatevs
-    [x] make all functions in callback trait required || check which functions are defined and only load those to hot reload
-    [x] fix new web build support in examples folder
-    [x] put hot reload specific imports behind feature flag
-    [x] change all helper/core filesystem loads to load_b/s?
-    [x] add view, proj, view_proj + all inverse to camera uniform
-    [x] pass new size in resize callback /  remove it completely and only use render::resized(ctx) kinda thing
-    [x] remove texture caching
-    [x] 2d sphere collision
-    [x] sprite transforms
-    [x] random wrapper (hash/rand)
-    [x] add gamma correction by default?
-    [x] hot_reload callback?
-    [x] upgrade to wgpu 24
-    [x] remove average fps from time module?
-    [x] add proper BRDF to pbr
-    [x] encase storage buffers instead of bytemuck
-    [x] extend camera to support non aspect ratio shapes
-    [x] merge update and render callbacks
-    [x] add HDR?
-    [x] fix mesh example
-    [x] convert notify to notify debounce for reload
-        [x] new glb loader
-    [/] catch wgpu panics
-        [x] shaders
-        [] bindgroups
-        [] pipelines
-        ...
-    [/] fix logging not working in dlls
-        - have to call init logging in hot reload callback
-    [] use glam in core, input, window...
-    [] combine full screen post processing into one with uniform args
     [] explore drop on commandencoder to not miss submitting
     [] look into scale factor dpi
-    [] convert all builder to use lifetimes? (cant cache with lifetimes)
     [] feature based derives? #\[cfg_attr = "serde", derive(...)\]
-    [] move collisions to utils?
     [] helper crate with re exported macros
     [] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
-    [] modify framebuffer from main and automatically apply gamma correction if needed (only necessary if format does not support srgb)
-    [] pingpong frambuffer for post processing
     [] make format of frambuffer a generic thing
     [] make format and or dimension of texture a generic thing
     [] custom offset instance buffers
@@ -67,14 +35,53 @@
     [] make camera matrices cached
     [] remove unecessary features from crates
     [] have window_event and device_event callbacks which can consume the events
-    [] move hot reload dll callback into Callbacks
+    [x] move collisions to utils?
+    [x] make all functions in callback trait required || check which functions are defined and only load those to hot reload
+    [x] fix new web build support in examples folder
+    [x] put hot reload specific imports behind feature flag
+    [x] change all helper/core filesystem loads to load_b/s?
+    [x] add view, proj, view_proj + all inverse to camera uniform
+    [x] pass new size in resize callback /  remove it completely and only use render::resized(ctx) kinda thing
+    [x] remove texture caching
+    [x] 2d sphere collision
+    [x] sprite transforms
+    [x] random wrapper (hash/rand)
+    [x] add gamma correction by default?
+    [x] hot_reload callback?
+    [x] upgrade to wgpu 24
+    [x] remove average fps from time module?
+    [x] add proper BRDF to pbr
+    [x] encase storage buffers instead of bytemuck
+    [x] extend camera to support non aspect ratio shapes
+    [x] merge update and render callbacks
+    [x] add HDR?
+    [x] move hot reload dll callback into Callbacks
+    [x] fix mesh example
+    [x] convert notify to notify debounce for reload
+    [x] new glb loader
+    [/] catch wgpu panics
+    [x] shaders
+    [] bindgroups
+    [] pipelines
+    ...
+    [/] fix logging not working in dlls
+    - have to call init logging in hot reload callback
+
+ui 2
+    [] fix padding
+
+[] allocations
+    [] use arenas for CPU
+    [] use arenas for GPU
+
+[] hot reload
+    [x] add cleanup of reloaded dlls (maybe as you run or on startup?)
 
 [] egui
     [] fix dll on mac
     [?] make egui part of ctx and let user decide when stuff is rendererd
     [x] add egui flag to engine
     [x] move egui from ctx to app
-
 
 [] shadows
     [] fade out when reaching limit
@@ -88,6 +95,7 @@
     [x] compare front+back+bias vs only back faces
 
 [] assets 
+    [] flip asset path with loader opts?
     [] params must be part of conversion hash?
     [] garbage collect old handles
     [] make convert only run once if it fails
@@ -104,6 +112,7 @@
         [x] load gltf
         [x] cache duplicate meshes and materials
         [] add required attributes as param?
+    [x] load and insert builders on cache
     [x] remove typeid from asset handle, store it as tuple where needed
     [x] mesh lod loading 
     [x] look into putting assets in app and not context
@@ -129,12 +138,11 @@
         [x] tracy
         [x] tracy_client gpu
 
-
 [] remove vsync, log level, (asset path) from init_ctx()
     some are needed for wasm (log level)
 
 [] gltf
-    [] use same texture if metal/rough and occlusion use the same
+    [x] use same texture if metal/rough and occlusion use the same
     [x] have list of required attr and add/remove if necessary
     [] auto generate
         [] normals
@@ -145,6 +153,9 @@
     [] bloom
     [] tonemapping
     [] gaussian blur is most up to date, copy to all other
+    [] combine full screen post processing into one with uniform args
+    [] modify framebuffer from main and automatically apply gamma correction if needed (only necessary if format does not support srgb)
+    [] pingpong frambuffer for post processing
 
 [x] flappy bird
     [x] rotate bird

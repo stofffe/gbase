@@ -8,7 +8,7 @@ use gbase::{
 };
 
 use crate::{
-    ui_layout::{UIElement, UILayouter},
+    ui_layout::{Padding, Sizing, UIElement, UILayouter},
     ui_renderer::{UIElementInstace, UIRenderer},
 };
 
@@ -43,21 +43,77 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         UIElement::new()
-            .sizing_x(ui_layout::Sizing::Fit)
-            .sizing_y(ui_layout::Sizing::Fixed(500.0))
-            .background_color(vec4(1.0, 0.0, 0.0, 0.0))
+            .sizing_x(Sizing::Fixed(1600.0))
+            .sizing_y(Sizing::Fixed(600.0))
+            .background_color(vec4(0.0, 0.0, 1.0, 1.0))
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
-                    .sizing_x(ui_layout::Sizing::Fixed(500.0))
-                    .sizing_y(ui_layout::Sizing::Fixed(200.0))
-                    .background_color(vec4(0.0, 1.0, 0.0, 0.0))
+                    .sizing_x(Sizing::Fixed(300.0))
+                    .sizing_y(Sizing::Fixed(300.0))
+                    .background_color(vec4(1.0, 0.8, 0.8, 1.0))
                     .draw(layouter);
                 UIElement::new()
-                    .sizing_x(ui_layout::Sizing::Fixed(100.0))
-                    .sizing_y(ui_layout::Sizing::Fixed(300.0))
-                    .background_color(vec4(0.0, 0.0, 1.0, 0.0))
-                    .draw_with_children(layouter, |layouter| {});
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fixed(300.0))
+                    .background_color(vec4(0.0, 0.8, 0.8, 1.0))
+                    .draw(layouter);
+                UIElement::new()
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fixed(300.0))
+                    .background_color(vec4(0.0, 0.0, 0.8, 1.0))
+                    .draw(layouter);
+                UIElement::new()
+                    .sizing_x(Sizing::Fixed(100.0))
+                    .sizing_y(Sizing::Fixed(300.0))
+                    .background_color(vec4(1.0, 0.0, 0.0, 1.0))
+                    .draw(layouter);
             });
+
+        // UIElement::new()
+        //     .sizing_x(Sizing::Fixed(600.0))
+        //     .sizing_y(Sizing::Fixed(1600.0))
+        //     .background_color(vec4(0.0, 0.0, 1.0, 1.0))
+        //     .layout_direction(ui_layout::LayoutDirection::TopToBottom)
+        //     .draw_with_children(&mut self.layouter, |layouter| {
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Fixed(500.0))
+        //             .sizing_y(Sizing::Fixed(300.0))
+        //             .background_color(vec4(1.0, 0.8, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Grow)
+        //             .sizing_y(Sizing::Fixed(200.0))
+        //             .background_color(vec4(0.0, 0.8, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Grow)
+        //             .sizing_y(Sizing::Fixed(300.0))
+        //             .background_color(vec4(0.0, 0.0, 0.8, 1.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(Sizing::Fixed(100.0))
+        //             .sizing_y(Sizing::Fixed(300.0))
+        //             .background_color(vec4(1.0, 0.0, 0.0, 1.0))
+        //             .draw(layouter);
+        //     });
+
+        // UIElement::new()
+        //     .sizing_x(ui_layout::Sizing::Fit)
+        //     .sizing_y(ui_layout::Sizing::Fixed(500.0))
+        //     .background_color(vec4(1.0, 0.0, 0.0, 0.0))
+        //     .padding(Padding::new(32.0, 32.0, 32.0, 32.0))
+        //     .draw_with_children(&mut self.layouter, |layouter| {
+        //         UIElement::new()
+        //             .sizing_x(ui_layout::Sizing::Fixed(500.0))
+        //             .sizing_y(ui_layout::Sizing::Fixed(200.0))
+        //             .background_color(vec4(0.0, 1.0, 0.0, 0.0))
+        //             .draw(layouter);
+        //         UIElement::new()
+        //             .sizing_x(ui_layout::Sizing::Fixed(100.0))
+        //             .sizing_y(ui_layout::Sizing::Fixed(300.0))
+        //             .background_color(vec4(0.0, 0.0, 1.0, 0.0))
+        //             .draw_with_children(layouter, |layouter| {});
+        //     });
         // self.layouter.add_element(
         //     UIElement::new()
         //         .sizing_x(ui_layout::Sizing::Fit)

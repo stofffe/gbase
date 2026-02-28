@@ -1,7 +1,8 @@
+use std::collections::VecDeque;
+
 use gbase::{
-    glam::{f32, vec2, Vec2, Vec4},
+    glam::{f32, Vec2, Vec4},
     tracing,
-    wgpu::naga::proc::Layouter,
 };
 
 use crate::ui_renderer::UIElementInstace;
@@ -37,7 +38,7 @@ impl UILayouter {
         self.close_element();
     }
 
-    pub fn open_element(&mut self, mut element: UIElement) -> usize {
+    fn open_element(&mut self, mut element: UIElement) -> usize {
         // point to parent
         let parent = *self
             .element_stack
@@ -61,10 +62,7 @@ impl UILayouter {
     //
     // TODO: percent should set dimensions to 0?
     // clamp values?
-    pub fn close_element(&mut self) {
-        // TODO: could element stack be used instead of index?
-        // self.element_stack.pop();
-        // let element = &self.elems[elem_index];
+    fn close_element(&mut self) {
         let element_index = self
             .element_stack
             .pop()
@@ -106,25 +104,96 @@ impl UILayouter {
         let width = match element.sizing_x {
             Sizing::Fixed(fixed_width) => fixed_width,
             Sizing::Fit => children_width,
+            Sizing::Grow => 0.0,
         };
         let height = match element.sizing_y {
             Sizing::Fixed(fixed_height) => fixed_height,
             Sizing::Fit => children_height,
+            Sizing::Grow => 0.0,
         };
 
         // add padding
-        let padding = element.padding.clone();
-        let padding_left_right = padding.left + padding.right;
-        let padding_top_bottom = padding.bottom + padding.top;
-
-        let final_width = width + padding_left_right;
-        let final_height = height + padding_top_bottom;
+        let final_width = width + element.padding.horizontal();
+        let final_height = height + element.padding.vertical();
         self.elems[element_index].width = final_width;
         self.elems[element_index].height = final_height;
     }
 
     pub fn layout_elements(&mut self) -> Vec<UIElementInstace> {
-        // NOTE: non fixed sizing pass
+        // NOTE: grow pass
+        let mut stack = VecDeque::new();
+        stack.push_back(ROOT_ELEMENT);
+
+        while let Some(elem) = stack.pop_front() {
+            // calculate remaining width
+            let element = self.elems[elem].clone();
+
+            // extract growable
+            let mut growable = Vec::new();
+            for &child in element.children.iter() {
+                if matches!(self.elems[child].sizing_x, Sizing::Grow) {
+                    growable.push(child);
+                }
+            }
+
+            match element.layout_direction {
+                LayoutDirection::LeftToRight => {
+                    if !growable.is_empty() {
+                        // calculate remaining width
+                        let mut remaining_width = element.width;
+                        remaining_width -= element.padding.horizontal();
+                        remaining_width -=
+                            (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
+                        for &child in element.children.iter() {
+                            remaining_width -= self.elems[child].width;
+                        }
+
+                        // distribute remaining width
+                        while remaining_width > 0.0 {
+                            tracing::error!("remainging {}", remaining_width);
+                            let mut smallest = f32::MAX;
+                            let mut second_smallest = f32::MAX;
+                            let mut width_to_add = remaining_width;
+
+                            for &child in growable.iter() {
+                                let child_width = self.elems[child].width;
+                                if child_width < smallest {
+                                    second_smallest = smallest;
+                                    smallest = child_width;
+                                }
+                                if child_width > smallest && child_width < second_smallest {
+                                    second_smallest = child_width;
+                                    width_to_add = second_smallest - remaining_width;
+                                }
+                            }
+
+                            width_to_add =
+                                width_to_add.min(remaining_width / growable.len() as f32);
+
+                            for &child in growable.iter() {
+                                let child_width = self.elems[child].width;
+                                if child_width == smallest {
+                                    self.elems[child].width += width_to_add;
+                                    remaining_width -= width_to_add;
+                                }
+                            }
+                        }
+                    }
+                }
+                LayoutDirection::TopToBottom => {
+                    if !growable.is_empty() {
+                        let remaining_width = element.width - element.padding.horizontal();
+                        for &child in growable.iter() {
+                            self.elems[child].width = remaining_width;
+                        }
+                    }
+                }
+            }
+
+            for &child in element.children.iter() {
+                stack.push_back(child);
+            }
+        }
 
         // NOTE: positioning pass
         let mut stack = Vec::new();
@@ -142,10 +211,8 @@ impl UILayouter {
                 LayoutDirection::LeftToRight => {
                     for child in self.elems[elem].children.clone().into_iter() {
                         self.elems[child].x = x + offset;
-
                         offset += self.elems[child].width + child_gap;
 
-                        tracing::error!("add {}", child);
                         stack.push(child);
                     }
                 }
@@ -154,7 +221,6 @@ impl UILayouter {
                         self.elems[child].y = y + offset;
                         offset += self.elems[child].height + child_gap;
 
-                        tracing::error!("add {}", child);
                         stack.push(child);
                     }
                 }
@@ -179,6 +245,7 @@ impl UILayouter {
 pub enum Sizing {
     Fixed(f32),
     Fit,
+    Grow,
 }
 
 #[derive(Debug, Clone)]
@@ -196,6 +263,14 @@ pub struct Padding {
 }
 
 impl Padding {
+    pub fn new(top: f32, right: f32, bottom: f32, left: f32) -> Self {
+        Self {
+            top,
+            bottom,
+            left,
+            right,
+        }
+    }
     fn horizontal(&self) -> f32 {
         self.left + self.right
     }
@@ -251,8 +326,8 @@ impl UIElement {
         Self {
             x: 0.0,
             y: 0.0,
-            width: 0.0,
-            height: 0.0,
+            width,
+            height,
 
             sizing_x: Sizing::Fixed(width),
             sizing_y: Sizing::Fixed(height),
@@ -285,6 +360,14 @@ impl UIElement {
     }
     pub fn background_color(mut self, background_color: Vec4) -> Self {
         self.background_color = background_color;
+        self
+    }
+    pub fn layout_direction(mut self, layout_direction: LayoutDirection) -> Self {
+        self.layout_direction = layout_direction;
+        self
+    }
+    pub fn padding(mut self, padding: Padding) -> Self {
+        self.padding = padding;
         self
     }
 
