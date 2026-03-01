@@ -1,23 +1,24 @@
 use gbase::{
-    glam::{f32, Vec2, Vec4},
+    glam::{f32, Vec4},
     render, Context,
 };
+
+pub trait UILayoutTextMeasurer {
+    fn measure_text(&self, text: &str, max_width: f32) -> (f32, f32);
+}
 
 use crate::ui_renderer::UIElementInstace;
 
 const ROOT_ELEMENT: usize = 0;
 
 pub struct UILayouter {
-    screen_size: Vec2,
     elems: Vec<UIElement>,
-
     element_stack: Vec<usize>,
 }
 
 impl UILayouter {
-    pub fn new(screen_size: Vec2) -> Self {
+    pub fn new() -> Self {
         let mut layouter = Self {
-            screen_size,
             elems: Vec::new(),
             element_stack: Vec::new(),
         };
@@ -56,43 +57,64 @@ impl UILayouter {
         element_index
     }
 
-    // TODO: clamp values?
     fn close_element(&mut self) {
-        let element_index = self
-            .element_stack
+        self.element_stack
             .pop()
             .expect("element stack should never be empty when closing an element");
-        let element = &self.elems[element_index];
-
-        // calculate fixed size
-        let width = match element.sizing_x {
-            Sizing::Fixed(fixed_width) => fixed_width,
-            Sizing::Fit => 0.0,
-            Sizing::Percent(_) => 0.0,
-            Sizing::Grow => 0.0,
-        };
-        let height = match element.sizing_y {
-            Sizing::Fixed(fixed_height) => fixed_height,
-            Sizing::Fit => 0.0,
-            Sizing::Percent(_) => 0.0,
-            Sizing::Grow => 0.0,
-        };
-
-        // add padding
-        let padded_width = width + element.padding.horizontal();
-        let padded_height = height + element.padding.vertical();
-
-        self.elems[element_index].width = padded_width;
-        self.elems[element_index].height = padded_height;
     }
 
-    pub fn layout_elements_fullscreen(&mut self, ctx: &Context) -> Vec<UIElementInstace> {
+    pub fn layout_elements_fullscreen(
+        &mut self,
+        ctx: &Context,
+        text_measurer: &impl UILayoutTextMeasurer,
+    ) -> Vec<UIElementInstace> {
         let screen_size = render::surface_size(ctx);
-        self.layout_elements(screen_size.width as f32, screen_size.height as f32)
+        self.layout_elements(
+            screen_size.width as f32,
+            screen_size.height as f32,
+            text_measurer,
+        )
     }
-    pub fn layout_elements(&mut self, root_width: f32, root_height: f32) -> Vec<UIElementInstace> {
+    pub fn layout_elements(
+        &mut self,
+        root_width: f32,
+        root_height: f32,
+        text_measurer: &impl UILayoutTextMeasurer,
+    ) -> Vec<UIElementInstace> {
         self.elems[ROOT_ELEMENT].width = root_width;
         self.elems[ROOT_ELEMENT].height = root_height;
+
+        //
+        // intrinsic sizes
+        //
+
+        // TODO: clamp values?
+        for elem in (1..self.elems.len()).rev() {
+            let element = &self.elems[elem];
+
+            // text size
+            let (mut width, mut height) = match element.content {
+                Content::Container => (0.0, 0.0),
+                Content::Text(ref text_info) => {
+                    text_measurer.measure_text(&text_info.text, element.max_width)
+                }
+            };
+
+            // overwrite if fixed
+            if let Sizing::Fixed(fixed_width) = element.sizing_x {
+                width = fixed_width;
+            }
+            if let Sizing::Fixed(fixed_height) = element.sizing_y {
+                height = fixed_height;
+            }
+
+            // add padding
+            width += element.padding.horizontal();
+            height += element.padding.vertical();
+
+            self.elems[elem].width = width;
+            self.elems[elem].height = height;
+        }
 
         //
         // fit x
@@ -364,6 +386,20 @@ impl UILayouter {
 }
 
 #[derive(Debug, Clone)]
+pub enum Content {
+    Container,
+    Text(TextInfo),
+}
+
+#[derive(Debug, Clone)]
+pub struct TextInfo {
+    text: String,
+
+    text_color: Vec4,
+    font_size: f32,
+}
+
+#[derive(Debug, Clone)]
 pub enum Sizing {
     Fixed(f32),
     Fit,
@@ -404,68 +440,58 @@ impl Padding {
 
 #[derive(Debug, Clone)]
 pub struct UIElement {
+    // set fields
+    sizing_x: Sizing,
+    sizing_y: Sizing,
+
+    padding: Padding,
+
+    background_color: Vec4,
+
+    layout_direction: LayoutDirection,
+
+    child_gap: f32,
+
+    content: Content,
+
+    max_width: f32,
+    min_width: f32,
+
+    // calculated fields
     x: f32,
     y: f32,
     width: f32,
     height: f32,
 
-    padding: Padding,
-
-    sizing_x: Sizing,
-    sizing_y: Sizing,
-
-    background_color: Vec4,
-    layout_direction: LayoutDirection,
-
     parent: usize,
     children: Vec<usize>,
-    child_gap: f32,
 }
 
 impl UIElement {
     pub fn new() -> Self {
         Self {
+            sizing_x: Sizing::Fit,
+            sizing_y: Sizing::Fit,
+            padding: Padding {
+                top: 0.0,
+                bottom: 0.0,
+                left: 0.0,
+                right: 0.0,
+            },
+            layout_direction: LayoutDirection::LeftToRight,
+            background_color: Vec4::ZERO,
+            child_gap: 0.0,
+            content: Content::Container,
+
+            max_width: 0.0,
+            min_width: 0.0,
+
             x: 0.0,
             y: 0.0,
             width: 0.0,
             height: 0.0,
-
-            background_color: Vec4::ZERO,
-            sizing_x: Sizing::Fit,
-            sizing_y: Sizing::Fit,
-            layout_direction: LayoutDirection::LeftToRight,
-            padding: Padding {
-                top: 0.0,
-                bottom: 0.0,
-                left: 0.0,
-                right: 0.0,
-            },
             parent: ROOT_ELEMENT,
             children: Vec::new(),
-            child_gap: 0.0,
-        }
-    }
-    pub fn root(width: f32, height: f32) -> Self {
-        Self {
-            x: 0.0,
-            y: 0.0,
-            width,
-            height,
-
-            sizing_x: Sizing::Fixed(width),
-            sizing_y: Sizing::Fixed(height),
-            parent: ROOT_ELEMENT,
-
-            background_color: Vec4::ZERO,
-            layout_direction: LayoutDirection::LeftToRight,
-            padding: Padding {
-                top: 0.0,
-                bottom: 0.0,
-                left: 0.0,
-                right: 0.0,
-            },
-            children: Vec::new(),
-            child_gap: 0.0,
         }
     }
 
