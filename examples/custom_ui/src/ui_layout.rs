@@ -1,10 +1,10 @@
 use gbase::{
-    glam::{f32, Vec4},
+    glam::{f32, vec4, Vec4},
     render, Context,
 };
 
 pub trait UILayoutTextMeasurer {
-    fn measure_text(&self, text: &str, max_width: f32) -> (f32, f32);
+    fn measure_text(&mut self, text: &str, font_size: u32) -> (f32, f32);
 }
 
 use crate::ui_renderer::UIElementInstace;
@@ -66,7 +66,7 @@ impl UILayouter {
     pub fn layout_elements_fullscreen(
         &mut self,
         ctx: &Context,
-        text_measurer: &impl UILayoutTextMeasurer,
+        text_measurer: &mut impl UILayoutTextMeasurer,
     ) -> Vec<UIElementInstace> {
         let screen_size = render::surface_size(ctx);
         self.layout_elements(
@@ -79,7 +79,7 @@ impl UILayouter {
         &mut self,
         root_width: f32,
         root_height: f32,
-        text_measurer: &impl UILayoutTextMeasurer,
+        text_measurer: &mut impl UILayoutTextMeasurer,
     ) -> Vec<UIElementInstace> {
         self.elems[ROOT_ELEMENT].width = root_width;
         self.elems[ROOT_ELEMENT].height = root_height;
@@ -92,28 +92,60 @@ impl UILayouter {
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            // text size
-            let (mut width, mut height) = match element.content {
-                Content::Container => (0.0, 0.0),
-                Content::Text(ref text_info) => {
-                    text_measurer.measure_text(&text_info.text, element.max_width)
-                }
-            };
+            let mut max_width = 0.0f32;
+            let mut max_height = 0.0f32;
+            let mut min_width = 0.0f32;
+            let mut min_height = 0.0f32;
 
-            // overwrite if fixed
+            // text sized
+            if !element.text_info.text.is_empty() {
+                let text_info = &element.text_info;
+
+                let (text_width, text_height) =
+                    text_measurer.measure_text(&text_info.text, text_info.font_size);
+                max_width = text_width;
+                max_height = text_height;
+
+                for word in text_info.text.split_whitespace() {
+                    let (word_width, word_height) =
+                        text_measurer.measure_text(word, text_info.font_size);
+                    min_width = min_width.max(word_width);
+                    min_height = min_height.max(word_height);
+                }
+            }
+
+            // fixed size overwrite
             if let Sizing::Fixed(fixed_width) = element.sizing_x {
-                width = fixed_width;
+                max_width = fixed_width;
             }
             if let Sizing::Fixed(fixed_height) = element.sizing_y {
-                height = fixed_height;
+                max_height = fixed_height;
             }
 
-            // add padding
-            width += element.padding.horizontal();
-            height += element.padding.vertical();
+            // padding
+            max_width += element.padding.horizontal();
+            max_height += element.padding.vertical();
+            min_width += element.padding.horizontal();
+            min_height += element.padding.vertical();
 
-            self.elems[elem].width = width;
-            self.elems[elem].height = height;
+            // gap
+            let child_count = element.children.len().saturating_sub(1);
+            let total_child_gap = child_count as f32 * element.child_gap;
+            match element.layout_direction {
+                LayoutDirection::LeftToRight => {
+                    max_width += total_child_gap;
+                    min_width += total_child_gap;
+                }
+                LayoutDirection::TopToBottom => {
+                    max_height += total_child_gap;
+                    min_height += total_child_gap;
+                }
+            }
+
+            self.elems[elem].width = max_width;
+            self.elems[elem].height = max_height;
+            self.elems[elem].min_width = min_width;
+            self.elems[elem].min_height = min_height;
         }
 
         //
@@ -126,16 +158,9 @@ impl UILayouter {
                 continue;
             }
 
-            // calculate childrens combined size
-            let child_count = element.children.len().saturating_sub(1);
-            let total_child_gap = child_count as f32 * element.child_gap;
-
             let mut children_width = 0.0;
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
-                    // gap
-                    children_width += total_child_gap;
-
                     // accumulate children sizes
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
@@ -240,16 +265,9 @@ impl UILayouter {
                 continue;
             }
 
-            // calculate childrens combined size
-            let child_count = element.children.len().saturating_sub(1);
-            let total_child_gap = child_count as f32 * element.child_gap;
-
             let mut children_height = 0.0;
             match element.layout_direction {
                 LayoutDirection::TopToBottom => {
-                    // gap
-                    children_height += total_child_gap;
-
                     // accumulate children sizes
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
@@ -396,8 +414,27 @@ pub struct TextInfo {
     text: String,
 
     text_color: Vec4,
-    font_size: f32,
+    font_size: u32,
 }
+
+// impl TextInfo {
+//     pub fn new(text: impl Into<String>) -> Self {
+//         Self {
+//             text: text.into(),
+//             text_color: vec4(0.0, 0.0, 0.0, 1.0),
+//             font_size: 12.0,
+//         }
+//     }
+//
+//     pub fn text_color(mut self, text_color: Vec4) -> Self {
+//         self.text_color = text_color;
+//         self
+//     }
+//     pub fn olor(mut self, text_color: Vec4) -> Self {
+//         self.text_color = text_color;
+//         self
+//     }
+// }
 
 #[derive(Debug, Clone)]
 pub enum Sizing {
@@ -450,12 +487,12 @@ pub struct UIElement {
 
     layout_direction: LayoutDirection,
 
+    text_info: TextInfo,
+
     child_gap: f32,
 
-    content: Content,
-
-    max_width: f32,
-    min_width: f32,
+    min_width: f32, // TODO: already handled by width?
+    min_height: f32,
 
     // calculated fields
     x: f32,
@@ -481,10 +518,15 @@ impl UIElement {
             layout_direction: LayoutDirection::LeftToRight,
             background_color: Vec4::ZERO,
             child_gap: 0.0,
-            content: Content::Container,
 
-            max_width: 0.0,
+            text_info: TextInfo {
+                text: String::new(),
+                text_color: vec4(0.0, 0.0, 0.0, 0.0),
+                font_size: 12,
+            },
+
             min_width: 0.0,
+            min_height: 0.0,
 
             x: 0.0,
             y: 0.0,
@@ -521,6 +563,18 @@ impl UIElement {
     }
     pub fn child_gap(mut self, child_gap: f32) -> Self {
         self.child_gap = child_gap;
+        self
+    }
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.text_info.text = text.into();
+        self
+    }
+    pub fn font_size(mut self, font_size: u32) -> Self {
+        self.text_info.font_size = font_size;
+        self
+    }
+    pub fn text_color(mut self, text_color: Vec4) -> Self {
+        self.text_info.text_color = text_color;
         self
     }
 

@@ -4,10 +4,10 @@ mod ui_renderer;
 
 use crate::{
     ui_font::UIFont,
-    ui_layout::{LayoutDirection, Padding, Sizing, UIElement, UILayouter},
+    ui_layout::{LayoutDirection, Padding, Sizing, TextInfo, UIElement, UILayouter},
     ui_renderer::UIRenderer,
 };
-use gbase::{asset, glam::vec4, render, wgpu, CallbackResult, Callbacks, Context};
+use gbase::{asset, filesystem, glam::vec4, render, wgpu, CallbackResult, Callbacks, Context};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -28,7 +28,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
         let renderer = UIRenderer::new(ctx, cache, 1024);
-        let font = UIFont::new();
+        let font = UIFont::new(include_bytes!("../assets/fonts/font.ttf")); // TODO: temp
         let layouter = UILayouter::new();
         Self {
             renderer,
@@ -56,6 +56,11 @@ impl Callbacks for App {
                     .child_gap(20.0)
                     .background_color(vec4(0.2, 0.2, 0.2, 1.0))
                     .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .background_color(vec4(1.0, 0.0, 1.0, 1.0))
+                            .text("Hello brooo")
+                            .font_size(32)
+                            .draw(layouter);
                         UIElement::new()
                             .sizing_x(Sizing::Fixed(100.0))
                             .sizing_y(Sizing::Fixed(100.0))
@@ -101,7 +106,9 @@ impl Callbacks for App {
                     });
             });
 
-        let ui_elements = self.layouter.layout_elements_fullscreen(ctx, &self.font);
+        let ui_elements = self
+            .layouter
+            .layout_elements_fullscreen(ctx, &mut self.font);
 
         self.renderer.render(
             ctx,
