@@ -56,12 +56,12 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         UIElement::new()
-            .sizing_x(Sizing::Fixed(900.0))
+            .sizing_x(Sizing::Fixed(1200.0))
             .sizing_y(Sizing::Fit)
             .background_color(WHITE)
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
-                    .text("Hello my name is not bobbyyy")
+                    .text("Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
                     .font_size(32)
                     .background_color(BLUE)
                     .draw(layouter);

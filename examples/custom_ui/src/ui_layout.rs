@@ -5,6 +5,7 @@ use gbase::{
 
 pub trait UILayoutTextMeasurer {
     fn measure_text(&mut self, text: &str, font_size: u32) -> (f32, f32);
+    // add line height?
 }
 
 use crate::ui_renderer::UIElementInstace;
@@ -176,7 +177,7 @@ impl UILayouter {
                 }
             }
 
-            // remaining width (used for grow/shrink)
+            // calculate remaining width (used for grow/shrink)
             let mut remaining_width = element.preferred_width;
             remaining_width -= element.padding.horizontal();
             if let LayoutDirection::LeftToRight = element.layout_direction {
@@ -281,7 +282,7 @@ impl UILayouter {
                                 self.elems[child_index].preferred_width = new_width;
                             }
 
-                            at_min_width
+                            !at_min_width
                         });
                     }
                 }
@@ -308,22 +309,42 @@ impl UILayouter {
 
             let element_text = &element.text_info.text;
             if !element_text.is_empty() {
-                let mut preferred_height = 0.0f32;
-                let mut min_height = 0.0f32;
-
                 let text_info = &element.text_info;
 
-                let (_, text_height) =
-                    text_measurer.measure_text(&text_info.text, text_info.font_size);
-                preferred_height += text_height;
+                let mut line_len = 0.0;
+                let mut line_count = 1;
+                // let mut lines = Vec::new();
 
                 for word in text_info.text.split_whitespace() {
-                    let (_, word_height) = text_measurer.measure_text(word, text_info.font_size);
-                    min_height = min_height.max(word_height);
+                    let (word_width, _) = text_measurer.measure_text(word, text_info.font_size);
+                    // wrap
+                    if line_len + word_width > element.preferred_width {
+                        line_count += 1;
+                        line_len = 0.0;
+                    }
+                    line_len += word_width;
                 }
 
-                self.elems[elem].preferred_height = preferred_height;
-                self.elems[elem].min_height = min_height;
+                let (_, line_height) =
+                    text_measurer.measure_text(&text_info.text, text_info.font_size);
+
+                let preferred_height = line_count as f32 * line_height;
+                let min_height = preferred_height;
+
+                // let mut preferred_height = 0.0f32;
+                // let mut min_height = 0.0f32;
+                //
+                // let (_, text_height) =
+                //     text_measurer.measure_text(&text_info.text, text_info.font_size);
+                // preferred_height += text_height;
+                //
+                // for word in text_info.text.split_whitespace() {
+                //     let (_, word_height) = text_measurer.measure_text(word, text_info.font_size);
+                //     min_height = min_height.max(word_height);
+                // }
+
+                self.elems[elem].preferred_height += preferred_height;
+                self.elems[elem].min_height += min_height;
             }
         }
 
@@ -509,7 +530,7 @@ impl UILayouter {
                                 self.elems[child_index].preferred_height = new_height;
                             }
 
-                            at_min_height
+                            !at_min_height
                         });
                     }
                 }

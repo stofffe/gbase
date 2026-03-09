@@ -18,11 +18,11 @@ impl UIFont {
 
     fn get_letter_info(&mut self, letter: char, font_size: u32) -> fontdue::Metrics {
         if let Some(metrics) = self.lookup.get(&(letter, font_size)) {
-            return metrics.clone();
+            return *metrics;
         }
 
         let (metrics, _) = self.font.rasterize(letter, font_size as f32);
-        self.lookup.insert((letter, font_size), metrics.clone());
+        self.lookup.insert((letter, font_size), metrics);
         metrics
     }
 }
