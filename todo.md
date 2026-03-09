@@ -68,7 +68,9 @@ next up
     - have to call init logging in hot reload callback
 
 ui 2
-    [] fix padding
+    [] figure out when to use min/preferred/width
+    [] add text wrapping stage 
+    [] add text rending (with kerning)
 
 [] allocations
     [] use arenas for CPU
@@ -221,6 +223,7 @@ https://nialltl.neocities.org/articles/mpm_guide
 
 Hot reload command:
     nmap <c-p> <cmd>silent exec "! cd examples/FOLDER && make hot_reload_compile"<cr
+    nmap <leader>b <cmd>silent exec "! cd examples/FOLDER && make hot_reload_compile"<cr
 
 Links
 Shadow mapping: https://web.archive.org/web/20230210095515/http://the-witness.net/news/2013/09/shadow-mapping-summary-part-1/

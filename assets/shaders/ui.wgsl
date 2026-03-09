@@ -25,7 +25,6 @@ fn vs_main(
 
     let pixel_pos = in.position + (uv) * in.size;
 
-    // let position = camera.view_proj * vec4f(pixel_pos, 0.0, 1.0);
     let position = projection * vec4f(pixel_pos, 0.0, 1.0);
 
     out.clip_position = position;
@@ -43,6 +42,6 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-    // return in.color;
-    return vec4f(in.uv, 0.0, 1.0);
+    return in.color;
+    // return vec4f(in.uv, 0.0, 1.0);
 }
