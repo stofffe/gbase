@@ -8,10 +8,14 @@ use crate::{
     ui_renderer::UIRenderer,
 };
 use gbase::{
-    asset, filesystem,
+    asset,
+    egui::{self, debug_text::print, load::SizedTexture},
+    filesystem,
     glam::{vec4, Vec4},
-    render, wgpu, CallbackResult, Callbacks, Context,
+    render::{self, SamplerBuilder},
+    wgpu, CallbackResult, Callbacks, Context,
 };
+use sdfer::esdt;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -49,6 +53,24 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
+    fn render_egui(
+        &mut self,
+        ctx: &mut Context,
+        _cache: &mut asset::AssetCache,
+        egui_ctx: &mut gbase::egui_ui::EguiContext,
+    ) -> CallbackResult {
+        let image_view = render::TextureViewBuilder::new(self.renderer.font_atlas.clone());
+        let texture_id =
+            egui_ctx.register_wgpu_texture_cached(ctx, image_view, SamplerBuilder::new());
+
+        egui::Window::new("font atlas").show(egui_ctx.ctx(), |ui| {
+            ui.image(SizedTexture::new(texture_id, [512.0, 512.0]));
+        });
+
+        CallbackResult::Continue
+    }
+
+    #[no_mangle]
     fn render(
         &mut self,
         ctx: &mut Context,
@@ -67,7 +89,7 @@ impl Callbacks for App {
                     .draw(layouter);
                 UIElement::new()
                     .sizing_x(Sizing::Fixed(400.0))
-                    .sizing_y(Sizing::Fixed(300.0))
+                    .sizing_y(Sizing::Grow)
                     .background_color(GREEN)
                     .draw(layouter);
                 UIElement::new()

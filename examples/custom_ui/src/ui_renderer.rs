@@ -5,6 +5,7 @@ use gbase::{
     render::{self, BindGroupBindable},
     wgpu,
 };
+use std::collections::HashMap;
 
 pub struct UIRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
@@ -14,6 +15,8 @@ pub struct UIRenderer {
     instance_buffer: render::RawBuffer<UIElementInstace>,
 
     projection: render::UniformBuffer<glam::Mat4>,
+
+    pub font_atlas: render::ArcTexture,
 }
 
 impl UIRenderer {
@@ -39,12 +42,138 @@ impl UIRenderer {
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 
+        // let mut image = sdfer::Image2d::<sdfer::Unorm8>::new(64, 64);
+        //
+        // (image, _) = esdt::glyph_to_sdf(&mut image, esdt::Params::default(), None);
+        //
+        // let mut data = Vec::new();
+        // for y in 0..64 {
+        //     for x in 0..64 {
+        //         data.push(image[(x, y)].to_bits());
+        //     }
+        // }
+
+        //
+        // create font atlas
+        //
+
+        let mut supported_chars = Vec::new();
+        for char in 'a'..='z' {
+            supported_chars.push(char);
+        }
+        for char in 'A'..='Z' {
+            supported_chars.push(char);
+        }
+        for char in '0'..='9' {
+            supported_chars.push(char);
+        }
+        for char in " ,.;/".chars() {
+            supported_chars.push(char);
+        }
+        let font = fontdue::Font::from_bytes(
+            include_bytes!("../assets/fonts/font.ttf").as_ref(),
+            fontdue::FontSettings::default(),
+        )
+        .unwrap();
+
+        let mut glyphs = Vec::new();
+        let mut total_area = 0;
+        for char in supported_chars {
+            let (metrics, raster) = font.rasterize(char, 128.0);
+            total_area += metrics.width * metrics.height;
+            glyphs.push((char, metrics, raster));
+        }
+
+        // sort by glyph height
+        glyphs.sort_by_key(|(_, metrics, _)| metrics.height);
+
+        // calculate atlas size
+        let mut glyph_info_lookup = HashMap::new();
+        let mut atlas_side_size = ((total_area as f32).sqrt() as u32).next_power_of_two(); // TODO: cleanup
+        let mut x_offset = 0u32;
+        let mut y_offset = 0u32;
+        let mut row_y_max = 0u32;
+
+        // packing
+        loop {
+            let mut packing_success = true;
+
+            for (char, metrics, _) in glyphs.iter() {
+                let char_width = metrics.width as u32;
+                let char_height = metrics.height as u32;
+
+                // check for wrapping
+                if char_width + x_offset > atlas_side_size {
+                    // check for space left
+                    if char_height + y_offset > atlas_side_size {
+                        packing_success = false;
+                        break;
+                    }
+
+                    y_offset += row_y_max;
+                    row_y_max = 0;
+                    x_offset = 0;
+                }
+
+                glyph_info_lookup.insert(
+                    char,
+                    GlyphInfo {
+                        letter: *char,
+                        x: x_offset,
+                        y: y_offset,
+                        width: char_width,
+                        height: char_height,
+                    },
+                );
+
+                x_offset += char_width;
+                row_y_max = row_y_max.max(char_height);
+            }
+
+            if packing_success {
+                break;
+            } else {
+                atlas_side_size *= 2;
+            }
+        }
+
+        // atlas creation
+        let atlas_size = atlas_side_size * atlas_side_size;
+        let mut atlas_data = vec![0u8; atlas_size as usize];
+        for (char, _, raster) in glyphs.iter() {
+            let glyph_info = glyph_info_lookup.get(&char).expect("could not find glyph");
+            for glyph_x in 0..glyph_info.width {
+                for glyph_y in 0..glyph_info.height {
+                    let index = glyph_x + glyph_y * glyph_info.width;
+                    let value = raster[index as usize];
+
+                    let atlas_x = glyph_info.x + glyph_x;
+                    let atlas_y = glyph_info.y + glyph_y;
+                    let index = atlas_x + atlas_y * atlas_side_size;
+                    atlas_data[index as usize] = value;
+                }
+            }
+        }
+
+        dbg!(atlas_side_size);
+        dbg!(atlas_size);
+        dbg!(atlas_data.len());
+
+        let image = render::TextureBuilder::new(render::TextureSource::Data(
+            atlas_side_size,
+            atlas_side_size,
+            atlas_data,
+        ))
+        .with_format(wgpu::TextureFormat::R8Unorm)
+        .build(ctx);
+
         Self {
             pipeline_layout,
             bindgroup_layout,
             shader_handle,
             instance_buffer,
             projection,
+            font_atlas: image,
         }
     }
 
@@ -76,7 +205,7 @@ impl UIRenderer {
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
-                // projection
+                // camera projection
                 self.projection.bindgroup_entry(),
             ])
             .build(ctx);
@@ -97,6 +226,14 @@ impl UIRenderer {
                 pass.draw(0..4, 0..ui_elements.len() as u32);
             });
     }
+}
+
+struct GlyphInfo {
+    letter: char,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
 }
 
 #[repr(C)]
