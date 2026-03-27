@@ -3,19 +3,16 @@ mod ui_layout;
 mod ui_renderer;
 
 use crate::{
-    ui_font::UIFont,
-    ui_layout::{LayoutDirection, Padding, Sizing, TextInfo, UIElement, UILayouter},
+    ui_layout::{Sizing, UIElement, UILayouter},
     ui_renderer::UIRenderer,
 };
 use gbase::{
     asset,
-    egui::{self, debug_text::print, load::SizedTexture},
-    filesystem,
+    egui::{self, load::SizedTexture},
     glam::{vec4, Vec4},
     render::{self, SamplerBuilder},
     wgpu, CallbackResult, Callbacks, Context,
 };
-use sdfer::esdt;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
@@ -32,7 +29,6 @@ const GREY: Vec4 = vec4(0.5, 0.5, 0.5, 1.0);
 struct App {
     renderer: UIRenderer,
     layouter: UILayouter,
-    font: UIFont,
 }
 
 impl Callbacks for App {
@@ -42,14 +38,14 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
-        let renderer = UIRenderer::new(ctx, cache, 1024);
-        let font = UIFont::new(include_bytes!("../assets/fonts/font.ttf")); // TODO: temp
+        let renderer = UIRenderer::new(
+            ctx,
+            cache,
+            include_bytes!("../assets/fonts/font.ttf"),
+            4 * 4096,
+        );
         let layouter = UILayouter::new();
-        Self {
-            renderer,
-            layouter,
-            font,
-        }
+        Self { renderer, layouter }
     }
 
     #[no_mangle]
@@ -94,7 +90,8 @@ impl Callbacks for App {
                     .draw(layouter);
                 UIElement::new()
                     .text("Hello my name is bobbyyy")
-                    .font_size(32)
+                    .text("abc")
+                    .font_size(128)
                     .background_color(BLUE)
                     .draw(layouter);
             });
@@ -163,14 +160,14 @@ impl Callbacks for App {
 
         let ui_elements = self
             .layouter
-            .layout_elements_fullscreen(ctx, &mut self.font);
+            .layout_elements_fullscreen(ctx, &mut self.renderer);
 
         self.renderer.render(
             ctx,
             cache,
             screen_view,
             render::surface_format(ctx),
-            ui_elements,
+            self.layouter.elements(),
         );
 
         self.layouter.reset();

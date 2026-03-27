@@ -3,12 +3,43 @@ use gbase::{
     render, Context,
 };
 
-pub trait UILayoutTextMeasurer {
-    fn measure_text(&mut self, text: &str, font_size: u32) -> (f32, f32);
-    // add line height?
+#[derive(Debug)]
+pub struct TextSizeResult {
+    pub preferred_width: f32,
+    pub preferred_height: f32,
+    pub min_width: f32,
+    pub min_height: f32,
 }
 
-use crate::ui_renderer::UIElementInstace;
+// TODO: should not be clone
+#[derive(Debug, Clone)]
+pub struct TextLayoutResult {
+    pub width: f32,
+    pub height: f32,
+
+    pub glyphs: Vec<Glyph>,
+}
+
+// glyph relative to its parent container
+
+#[derive(Debug, Clone)]
+pub struct Glyph {
+    pub character: char,
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+pub trait UILayoutTextMeasurer {
+    fn calculate_preferred_text_size(
+        &mut self,
+        text: &str,
+        font_size: u32,
+        wrap_on_newline: bool,
+    ) -> TextSizeResult;
+    fn layout_text(&mut self, text: &str, font_size: u32, max_width: f32) -> TextLayoutResult;
+}
 
 const ROOT_ELEMENT: usize = 0;
 
@@ -36,6 +67,10 @@ impl UILayouter {
         self.open_element(element);
         children(self);
         self.close_element();
+    }
+
+    pub fn elements(&self) -> &[UIElement] {
+        &self.elems
     }
 
     fn open_element(&mut self, mut element: UIElement) -> usize {
@@ -68,7 +103,7 @@ impl UILayouter {
         &mut self,
         ctx: &Context,
         text_measurer: &mut impl UILayoutTextMeasurer,
-    ) -> Vec<UIElementInstace> {
+    ) {
         let screen_size = render::surface_size(ctx);
         self.layout_elements(
             screen_size.width as f32,
@@ -81,7 +116,7 @@ impl UILayouter {
         root_width: f32,
         root_height: f32,
         text_measurer: &mut impl UILayoutTextMeasurer,
-    ) -> Vec<UIElementInstace> {
+    ) {
         self.elems[ROOT_ELEMENT].preferred_width = root_width;
         self.elems[ROOT_ELEMENT].preferred_height = root_height;
 
@@ -100,14 +135,13 @@ impl UILayouter {
             if !element.text_info.text.is_empty() {
                 let text_info = &element.text_info;
 
-                let (text_width, _) =
-                    text_measurer.measure_text(&text_info.text, text_info.font_size);
-                preferred_width += text_width;
-
-                for word in text_info.text.split_whitespace() {
-                    let (word_width, _) = text_measurer.measure_text(word, text_info.font_size);
-                    min_width = min_width.max(word_width);
-                }
+                let layout_result = text_measurer.calculate_preferred_text_size(
+                    &text_info.text,
+                    text_info.font_size,
+                    false,
+                );
+                preferred_width += layout_result.preferred_width;
+                min_width = layout_result.min_width;
             }
 
             // children sizes
@@ -309,42 +343,16 @@ impl UILayouter {
 
             let element_text = &element.text_info.text;
             if !element_text.is_empty() {
-                let text_info = &element.text_info;
+                let layout_result = text_measurer.layout_text(
+                    &element.text_info.text,
+                    element.text_info.font_size,
+                    element.preferred_width,
+                );
 
-                let mut line_len = 0.0;
-                let mut line_count = 1;
-                // let mut lines = Vec::new();
-
-                for word in text_info.text.split_whitespace() {
-                    let (word_width, _) = text_measurer.measure_text(word, text_info.font_size);
-                    // wrap
-                    if line_len + word_width > element.preferred_width {
-                        line_count += 1;
-                        line_len = 0.0;
-                    }
-                    line_len += word_width;
-                }
-
-                let (_, line_height) =
-                    text_measurer.measure_text(&text_info.text, text_info.font_size);
-
-                let preferred_height = line_count as f32 * line_height;
-                let min_height = preferred_height;
-
-                // let mut preferred_height = 0.0f32;
-                // let mut min_height = 0.0f32;
-                //
-                // let (_, text_height) =
-                //     text_measurer.measure_text(&text_info.text, text_info.font_size);
-                // preferred_height += text_height;
-                //
-                // for word in text_info.text.split_whitespace() {
-                //     let (_, word_height) = text_measurer.measure_text(word, text_info.font_size);
-                //     min_height = min_height.max(word_height);
-                // }
-
-                self.elems[elem].preferred_height += preferred_height;
-                self.elems[elem].min_height += min_height;
+                self.elems[elem].preferred_height += layout_result.height;
+                // TODO: dont know if its need here
+                self.elems[elem].min_height += layout_result.height;
+                self.elems[elem].text_layout = layout_result;
             }
         }
 
@@ -552,6 +560,7 @@ impl UILayouter {
         //
         // positioning
         //
+
         for elem in 1..self.elems.len() {
             let element = &self.elems[elem];
 
@@ -577,18 +586,31 @@ impl UILayouter {
                     }
                 }
             }
-        }
 
-        // convert
-        let mut instances = Vec::new();
-        for elem in self.elems.iter().skip(1) {
-            instances.push(UIElementInstace {
-                position: [elem.x, elem.y],
-                size: [elem.preferred_width, elem.preferred_height],
-                color: elem.background_color.to_array(),
-            });
+            // let element = &self.elems[elem];
+            // instances.push(UIElementInstace {
+            //     position: [element.x, element.y],
+            //     size: [element.preferred_width, element.preferred_height],
+            //     color: element.background_color.to_array(),
+            //     font_atlas_offset: [0.0, 0.0],
+            //     font_atlas_size: [0.0, 0.0],
+            // });
+
+            // // glyphs
+            // if !element.text_info.text.is_empty() {
+            //     for glyph in element.text_layout.glyphs.iter() {
+            //         let x = element.x + glyph.x;
+            //         let y = element.y + glyph.y;
+            //         instances.push(UIElementInstace {
+            //             position: [x, y],
+            //             size: [glyph.width, glyph.height],
+            //             color: element.text_info.text_color.to_array(),
+            //             font_atlas_offset: [glyph, glyph.y],
+            //             font_atlas_size: [glyph.width, glyph.height],
+            //         });
+            //     }
+            // }
         }
-        instances
     }
 }
 
@@ -600,30 +622,11 @@ pub enum Content {
 
 #[derive(Debug, Clone)]
 pub struct TextInfo {
-    text: String,
+    pub text: String,
 
-    text_color: Vec4,
-    font_size: u32,
+    pub text_color: Vec4,
+    pub font_size: u32,
 }
-
-// impl TextInfo {
-//     pub fn new(text: impl Into<String>) -> Self {
-//         Self {
-//             text: text.into(),
-//             text_color: vec4(0.0, 0.0, 0.0, 1.0),
-//             font_size: 12.0,
-//         }
-//     }
-//
-//     pub fn text_color(mut self, text_color: Vec4) -> Self {
-//         self.text_color = text_color;
-//         self
-//     }
-//     pub fn olor(mut self, text_color: Vec4) -> Self {
-//         self.text_color = text_color;
-//         self
-//     }
-// }
 
 #[derive(Debug, Clone)]
 pub enum Sizing {
@@ -672,11 +675,11 @@ pub struct UIElement {
 
     padding: Padding,
 
-    background_color: Vec4,
+    pub background_color: Vec4,
 
     layout_direction: LayoutDirection,
 
-    text_info: TextInfo,
+    pub text_info: TextInfo,
 
     child_gap: f32,
 
@@ -684,13 +687,15 @@ pub struct UIElement {
     min_height: f32,
 
     // calculated fields
-    x: f32,
-    y: f32,
-    preferred_width: f32,
-    preferred_height: f32,
+    pub x: f32,
+    pub y: f32,
+    pub preferred_width: f32,
+    pub preferred_height: f32,
 
-    parent: usize,
-    children: Vec<usize>,
+    pub text_layout: TextLayoutResult,
+
+    pub parent: usize,
+    pub children: Vec<usize>,
 }
 
 impl UIElement {
@@ -717,6 +722,11 @@ impl UIElement {
             min_width: 0.0,
             min_height: 0.0,
 
+            text_layout: TextLayoutResult {
+                width: 0.0,
+                height: 0.0,
+                glyphs: Vec::new(),
+            },
             x: 0.0,
             y: 0.0,
             preferred_width: 0.0,
@@ -778,88 +788,3 @@ impl UIElement {
         layouter.add_element(self, |_| {});
     }
 }
-// // TODO: clamp values?
-// for elem in (1..self.elems.len()).rev() {
-//     let element = &self.elems[elem];
-//
-//     let mut preferred_width = 0.0f32;
-//     let mut preferred_height = 0.0f32;
-//     let mut min_width = 0.0f32;
-//     let mut min_height = 0.0f32;
-//
-//     // text sized
-//     if !element.text_info.text.is_empty() {
-//         let text_info = &element.text_info;
-//
-//         let (text_width, text_height) =
-//             text_measurer.measure_text(&text_info.text, text_info.font_size);
-//         preferred_width = text_width;
-//         preferred_height = text_height;
-//
-//         for word in text_info.text.split_whitespace() {
-//             let (word_width, word_height) =
-//                 text_measurer.measure_text(word, text_info.font_size);
-//             min_width = min_width.max(word_width);
-//             min_height = min_height.max(word_height);
-//         }
-//     }
-//
-//     // children sizes
-//     let mut children_preferred_width = 0.0;
-//     let mut children_min_width = 0.0;
-//     match element.layout_direction {
-//         LayoutDirection::LeftToRight => {
-//             // accumulate children sizes
-//             for &child_index in element.children.iter() {
-//                 let child = &self.elems[child_index];
-//                 children_preferred_width += child.width;
-//                 children_min_width += child.min_width;
-//             }
-//         }
-//         LayoutDirection::TopToBottom => {
-//             // get max width of children
-//             for &child_index in element.children.iter() {
-//                 let child = &self.elems[child_index];
-//                 children_preferred_width = children_preferred_width.max(child.width);
-//                 children_min_width = children_min_width.max(child.min_width);
-//             }
-//         }
-//     }
-//     preferred_width += children_preferred_width;
-//     min_width += children_min_width;
-//
-//     // gap
-//     let child_count = element.children.len().saturating_sub(1);
-//     let total_child_gap = child_count as f32 * element.child_gap;
-//     match element.layout_direction {
-//         LayoutDirection::LeftToRight => {
-//             preferred_width += total_child_gap;
-//             min_width += total_child_gap;
-//         }
-//         LayoutDirection::TopToBottom => {
-//             preferred_height += total_child_gap;
-//             min_height += total_child_gap;
-//         }
-//     }
-//
-//     // padding
-//     preferred_width += element.padding.horizontal();
-//     preferred_height += element.padding.vertical();
-//     min_width += element.padding.horizontal();
-//     min_height += element.padding.vertical();
-//
-//     // fixed size overwrite
-//     if let Sizing::Fixed(fixed_width) = element.sizing_x {
-//         preferred_width = fixed_width;
-//         min_width = fixed_width;
-//     }
-//     if let Sizing::Fixed(fixed_height) = element.sizing_y {
-//         preferred_height = fixed_height;
-//         min_height = fixed_height;
-//     }
-//
-//     self.elems[elem].width = preferred_width;
-//     self.elems[elem].height = preferred_height;
-//     self.elems[elem].min_width = min_width;
-//     self.elems[elem].min_height = min_height;
-// }
