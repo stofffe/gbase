@@ -33,7 +33,7 @@ impl UIRenderer {
         font: &[u8],
         max_elements: u64,
     ) -> Self {
-        let font_atlas_raster_size = 128.0;
+        let font_atlas_raster_size = 32.0;
         //
         // create font atlas
         //
@@ -281,7 +281,7 @@ impl UILayoutTextMeasurer for UIRenderer {
 
         let mut longest_line_width = 0.0f32;
         let mut x_offset = 0.0f32;
-        let mut y_offset = 0.0f32;
+        let mut y_offset = 0.0f32; // push offset back
         let mut glyphs = Vec::new();
 
         let mut prev_char = None;
@@ -308,7 +308,8 @@ impl UILayoutTextMeasurer for UIRenderer {
             glyphs.push(Glyph {
                 character: letter,
                 x: x_offset,
-                y: y_offset,
+                y: y_offset + line_height - glyph_info.height as f32 - glyph_info.y_min
+                    + line_metrics.descent,
                 width: glyph_info.width as f32,
                 height: glyph_info.height as f32,
             });
@@ -336,6 +337,8 @@ struct AtlasGlyphInfo {
     height: u32,
 
     advance_width: f32,
+    x_min: f32,
+    y_min: f32,
 }
 
 fn create_font_atlas(
@@ -396,6 +399,8 @@ fn create_font_atlas(
                     height: raster_height,
                     // TODO: this might need to account for padding
                     advance_width: metrics.advance_width,
+                    x_min: metrics.xmin as f32,
+                    y_min: metrics.ymin as f32,
                 },
             );
 
