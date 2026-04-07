@@ -229,7 +229,7 @@ impl UILayoutTextMeasurer for UIRenderer {
     ) -> TextSizeResult {
         let line_metrics = self
             .font
-            .horizontal_line_metrics(self.font_atlas_raster_size)
+            .horizontal_line_metrics(font_size as f32)
             .expect("could not get line metrics");
         let line_height = line_metrics.new_line_size;
 
@@ -242,11 +242,7 @@ impl UILayoutTextMeasurer for UIRenderer {
         let mut current_word_width = 0.0;
         let mut prev_char = None;
         for letter in text.chars() {
-            // TODO: should have fallback here
-            let &glyph_info = &self
-                .glyph_lookup
-                .get(&letter)
-                .expect("trying to get unsupported letter");
+            let font_metrics = self.font.metrics(letter, font_size as f32);
 
             // TODO: might be a bit too long due to using advance and not width
             if wrap_on_newline && letter == '\n' {
@@ -267,8 +263,8 @@ impl UILayoutTextMeasurer for UIRenderer {
                 }
             }
 
-            current_word_width += glyph_info.metrics.advance_width;
-            x_offset += glyph_info.metrics.advance_width;
+            current_word_width += font_metrics.advance_width;
+            x_offset += font_metrics.advance_width;
 
             prev_char = Some(letter);
         }
@@ -290,7 +286,7 @@ impl UILayoutTextMeasurer for UIRenderer {
     fn layout_text(&mut self, text: &str, font_size: u32, max_width: f32) -> TextLayoutResult {
         let line_metrics = self
             .font
-            .horizontal_line_metrics(self.font_atlas_raster_size)
+            .horizontal_line_metrics(font_size as f32)
             .expect("could not get line metrics");
         let line_height = line_metrics.new_line_size;
 
@@ -301,11 +297,7 @@ impl UILayoutTextMeasurer for UIRenderer {
 
         let mut prev_char = None;
         for letter in text.chars() {
-            // TODO: should have fallback here
-            let &glyph_info = &self
-                .glyph_lookup
-                .get(&letter)
-                .expect("trying to get unsupported letter");
+            let font_metrics = self.font.metrics(letter, font_size as f32);
 
             if let Some(prev) = prev_char {
                 if let Some(kern) = self.font.horizontal_kern(prev, letter, font_size as f32) {
@@ -314,7 +306,7 @@ impl UILayoutTextMeasurer for UIRenderer {
             }
 
             // wrapping
-            if x_offset + glyph_info.metrics.width as f32 > max_width {
+            if x_offset + font_metrics.width as f32 > max_width {
                 y_offset += line_height;
                 x_offset = 0.0;
                 longest_line_width = longest_line_width.max(x_offset);
@@ -323,15 +315,13 @@ impl UILayoutTextMeasurer for UIRenderer {
             glyphs.push(Glyph {
                 character: letter,
                 x: x_offset,
-                y: y_offset + line_height
-                    - glyph_info.metrics.height as f32
-                    - glyph_info.metrics.ymin
+                y: y_offset + line_height - font_metrics.height as f32 - font_metrics.ymin as f32
                     + line_metrics.descent,
-                width: glyph_info.metrics.width as f32,
-                height: glyph_info.metrics.height as f32,
+                width: font_metrics.width as f32,
+                height: font_metrics.height as f32,
             });
 
-            x_offset += glyph_info.metrics.advance_width;
+            x_offset += font_metrics.advance_width;
             prev_char = Some(letter);
         }
 
