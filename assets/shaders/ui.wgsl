@@ -51,22 +51,17 @@ struct VertexOutput {
     @location(2) atlas_uv: vec2f,
 }
 
+const EDGE_CUTOFF = 0.5;
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let font_sdf = textureSample(font_atlas_texture, font_atlas_sampler, in.atlas_uv);
+    // TODO: use flag instead
     if !(in.atlas_uv.x == 0.0 && in.atlas_uv.y == 0) {
-        if font_sdf.r > 0.5 {
-            let dist = font_sdf.r;
-            let edge = 0.5;
-            // let w = fwidth(dist);
-            // let alpha = smoothstep(edge - w, edge + w, dist);
-            let alpha = smoothstep(0.40, 0.60, dist);
-            return vec4f(alpha, alpha, alpha, 1.0);
-        // let color = smoothstep()
-        // return vec4f(1.0, 1.0, 1.0, 1.0);
-        } else {
-            discard;
-        }
+        let dist = font_sdf.r;
+        let w = fwidth(dist);
+        let glyph_alpha = smoothstep(EDGE_CUTOFF - w, EDGE_CUTOFF + w, dist);
+        let alpha = min(glyph_alpha, in.color.a);
+        return vec4f(in.color.rgb, alpha);
     }
 
     return vec4f(in.color);

@@ -710,12 +710,12 @@ impl UIElement {
                 right: 0.0,
             },
             layout_direction: LayoutDirection::LeftToRight,
-            background_color: Vec4::ZERO,
+            background_color: vec4(0.0, 0.0, 0.0, 1.0),
             child_gap: 0.0,
 
             text_info: TextInfo {
                 text: String::new(),
-                text_color: vec4(0.0, 0.0, 0.0, 0.0),
+                text_color: vec4(0.0, 0.0, 0.0, 1.0),
                 font_size: 12,
             },
 

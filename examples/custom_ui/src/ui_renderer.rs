@@ -123,6 +123,8 @@ impl UIRenderer {
         let mut instances = Vec::new();
         for elem in 0..ui_elements.len() {
             let element = &ui_elements[elem];
+
+            // container
             instances.push(UIElementInstace {
                 position: [element.x, element.y],
                 size: [element.preferred_width, element.preferred_height],
@@ -131,9 +133,9 @@ impl UIRenderer {
                 font_atlas_size: [0.0, 0.0],
             });
 
+            // glyphs
             let W = self.font_atlas.width() as f32;
             let H = self.font_atlas.height() as f32;
-            // glyphs
             if !element.text_info.text.is_empty() {
                 for glyph in element.text_layout.glyphs.iter() {
                     let glyph_info = self
@@ -141,7 +143,7 @@ impl UIRenderer {
                         .get(&glyph.character)
                         .expect("could not find glyph");
 
-                    // TODO:
+                    // TODO: account for padding?
                     if glyph_info.metrics.width == 0 || glyph_info.metrics.height == 0 {
                         continue;
                     }
@@ -195,7 +197,11 @@ impl UIRenderer {
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .buffers(vec![UIElementInstace::desc()])
             .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            .single_target(render::ColorTargetState::new().format(view_format))
+            .single_target(
+                render::ColorTargetState::new()
+                    .format(view_format)
+                    .blend(wgpu::BlendState::ALPHA_BLENDING),
+            )
             .build(ctx);
 
         render::RenderPassBuilder::new()
