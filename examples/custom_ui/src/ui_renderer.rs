@@ -126,6 +126,8 @@ impl UIRenderer {
 
             // container
             instances.push(UIElementInstace {
+                element_type: ELEMENT_TYPE_CONTAINER,
+
                 position: [element.x, element.y],
                 size: [element.preferred_width, element.preferred_height],
                 color: element.background_color.to_array(),
@@ -151,6 +153,8 @@ impl UIRenderer {
                     let x = element.x + glyph.x;
                     let y = element.y + glyph.y;
                     instances.push(UIElementInstace {
+                        element_type: ELEMENT_TYPE_GLYPH,
+
                         position: [x, y],
                         size: [glyph.width, glyph.height],
                         color: element.text_info.text_color.to_array(),
@@ -516,9 +520,17 @@ fn create_font_atlas(
     (atlas_glyph_lookup, font_atlas)
 }
 
+const ELEMENT_TYPE_CONTAINER: u32 = 0;
+const ELEMENT_TYPE_GLYPH: u32 = 1;
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct UIElementInstace {
+    // flag containing type of element
+    // container: 0
+    // glyph: 1
+    pub element_type: u32,
+
     // uv coordinate system, (0,0) top left and y+ is down
     pub position: [f32; 2],
     pub size: [f32; 2],
@@ -534,6 +546,7 @@ impl UIElementInstace {
         render::VertexBufferLayout::from_vertex_formats(
             wgpu::VertexStepMode::Instance,
             vec![
+                wgpu::VertexFormat::Uint32,    // element type
                 wgpu::VertexFormat::Float32x2, // pos
                 wgpu::VertexFormat::Float32x2, // scale
                 wgpu::VertexFormat::Float32x4, // color
