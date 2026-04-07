@@ -48,7 +48,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
-            .log_level(tracing::Level::ERROR)
+            .log_level(tracing::Level::INFO)
             .vsync(false)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
@@ -190,13 +190,13 @@ impl Callbacks for App {
 
                 let mesh = mesh.get(cache).unwrap_loaded();
                 for primitive in mesh.primitives.iter().clone() {
-                    tracing::info!("prim {:#?}", primitive);
+                    // tracing::info!("prim {:#?}", primitive);
                 }
             }
 
             for node in gltf.nodes.iter() {
                 let node = node.get(cache).unwrap_loaded();
-                tracing::info!("node {:#?}", node);
+                // tracing::info!("node {:#?}", node);
 
                 if let Some(mesh) = node.mesh.clone() {
                     let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim

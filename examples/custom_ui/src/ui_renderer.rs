@@ -33,7 +33,7 @@ impl UIRenderer {
         font: &[u8],
         max_elements: u64,
     ) -> Self {
-        let font_atlas_raster_size = 32.0;
+        let font_atlas_raster_size = 128.0;
         //
         // create font atlas
         //
@@ -141,21 +141,26 @@ impl UIRenderer {
                         .get(&glyph.character)
                         .expect("could not find glyph");
 
+                    // TODO:
+                    if glyph_info.metrics.width == 0 || glyph_info.metrics.height == 0 {
+                        continue;
+                    }
+
                     let x = element.x + glyph.x;
                     let y = element.y + glyph.y;
-                    instances.push(dbg!(UIElementInstace {
+                    instances.push(UIElementInstace {
                         position: [x, y],
                         size: [glyph.width, glyph.height],
                         color: element.text_info.text_color.to_array(),
                         font_atlas_offset: [
                             glyph_info.atlas_offset_x as f32 / W,
-                            glyph_info.atlas_offset_y as f32 / H
+                            glyph_info.atlas_offset_y as f32 / H,
                         ],
                         font_atlas_size: [
-                            glyph_info.width as f32 / W,
-                            glyph_info.height as f32 / H
+                            glyph_info.metrics.width as f32 / W,
+                            glyph_info.metrics.height as f32 / H,
                         ],
-                    }));
+                    });
                 }
             }
         }
@@ -252,8 +257,8 @@ impl UILayoutTextMeasurer for UIRenderer {
                 }
             }
 
-            current_word_width += glyph_info.advance_width;
-            x_offset += glyph_info.advance_width;
+            current_word_width += glyph_info.metrics.advance_width;
+            x_offset += glyph_info.metrics.advance_width;
 
             prev_char = Some(letter);
         }
@@ -299,7 +304,7 @@ impl UILayoutTextMeasurer for UIRenderer {
             }
 
             // wrapping
-            if x_offset + glyph_info.width as f32 > max_width {
+            if x_offset + glyph_info.metrics.width as f32 > max_width {
                 y_offset += line_height;
                 x_offset = 0.0;
                 longest_line_width = longest_line_width.max(x_offset);
@@ -308,13 +313,15 @@ impl UILayoutTextMeasurer for UIRenderer {
             glyphs.push(Glyph {
                 character: letter,
                 x: x_offset,
-                y: y_offset + line_height - glyph_info.height as f32 - glyph_info.y_min
+                y: y_offset + line_height
+                    - glyph_info.metrics.height as f32
+                    - glyph_info.metrics.ymin
                     + line_metrics.descent,
-                width: glyph_info.width as f32,
-                height: glyph_info.height as f32,
+                width: glyph_info.metrics.width as f32,
+                height: glyph_info.metrics.height as f32,
             });
 
-            x_offset += glyph_info.advance_width;
+            x_offset += glyph_info.metrics.advance_width;
             prev_char = Some(letter);
         }
 
@@ -329,16 +336,23 @@ impl UILayoutTextMeasurer for UIRenderer {
     }
 }
 
+#[derive(Debug, Clone)]
+struct AtlasGlyphMetrics {
+    xmin: f32,
+    ymin: f32,
+    width: usize,
+    height: usize,
+    advance_width: f32,
+    advance_height: f32,
+}
+
 struct AtlasGlyphInfo {
     letter: char,
-    atlas_offset_x: u32,
-    atlas_offset_y: u32,
-    width: u32,
-    height: u32,
 
-    advance_width: f32,
-    x_min: f32,
-    y_min: f32,
+    atlas_offset_x: usize,
+    atlas_offset_y: usize,
+
+    metrics: AtlasGlyphMetrics,
 }
 
 fn create_font_atlas(
@@ -349,32 +363,80 @@ fn create_font_atlas(
 ) -> (HashMap<char, AtlasGlyphInfo>, render::ArcTexture) {
     let mut glyphs = Vec::new();
     let mut total_area = 0;
+
+    // create sdf glyphs
     for &char in supported_chars {
-        let (metrics, raster) = font.rasterize(char, font_raster_size);
-        total_area += metrics.width * metrics.height;
-        glyphs.push((char, metrics, raster));
+        let (font_metrics, font_raster) = font.rasterize(char, font_raster_size);
+        let is_invisble_char = font_metrics.width == 0 || font_metrics.height == 0;
+
+        let sdf_params = sdfer::esdt::Params {
+            pad: 8,
+            radius: 6.0,
+            cutoff: 0.5,
+            solidify: true,
+            preprocess: false,
+        };
+        let sdf_metrics = AtlasGlyphMetrics {
+            width: font_metrics.width + 2 * sdf_params.pad,
+            height: font_metrics.height + 2 * sdf_params.pad,
+
+            xmin: font_metrics.xmin as f32,
+            ymin: font_metrics.ymin as f32,
+            advance_width: font_metrics.advance_width,
+            advance_height: font_metrics.advance_height,
+        };
+
+        if is_invisble_char {
+            glyphs.push((char, sdf_metrics, None));
+        } else {
+            // u8 array -> sdfer
+            let mut sdf_input =
+                sdfer::Image2d::<sdfer::Unorm8>::new(sdf_metrics.width, sdf_metrics.height);
+            for y in 0..font_metrics.height {
+                for x in 0..font_metrics.width {
+                    let v = font_raster[y * font_metrics.width + x];
+                    sdf_input[((x + sdf_params.pad), (y + sdf_params.pad))] =
+                        sdfer::Unorm8::from_bits(v);
+                }
+            }
+
+            let (sdf_output, _) = sdfer::esdt::glyph_to_sdf(&mut sdf_input, sdf_params, None);
+
+            // sdfer -> u8 array
+            let mut sdf_raster = vec![0u8; sdf_metrics.width * sdf_metrics.height];
+            for y in 0..sdf_metrics.height {
+                for x in 0..sdf_metrics.width {
+                    sdf_raster[y * sdf_metrics.width + x] = sdf_output[(x, y)].to_bits();
+                }
+            }
+
+            total_area += sdf_output.width() * sdf_output.height();
+            glyphs.push((char, sdf_metrics, Some(sdf_raster)));
+        }
     }
 
     // sort by glyph height
-    glyphs.sort_by_key(|(_, metrics, _)| metrics.height);
+    glyphs.sort_by_key(|(_, sdf_metrics, _)| sdf_metrics.height);
+
+    // packing
+    // split up packing and atlas creation since packing might resize
 
     // calculate atlas size
     let mut atlas_glyph_lookup = HashMap::new();
-    let mut atlas_side_size = ((total_area as f32).sqrt() as u32).next_power_of_two(); // TODO: cleanup
+    let mut atlas_side_size = ((total_area as f32).sqrt() as usize).next_power_of_two(); // TODO: cleanup
     let mut atlas_offset_x;
     let mut atlas_offset_y;
     let mut row_y_max;
 
-    // packing
     loop {
         let mut packing_success = true;
         atlas_offset_x = 0;
         atlas_offset_y = 0;
         row_y_max = 0;
 
-        for (char, metrics, _) in glyphs.iter() {
-            let raster_width = metrics.width as u32;
-            let raster_height = metrics.height as u32;
+        for (char, sdf_metrics, _) in glyphs.iter() {
+            let raster_width = sdf_metrics.width;
+            let raster_height = sdf_metrics.height;
 
             // check for wrapping
             if raster_width + atlas_offset_x > atlas_side_size {
@@ -393,14 +455,11 @@ fn create_font_atlas(
                 *char,
                 AtlasGlyphInfo {
                     letter: *char,
+
                     atlas_offset_x,
                     atlas_offset_y,
-                    width: raster_width,
-                    height: raster_height,
-                    // TODO: this might need to account for padding
-                    advance_width: metrics.advance_width,
-                    x_min: metrics.xmin as f32,
-                    y_min: metrics.ymin as f32,
+
+                    metrics: sdf_metrics.clone(),
                 },
             );
 
@@ -412,31 +471,37 @@ fn create_font_atlas(
             break;
         } else {
             atlas_side_size *= 2;
+            atlas_glyph_lookup.clear();
         }
     }
 
-    // atlas creation
+    // atlas creation using packing info
     let atlas_size = atlas_side_size * atlas_side_size;
-    let mut atlas_data = vec![0u8; atlas_size as usize];
+    let mut atlas_data = vec![0u8; atlas_size];
     for (char, _, raster) in glyphs.iter() {
+        // skip invisible chars such as space, tab...
+        let Some(raster) = raster else {
+            continue;
+        };
+
         let glyph_info = atlas_glyph_lookup.get(char).expect("could not find glyph");
 
-        for glyph_x in 0..glyph_info.width {
-            for glyph_y in 0..glyph_info.height {
-                let index = glyph_x + glyph_y * glyph_info.width;
-                let value = raster[index as usize];
+        for glyph_x in 0..glyph_info.metrics.width {
+            for glyph_y in 0..glyph_info.metrics.height {
+                let index = glyph_x + glyph_y * glyph_info.metrics.width;
+                let value = raster[index];
 
                 let atlas_x = glyph_info.atlas_offset_x + glyph_x;
                 let atlas_y = glyph_info.atlas_offset_y + glyph_y;
                 let index = atlas_x + atlas_y * atlas_side_size;
-                atlas_data[index as usize] = value;
+                atlas_data[index] = value;
             }
         }
     }
 
     let font_atlas = render::TextureBuilder::new(render::TextureSource::Data(
-        atlas_side_size,
-        atlas_side_size,
+        atlas_side_size as u32,
+        atlas_side_size as u32,
         atlas_data,
     ))
     .with_format(wgpu::TextureFormat::R8Unorm)
