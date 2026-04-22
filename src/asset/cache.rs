@@ -148,7 +148,11 @@ impl AssetCache {
 
     pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
         let Some(asset) = self.cache.get(&handle.as_any()) else {
-            return GetAssetResult::Failed;
+            if self.currently_loading.contains(&handle.as_any()) {
+                return GetAssetResult::Loading;
+            } else {
+                return GetAssetResult::Failed;
+            }
         };
 
         let LoadAssetResult::Success(asset) = asset else {

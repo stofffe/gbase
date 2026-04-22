@@ -80,7 +80,7 @@ impl Callbacks for App {
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
                     .text("Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
-                    .font_size(32)
+                    .font_size(256)
                     .background_color(BLUE)
                     .draw(layouter);
                 UIElement::new()
@@ -158,8 +158,7 @@ impl Callbacks for App {
         //             });
         //     });
 
-        let ui_elements = self
-            .layouter
+        self.layouter
             .layout_elements_fullscreen(ctx, &mut self.renderer);
 
         self.renderer.render(
@@ -173,5 +172,12 @@ impl Callbacks for App {
         self.layouter.reset();
 
         CallbackResult::Continue
+    }
+}
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, ctx: &mut Context) {
+        Self::init_ctx().init_logging();
     }
 }
