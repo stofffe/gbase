@@ -5,7 +5,7 @@ use gbase::{
     bytemuck,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    tracing, wgpu,
+    wgpu,
 };
 use std::collections::HashMap;
 
@@ -29,7 +29,7 @@ impl UIRenderer {
     pub fn new(
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
-        font: &[u8],
+        font_bytes: &[u8],
         max_elements: u64,
     ) -> Self {
         let font_atlas_raster_size = 256.0;
@@ -51,7 +51,7 @@ impl UIRenderer {
             supported_chars.push(char);
         }
 
-        let font = fontdue::Font::from_bytes(font, fontdue::FontSettings::default())
+        let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default())
             .expect("could not build font from bytes");
         let (glyph_lookup, font_atlas) =
             create_font_atlas(ctx, &font, &supported_chars, font_atlas_raster_size);
@@ -104,7 +104,7 @@ impl UIRenderer {
     }
 
     pub fn render(
-        &self,
+        &mut self,
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         view: &wgpu::TextureView,
@@ -212,6 +212,12 @@ impl UIRenderer {
                 pass.draw(0..4, 0..instances.len() as u32);
             });
     }
+
+    pub fn reload_font(&mut self, font_bytes: &[u8]) {
+        self.font =
+            fontdue::Font::from_bytes(font_bytes.to_vec(), fontdue::FontSettings::default())
+                .expect("could not build font from bytes");
+    }
 }
 
 impl UILayoutTextMeasurer for UIRenderer {
@@ -288,6 +294,12 @@ impl UILayoutTextMeasurer for UIRenderer {
         let mut x_offset = 0.0f32;
         let mut y_offset = 0.0f32; // push offset back
         let mut glyphs = Vec::new();
+
+        // tracing::warn!("glyph count {:?}", self.font.glyph_count());
+        // tracing::warn!("has a {:?}", self.font.has_glyph('a'));
+        // tracing::warn!("chars {:?}", self.font.chars());
+        // let a = 'a';
+        // tracing::warn!("a index {:?}", self.font.lookup_glyph_index(a));
 
         let mut prev_char = None;
         for letter in text.chars() {

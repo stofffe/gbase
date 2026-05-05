@@ -80,7 +80,7 @@ impl Callbacks for App {
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
                     .text("Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
-                    .font_size(256)
+                    .font_size(64)
                     .background_color(BLUE)
                     .draw(layouter);
                 UIElement::new()
@@ -177,7 +177,9 @@ impl Callbacks for App {
 
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, ctx: &mut Context) {
+    fn hot_reload(&mut self, _ctx: &mut Context) {
         Self::init_ctx().init_logging();
+        self.renderer
+            .reload_font(include_bytes!("../assets/fonts/font.ttf"));
     }
 }
