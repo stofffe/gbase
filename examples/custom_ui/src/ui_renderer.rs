@@ -1,13 +1,16 @@
 use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement, UILayoutTextMeasurer};
 use core::f32;
 use gbase::{
-    asset::{AssetCache, AssetHandle, ConvertAssetResult, ShaderLoader},
-    bytemuck,
+    asset::{
+        AssetCache, AssetHandle, AssetLoader, ConvertAssetResult, ConvertAssetStatus,
+        ConvertableRenderAsset, EmptyError, GetAssetResult, RenderAsset, ShaderLoader,
+    },
+    bytemuck, filesystem,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    wgpu,
+    tracing, wgpu,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 pub struct UIRenderer {
     shader_handle: AssetHandle<render::ShaderBuilder>,
@@ -18,43 +21,25 @@ pub struct UIRenderer {
 
     projection: render::UniformBuffer<glam::Mat4>,
 
-    // TODO: remove pub
-    pub font_atlas: render::ArcTexture,
-    glyph_lookup: HashMap<char, AtlasGlyphInfo>,
-
-    font: fontdue::Font,
+    font: AssetHandle<Font>,
 }
 
 impl UIRenderer {
     pub fn new(
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
-        font_bytes: &[u8],
+        font_path: impl Into<PathBuf>,
         max_elements: u64,
     ) -> Self {
-        let font_atlas_raster_size = 256.0;
-        //
-        // create font atlas
-        //
-
-        let mut supported_chars = Vec::new();
-        for char in 'a'..='z' {
-            supported_chars.push(char);
-        }
-        for char in 'A'..='Z' {
-            supported_chars.push(char);
-        }
-        for char in '0'..='9' {
-            supported_chars.push(char);
-        }
-        for char in " ,.;/".chars() {
-            supported_chars.push(char);
-        }
-
-        let font = fontdue::Font::from_bytes(font_bytes, fontdue::FontSettings::default())
-            .expect("could not build font from bytes");
-        let (glyph_lookup, font_atlas) =
-            create_font_atlas(ctx, &font, &supported_chars, font_atlas_raster_size);
+        let font = cache
+            .load_builder(
+                font_path,
+                FontLoader {
+                    settings: fontdue::FontSettings::default(),
+                },
+            )
+            .watch(cache)
+            .build(cache);
 
         //
         // gpu resources
@@ -97,8 +82,6 @@ impl UIRenderer {
             instance_buffer,
             projection,
 
-            font_atlas,
-            glyph_lookup,
             font,
         }
     }
@@ -112,6 +95,10 @@ impl UIRenderer {
         ui_elements: &[UIElement],
     ) {
         let ConvertAssetResult::Success(shader) = self.shader_handle.convert(ctx, cache) else {
+            return;
+        };
+        let ConvertAssetResult::Success(font_atlas) = self.font.convert::<FontAtlas>(ctx, cache)
+        else {
             return;
         };
 
@@ -134,13 +121,13 @@ impl UIRenderer {
             });
 
             // glyphs
-            let atlas_width = self.font_atlas.width();
-            let atlas_height = self.font_atlas.height();
+            let atlas_width = font_atlas.texture.width();
+            let atlas_height = font_atlas.texture.height();
             if !element.text_info.text.is_empty() {
                 for glyph in element.text_layout.glyphs.iter() {
                     // TODO: backup
-                    let glyph_info = self
-                        .glyph_lookup
+                    let glyph_info = font_atlas
+                        .lookup
                         .get(&glyph.character)
                         .expect("could not find glyph");
 
@@ -179,7 +166,7 @@ impl UIRenderer {
             ),
         );
 
-        let atlas_view = render::TextureViewBuilder::new(self.font_atlas.clone()).build(ctx);
+        let atlas_view = render::TextureViewBuilder::new(font_atlas.texture.clone()).build(ctx);
         let atlas_sampler = render::SamplerBuilder::new().build(ctx);
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -213,21 +200,30 @@ impl UIRenderer {
             });
     }
 
-    pub fn reload_font(&mut self, font_bytes: &[u8]) {
-        self.font =
-            fontdue::Font::from_bytes(font_bytes.to_vec(), fontdue::FontSettings::default())
-                .expect("could not build font from bytes");
+    pub fn hot_reload(&mut self, cache: &mut AssetCache) {
+        cache.reload::<FontLoader>(self.font.clone());
     }
 }
-
 impl UILayoutTextMeasurer for UIRenderer {
+    type UserData = AssetCache;
+
     fn calculate_preferred_text_size(
         &mut self,
         text: &str,
         font_size: u32,
         wrap_on_newline: bool,
+        cache: &mut AssetCache,
     ) -> TextSizeResult {
-        let line_metrics = self
+        let GetAssetResult::Success(font) = self.font.get(cache) else {
+            return TextSizeResult {
+                preferred_width: 0.0,
+                preferred_height: 0.0,
+                min_width: 0.0,
+                min_height: 0.0,
+            };
+        };
+
+        let line_metrics = font
             .font
             .horizontal_line_metrics(font_size as f32)
             .expect("could not get line metrics");
@@ -242,7 +238,7 @@ impl UILayoutTextMeasurer for UIRenderer {
         let mut current_word_width = 0.0;
         let mut prev_char = None;
         for letter in text.chars() {
-            let font_metrics = self.font.metrics(letter, font_size as f32);
+            let font_metrics = font.font.metrics(letter, font_size as f32);
 
             // TODO: might be a bit too long due to using advance and not width
             if wrap_on_newline && letter == '\n' {
@@ -258,7 +254,7 @@ impl UILayoutTextMeasurer for UIRenderer {
             }
 
             if let Some(prev) = prev_char {
-                if let Some(kern) = self.font.horizontal_kern(prev, letter, font_size as f32) {
+                if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
                     x_offset += kern;
                 }
             }
@@ -283,8 +279,22 @@ impl UILayoutTextMeasurer for UIRenderer {
         }
     }
 
-    fn layout_text(&mut self, text: &str, font_size: u32, max_width: f32) -> TextLayoutResult {
-        let line_metrics = self
+    fn layout_text(
+        &mut self,
+        text: &str,
+        font_size: u32,
+        max_width: f32,
+        cache: &mut AssetCache,
+    ) -> TextLayoutResult {
+        let GetAssetResult::Success(font) = self.font.get(cache) else {
+            return TextLayoutResult {
+                width: 0.0,
+                height: 0.0,
+                glyphs: Vec::new(),
+            };
+        };
+
+        let line_metrics = font
             .font
             .horizontal_line_metrics(font_size as f32)
             .expect("could not get line metrics");
@@ -303,10 +313,10 @@ impl UILayoutTextMeasurer for UIRenderer {
 
         let mut prev_char = None;
         for letter in text.chars() {
-            let font_metrics = self.font.metrics(letter, font_size as f32);
+            let font_metrics = font.font.metrics(letter, font_size as f32);
 
             if let Some(prev) = prev_char {
-                if let Some(kern) = self.font.horizontal_kern(prev, letter, font_size as f32) {
+                if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
                     x_offset += kern;
                 }
             }
@@ -343,6 +353,7 @@ impl UILayoutTextMeasurer for UIRenderer {
     }
 }
 
+#[derive(Clone)]
 struct AtlasGlyphInfo {
     atlas_offset_x: usize,
     atlas_offset_y: usize,
@@ -527,5 +538,75 @@ impl UIElementInstace {
                 wgpu::VertexFormat::Float32x2, // atlas size
             ],
         )
+    }
+}
+
+#[derive(Clone)]
+pub struct Font {
+    font: fontdue::Font,
+}
+
+impl gbase::asset::Asset for Font {}
+
+#[derive(Clone)]
+pub struct FontLoader {
+    settings: fontdue::FontSettings,
+}
+
+impl AssetLoader for FontLoader {
+    type Asset = Font;
+    type Error = EmptyError;
+
+    async fn load(
+        &self,
+        _load_ctx: gbase::asset::LoadContext,
+        path: &std::path::Path,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = filesystem::load_bytes(path).await;
+        let font = fontdue::Font::from_bytes(bytes, self.settings)
+            .expect("could not create font from bytes");
+        Ok(Font { font })
+    }
+}
+
+#[derive(Clone)]
+pub struct FontAtlas {
+    lookup: HashMap<char, AtlasGlyphInfo>,
+    texture: render::ArcTexture,
+}
+
+impl RenderAsset for FontAtlas {}
+impl ConvertableRenderAsset for FontAtlas {
+    type SourceAsset = Font;
+    type Error = EmptyError;
+
+    fn convert(
+        ctx: &mut gbase::Context,
+        cache: &mut AssetCache,
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+    ) -> gbase::asset::ConvertAssetStatus<Self> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Success(source) => source,
+        };
+        let font_atlas_raster_size = 256.0;
+        let mut supported_chars = Vec::new();
+        for char in 'a'..='z' {
+            supported_chars.push(char);
+        }
+        for char in 'A'..='Z' {
+            supported_chars.push(char);
+        }
+        for char in '0'..='9' {
+            supported_chars.push(char);
+        }
+        for char in " ,.;/".chars() {
+            supported_chars.push(char);
+        }
+        let (lookup, texture) =
+            create_font_atlas(ctx, &source.font, &supported_chars, font_atlas_raster_size);
+
+        ConvertAssetStatus::Success(FontAtlas { lookup, texture })
     }
 }

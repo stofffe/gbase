@@ -7,7 +7,7 @@ use crate::{
     ui_renderer::UIRenderer,
 };
 use gbase::{
-    asset,
+    asset::{self, AssetCache},
     egui::{self, load::SizedTexture},
     glam::{vec4, Vec4},
     render::{self, SamplerBuilder},
@@ -41,7 +41,8 @@ impl Callbacks for App {
         let renderer = UIRenderer::new(
             ctx,
             cache,
-            include_bytes!("../assets/fonts/font.ttf"),
+            "assets/fonts/font.ttf",
+            // include_bytes!("../assets/fonts/font.ttf"),
             4 * 4096,
         );
         let layouter = UILayouter::new();
@@ -55,13 +56,13 @@ impl Callbacks for App {
         _cache: &mut asset::AssetCache,
         egui_ctx: &mut gbase::egui_ui::EguiContext,
     ) -> CallbackResult {
-        let image_view = render::TextureViewBuilder::new(self.renderer.font_atlas.clone());
-        let texture_id =
-            egui_ctx.register_wgpu_texture_cached(ctx, image_view, SamplerBuilder::new());
-
-        egui::Window::new("font atlas").show(egui_ctx.ctx(), |ui| {
-            ui.image(SizedTexture::new(texture_id, [512.0, 512.0]));
-        });
+        // let image_view = render::TextureViewBuilder::new(self.renderer.font_atlas.clone());
+        // let texture_id =
+        //     egui_ctx.register_wgpu_texture_cached(ctx, image_view, SamplerBuilder::new());
+        //
+        // egui::Window::new("font atlas").show(egui_ctx.ctx(), |ui| {
+        //     ui.image(SizedTexture::new(texture_id, [512.0, 512.0]));
+        // });
 
         CallbackResult::Continue
     }
@@ -159,7 +160,7 @@ impl Callbacks for App {
         //     });
 
         self.layouter
-            .layout_elements_fullscreen(ctx, &mut self.renderer);
+            .layout_elements_fullscreen(ctx, &mut self.renderer, cache);
 
         self.renderer.render(
             ctx,
@@ -177,9 +178,8 @@ impl Callbacks for App {
 
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, _ctx: &mut Context) {
+    fn hot_reload(&mut self, _ctx: &mut Context, cache: &mut AssetCache) {
         Self::init_ctx().init_logging();
-        self.renderer
-            .reload_font(include_bytes!("../assets/fonts/font.ttf"));
+        self.renderer.hot_reload(cache);
     }
 }
