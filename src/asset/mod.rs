@@ -8,8 +8,7 @@ pub use handle::*;
 pub use implementations::*;
 pub use types::*;
 
-use crate::{render::ArcHandle, Context};
-use core::error;
+use crate::Context;
 use std::path::PathBuf;
 
 //
@@ -97,6 +96,10 @@ impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
 //
 // Commands
 //
+
+pub fn reload_asset<T: Asset>(cache: &mut AssetCache, handle: AssetHandle<T>) {
+    todo!()
+}
 
 /// Check if all current assets are loaded
 pub fn all_loaded(cache: &AssetCache) -> bool {

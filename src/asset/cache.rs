@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     asset::{
-        self, ConvertAssetStatus, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
+        self, ConvertAssetStatus, DynLoader, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
         LoadedAssetBuilder, RenderAssetKey,
     },
     render::ArcHandle,
@@ -60,6 +60,9 @@ pub struct AssetCache {
     load_sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
     load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, LoadAssetResult)>,
 
+    paths: FxHashMap<DynAssetHandle, PathBuf>,
+    loaders: FxHashMap<DynAssetHandle, DynLoader>,
+
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
 
@@ -107,6 +110,9 @@ impl AssetCache {
             just_loaded: FxHashSet::default(),
             load_sender,
             load_receiver,
+
+            paths: FxHashMap::default(),
+            loaders: FxHashMap::default(),
 
             load_ctx,
             asset_handle_ctx,
@@ -226,7 +232,10 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
-        // add to currently loading
+        self.paths.insert(handle.as_any(), path.clone());
+        self.loaders
+            .insert(handle.as_any(), Box::new(loader.clone()));
+
         self.currently_loading.insert(handle.as_any());
 
         let path_clone = path.clone();
@@ -280,6 +289,32 @@ impl AssetCache {
         });
 
         handle
+    }
+
+    /// Reload an existing asset while reusing the last path and loader
+    pub fn reload<T: AssetLoader + Send + Sync + 'static>(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+    ) {
+        // load prev path
+        let Some(path) = self.paths.get(&handle.as_any()) else {
+            tracing::warn!("trying to reload asset without previous path");
+            return;
+        };
+        let path = path.clone();
+
+        // load prev loader
+        let Some(loader) = self.loaders.get(&handle.as_any()) else {
+            tracing::warn!("trying to reload asset without previous path");
+            return;
+        };
+        let loader = (loader.as_ref() as &dyn Any)
+            .downcast_ref::<T>()
+            .expect("could not downcast")
+            .clone();
+
+        // reload
+        self.load(handle, &path, loader);
     }
 
     //
@@ -467,6 +502,7 @@ pub struct AssetCacheExt {
 
     // reloading
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
+    // TODO: still needed?
     reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
     reload_watcher:
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,

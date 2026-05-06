@@ -20,6 +20,7 @@ pub type DynAssetWriteFn = Box<dyn Fn(&mut DynAsset, &Path)>;
 pub type DynAssetOnLoadFn = Box<dyn Fn(&mut DynAsset)>;
 pub type TypedAssetOnLoadFn<T> = Box<dyn Fn(&mut T)>;
 pub type RenderAssetKey = (DynAssetHandle, TypeId);
+pub type DynLoader = Box<dyn Any>;
 
 //
 // Traits
