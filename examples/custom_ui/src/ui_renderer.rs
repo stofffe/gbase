@@ -1,4 +1,4 @@
-use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement, UILayoutTextMeasurer};
+use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
@@ -8,7 +8,7 @@ use gbase::{
     bytemuck, filesystem,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    tracing, wgpu,
+    wgpu, Context,
 };
 use std::{collections::HashMap, path::PathBuf};
 
@@ -38,7 +38,6 @@ impl UIRenderer {
                     settings: fontdue::FontSettings::default(),
                 },
             )
-            .watch(cache)
             .build(cache);
 
         //
@@ -204,15 +203,15 @@ impl UIRenderer {
         cache.reload::<FontLoader>(self.font.clone());
     }
 }
-impl UILayoutTextMeasurer for UIRenderer {
-    type UserData = AssetCache;
 
-    fn calculate_preferred_text_size(
+impl UIRenderer {
+    pub fn calculate_preferred_text_size(
         &mut self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
         text: &str,
         font_size: u32,
         wrap_on_newline: bool,
-        cache: &mut AssetCache,
     ) -> TextSizeResult {
         let GetAssetResult::Success(font) = self.font.get(cache) else {
             return TextSizeResult {
@@ -279,14 +278,26 @@ impl UILayoutTextMeasurer for UIRenderer {
         }
     }
 
-    fn layout_text(
+    pub fn layout_text(
         &mut self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
         text: &str,
         font_size: u32,
         max_width: f32,
-        cache: &mut AssetCache,
     ) -> TextLayoutResult {
         let GetAssetResult::Success(font) = self.font.get(cache) else {
+            return TextLayoutResult {
+                width: 0.0,
+                height: 0.0,
+                glyphs: Vec::new(),
+            };
+        };
+        // TODO: bad?
+        let font = font.clone();
+
+        let ConvertAssetResult::Success(font_atlas) = self.font.convert::<FontAtlas>(ctx, cache)
+        else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
@@ -305,41 +316,117 @@ impl UILayoutTextMeasurer for UIRenderer {
         let mut y_offset = 0.0f32; // push offset back
         let mut glyphs = Vec::new();
 
-        // tracing::warn!("glyph count {:?}", self.font.glyph_count());
-        // tracing::warn!("has a {:?}", self.font.has_glyph('a'));
-        // tracing::warn!("chars {:?}", self.font.chars());
-        // let a = 'a';
-        // tracing::warn!("a index {:?}", self.font.lookup_glyph_index(a));
-
+        let mut current_word_start = 0;
+        let mut current_word_len = 0;
+        let mut current_word_width = 0.0;
         let mut prev_char = None;
-        for letter in text.chars() {
+        let text = text.chars().collect::<Vec<_>>();
+        for i in 0..text.len() {
+            let letter = text[i];
             let font_metrics = font.font.metrics(letter, font_size as f32);
 
-            if let Some(prev) = prev_char {
-                if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
-                    x_offset += kern;
-                }
-            }
+            // if whitespace
+            if letter == ' ' || letter == '\t' || letter == '\n' {
+                // add current word
+                if current_word_len > 0 {
+                    // wrap check
+                    if x_offset + current_word_width > max_width {
+                        y_offset += line_height;
+                        longest_line_width = longest_line_width.max(x_offset);
+                        x_offset = 0.0;
+                    }
 
-            // wrapping
-            if x_offset + font_metrics.width as f32 > max_width {
+                    let mut prev_char = None;
+                    for text_index in current_word_start..current_word_start + current_word_len {
+                        let text_char = text[text_index];
+                        let glyph_metrics = font.font.metrics(text_char, font_size as f32);
+                        let glyph_info = font_atlas.lookup.get(&text_char).unwrap();
+                        let scale = font_size as f32 / 256.0;
+                        glyphs.push(Glyph {
+                            character: text_char,
+                            x: x_offset,
+                            y: y_offset + line_height
+                                - glyph_metrics.height as f32
+                                - glyph_metrics.ymin as f32
+                                + line_metrics.descent,
+                            width: glyph_info.atlas_width as f32 * scale,
+                            height: glyph_info.atlas_height as f32 * scale,
+                        });
+
+                        if let Some(prev) = prev_char {
+                            if let Some(kern) =
+                                font.font.horizontal_kern(prev, letter, font_size as f32)
+                            {
+                                x_offset += kern;
+                            }
+                        }
+                        prev_char = Some(text[text_index]);
+                        x_offset += glyph_metrics.advance_width;
+                    }
+                }
+
+                // add the whitespace char
+                let glyph_info = font_atlas.lookup.get(&letter).unwrap();
+                let scale = font_size as f32 / 256.0;
+                glyphs.push(Glyph {
+                    character: letter,
+                    x: x_offset,
+                    y: y_offset + line_height
+                        - font_metrics.height as f32
+                        - font_metrics.ymin as f32
+                        + line_metrics.descent,
+                    width: glyph_info.atlas_width as f32 * scale,
+                    height: glyph_info.atlas_height as f32 * scale,
+                });
+                x_offset += font_metrics.advance_width;
+
+                // reset state
+                current_word_start = i + 1;
+                current_word_len = 0;
+                current_word_width = 0.0;
+            } else {
+                if let Some(prev) = prev_char {
+                    if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
+                        current_word_width += kern;
+                    }
+                }
+                current_word_width += font_metrics.advance_width;
+                current_word_len += 1;
+                prev_char = Some(letter);
+            }
+        }
+
+        // TODO: ugly duplicate of code inside loop above
+        if current_word_len > 0 {
+            if x_offset + current_word_width > max_width {
                 y_offset += line_height;
                 x_offset = 0.0;
-                longest_line_width = longest_line_width.max(x_offset);
             }
-            // TODO: scale?
 
-            glyphs.push(Glyph {
-                character: letter,
-                x: x_offset,
-                y: y_offset + line_height - font_metrics.height as f32 - font_metrics.ymin as f32
-                    + line_metrics.descent,
-                width: font_metrics.width as f32,
-                height: font_metrics.height as f32,
-            });
+            let mut prev_char = None;
 
-            x_offset += font_metrics.advance_width;
-            prev_char = Some(letter);
+            for text_index in current_word_start..current_word_start + current_word_len {
+                let ch = text[text_index];
+                let m = font.font.metrics(ch, font_size as f32);
+
+                if let Some(prev) = prev_char {
+                    if let Some(kern) = font.font.horizontal_kern(prev, ch, font_size as f32) {
+                        x_offset += kern;
+                    }
+                }
+
+                glyphs.push(Glyph {
+                    character: ch,
+                    x: x_offset,
+                    y: y_offset + line_height - m.height as f32 - m.ymin as f32
+                        + line_metrics.descent,
+                    width: m.width as f32,
+                    height: m.height as f32,
+                });
+
+                x_offset += m.advance_width;
+                prev_char = Some(ch);
+            }
         }
 
         let width = longest_line_width.max(x_offset);
@@ -397,19 +484,19 @@ fn create_font_atlas(
 
             // generate glyph sdf
             let (sdf_output, _) = sdfer::esdt::glyph_to_sdf(&mut sdf_input, sdf_params, None);
-            let width = sdf_output.width();
-            let height = sdf_output.height();
+            let sdf_width = sdf_output.width();
+            let sdf_height = sdf_output.height();
 
             // sdfer -> u8 array
-            let mut sdf_raster = vec![0u8; width * height];
-            for y in 0..height {
-                for x in 0..width {
-                    sdf_raster[y * width + x] = sdf_output[(x, y)].to_bits();
+            let mut sdf_raster = vec![0u8; sdf_width * sdf_height];
+            for y in 0..sdf_height {
+                for x in 0..sdf_width {
+                    sdf_raster[y * sdf_width + x] = sdf_output[(x, y)].to_bits();
                 }
             }
 
-            total_area += width * height;
-            glyphs.push((char, width, height, Some(sdf_raster)));
+            total_area += sdf_width * sdf_height;
+            glyphs.push((char, sdf_width, sdf_height, Some(sdf_raster)));
         }
     }
 

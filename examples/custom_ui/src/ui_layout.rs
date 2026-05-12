@@ -4,6 +4,8 @@ use gbase::{
     render, Context,
 };
 
+use crate::ui_renderer::UIRenderer;
+
 #[derive(Debug)]
 pub struct TextSizeResult {
     pub preferred_width: f32,
@@ -30,25 +32,6 @@ pub struct Glyph {
     pub y: f32,
     pub width: f32,
     pub height: f32,
-}
-pub trait UILayoutTextMeasurer {
-    /// Used to pass arbitrary data to the measure function
-    type UserData;
-
-    fn calculate_preferred_text_size(
-        &mut self,
-        text: &str,
-        font_size: u32,
-        wrap_on_newline: bool,
-        user_data: &mut Self::UserData,
-    ) -> TextSizeResult;
-    fn layout_text(
-        &mut self,
-        text: &str,
-        font_size: u32,
-        max_width: f32,
-        user_data: &mut Self::UserData,
-    ) -> TextLayoutResult;
 }
 
 const ROOT_ELEMENT: usize = 0;
@@ -109,26 +92,29 @@ impl UILayouter {
             .expect("element stack should never be empty when closing an element");
     }
 
-    pub fn layout_elements_fullscreen<T: UILayoutTextMeasurer>(
+    pub fn layout_elements_fullscreen(
         &mut self,
         ctx: &mut Context,
-        text_measurer: &mut T,
-        text_measurer_data: &mut T::UserData,
+        cache: &mut AssetCache,
+        text_measurer: &mut UIRenderer,
     ) {
         let screen_size = render::surface_size(ctx);
         self.layout_elements(
+            ctx,
+            cache,
+            text_measurer,
             screen_size.width as f32,
             screen_size.height as f32,
-            text_measurer,
-            text_measurer_data,
         )
     }
-    pub fn layout_elements<T: UILayoutTextMeasurer>(
+
+    pub fn layout_elements(
         &mut self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
+        text_measurer: &mut UIRenderer,
         root_width: f32,
         root_height: f32,
-        text_measurer: &mut T,
-        text_measurer_data: &mut T::UserData,
     ) {
         self.elems[ROOT_ELEMENT].preferred_width = root_width;
         self.elems[ROOT_ELEMENT].preferred_height = root_height;
@@ -149,10 +135,11 @@ impl UILayouter {
                 let text_info = &element.text_info;
 
                 let layout_result = text_measurer.calculate_preferred_text_size(
+                    ctx,
+                    cache,
                     &text_info.text,
                     text_info.font_size,
                     false,
-                    text_measurer_data,
                 );
                 preferred_width += layout_result.preferred_width;
                 min_width = layout_result.min_width;
@@ -358,10 +345,11 @@ impl UILayouter {
             let element_text = &element.text_info.text;
             if !element_text.is_empty() {
                 let layout_result = text_measurer.layout_text(
+                    ctx,
+                    cache,
                     &element.text_info.text,
                     element.text_info.font_size,
                     element.preferred_width,
-                    text_measurer_data,
                 );
 
                 self.elems[elem].preferred_height += layout_result.height;

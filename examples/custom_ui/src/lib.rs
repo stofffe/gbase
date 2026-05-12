@@ -90,7 +90,7 @@ impl Callbacks for App {
                     .background_color(GREEN)
                     .draw(layouter);
                 UIElement::new()
-                    .text("Hello my name is bobbyyy")
+                    // .text("Hello my name is bobbyyy")
                     .text("abc")
                     .font_size(128)
                     .background_color(BLUE)
@@ -160,7 +160,7 @@ impl Callbacks for App {
         //     });
 
         self.layouter
-            .layout_elements_fullscreen(ctx, &mut self.renderer, cache);
+            .layout_elements_fullscreen(ctx, cache, &mut self.renderer);
 
         self.renderer.render(
             ctx,
