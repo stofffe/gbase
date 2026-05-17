@@ -1,3 +1,5 @@
+#![allow(clippy::needless_range_loop)]
+
 use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
@@ -22,6 +24,8 @@ pub struct UIRenderer {
     projection: render::UniformBuffer<glam::Mat4>,
 
     font: AssetHandle<Font>,
+    font_atlas_raster_size: f32,
+    font_atlas_reloading: bool,
 }
 
 impl UIRenderer {
@@ -29,6 +33,7 @@ impl UIRenderer {
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         font_path: impl Into<PathBuf>,
+        font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
         let font = cache
@@ -82,6 +87,8 @@ impl UIRenderer {
             projection,
 
             font,
+            font_atlas_raster_size,
+            font_atlas_reloading: false,
         }
     }
 
@@ -200,6 +207,8 @@ impl UIRenderer {
     }
 
     pub fn hot_reload(&mut self, cache: &mut AssetCache) {
+        // TODO: this gotta be sync
+        self.font_atlas_reloading = true;
         cache.reload::<FontLoader>(self.font.clone());
     }
 }
@@ -207,12 +216,25 @@ impl UIRenderer {
 impl UIRenderer {
     pub fn calculate_preferred_text_size(
         &mut self,
-        ctx: &mut Context,
+        _ctx: &mut Context,
         cache: &mut AssetCache,
         text: &str,
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
+        if self.font_atlas_reloading {
+            if cache.handle_just_loaded(self.font.clone()) {
+                self.font_atlas_reloading = false;
+            } else {
+                return TextSizeResult {
+                    preferred_width: 0.0,
+                    preferred_height: 0.0,
+                    min_width: 0.0,
+                    min_height: 0.0,
+                };
+            }
+        }
+
         let GetAssetResult::Success(font) = self.font.get(cache) else {
             return TextSizeResult {
                 preferred_width: 0.0,
@@ -286,6 +308,18 @@ impl UIRenderer {
         font_size: u32,
         max_width: f32,
     ) -> TextLayoutResult {
+        // TODO: hot reload workaround
+        if self.font_atlas_reloading {
+            if cache.handle_just_loaded(self.font.clone()) {
+                self.font_atlas_reloading = false;
+            } else {
+                return TextLayoutResult {
+                    width: 0.0,
+                    height: 0.0,
+                    glyphs: Vec::new(),
+                };
+            }
+        }
         let GetAssetResult::Success(font) = self.font.get(cache) else {
             return TextLayoutResult {
                 width: 0.0,
@@ -311,23 +345,38 @@ impl UIRenderer {
             .expect("could not get line metrics");
         let line_height = line_metrics.new_line_size;
 
-        let mut longest_line_width = 0.0f32;
-        let mut x_offset = 0.0f32;
-        let mut y_offset = 0.0f32; // push offset back
+        let text = text.chars().collect::<Vec<_>>();
         let mut glyphs = Vec::new();
+
+        let mut x_offset = 0.0f32;
+        let mut y_offset = 0.0f32;
+        let mut longest_line_width = 0.0f32;
 
         let mut current_word_start = 0;
         let mut current_word_len = 0;
         let mut current_word_width = 0.0;
+
         let mut prev_char = None;
-        let text = text.chars().collect::<Vec<_>>();
-        for i in 0..text.len() {
-            let letter = text[i];
+        for text_index in 0..text.len() {
+            let letter = text[text_index];
             let font_metrics = font.font.metrics(letter, font_size as f32);
 
-            // if whitespace
-            if letter == ' ' || letter == '\t' || letter == '\n' {
-                // add current word
+            // add letter if not whitespace
+            let is_last_element = text_index == text.len() - 1;
+            let is_whitespace = letter == ' ' || letter == '\t' || letter == '\n';
+
+            if !is_whitespace {
+                if let Some(prev) = prev_char {
+                    if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
+                        current_word_width += kern;
+                    }
+                }
+                current_word_width += font_metrics.advance_width;
+                current_word_len += 1;
+                prev_char = Some(letter);
+            }
+
+            if is_whitespace || is_last_element {
                 if current_word_len > 0 {
                     // wrap check
                     if x_offset + current_word_width > max_width {
@@ -341,7 +390,7 @@ impl UIRenderer {
                         let text_char = text[text_index];
                         let glyph_metrics = font.font.metrics(text_char, font_size as f32);
                         let glyph_info = font_atlas.lookup.get(&text_char).unwrap();
-                        let scale = font_size as f32 / 256.0;
+                        let scale = font_size as f32 / self.font_atlas_raster_size;
                         glyphs.push(Glyph {
                             character: text_char,
                             x: x_offset,
@@ -365,67 +414,34 @@ impl UIRenderer {
                     }
                 }
 
+                // TODO: can probably be merged with the above
                 // add the whitespace char
-                let glyph_info = font_atlas.lookup.get(&letter).unwrap();
-                let scale = font_size as f32 / 256.0;
-                glyphs.push(Glyph {
-                    character: letter,
-                    x: x_offset,
-                    y: y_offset + line_height
-                        - font_metrics.height as f32
-                        - font_metrics.ymin as f32
-                        + line_metrics.descent,
-                    width: glyph_info.atlas_width as f32 * scale,
-                    height: glyph_info.atlas_height as f32 * scale,
-                });
-                x_offset += font_metrics.advance_width;
+                if letter == ' ' {
+                    let glyph_info = font_atlas.lookup.get(&letter).unwrap();
+                    let scale = font_size as f32 / self.font_atlas_raster_size;
+                    glyphs.push(Glyph {
+                        character: letter,
+                        x: x_offset,
+                        y: y_offset + line_height
+                            - font_metrics.height as f32
+                            - font_metrics.ymin as f32
+                            + line_metrics.descent,
+                        width: glyph_info.atlas_width as f32 * scale,
+                        height: glyph_info.atlas_height as f32 * scale,
+                    });
+                    x_offset += font_metrics.advance_width;
+                }
+                // TODO: should maybe be a setting
+                if letter == '\n' {
+                    y_offset += line_height;
+                    longest_line_width = longest_line_width.max(x_offset);
+                    x_offset = 0.0;
+                }
 
                 // reset state
-                current_word_start = i + 1;
+                current_word_start = text_index + 1;
                 current_word_len = 0;
                 current_word_width = 0.0;
-            } else {
-                if let Some(prev) = prev_char {
-                    if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
-                        current_word_width += kern;
-                    }
-                }
-                current_word_width += font_metrics.advance_width;
-                current_word_len += 1;
-                prev_char = Some(letter);
-            }
-        }
-
-        // TODO: ugly duplicate of code inside loop above
-        if current_word_len > 0 {
-            if x_offset + current_word_width > max_width {
-                y_offset += line_height;
-                x_offset = 0.0;
-            }
-
-            let mut prev_char = None;
-
-            for text_index in current_word_start..current_word_start + current_word_len {
-                let ch = text[text_index];
-                let m = font.font.metrics(ch, font_size as f32);
-
-                if let Some(prev) = prev_char {
-                    if let Some(kern) = font.font.horizontal_kern(prev, ch, font_size as f32) {
-                        x_offset += kern;
-                    }
-                }
-
-                glyphs.push(Glyph {
-                    character: ch,
-                    x: x_offset,
-                    y: y_offset + line_height - m.height as f32 - m.ymin as f32
-                        + line_metrics.descent,
-                    width: m.width as f32,
-                    height: m.height as f32,
-                });
-
-                x_offset += m.advance_width;
-                prev_char = Some(ch);
             }
         }
 
@@ -670,14 +686,13 @@ impl ConvertableRenderAsset for FontAtlas {
     fn convert(
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        source: AssetHandle<Self::SourceAsset>,
     ) -> gbase::asset::ConvertAssetStatus<Self> {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
-        let font_atlas_raster_size = 256.0;
         let mut supported_chars = Vec::new();
         for char in 'a'..='z' {
             supported_chars.push(char);
@@ -688,11 +703,11 @@ impl ConvertableRenderAsset for FontAtlas {
         for char in '0'..='9' {
             supported_chars.push(char);
         }
-        for char in " ,.;/".chars() {
+        for char in " \t\n,.;/".chars() {
             supported_chars.push(char);
         }
-        let (lookup, texture) =
-            create_font_atlas(ctx, &source.font, &supported_chars, font_atlas_raster_size);
+        // TODO: add parameter so you can configure font size
+        let (lookup, texture) = create_font_atlas(ctx, &source.font, &supported_chars, 256.0);
 
         ConvertAssetStatus::Success(FontAtlas { lookup, texture })
     }

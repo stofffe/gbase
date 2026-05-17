@@ -1,16 +1,14 @@
 mod ui_font;
 mod ui_layout;
 mod ui_renderer;
-
 use crate::{
     ui_layout::{Sizing, UIElement, UILayouter},
     ui_renderer::UIRenderer,
 };
 use gbase::{
     asset::{self, AssetCache},
-    egui::{self, load::SizedTexture},
     glam::{vec4, Vec4},
-    render::{self, SamplerBuilder},
+    render::{self},
     wgpu, CallbackResult, Callbacks, Context,
 };
 
@@ -38,13 +36,7 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
-        let renderer = UIRenderer::new(
-            ctx,
-            cache,
-            "assets/fonts/font.ttf",
-            // include_bytes!("../assets/fonts/font.ttf"),
-            4 * 4096,
-        );
+        let renderer = UIRenderer::new(ctx, cache, "assets/fonts/font.ttf", 256.0, 4 * 4096);
         let layouter = UILayouter::new();
         Self { renderer, layouter }
     }
@@ -80,7 +72,8 @@ impl Callbacks for App {
             .background_color(WHITE)
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
-                    .text("Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
+                    .text("Hello my name is not bobbyyy 
+Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
                     .font_size(64)
                     .background_color(BLUE)
                     .draw(layouter);
