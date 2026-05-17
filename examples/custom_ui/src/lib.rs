@@ -169,10 +169,11 @@ Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not b
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl App {
     #[no_mangle]
     fn hot_reload(&mut self, _ctx: &mut Context, cache: &mut AssetCache) {
         Self::init_ctx().init_logging();
-        // self.renderer.hot_reload(cache);
+        self.renderer.hot_reload(cache);
     }
 }

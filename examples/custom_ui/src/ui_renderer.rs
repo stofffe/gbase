@@ -229,6 +229,7 @@ impl UIRenderer {
             });
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn hot_reload(&mut self, cache: &mut AssetCache) {
         cache.reload_sync::<FontLoader>(self.font.clone());
     }
@@ -704,7 +705,7 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         let (lookup, texture) = create_font_atlas(
             ctx,
             &source.font,
-            &self.supported_chars,
+            self.supported_chars,
             self.font_raster_size,
         );
 
