@@ -1,6 +1,6 @@
-use super::{Asset, AssetCache, AssetHandle, AssetLoader, ConvertableRenderAsset, RenderAsset};
+use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
-    asset::{ConvertAssetStatus, EmptyError, GetAssetResult},
+    asset::{AssetConverter, ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult},
     filesystem,
     render::{self, GpuImage},
     Context,
@@ -12,18 +12,22 @@ use crate::{
 
 impl Asset for render::Mesh {}
 
-impl RenderAsset for render::GpuMesh {}
-impl ConvertableRenderAsset for render::GpuMesh {
+impl DerivedAsset for render::GpuMesh {}
+
+pub struct MeshGpuConverter;
+impl AssetConverter for MeshGpuConverter {
     type SourceAsset = render::Mesh;
     type Error = EmptyError;
+    type TargetAsset = render::GpuMesh;
 
     fn convert(
+        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertAssetStatus<Self> {
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -32,18 +36,22 @@ impl ConvertableRenderAsset for render::GpuMesh {
     }
 }
 
-impl RenderAsset for render::BoundingBox {}
-impl ConvertableRenderAsset for render::BoundingBox {
+impl DerivedAsset for render::BoundingBox {}
+
+pub struct BoundingBoxConverter {}
+impl AssetConverter for BoundingBoxConverter {
     type SourceAsset = render::Mesh;
+    type TargetAsset = render::BoundingBox;
     type Error = EmptyError;
 
     fn convert(
+        &self,
         _ctx: &mut Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertAssetStatus<Self> {
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -83,18 +91,22 @@ impl AssetLoader for ShaderLoader {
     }
 }
 
-impl RenderAsset for wgpu::ShaderModule {}
-impl ConvertableRenderAsset for wgpu::ShaderModule {
+impl DerivedAsset for wgpu::ShaderModule {}
+
+pub struct ShaderGpuConverter;
+impl AssetConverter for ShaderGpuConverter {
     type SourceAsset = render::ShaderBuilder;
+    type TargetAsset = wgpu::ShaderModule;
     type Error = wgpu::Error;
 
     fn convert(
+        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertAssetStatus<Self> {
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -150,19 +162,22 @@ impl AssetLoader for ImageLoader {
     }
 }
 
-impl RenderAsset for render::GpuImage {}
+impl DerivedAsset for render::GpuImage {}
 
-impl ConvertableRenderAsset for render::GpuImage {
+pub struct ImageGpuConverter;
+impl AssetConverter for ImageGpuConverter {
     type SourceAsset = render::Image;
+    type TargetAsset = render::GpuImage;
     type Error = EmptyError;
 
     fn convert(
+        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-        source: AssetHandle<Self::SourceAsset>,
-    ) -> ConvertAssetStatus<Self> {
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };

@@ -1,10 +1,13 @@
 use crate::{
     BoundingBoxWrapper, BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
-    Material, MeshLod, PixelCache, Transform3D, THRESHOLDS,
+    LodMeshToBoundingBoxConverter, Material, MeshLod, PixelCache, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{
+        self, AssetHandle, BoundingBoxConverter, ImageGpuConverter, MeshGpuConverter,
+        ShaderGpuConverter,
+    },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
@@ -190,8 +193,13 @@ impl PbrRenderer {
             return;
         }
 
-        let shader =
-            asset::convert_asset(ctx, cache, self.forward_shader_handle.clone()).unwrap_success();
+        let shader = asset::convert_asset(
+            ctx,
+            cache,
+            self.forward_shader_handle.clone(),
+            ShaderGpuConverter {},
+        )
+        .unwrap_success();
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(
@@ -224,7 +232,7 @@ impl PbrRenderer {
             }
             let bounds = mesh_lod
                 .clone()
-                .convert::<BoundingBoxWrapper>(ctx, cache)
+                .convert(ctx, cache, LodMeshToBoundingBoxConverter {})
                 .unwrap_success();
             frustum.sphere_inside(&bounds, transform)
         });
@@ -237,7 +245,7 @@ impl PbrRenderer {
         for (mesh_lod, transform) in frame_meshes {
             let bounds = mesh_lod
                 .clone()
-                .convert::<BoundingBoxWrapper>(ctx, cache)
+                .convert(ctx, cache, LodMeshToBoundingBoxConverter {})
                 .unwrap_success();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
@@ -299,18 +307,23 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh).unwrap_success();
+            let gpu_mesh =
+                asset::convert_asset(ctx, cache, mesh, MeshGpuConverter).unwrap_success();
             let base_color_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, base_color_texture).unwrap_success();
+                asset::convert_asset(ctx, cache, base_color_texture, ImageGpuConverter)
+                    .unwrap_success();
             let normal_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, normal_texture).unwrap_success();
+                asset::convert_asset(ctx, cache, normal_texture, ImageGpuConverter)
+                    .unwrap_success();
             let metallic_roughness_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, metallic_roughness_texture)
+                asset::convert_asset(ctx, cache, metallic_roughness_texture, ImageGpuConverter)
                     .unwrap_success();
             let occlusion_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, occlusion_texture).unwrap_success();
+                asset::convert_asset(ctx, cache, occlusion_texture, ImageGpuConverter)
+                    .unwrap_success();
             let emissive_texture =
-                asset::convert_asset::<GpuImage>(ctx, cache, emissive_texture).unwrap_success();
+                asset::convert_asset(ctx, cache, emissive_texture, ImageGpuConverter)
+                    .unwrap_success();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()

@@ -43,30 +43,52 @@ pub trait AssetWriter: AssetLoader {
     fn write(asset: &Self::Asset, path: &Path);
 }
 
-pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
+pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
 
-// TODO: should this actually return arc handles or should caching system handle that?
-pub trait ConvertableRenderAsset: RenderAsset + Clone {
+pub trait AssetConverter {
     type SourceAsset: Asset;
+    type TargetAsset: DerivedAsset + Clone;
     type Error: error::Error;
 
     fn convert(
+        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-    ) -> ConvertAssetStatus<Self>;
+    ) -> ConvertAssetStatus<Self::TargetAsset>;
 }
+
+pub enum ConvertAssetStatus<T: DerivedAsset> {
+    SourceLoading,
+    Success(T),
+    Failed,
+}
+
+// pub trait RenderAsset: Any {} // TODO: is this even needed? or maybe rename
+// //
+//
+// // TODO: should this actually return arc handles or should caching system handle that?
+// pub trait ConvertableRenderAsset: RenderAsset + Clone {
+//     type SourceAsset: Asset;
+//     type Error: error::Error;
+//
+//     fn convert(
+//         ctx: &mut Context,
+//         cache: &mut AssetCache,
+//         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+//     ) -> ConvertAssetStatus<Self>;
+// }
 
 //
 // Other
 //
 
-// TODO: should this be archandle or just arc?
-pub enum ConvertAssetStatus<T: ConvertableRenderAsset> {
-    Loading,
-    Success(T),
-    Failed,
-}
+// // TODO: should this be archandle or just arc?
+// pub enum ConvertAssetStatus<T: ConvertableRenderAsset> {
+//     Loading,
+//     Success(T),
+//     Failed,
+// }
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {

@@ -1,6 +1,6 @@
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle, ShaderLoader},
+    asset::{self, AssetHandle, ShaderGpuConverter, ShaderLoader},
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
     input,
@@ -352,9 +352,13 @@ impl GrassRenderer {
                     ])
                     .build(ctx),
             ];
-            let instance_shader =
-                asset::convert_asset(ctx, cache, self.instance_shader_handle.clone())
-                    .unwrap_success(); // TODO:
+            let instance_shader = asset::convert_asset(
+                ctx,
+                cache,
+                self.instance_shader_handle.clone(),
+                ShaderGpuConverter,
+            )
+            .unwrap_success(); // TODO:
 
             let instance_pipeline = render::ComputePipelineBuilder::new(
                 instance_shader,
@@ -392,8 +396,13 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let draw_compute_shader =
-                asset::convert_asset(ctx, cache, self.draw_shader_handle.clone()).unwrap_success(); // TODO:
+            let draw_compute_shader = asset::convert_asset(
+                ctx,
+                cache,
+                self.draw_shader_handle.clone(),
+                ShaderGpuConverter,
+            )
+            .unwrap_success(); // TODO:
 
             let draw_pipeline = render::ComputePipelineBuilder::new(
                 draw_compute_shader,
@@ -431,9 +440,13 @@ impl GrassRenderer {
                     view_format,
                     depth_buffer,
                 } => {
-                    let render_shader =
-                        asset::convert_asset(ctx, cache, self.render_forward_shader_handle.clone())
-                            .unwrap_success();
+                    let render_shader = asset::convert_asset(
+                        ctx,
+                        cache,
+                        self.render_forward_shader_handle.clone(),
+                        ShaderGpuConverter,
+                    )
+                    .unwrap_success();
 
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
@@ -461,6 +474,7 @@ impl GrassRenderer {
                         ctx,
                         cache,
                         self.render_deferred_shader_handle.clone(),
+                        ShaderGpuConverter,
                     )
                     .unwrap_success();
                     let render_pipeline = render::RenderPipelineBuilder::new(

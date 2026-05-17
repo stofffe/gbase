@@ -1,6 +1,9 @@
-use crate::{BoundingBoxWrapper, Camera, CameraFrustum, MeshLod, Plane, Transform3D};
+use crate::{
+    BoundingBoxWrapper, Camera, CameraFrustum, LodMeshToBoundingBoxConverter, MeshLod, Plane,
+    Transform3D,
+};
 use gbase::{
-    asset::{self, AssetHandle, ShaderLoader},
+    asset::{self, AssetHandle, MeshGpuConverter, ShaderGpuConverter, ShaderLoader},
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
     render::{self, GpuMesh},
@@ -158,7 +161,7 @@ impl ShadowPass {
 
                 let bounds = handle
                     .clone()
-                    .convert::<BoundingBoxWrapper>(ctx, cache)
+                    .convert(ctx, cache, LodMeshToBoundingBoxConverter)
                     .unwrap_success();
                 frustums[i].sphere_inside(&bounds, transform)
             });
@@ -195,8 +198,9 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let gpu_mesh = asset::convert_asset::<GpuMesh>(ctx, cache, mesh_handle.clone())
-                    .unwrap_success();
+                let gpu_mesh =
+                    asset::convert_asset(ctx, cache, mesh_handle.clone(), MeshGpuConverter)
+                        .unwrap_success();
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -222,7 +226,8 @@ impl ShadowPass {
                 ])
                 .build(ctx);
             let shader =
-                asset::convert_asset(ctx, cache, self.shader_handle.clone()).unwrap_success();
+                asset::convert_asset(ctx, cache, self.shader_handle.clone(), ShaderGpuConverter)
+                    .unwrap_success();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
                 .label("shadow_pass")
                 .cull_mode(wgpu::Face::Back)

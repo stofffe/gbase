@@ -1,11 +1,11 @@
 use super::{
-    Asset, AssetHandle, AssetLoader, AssetWriter, ConvertableRenderAsset, DynAsset, DynAssetHandle,
-    DynAssetLoadFn, DynAssetWriteFn, DynRenderAsset,
+    Asset, AssetHandle, AssetLoader, AssetWriter, DynAsset, DynAssetHandle, DynAssetLoadFn,
+    DynAssetWriteFn, DynRenderAsset,
 };
 use crate::{
     asset::{
-        self, ConvertAssetStatus, DynLoader, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
-        LoadAssetBuilder, RenderAssetKey,
+        self, AssetConverter, ConvertAssetStatus, DerivedAsset, DynLoader, GetAssetResult,
+        GetAssetResultMut, InsertAssetBuilder, LoadAssetBuilder, RenderAssetKey,
     },
     render::ArcHandle,
     Context,
@@ -26,13 +26,13 @@ pub enum LoadAssetResult {
     Error,
 }
 
-pub enum ConvertAssetResult<T: ConvertableRenderAsset> {
+pub enum ConvertAssetResult<T: DerivedAsset> {
     Loading,
     Success(ArcHandle<T>),
     Failed,
 }
 
-impl<T: ConvertableRenderAsset> ConvertAssetResult<T> {
+impl<T: DerivedAsset> ConvertAssetResult<T> {
     /// Unwrap the result as a success
     ///
     /// Panics for other values than
@@ -291,6 +291,7 @@ impl AssetCache {
         handle
     }
 
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn load_sync<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
@@ -332,6 +333,7 @@ impl AssetCache {
     }
 
     /// Reload an existing asset while reusing the last path and loader
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
         if let Some((path, loader)) = self.get_handle_path_and_loader::<T>(handle.clone()) {
             self.load_sync(handle, &path, loader);
@@ -377,18 +379,19 @@ impl AssetCache {
     // Render assets
     //
 
-    pub fn convert<G: ConvertableRenderAsset>(
+    pub fn convert<G: AssetConverter>(
         &mut self,
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
-    ) -> ConvertAssetResult<G> {
-        let key = (handle.clone().as_any(), TypeId::of::<G>());
+        converter: G,
+    ) -> ConvertAssetResult<G::TargetAsset> {
+        let key = (handle.clone().as_any(), TypeId::of::<G::TargetAsset>());
 
         let render_asset_handle = match self.render_cache.get(&key) {
             Some(render_asset_handle) => render_asset_handle.clone(),
             None => {
-                match G::convert(ctx, self, handle.clone()) {
-                    ConvertAssetStatus::Loading => return ConvertAssetResult::Loading,
+                match converter.convert(ctx, self, handle.clone()) {
+                    ConvertAssetStatus::SourceLoading => return ConvertAssetResult::Loading,
 
                     // TODO: insert last valid so we dont hit this each time?
                     ConvertAssetStatus::Failed => match self.render_cache_last_valid.get(&key) {
@@ -420,7 +423,7 @@ impl AssetCache {
                         self.render_cache_invalidate_lookup
                             .entry(handle.as_any())
                             .or_default()
-                            .insert(TypeId::of::<G>());
+                            .insert(TypeId::of::<G::TargetAsset>());
 
                         render_asset_any_handle
                     }
@@ -429,7 +432,7 @@ impl AssetCache {
         };
 
         let typed_handle = render_asset_handle
-            .downcast::<G>()
+            .downcast::<G::TargetAsset>()
             .expect("could not downcast render any handle");
 
         ConvertAssetResult::Success(typed_handle)
@@ -759,11 +762,12 @@ impl<T: Asset + 'static> AssetHandle<T> {
     pub fn get_mut<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResultMut<'a, T> {
         cache.get_mut(self.clone())
     }
-    pub fn convert<G: ConvertableRenderAsset<SourceAsset = T>>(
+    pub fn convert<G: AssetConverter<SourceAsset = T>>(
         &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-    ) -> ConvertAssetResult<G> {
-        cache.convert(ctx, self.clone())
+        converter: G,
+    ) -> ConvertAssetResult<G::TargetAsset> {
+        cache.convert(ctx, self.clone(), converter)
     }
 }

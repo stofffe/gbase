@@ -199,10 +199,11 @@ pub fn get_mut<'a, T: Asset + 'static>(
     cache.get_mut(handle)
 }
 
-pub fn convert_asset<G: ConvertableRenderAsset>(
+pub fn convert_asset<G: AssetConverter>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     handle: AssetHandle<G::SourceAsset>,
-) -> ConvertAssetResult<G> {
-    cache.convert(ctx, handle)
+    converter: G,
+) -> ConvertAssetResult<G::TargetAsset> {
+    cache.convert(ctx, handle, converter)
 }

@@ -1,5 +1,8 @@
 use gbase::{
-    asset::{self, AssetHandle, ImageLoader, ShaderLoader},
+    asset::{
+        self, AssetHandle, ImageGpuConverter, ImageLoader, MeshGpuConverter, ShaderGpuConverter,
+        ShaderLoader,
+    },
     render::{self, ArcPipelineLayout, GpuImage, Image},
     wgpu::{self},
     CallbackResult, Callbacks, Context,
@@ -89,13 +92,14 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
-        let mesh = asset::convert_asset::<render::GpuMesh>(ctx, cache, self.mesh_handle.clone())
+        let mesh = asset::convert_asset(ctx, cache, self.mesh_handle.clone(), MeshGpuConverter)
             .unwrap_success();
         let shader =
-            asset::convert_asset::<wgpu::ShaderModule>(ctx, cache, self.shader_handle.clone())
+            asset::convert_asset(ctx, cache, self.shader_handle.clone(), ShaderGpuConverter)
                 .unwrap_success();
-        let texture = asset::convert_asset::<GpuImage>(ctx, cache, self.texture_handle.clone())
-            .unwrap_success();
+        let texture =
+            asset::convert_asset(ctx, cache, self.texture_handle.clone(), ImageGpuConverter)
+                .unwrap_success();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
