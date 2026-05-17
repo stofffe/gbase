@@ -34,8 +34,8 @@ impl AssetBuilder {
         cache: &AssetCache,
         path: impl Into<PathBuf>,
         loader: T,
-    ) -> LoadedAssetBuilder<T> {
-        LoadedAssetBuilder::<T> {
+    ) -> LoadAssetBuilder<T> {
+        LoadAssetBuilder::<T> {
             loader,
             handle: AssetHandle::new(cache.asset_handle_ctx()),
             path: path.into(),
@@ -61,14 +61,14 @@ impl<T: Asset> InsertAssetBuilder<T> {
 // Loaded
 //
 
-pub struct LoadedAssetBuilder<T: AssetLoader> {
+pub struct LoadAssetBuilder<T: AssetLoader> {
     loader: T,
     handle: AssetHandle<T::Asset>,
     path: PathBuf,
 }
 
 // TODO: can these just store bool instead?
-impl<T: AssetWriter> LoadedAssetBuilder<T> {
+impl<T: AssetWriter> LoadAssetBuilder<T> {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn write(self, cache: &mut AssetCache) -> Self {
         cache.ext.write::<T>(self.handle.clone(), &self.path);
@@ -77,7 +77,7 @@ impl<T: AssetWriter> LoadedAssetBuilder<T> {
 }
 
 // TODO: can these just store bool instead?
-impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
+impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn watch(self, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
         cache
@@ -87,9 +87,42 @@ impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
     }
 }
 
-impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
+impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
         cache.load::<T>(self.handle, &self.path, self.loader)
+    }
+}
+
+// Loaded Sync (non wasm)
+
+#[cfg(not(target_arch = "wasm32"))]
+pub struct LoadSyncAssetBuilder<T: AssetLoader> {
+    loader: T,
+    handle: AssetHandle<T::Asset>,
+    path: PathBuf,
+}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: AssetWriter> LoadSyncAssetBuilder<T> {
+    pub fn write(self, cache: &mut AssetCache) -> Self {
+        cache.ext.write::<T>(self.handle.clone(), &self.path);
+        self
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: AssetLoader + 'static> LoadSyncAssetBuilder<T> {
+    pub fn watch(self, cache: &mut AssetCache) -> Self {
+        cache
+            .ext
+            .watch::<T>(self.handle.clone(), &self.path, self.loader.clone()); //TODO: make this arc?
+        self
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: AssetLoader + 'static> LoadSyncAssetBuilder<T> {
+    pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
+        cache.load_sync::<T>(self.handle, &self.path, self.loader)
     }
 }
 
@@ -97,8 +130,11 @@ impl<T: AssetLoader + 'static> LoadedAssetBuilder<T> {
 // Commands
 //
 
-pub fn reload_asset<T: Asset>(cache: &mut AssetCache, handle: AssetHandle<T>) {
-    todo!()
+pub fn reload_asset<T: AssetLoader + 'static>(
+    cache: &mut AssetCache,
+    handle: AssetHandle<T::Asset>,
+) {
+    cache.reload::<T>(handle)
 }
 
 /// Check if all current assets are loaded

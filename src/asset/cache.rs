@@ -5,7 +5,7 @@ use super::{
 use crate::{
     asset::{
         self, ConvertAssetStatus, DynLoader, GetAssetResult, GetAssetResultMut, InsertAssetBuilder,
-        LoadedAssetBuilder, RenderAssetKey,
+        LoadAssetBuilder, RenderAssetKey,
     },
     render::ArcHandle,
     Context,
@@ -216,7 +216,7 @@ impl AssetCache {
         &mut self,
         path: impl Into<PathBuf>,
         loader: T,
-    ) -> LoadedAssetBuilder<T> {
+    ) -> LoadAssetBuilder<T> {
         asset::AssetBuilder::load(self, path, loader)
     }
 
@@ -291,30 +291,86 @@ impl AssetCache {
         handle
     }
 
-    /// Reload an existing asset while reusing the last path and loader
-    pub fn reload<T: AssetLoader + Send + Sync + 'static>(
+    pub fn load_sync<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
-    ) {
+        path: &Path,
+        loader: T,
+    ) -> AssetHandle<T::Asset> {
+        let path = path.to_path_buf();
+
+        self.paths.insert(handle.as_any(), path.clone());
+        self.loaders
+            .insert(handle.as_any(), Box::new(loader.clone()));
+
+        // load sync
+        let data = pollster::block_on(loader.load(self.load_ctx.clone(), &path));
+
+        match data {
+            Ok(asset) => {
+                self.cache
+                    .insert(handle.as_any(), LoadAssetResult::Success(Box::new(asset)));
+            }
+            Err(err) => {
+                tracing::error!("error loading asset {:?}: {}", path, err);
+                self.cache.insert(handle.as_any(), LoadAssetResult::Error);
+            }
+        }
+
+        self.just_loaded.insert(handle.as_any());
+
+        handle
+    }
+
+    /// Reload an existing asset while reusing the last path and loader
+    pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
+        if let Some((path, loader)) = self.get_handle_path_and_loader::<T>(handle.clone()) {
+            self.load(handle, &path, loader);
+        } else {
+            tracing::warn!("could not reload asset");
+        }
+    }
+
+    /// Reload an existing asset while reusing the last path and loader
+    pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
+        if let Some((path, loader)) = self.get_handle_path_and_loader::<T>(handle.clone()) {
+            self.load_sync(handle, &path, loader);
+        } else {
+            tracing::warn!("could not reload asset");
+        }
+    }
+
+    // TODO: this probably should not use a generic, it should store the type some other way if
+    // possible, maybe the handle can store the loader type
+    fn get_handle_path_and_loader<T: AssetLoader + 'static>(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+    ) -> Option<(PathBuf, T)> {
         // load prev path
         let Some(path) = self.paths.get(&handle.as_any()) else {
             tracing::warn!("trying to reload asset without previous path");
-            return;
+            return None;
         };
         let path = path.clone();
 
         // load prev loader
         let Some(loader) = self.loaders.get(&handle.as_any()) else {
             tracing::warn!("trying to reload asset without previous path");
-            return;
+            return None;
         };
-        let loader = (loader.as_ref() as &dyn Any)
-            .downcast_ref::<T>()
-            .expect("could not downcast")
-            .clone();
 
-        // reload
-        self.load(handle, &path, loader);
+        let loader = (loader.as_ref() as &dyn Any).downcast_ref::<T>();
+        let Some(loader) = loader else {
+            tracing::warn!(
+                "could not find loader of type {:?} for handle {:?}",
+                std::any::type_name::<T>(),
+                handle.id(),
+            );
+
+            return None;
+        };
+
+        Some((path, loader.clone()))
     }
 
     //
@@ -330,7 +386,6 @@ impl AssetCache {
 
         let render_asset_handle = match self.render_cache.get(&key) {
             Some(render_asset_handle) => render_asset_handle.clone(),
-            // Some(render_asset_handle) => todo!(),
             None => {
                 match G::convert(ctx, self, handle.clone()) {
                     ConvertAssetStatus::Loading => return ConvertAssetResult::Loading,

@@ -25,7 +25,6 @@ pub struct UIRenderer {
 
     font: AssetHandle<Font>,
     font_atlas_raster_size: f32,
-    font_atlas_reloading: bool,
 }
 
 impl UIRenderer {
@@ -88,7 +87,6 @@ impl UIRenderer {
 
             font,
             font_atlas_raster_size,
-            font_atlas_reloading: false,
         }
     }
 
@@ -207,9 +205,7 @@ impl UIRenderer {
     }
 
     pub fn hot_reload(&mut self, cache: &mut AssetCache) {
-        // TODO: this gotta be sync
-        self.font_atlas_reloading = true;
-        cache.reload::<FontLoader>(self.font.clone());
+        cache.reload_sync::<FontLoader>(self.font.clone());
     }
 }
 
@@ -222,19 +218,6 @@ impl UIRenderer {
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
-        if self.font_atlas_reloading {
-            if cache.handle_just_loaded(self.font.clone()) {
-                self.font_atlas_reloading = false;
-            } else {
-                return TextSizeResult {
-                    preferred_width: 0.0,
-                    preferred_height: 0.0,
-                    min_width: 0.0,
-                    min_height: 0.0,
-                };
-            }
-        }
-
         let GetAssetResult::Success(font) = self.font.get(cache) else {
             return TextSizeResult {
                 preferred_width: 0.0,
@@ -308,18 +291,6 @@ impl UIRenderer {
         font_size: u32,
         max_width: f32,
     ) -> TextLayoutResult {
-        // TODO: hot reload workaround
-        if self.font_atlas_reloading {
-            if cache.handle_just_loaded(self.font.clone()) {
-                self.font_atlas_reloading = false;
-            } else {
-                return TextLayoutResult {
-                    width: 0.0,
-                    height: 0.0,
-                    glyphs: Vec::new(),
-                };
-            }
-        }
         let GetAssetResult::Success(font) = self.font.get(cache) else {
             return TextLayoutResult {
                 width: 0.0,
@@ -414,8 +385,8 @@ impl UIRenderer {
                     }
                 }
 
-                // TODO: can probably be merged with the above
-                // add the whitespace char
+                // TODO: how to handle tab
+
                 if letter == ' ' {
                     let glyph_info = font_atlas.lookup.get(&letter).unwrap();
                     let scale = font_size as f32 / self.font_atlas_raster_size;
