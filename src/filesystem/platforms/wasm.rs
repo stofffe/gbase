@@ -1,6 +1,5 @@
-use std::path::PathBuf;
-
-use crate::filesystem::LoadFileError;
+use crate::{filesystem::platforms::LoadFileError, ContextBuilder};
+use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct FileSystemContext {
@@ -9,38 +8,42 @@ pub struct FileSystemContext {
 
 #[derive(Debug)]
 pub struct FileSystemConfig {
-    base_folder_path: reqwest::Url,
+    asset_folder_path: PathBuf,
+    base_url: reqwest::Url,
 }
 
 impl FileSystemContext {
-    pub(crate) fn new() -> Self {
-        let asset_folder = PathBuf::from(".");
+    pub(crate) fn new(builder: &ContextBuilder) -> Self {
+        let asset_folder_path = builder.assets_path.clone();
 
-        let base_folder_path = {
-            let window = web_sys::window().expect("could not get window");
-            let location = window.location();
-            let path = location.origin().expect("could not get origin");
-            let url = reqwest::Url::parse(&path).expect("could not base path");
-            url
-        };
+        let window = web_sys::window().expect("could not get window");
+        let location = window.location();
+        let origin = location.origin().expect("could not get origin");
+        let base_url = reqwest::Url::parse(&origin).expect("could not base path");
 
         Self {
-            config: std::sync::Arc::new(FileSystemConfig { base_folder_path }),
+            config: std::sync::Arc::new(FileSystemConfig {
+                asset_folder_path,
+                base_url,
+            }),
         }
     }
 }
 
 impl FileSystemContext {
-    pub async fn load_bytes(
-        &self,
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<Vec<u8>, LoadFileError> {
-        let path = path.as_ref().to_str().ok_or(LoadFileError::InvalidPath)?;
+    pub fn format_asset_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        self.config.asset_folder_path.join(path)
+    }
+
+    pub async fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        let path = self.format_asset_path(path);
+        let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
+
         let path = self
             .config
-            .base_folder_path
+            .base_url
             .join(path)
-            .map_err(|err| LoadFileError::InvalidPath)?;
+            .map_err(|_| LoadFileError::InvalidPath)?;
         let response = reqwest::Client::new()
             .get(path)
             .send()
@@ -54,16 +57,15 @@ impl FileSystemContext {
         Ok(bytes.to_vec())
     }
 
-    pub async fn load_string(
-        &self,
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<String, LoadFileError> {
-        let path = path.as_ref().to_str().ok_or(LoadFileError::InvalidPath)?;
+    pub async fn load_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        let path = self.format_asset_path(path);
+        let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
+
         let path = self
             .config
-            .base_folder_path
+            .base_url
             .join(path)
-            .map_err(|err| LoadFileError::InvalidPath)?;
+            .map_err(|_| LoadFileError::InvalidPath)?;
         let response = reqwest::Client::new()
             .get(path)
             .send()

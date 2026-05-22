@@ -25,7 +25,9 @@ struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(true)
+        gbase::ContextBuilder::new()
+            .vsync(true)
+            .assets_path("assets")
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
@@ -46,11 +48,11 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
         let shader_handle =
-            asset::AssetBuilder::load(cache, "assets/shaders/texture.wgsl", ShaderLoader {})
+            asset::AssetBuilder::load(cache, "shaders/texture.wgsl", ShaderLoader {})
                 .watch(ctx, cache)
                 .build(cache);
         let texture_handle =
-            asset::AssetBuilder::load(cache, "assets/textures/texture.jpeg", ImageLoader {})
+            asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader {})
                 // TODO:
                 // .on_load(|img| {
                 //     img.texture = img

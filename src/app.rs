@@ -194,7 +194,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         ) {
             let input = input::InputContext::new();
             let time = time::TimeContext::default();
-            let filesystem = filesystem::FileSystemContext::new();
+            let filesystem = filesystem::FileSystemContext::new(&builder);
             let audio = audio::AudioContext::new();
             let render = render::RenderContext::new(&builder, window).await;
             let random = random::RandomContext::new();
@@ -469,7 +469,7 @@ fn update_and_render(
     cache.poll();
     // TODO: dont do this every frame?
     cache.clear_cpu_handles();
-    cache.clear_gpu_handles();
+    cache.clear_derived_handles();
 
     CallbackResult::Continue
 }
@@ -485,15 +485,19 @@ fn shutdown(_ctx: &mut Context, _cache: &mut AssetCache) {}
 /// Build the context for running an application
 #[derive(Debug, Clone)]
 pub struct ContextBuilder {
+    // window/rendering
     pub(crate) window_attributes: winit::window::WindowAttributes,
     pub(crate) device_features: wgpu::Features,
     pub(crate) log_level: tracing::Level,
-    pub(crate) assets_path: PathBuf, // can be set later
-    pub(crate) vsync_enabled: bool,  // can be set later
+    pub(crate) vsync_enabled: bool, // can be set later
 
+    // profiling
     pub(crate) gpu_profiler_enabled: bool, // can be set later
     pub(crate) gpu_profiler_capacity: u32, // can be set later
     pub(crate) profiler: ProfilerWrapper,
+
+    // filesystem
+    pub(crate) assets_path: PathBuf, // can be set later
 }
 
 #[allow(clippy::new_without_default)]

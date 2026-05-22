@@ -264,6 +264,7 @@ impl AssetCache {
                         ))
                         .expect("could not send"),
                     Err(err) => {
+                        // TODO: doesnt include asset base
                         tracing::error!("error loading asset {:?}: {}", path, err);
                         loaded_sender_clone
                             .unbounded_send((handle_clone.as_any(), LoadAssetResult::Error))
@@ -469,11 +470,15 @@ impl AssetCache {
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
         while let Ok(Some((handle, asset))) = self.load_receiver.try_next() {
+            if let LoadAssetResult::Success(_) = &asset {
+                self.currently_loading.remove(&handle.as_any());
+                self.just_loaded.insert(handle.clone());
+            }
+
             // insert in cache
             self.cache.insert(handle.clone(), asset);
 
-            // remove from currently loaded
-            self.currently_loading.remove(&handle.as_any());
+            // TODO: can i just place this success and remove caching kinda?
 
             // invalidate render cache
             invalidate_render_cache(
@@ -481,8 +486,6 @@ impl AssetCache {
                 &self.render_cache_invalidate_lookup,
                 handle.clone(),
             );
-
-            self.just_loaded.insert(handle);
         }
     }
 
@@ -492,7 +495,7 @@ impl AssetCache {
             .retain(|handle, _| Arc::strong_count(&handle.id) > 1);
     }
 
-    pub fn clear_gpu_handles(&mut self) {
+    pub fn clear_derived_handles(&mut self) {
         // TODO: clear all other stuff related to this handle
         self.render_cache
             .retain(|(handle, _), _| Arc::strong_count(&handle.id) > 1);
@@ -627,20 +630,19 @@ impl AssetCacheExt {
         loader: T,
     ) {
         // need absolute path since notify uses them
-        let absolute_path = fs::canonicalize(path)
-            .unwrap_or_else(|err| panic!("could not find path {}: {:?}", path.display(), err));
+        let asset_path = filesystem_ctx.format_asset_path(path);
 
         // start watching path
         self.reload_watcher
             .watcher()
             .watch(
-                &absolute_path,
+                &asset_path,
                 notify_debouncer_mini::notify::RecursiveMode::Recursive, // TODO: non recursive?
             )
-            .unwrap_or_else(|err| panic!("could not watch {}: {:?}", absolute_path.display(), err));
+            .unwrap_or_else(|err| panic!("could not watch {}: {:?}", asset_path.display(), err));
 
         // map path to handle
-        let handles = self.reload_handles.entry(absolute_path).or_default();
+        let handles = self.reload_handles.entry(asset_path).or_default();
         handles.push(handle.as_any());
 
         // map handle to type
