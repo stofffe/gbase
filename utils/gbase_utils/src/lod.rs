@@ -69,14 +69,14 @@ impl MeshLodLoader {
 
 impl AssetLoader for MeshLodLoader {
     type Asset = MeshLod;
-    type Error = EmptyError;
+    type Error = filesystem::LoadFileError;
 
     async fn load(
         &self,
         load_ctx: LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = filesystem::load_bytes(path).await;
+        let bytes = load_ctx.load_bytes(path).await?;
         let primitives =
             parse_gltf_primitives(&load_ctx, &bytes, self.required_attributes.as_ref());
 
@@ -128,14 +128,14 @@ pub struct GltfLoader {}
 
 impl AssetLoader for GltfLoader {
     type Asset = Gltf;
-    type Error = EmptyError;
+    type Error = filesystem::LoadFileError;
 
     async fn load(
         &self,
         load_ctx: LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = filesystem::load_bytes(path).await;
+        let bytes = load_ctx.load_bytes(path).await?;
         Ok(parse_gltf_file(&load_ctx, &bytes))
     }
 }

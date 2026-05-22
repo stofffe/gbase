@@ -32,7 +32,7 @@ impl Tonemap {
             "assets/shaders/tonemap.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
         Self {
             pipeline_layout,
@@ -166,7 +166,7 @@ impl Bloom {
             "assets/shaders/bloom_extract.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         //
@@ -193,7 +193,7 @@ impl Bloom {
             "assets/shaders/bloom_downsample.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         //
@@ -224,7 +224,7 @@ impl Bloom {
             "assets/shaders/bloom_upsample.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         //
@@ -271,7 +271,7 @@ impl Bloom {
             "assets/shaders/bloom_combine.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         let downsampling_buffer = FrameBufferBuilder::new()

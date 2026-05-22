@@ -47,7 +47,7 @@ impl Callbacks for App {
             .build_uncached(ctx);
         let shader_handle =
             asset::AssetBuilder::load(cache, "assets/shaders/texture.wgsl", ShaderLoader {})
-                .watch(cache)
+                .watch(ctx, cache)
                 .build(cache);
         let texture_handle =
             asset::AssetBuilder::load(cache, "assets/textures/texture.jpeg", ImageLoader {})
@@ -58,7 +58,7 @@ impl Callbacks for App {
                 //         .clone()
                 //         .with_format(wgpu::TextureFormat::Rgba8Unorm)
                 // })
-                .watch(cache)
+                .watch(ctx, cache)
                 .build(cache);
 
         let mesh = render::MeshBuilder::quad()

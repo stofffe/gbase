@@ -36,7 +36,7 @@ impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let shader_handle =
             asset::AssetBuilder::load(cache, "assets/shaders/shadow_pass.wgsl", ShaderLoader {})
-                .watch(cache)
+                .watch(ctx, cache)
                 .build(cache);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

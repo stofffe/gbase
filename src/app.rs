@@ -131,7 +131,7 @@ enum App<C: Callbacks> {
 impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
     fn user_event(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop, mut ctx: Context) {
         // TODO: init here?
-        let mut cache = AssetCache::new();
+        let mut cache = AssetCache::new(&ctx);
 
         // Callbacks
         #[cfg(not(feature = "hot_reload"))]

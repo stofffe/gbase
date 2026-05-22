@@ -99,10 +99,10 @@ impl Callbacks for App {
             "assets/models/helmet_lod.glb",
             MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
         let sponza_gltf = AssetBuilder::load(cache, "assets/models/sponza.glb", GltfLoader {})
-            .watch(cache)
+            .watch(ctx, cache)
             .build(cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(

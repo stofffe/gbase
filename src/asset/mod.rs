@@ -78,11 +78,14 @@ impl<T: AssetWriter> LoadAssetBuilder<T> {
 
 // TODO: can these just store bool instead?
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
-    pub fn watch(self, cache: &mut AssetCache) -> Self {
+    pub fn watch(self, ctx: &Context, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        cache
-            .ext
-            .watch::<T>(self.handle.clone(), &self.path, self.loader.clone()); //TODO: make this arc?
+        cache.ext.watch::<T>(
+            &ctx.filesystem,
+            self.handle.clone(),
+            &self.path,
+            self.loader.clone(),
+        ); //TODO: make this arc?
         self
     }
 }
@@ -111,10 +114,13 @@ impl<T: AssetWriter> LoadSyncAssetBuilder<T> {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: AssetLoader + 'static> LoadSyncAssetBuilder<T> {
-    pub fn watch(self, cache: &mut AssetCache) -> Self {
-        cache
-            .ext
-            .watch::<T>(self.handle.clone(), &self.path, self.loader.clone()); //TODO: make this arc?
+    pub fn watch(self, ctx: &Context, cache: &mut AssetCache) -> Self {
+        cache.ext.watch::<T>(
+            &ctx.filesystem,
+            self.handle.clone(),
+            &self.path,
+            self.loader.clone(),
+        ); //TODO: make this arc?
         self
     }
 }

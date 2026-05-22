@@ -7,6 +7,7 @@ use crate::{
         self, AssetConverter, ConvertAssetStatus, DerivedAsset, DynLoader, GetAssetResult,
         GetAssetResultMut, InsertAssetBuilder, LoadAssetBuilder, RenderAssetKey,
     },
+    filesystem::{self, FileSystemContext},
     render::ArcHandle,
     Context,
 };
@@ -71,7 +72,7 @@ pub struct AssetCache {
 }
 
 impl AssetCache {
-    pub fn new() -> Self {
+    pub fn new(ctx: &Context) -> Self {
         let (load_sender, load_receiver) = futures_channel::mpsc::unbounded();
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -97,7 +98,11 @@ impl AssetCache {
         };
 
         let asset_handle_ctx = AssetHandleContext::new();
-        let load_ctx = LoadContext::new(load_sender.clone(), asset_handle_ctx.clone());
+        let load_ctx = LoadContext::new(
+            load_sender.clone(),
+            asset_handle_ctx.clone(),
+            ctx.filesystem.clone(),
+        );
 
         Self {
             cache: FxHashMap::default(),
@@ -361,6 +366,7 @@ impl AssetCache {
             return None;
         };
 
+        // TODO: not the best maybe
         let loader = (loader.as_ref() as &dyn Any).downcast_ref::<T>();
         let Some(loader) = loader else {
             tracing::warn!(
@@ -521,16 +527,19 @@ impl AssetCache {
 pub struct LoadContext {
     sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
     asset_handle_ctx: AssetHandleContext,
+    filesystem_ctx: filesystem::FileSystemContext,
 }
 
 impl LoadContext {
     pub fn new(
         sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
         asset_handle_ctx: AssetHandleContext,
+        filesystem_ctx: filesystem::FileSystemContext,
     ) -> Self {
         Self {
             sender,
             asset_handle_ctx,
+            filesystem_ctx,
         }
     }
 
@@ -548,6 +557,19 @@ impl LoadContext {
     //     let value = T::load(self.clone(), &path).await;
     //     self.insert(value)
     // }
+
+    pub async fn load_bytes(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Vec<u8>, filesystem::LoadFileError> {
+        self.filesystem_ctx.load_bytes(path).await
+    }
+    pub async fn load_string(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<String, filesystem::LoadFileError> {
+        self.filesystem_ctx.load_string(path).await
+    }
 }
 
 //
@@ -599,6 +621,7 @@ impl AssetCacheExt {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn watch<T: AssetLoader + 'static>(
         &mut self,
+        filesystem_ctx: &FileSystemContext,
         handle: AssetHandle<T::Asset>,
         path: &Path,
         loader: T,

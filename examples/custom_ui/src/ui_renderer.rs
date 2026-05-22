@@ -1,5 +1,3 @@
-#![allow(clippy::needless_range_loop)]
-
 use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
@@ -52,7 +50,7 @@ impl UIRenderer {
 
         let shader_handle = cache
             .load_builder("assets/shaders/ui.wgsl", ShaderLoader {})
-            .watch(cache)
+            .watch(ctx, cache)
             .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -661,14 +659,14 @@ pub struct FontLoader {
 
 impl AssetLoader for FontLoader {
     type Asset = Font;
-    type Error = EmptyError;
+    type Error = filesystem::LoadFileError;
 
     async fn load(
         &self,
-        _load_ctx: gbase::asset::LoadContext,
+        load_ctx: gbase::asset::LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = filesystem::load_bytes(path).await;
+        let bytes = load_ctx.load_bytes(path).await?;
         let font = fontdue::Font::from_bytes(bytes, self.settings)
             .expect("could not create font from bytes");
         Ok(Font { font })

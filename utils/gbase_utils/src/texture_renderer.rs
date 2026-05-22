@@ -1,7 +1,6 @@
 use gbase::{
     asset::{self, MeshGpuConverter, ShaderGpuConverter},
-    egui::Mesh,
-    render::{self, ArcTextureView, GpuMesh, ShaderBuilder},
+    render::{self, ArcTextureView, ShaderBuilder},
     wgpu, Context,
 };
 

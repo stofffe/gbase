@@ -35,14 +35,14 @@ impl CloudRenderer {
             "assets/textures/clouds_weather_map.png",
             ImageLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
         let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/blue_noise.png",
             ImageLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
@@ -59,7 +59,7 @@ impl CloudRenderer {
             "assets/shaders/clouds.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()

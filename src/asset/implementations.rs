@@ -71,14 +71,14 @@ impl Asset for render::ShaderBuilder {}
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
     type Asset = render::ShaderBuilder;
-    type Error = EmptyError;
+    type Error = filesystem::LoadFileError;
 
     async fn load(
         &self,
         _load_ctx: super::LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let source = filesystem::load_str(path).await;
+        let source = _load_ctx.load_string(path).await?;
 
         Ok(Self::Asset {
             label: Some(
@@ -140,14 +140,14 @@ impl Asset for render::Image {}
 pub struct ImageLoader {}
 impl AssetLoader for ImageLoader {
     type Asset = render::Image;
-    type Error = EmptyError;
+    type Error = filesystem::LoadFileError;
 
     async fn load(
         &self,
-        _load_ctx: super::LoadContext,
+        load_ctx: super::LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = filesystem::load_bytes(path).await;
+        let bytes = load_ctx.load_bytes(path).await?;
 
         let img = image::load_from_memory(&bytes)
             .expect("could not load image")

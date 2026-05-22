@@ -10,7 +10,7 @@ use gbase::{
     },
     wgpu, Context,
 };
-use gbase_utils::{BufferArenaAllocation, CameraFrustum, CameraUniform, DeferredBuffers};
+use gbase_utils::{CameraFrustum, CameraUniform, DeferredBuffers};
 use std::{mem::size_of, ops::Div};
 
 const TILE_SIZE: f32 = 128.0;
@@ -143,7 +143,7 @@ impl GrassRenderer {
             "assets/shaders/grass_compute_instance.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -172,7 +172,7 @@ impl GrassRenderer {
             "assets/shaders/grass_compute_draw.wgsl",
             ShaderLoader {},
         )
-        .watch(cache)
+        .watch(ctx, cache)
         .build(cache);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
@@ -203,12 +203,12 @@ impl GrassRenderer {
 
         let render_deferred_shader_handle = cache
             .load_builder("assets/shaders/grass_deferred.wgsl", ShaderLoader {})
-            .watch(cache)
+            .watch(ctx, cache)
             .build(cache);
 
         let render_forward_shader_handle = cache
             .load_builder("assets/shaders/grass.wgsl", ShaderLoader {})
-            .watch(cache)
+            .watch(ctx, cache)
             .build(cache);
 
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
