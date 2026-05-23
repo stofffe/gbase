@@ -97,16 +97,15 @@ ui 2
     [x] compare front+back+bias vs only back faces
 
 [] assets 
-    [] flip asset path with loader opts?
-    [] params must be part of conversion hash?
+    [] make audio an asset
     [] garbage collect old handles
-    [] make convert only run once if it fails
+    [x] make convert only run once if it fails
     [] make non loading separate type without unwrap
     [] add imports to shaders
     [] add sub model loading, file.glft#node1
     [] check if asset waiting queus up work (like in pbr)?
     [] make uniform/storage/mesh (vertex) grow dynamically?
-    [] allow load to error?
+    [x] allow load to error?
     [] reintroduce pixel cache
     [] types
         [] font

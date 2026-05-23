@@ -497,7 +497,8 @@ pub struct ContextBuilder {
     pub(crate) profiler: ProfilerWrapper,
 
     // filesystem
-    pub(crate) assets_path: PathBuf, // can be set later
+    pub(crate) assets_path: PathBuf,
+    pub(crate) temporary_path: PathBuf,
 }
 
 #[allow(clippy::new_without_default)]
@@ -505,7 +506,6 @@ impl ContextBuilder {
     pub fn new() -> Self {
         Self {
             log_level: tracing::Level::INFO,
-            assets_path: PathBuf::from("assets"),
             vsync_enabled: true,
             device_features: wgpu::Features::default(),
             window_attributes: WindowAttributes::default(),
@@ -513,6 +513,9 @@ impl ContextBuilder {
             gpu_profiler_enabled: false,
             gpu_profiler_capacity: 64,
             profiler: profile::ProfilerWrapper::new(),
+
+            assets_path: PathBuf::from("assets"),
+            temporary_path: PathBuf::from("tmp"),
         }
     }
 
@@ -523,11 +526,6 @@ impl ContextBuilder {
 
     pub fn gpu_profiler_capacity(mut self, capacity: u32) -> Self {
         self.gpu_profiler_capacity = capacity;
-        self
-    }
-
-    pub fn assets_path(mut self, path: impl Into<PathBuf>) -> Self {
-        self.assets_path = path.into();
         self
     }
 
@@ -548,6 +546,16 @@ impl ContextBuilder {
 
     pub fn window_attributes(mut self, window_attributes: winit::window::WindowAttributes) -> Self {
         self.window_attributes = window_attributes;
+        self
+    }
+
+    pub fn assets_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.assets_path = path.into();
+        self
+    }
+
+    pub fn temporary_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.temporary_path = path.into();
         self
     }
 }

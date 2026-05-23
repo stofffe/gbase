@@ -1,99 +1,45 @@
 mod platforms;
 pub use platforms::*;
 
-use crate::Context;
-
 //
 // Commands
 //
 
-pub fn store_bytes_tmp(_ctx: &Context, path: &str, data: &[u8]) -> anyhow::Result<()> {
-    let path = tmp_path_format(path);
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        let storage = get_local_storage();
-        use base64::Engine;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(data);
-        storage.set_item(&path, &encoded);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    std::fs::write(path, data)?;
-
-    Ok(())
+pub fn write_temporary_bytes(
+    ctx: &crate::Context,
+    path: impl AsRef<std::path::Path>,
+    data: &[u8],
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_temporary_bytes(path, data)
 }
 
-pub fn load_bytes_tmp(_ctx: &Context, path: &str) -> anyhow::Result<Vec<u8>> {
-    let path = tmp_path_format(path);
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        let storage = get_local_storage();
-        let data = storage
-            .get_item(&path)
-            .map_err(|e| anyhow::anyhow!("could not get item"))?
-            .ok_or(anyhow::anyhow!("empty"))?;
-        use base64::Engine;
-        let decoded = base64::engine::general_purpose::STANDARD.decode(data)?;
-        return Ok(decoded.to_vec());
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    Ok(std::fs::read(path)?)
+pub fn load_temporary_bytes(
+    ctx: &crate::Context,
+    path: impl AsRef<std::path::Path>,
+) -> Result<Vec<u8>, LoadFileError> {
+    ctx.filesystem.load_temporary_bytes(path)
 }
 
-pub fn store_str_tmp(_ctx: &Context, path: &str, data: &str) -> anyhow::Result<()> {
-    let path = tmp_path_format(path);
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        let storage = get_local_storage();
-        storage
-            .set_item(&path, data)
-            .map_err(|err| anyhow::anyhow!("could not set item"))?;
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    std::fs::write(path, data)?;
-
-    Ok(())
+pub fn write_temporary_string(
+    ctx: &crate::Context,
+    path: impl AsRef<std::path::Path>,
+    data: &str,
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_temporary_string(path, data)
 }
 
-pub fn load_str_tmp(_ctx: &Context, path: &str) -> anyhow::Result<String> {
-    let path = tmp_path_format(path);
-
-    #[cfg(target_arch = "wasm32")]
-    {
-        let storage = get_local_storage();
-        let data = storage
-            .get_item(&path)
-            .map_err(|err| anyhow::anyhow!("could not get item"))?
-            .ok_or(anyhow::anyhow!("empty"));
-        return data;
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    Ok(std::fs::read_to_string(path)?)
+pub fn load_temporary_string(
+    ctx: &crate::Context,
+    path: impl AsRef<std::path::Path>,
+) -> Result<String, LoadFileError> {
+    ctx.filesystem.load_temporary_string(path)
 }
 
-#[cfg(target_arch = "wasm32")]
-fn get_local_storage() -> web_sys::Storage {
-    let window = web_sys::window().expect("could not get window");
-    let storage = window
-        .local_storage()
-        .expect("could not get local storage")
-        .expect("local storage is empty");
-    storage
-}
+// TODO: use filesystem context
 
 /// Path to temporary storage folder
 pub fn tmp_path() -> &'static str {
     "assets/tmp"
-}
-
-fn tmp_path_format(path: &str) -> String {
-    format!("{}/{}", tmp_path(), path)
 }
 
 /// Load bytes from assets folder

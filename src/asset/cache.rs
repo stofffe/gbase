@@ -565,13 +565,13 @@ impl LoadContext {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
-        self.filesystem_ctx.load_bytes(path).await
+        self.filesystem_ctx.load_asset_bytes(path).await
     }
     pub async fn load_string(
         &self,
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
-        self.filesystem_ctx.load_string(path).await
+        self.filesystem_ctx.load_asset_string(path).await
     }
 }
 

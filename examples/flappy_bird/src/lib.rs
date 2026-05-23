@@ -406,7 +406,7 @@ impl Callbacks for App {
 
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let highscore = if let Ok(data) = filesystem::load_str_tmp(ctx, HIGHSCORE_PATH) {
+        let highscore = if let Ok(data) = filesystem::load_temporary_string(ctx, HIGHSCORE_PATH) {
             data.trim().parse::<u32>().unwrap()
         } else {
             0
@@ -567,8 +567,12 @@ impl Callbacks for App {
                     self.die_timer.reset();
                     if self.score > self.highscore {
                         self.highscore = self.score;
-                        filesystem::store_str_tmp(ctx, HIGHSCORE_PATH, &self.score.to_string())
-                            .unwrap();
+                        filesystem::write_temporary_string(
+                            ctx,
+                            HIGHSCORE_PATH,
+                            &self.score.to_string(),
+                        )
+                        .unwrap();
                     }
                     self.player.get_mut(&mut self.entities).renderable = Renderable::Sprite;
                 }
