@@ -2,8 +2,8 @@ use std::{fs, os::unix::raw::mode_t, path::PathBuf};
 
 use gbase::{
     asset::{
-        self, AssetHandle, AssetLoader, ExtendedShaderLoader, ImageGpuConverter, ImageLoader,
-        MeshGpuConverter, ShaderGpuConverter, ShaderLoader,
+        self, AssetHandle, AssetLoader, ImageGpuConverter, ImageLoader, MeshGpuConverter,
+        ShaderGpuConverter, ShaderLoader,
     },
     filesystem::LoadFileError,
     render::{self, ArcPipelineLayout, Image, ShaderBuilder},
@@ -33,60 +33,27 @@ impl AssetLoader for WeslShaderLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let mut virtual_resolver = wesl::VirtualResolver::new();
 
-        // let package_name = path.file_name().unwrap();
-        // dbg!(&package_name);
-        //
-        // let mut stack = vec![self.folder.clone()];
-        //
-        // while let Some(p) = stack.pop() {
-        //     if p.is_dir() {
-        //         for child in p.read_dir().unwrap() {
-        //             let path = child.unwrap().path();
-        //             stack.push(path.to_path_buf());
-        //         }
-        //     } else {
-        //         let source_code = load_ctx.load_string(&p).await?;
-        //         let translation =
-        //             wgsl_parse::parse_str(&source_code).expect("could not parse wesl file");
-        //
-        //         let p = p.strip_prefix("assets").unwrap();
-        //         // dbg!(&p);
-        //         let m = ModulePath::from_path(p);
-        //         // dbg!(&m);
-        //         virtual_resolver.add_translation_unit(m, translation);
-        //     }
-        // }
-
-        let base_path = self.package_folder.clone();
         let root_path = path.to_path_buf();
-        let stripped_root_path = root_path.strip_prefix(base_path);
-
-        // assert!(base_path.is_dir());
-        // assert!(root_path.is_file());
 
         let root = ModulePath::from_path(path);
-        // let mut root = ModulePath::new_root();
-        // root.push("texture");
 
-        dbg!(&root);
-
-        let mut stack = vec![root];
+        let mut stack = vec![root.clone()];
         while let Some(node) = stack.pop() {
-            dbg!(&node);
             let full_path = node.to_path_buf().with_extension("wgsl");
-            dbg!(&full_path);
             let source_code = load_ctx.load_string(&full_path).await?;
-            let translation =
-                wgsl_parse::parse_str(&source_code).expect("could not parse wesl file");
+            let translation = wgsl_parse::parse_str(&source_code).expect("could not parse wesl");
 
             for import in translation.imports.iter() {
                 if let Some(import_path) = &import.path {
-                    dbg!(import_path);
+                    let import_path = match &import_path.origin {
+                        PathOrigin::Absolute => root.clone().join_path(import_path),
+                        PathOrigin::Relative(_) => root.clone().join_path(import_path),
+                        PathOrigin::Package(_) => import_path.clone(),
+                    };
                     stack.push(import_path.clone());
                 }
             }
 
-            dbg!(&node);
             virtual_resolver.add_translation_unit(node, translation);
         }
 
@@ -99,8 +66,6 @@ impl AssetLoader for WeslShaderLoader {
             })
             .unwrap()
             .to_string();
-
-        dbg!(&compiled_source);
 
         Ok(ShaderBuilder::new(compiled_source))
     }
