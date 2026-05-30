@@ -1,3 +1,6 @@
+import shaders::texture_helper::RED;
+import shaders::random::rand::BLUE;
+
 struct VertexInput {
     @location(0) position: vec3<f32>,
     @location(1) uv: vec2<f32>,
@@ -25,5 +28,6 @@ struct VertexOutput {
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return textureSample(tex, samp, in.uv);
+    return BLUE;
+// return textureSample(tex, samp, in.uv);
 }
