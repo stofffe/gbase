@@ -52,6 +52,7 @@ impl Callbacks for App {
             .gpu_profiler_enabled(false)
             .window_attributes(Window::default_attributes().with_maximized(true))
             .device_features(wgpu::Features::TIMESTAMP_QUERY)
+            .assets_path(".")
             .vsync(false)
     }
 
