@@ -11,7 +11,6 @@ pub use implementations::*;
 pub use types::*;
 
 use crate::Context;
-use std::path::PathBuf;
 
 //
 // Errors

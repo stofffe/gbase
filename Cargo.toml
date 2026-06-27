@@ -12,7 +12,7 @@ encase = { version = "0.6.1", features = ["glam"] }
 anyhow = "1.0.95"                                               # TODO: remove
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 image = "0.25.6"
-futures-channel = "0.3.31"
+async-channel = "2.5.0"
 rustc-hash = "2.1.1"
 
 # tracing

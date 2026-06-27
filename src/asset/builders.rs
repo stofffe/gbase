@@ -1,7 +1,3 @@
-//
-// Builder
-//
-
 use std::path::PathBuf;
 
 use crate::{

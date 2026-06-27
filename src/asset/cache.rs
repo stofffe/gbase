@@ -11,11 +11,9 @@ use crate::{
     render::ArcHandle,
     Context,
 };
-use futures_channel::mpsc;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
-    fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
     time::Duration,
@@ -49,8 +47,10 @@ impl<T: DerivedAsset> ConvertAssetResult<T> {
 }
 
 pub struct AssetCache {
+    // cache
     cache: FxHashMap<DynAssetHandle, LoadAssetResult>,
 
+    // derived cache
     render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
@@ -58,36 +58,39 @@ pub struct AssetCache {
     // async loading
     currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
-    load_sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
-    load_receiver: mpsc::UnboundedReceiver<(DynAssetHandle, LoadAssetResult)>,
+    load_sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
+    load_receiver: async_channel::Receiver<(DynAssetHandle, LoadAssetResult)>,
 
+    // lookups
     paths: FxHashMap<DynAssetHandle, PathBuf>,
     loaders: FxHashMap<DynAssetHandle, DynLoader>,
 
+    // thread copyable state
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
 
+    // dependency tracking
+    dependencies: FxHashMap<DynAssetHandle, Vec<DynAssetHandle>>,
+
+    // hot reload context
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: AssetCacheExt,
 }
 
 impl AssetCache {
     pub fn new(ctx: &Context) -> Self {
-        let (load_sender, load_receiver) = futures_channel::mpsc::unbounded();
+        let (load_sender, load_receiver) = async_channel::unbounded();
 
         #[cfg(not(target_arch = "wasm32"))]
         let (reload_watcher, reload_receiver) = {
-            let (reload_sender, reload_receiver) = mpsc::unbounded();
+            let (reload_sender, reload_receiver) = async_channel::unbounded();
             let sender_copy = reload_sender.clone();
             let reload_watcher = notify_debouncer_mini::new_debouncer(
                 Duration::from_millis(100),
                 move |res: notify_debouncer_mini::DebounceEventResult| match res {
                     Ok(events) => {
                         for event in events {
-                            sender_copy
-                                .clone()
-                                .unbounded_send(event.path)
-                                .expect("could not send");
+                            sender_copy.try_send(event.path).expect("could not send");
                         }
                     }
                     Err(err) => println!("debounced result error: {}", err),
@@ -122,6 +125,8 @@ impl AssetCache {
             load_ctx,
             asset_handle_ctx,
 
+            dependencies: FxHashMap::default(),
+
             #[cfg(not(target_arch = "wasm32"))]
             ext: AssetCacheExt {
                 handle_to_type: FxHashMap::default(),
@@ -144,6 +149,10 @@ impl AssetCache {
 
     pub fn asset_handle_ctx(&self) -> &AssetHandleContext {
         &self.asset_handle_ctx
+    }
+
+    pub async fn wait_for_handle(&self) {
+        // what can i do here
     }
 
     //
@@ -170,7 +179,7 @@ impl AssetCache {
             return GetAssetResult::Loading;
         };
 
-        // TODO: errors as well?
+        // TODO: retuen errors as well?
         let asset = (asset.as_ref() as &dyn Any)
             .downcast_ref::<T>()
             .expect("could not downcast");
@@ -258,7 +267,7 @@ impl AssetCache {
 
                 match data {
                     Ok(asset) => loaded_sender_clone
-                        .unbounded_send((
+                        .try_send((
                             handle_clone.as_any(),
                             LoadAssetResult::Success(Box::new(asset)),
                         ))
@@ -267,7 +276,7 @@ impl AssetCache {
                         // TODO: doesnt include asset base
                         tracing::error!("error loading asset {:?}: {}", path, err);
                         loaded_sender_clone
-                            .unbounded_send((handle_clone.as_any(), LoadAssetResult::Error))
+                            .try_send((handle_clone.as_any(), LoadAssetResult::Error))
                             .expect("could not send");
                     }
                 }
@@ -280,15 +289,17 @@ impl AssetCache {
 
             match data {
                 Ok(asset) => loaded_sender_clone
-                    .unbounded_send((
+                    .send((
                         handle_clone.as_any(),
                         LoadAssetResult::Success(Box::new(asset)),
                     ))
+                    .await
                     .expect("could not send"),
                 Err(err) => {
                     tracing::error!("error loading asset {:?}: {}", path, err);
                     loaded_sender_clone
-                        .unbounded_send((handle_clone.as_any(), LoadAssetResult::Error))
+                        .send((handle_clone.as_any(), LoadAssetResult::Error))
+                        .await
                         .expect("could not send")
                 }
             }
@@ -469,7 +480,7 @@ impl AssetCache {
 
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
-        while let Ok(Some((handle, asset))) = self.load_receiver.try_next() {
+        while let Ok((handle, asset)) = self.load_receiver.try_recv() {
             if let LoadAssetResult::Success(_) = &asset {
                 self.currently_loading.remove(&handle.as_any());
                 self.just_loaded.insert(handle.clone());
@@ -528,14 +539,14 @@ impl AssetCache {
 
 #[derive(Debug, Clone)]
 pub struct LoadContext {
-    sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
+    sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
     asset_handle_ctx: AssetHandleContext,
     filesystem_ctx: filesystem::FileSystemContext,
 }
 
 impl LoadContext {
     pub fn new(
-        sender: mpsc::UnboundedSender<(DynAssetHandle, LoadAssetResult)>,
+        sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
     ) -> Self {
@@ -549,7 +560,7 @@ impl LoadContext {
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.sender
-            .unbounded_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
+            .try_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
             .expect("could not send asset handle");
         handle
     }
@@ -589,7 +600,7 @@ pub struct AssetCacheExt {
     reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
     reload_watcher:
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
-    reload_receiver: mpsc::UnboundedReceiver<PathBuf>,
+    reload_receiver: async_channel::Receiver<PathBuf>,
 
     // writing
     write_handles: FxHashMap<DynAssetHandle, PathBuf>,
@@ -729,7 +740,7 @@ impl AssetCacheExt {
         just_loaded: &mut FxHashSet<DynAssetHandle>,
         load_ctx: LoadContext,
     ) {
-        while let Ok(Some(path)) = self.reload_receiver.try_next() {
+        while let Ok(path) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
                     // println!("reload {:?}", path);
