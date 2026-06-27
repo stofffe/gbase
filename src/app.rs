@@ -81,7 +81,7 @@ pub trait Callbacks {
     }
 }
 
-pub fn run<C: Callbacks>() {
+pub fn run<C: Callbacks + 'static>() {
     let context_builder = C::init_ctx();
     context_builder.init_logging();
 
@@ -94,9 +94,16 @@ pub fn run<C: Callbacks>() {
         builder: context_builder,
     };
 
+    #[cfg(not(target_arch = "wasm32"))]
     event_loop
         .run_app(&mut app)
         .expect("could not run event loop");
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        use winit::platform::web::EventLoopExtWebSys;
+        event_loop.spawn_app(app);
+    }
 }
 
 /// General engine state
