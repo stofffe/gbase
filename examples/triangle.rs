@@ -4,9 +4,8 @@ use gbase::{
     wgpu, CallbackResult, Callbacks, Context,
 };
 
-#[cfg(not(target_arch = "wasm32"))]
 fn main() {
-    gbase::run_sync::<App>();
+    gbase::run::<App>();
 }
 
 pub struct App {

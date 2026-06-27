@@ -13,8 +13,8 @@ use std::path::PathBuf;
 use wesl::{syntax::PathOrigin, ModulePath, PkgResolver, Resolver, VirtualResolver, Wesl};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 pub struct CustomResolver<'a> {

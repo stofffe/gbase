@@ -16,8 +16,8 @@ use gbase_utils::{
 use std::{f32::consts::PI, fs, io::Write, sync::mpsc};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 const FONT_SIZE: f32 = 40.0;

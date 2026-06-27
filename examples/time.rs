@@ -3,7 +3,7 @@ use std::time::Duration;
 use gbase::{time, CallbackResult, Callbacks, Context};
 
 pub fn main() {
-    gbase::run_sync::<App>();
+    gbase::run::<App>();
 }
 
 struct App {

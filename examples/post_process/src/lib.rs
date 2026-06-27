@@ -7,8 +7,8 @@ use gbase::{
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 pub struct App {

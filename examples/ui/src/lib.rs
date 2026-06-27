@@ -2,8 +2,8 @@ use gbase::{filesystem, input, render, wgpu, winit::dpi::PhysicalSize, CallbackR
 use gbase_utils::{Alignment, Direction, SizeKind, Widget, BLUE, GRAY, GREEN, RED, WHITE};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 pub struct App {

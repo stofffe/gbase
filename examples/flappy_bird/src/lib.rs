@@ -16,8 +16,8 @@ use sprite_atlas::{BASE, BIRD_FLAP_0, BIRD_FLAP_1, PIPE};
 use std::{f32::consts::PI, time::Duration};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 #[derive(Debug, Default, Clone, Copy, Eq, PartialEq)]

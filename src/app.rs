@@ -81,7 +81,7 @@ pub trait Callbacks {
     }
 }
 
-pub async fn run<C: Callbacks>() {
+pub fn run<C: Callbacks>() {
     let context_builder = C::init_ctx();
     context_builder.init_logging();
 
@@ -97,11 +97,6 @@ pub async fn run<C: Callbacks>() {
     event_loop
         .run_app(&mut app)
         .expect("could not run event loop");
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn run_sync<C: Callbacks>() {
-    pollster::block_on(run::<C>())
 }
 
 /// General engine state

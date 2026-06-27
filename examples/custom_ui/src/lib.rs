@@ -13,8 +13,8 @@ use gbase::{
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 const RED: Vec4 = vec4(1.0, 0.0, 0.0, 1.0);

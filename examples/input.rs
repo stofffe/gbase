@@ -4,7 +4,7 @@ use gbase::{
 };
 
 pub fn main() {
-    gbase::run_sync::<App>();
+    gbase::run::<App>();
 }
 
 struct App {}

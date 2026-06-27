@@ -2,7 +2,7 @@ use gbase::{filesystem, render, CallbackResult, Callbacks, Context};
 use std::sync::mpsc;
 
 fn main() {
-    gbase::run_sync::<App>();
+    gbase::run::<App>();
 }
 
 const INPUT_SIZE: u32 = 8;

@@ -15,8 +15,8 @@ use grass_renderer::GrassRenderer;
 use std::f32::consts::PI;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
-pub async fn run() {
-    gbase::run::<App>().await;
+pub fn run() {
+    gbase::run::<App>();
 }
 
 const PLANE_SIZE: f32 = 1000.0;
