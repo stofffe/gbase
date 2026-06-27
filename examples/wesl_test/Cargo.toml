@@ -10,6 +10,7 @@ hot_reload = ["gbase/hot_reload"]
 [dependencies]
 gbase = { path = "../.." }
 gbase_utils = { path = "../../utils/gbase_utils" }
+random_wgsl = { path = "../../utils/random_wgsl" }
 wesl = "0.4.0"
 wgsl-parse = { version = "0.4.0", features = ["imports", "wesl"] }
 

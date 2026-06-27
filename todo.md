@@ -1,5 +1,8 @@
 next up
-    [] asdads
+    [] asset deps
+    [] cache asset path + type -> asset? (maybe need COW if asset is modified)
+    [] finish ui
+    [] remove run being async
 
 [] whatevs
     [] explore drop on commandencoder to not miss submitting

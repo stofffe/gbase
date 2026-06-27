@@ -1,0 +1,11 @@
+[package]
+name = "random_wgsl"
+description = "Random utility package for WGSL/WESL"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wesl = { version = "0.4.0" }
+
+[build-dependencies]
+wesl = { version = "0.4.0", features = ["package"] }

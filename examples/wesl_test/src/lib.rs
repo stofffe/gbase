@@ -1,20 +1,62 @@
-use std::{fs, os::unix::raw::mode_t, path::PathBuf};
-
 use gbase::{
     asset::{
         self, AssetHandle, AssetLoader, ImageGpuConverter, ImageLoader, MeshGpuConverter,
-        ShaderGpuConverter, ShaderLoader,
+        ShaderGpuConverter,
     },
     filesystem::LoadFileError,
     render::{self, ArcPipelineLayout, Image, ShaderBuilder},
+    tracing,
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
-use wesl::{syntax::PathOrigin, ModulePath};
+use std::path::PathBuf;
+use wesl::{syntax::PathOrigin, ModulePath, PkgResolver, Resolver, VirtualResolver, Wesl};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub async fn run() {
     gbase::run::<App>().await;
+}
+
+pub struct CustomResolver<'a> {
+    pkg: wesl::PkgResolver,
+    file: wesl::VirtualResolver<'a>,
+}
+
+impl CustomResolver<'_> {
+    pub fn new() -> Self {
+        Self {
+            pkg: wesl::PkgResolver::new(),
+            file: wesl::VirtualResolver::new(),
+        }
+    }
+
+    pub fn add_package(&mut self, package: &'static wesl::CodegenPkg) {
+        self.pkg.add_package(package);
+    }
+
+    pub fn add_translation_unit(
+        &mut self,
+        path: ModulePath,
+        translation_unit: wesl::syntax::TranslationUnit,
+    ) {
+        self.file.add_translation_unit(path, translation_unit);
+    }
+}
+
+impl wesl::Resolver for CustomResolver<'_> {
+    fn resolve_source<'a>(
+        &'a self,
+        path: &ModulePath,
+    ) -> Result<std::borrow::Cow<'a, str>, wesl::ResolveError> {
+        if path.origin.is_package() {
+            tracing::error!("LOAD PACKAGE {:?}", path);
+            let result = self.pkg.resolve_source(path);
+            dbg!(&result);
+            result
+        } else {
+            self.file.resolve_source(path)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -31,35 +73,101 @@ impl AssetLoader for WeslShaderLoader {
         load_ctx: asset::LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
-        let mut virtual_resolver = wesl::VirtualResolver::new();
+        let a = Wesl::new("sadasdasd")
+            .add_package(&random_wgsl::PACKAGE)
+            .compile(&"random::noise::perlin".parse().unwrap())
+            .unwrap();
+        dbg!(&a.sourcemap.unwrap());
 
-        let root_path = path.to_path_buf();
+        let mut custom_resolver = CustomResolver::new();
+        custom_resolver.add_package(&random_wgsl::PACKAGE);
 
-        let root = ModulePath::from_path(path);
+        let mut pkg_resolver = wesl::PkgResolver::new();
+        pkg_resolver.add_package(&random_wgsl::PACKAGE);
+
+        // let root = ModulePath::from_path(path);
+        let file_path = path.strip_prefix(&self.package_folder).unwrap();
+        let root = ModulePath::new(
+            PathOrigin::Absolute,
+            file_path
+                .components()
+                .map(|a| a.as_os_str().to_str().unwrap().to_string())
+                .collect::<Vec<_>>(),
+        );
+        dbg!(&root);
 
         let mut stack = vec![root.clone()];
         while let Some(node) = stack.pop() {
-            let full_path = node.to_path_buf().with_extension("wgsl");
-            let source_code = load_ctx.load_string(&full_path).await?;
+            let source_code = match node.origin {
+                PathOrigin::Absolute => {
+                    let file_path = node.to_path_buf().with_extension("wgsl");
+                    let full_path = self
+                        .package_folder
+                        .join(file_path.strip_prefix("/").unwrap());
+                    // dbg!(&full_path);
+                    // let full_path = format!(
+                    //     "{}{}",
+                    //     self.package_folder.to_str().unwrap(),
+                    //     full_path.to_str().unwrap()
+                    // );
+                    dbg!(&full_path);
+                    let source_code = load_ctx.load_string(&full_path).await?;
+                    source_code
+                }
+                PathOrigin::Relative(_) => {
+                    let full_path = node.to_path_buf().with_extension("wgsl");
+                    // let full_path = format!(
+                    //     "{}{}",
+                    //     self.package_folder.to_str().unwrap(),
+                    //     full_path.to_str().unwrap()
+                    // );
+                    // dbg!(&full_path);
+                    let source_code = load_ctx.load_string(&full_path).await?;
+                    source_code
+                }
+                PathOrigin::Package(ref pkg) => {
+                    continue;
+                    // dbg!(pkg);
+                    // let source = pkg_resolver
+                    //     .resolve_source(&node)
+                    //     .expect("could not get source")
+                    //     .to_string();
+                    // source
+                }
+            };
+
             let translation = wgsl_parse::parse_str(&source_code).expect("could not parse wesl");
 
             for import in translation.imports.iter() {
                 if let Some(import_path) = &import.path {
-                    let import_path = match &import_path.origin {
-                        PathOrigin::Absolute => root.clone().join_path(import_path),
-                        PathOrigin::Relative(_) => root.clone().join_path(import_path),
-                        PathOrigin::Package(_) => import_path.clone(),
-                    };
+                    // let import_path = match &import_path.origin {
+                    //     PathOrigin::Absolute => root.clone().join_path(import_path),
+                    //     PathOrigin::Relative(_) => root.clone().join_path(import_path),
+                    //     PathOrigin::Package(pkg) => {
+                    //         // let a = custom_resolver
+                    //         //     .pkg
+                    //         //     .resolve_source(import_path)
+                    //         //     .expect("could not get pkg");
+                    //         // todo!()
+                    //         import_path.clone()
+                    //     }
+                    // };
+                    dbg!(&import_path);
                     stack.push(import_path.clone());
                 }
             }
 
-            virtual_resolver.add_translation_unit(node, translation);
+            custom_resolver.add_translation_unit(node, translation);
         }
 
+        // Packages
+        // for pkg in [&random_wgsl::PACKAGE] {
+        //     custom_resolver.add_package(pkg);
+        // }
+
         let compiled_source = wesl::Wesl::new(&self.package_folder)
-            .set_custom_resolver(virtual_resolver)
-            .compile(&ModulePath::from_path(root_path))
+            .set_custom_resolver(custom_resolver)
+            .compile(&root)
             .inspect_err(|e| {
                 eprintln!("{e}");
                 panic!();

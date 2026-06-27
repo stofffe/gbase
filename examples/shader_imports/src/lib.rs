@@ -26,6 +26,15 @@ impl asset::AssetLoader for ShaderExtendedLoader {
         load_ctx: asset::LoadContext,
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
+        // pseduo code
+        // load file content of path (for this asset)
+        // for each import
+        //  load new asset
+        //  add new asset to dependencies (load ctx?)
+        //
+        // wait for dependencies? async? (need wait for single asset load?)
+        // combine str
+
         let mut imported_paths = HashSet::new();
         let mut import_path_stack = VecDeque::new();
 
