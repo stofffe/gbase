@@ -51,6 +51,7 @@ pub struct AssetCache {
 
     // derived cache
     render_cache: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
+    // TODO: maybe move to ext?
     render_cache_last_valid: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
 
@@ -302,38 +303,6 @@ impl AssetCache {
         handle
     }
 
-    /// Reload an existing asset while reusing the last path and loader
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        let Some(path) = self.paths.get(&handle.as_any()) else {
-            tracing::warn!("could not get path for handle {:?}", handle.id());
-            return;
-        };
-
-        self.ext
-            .reload_sender
-            .try_send(path.clone())
-            .expect("could not send reload request");
-    }
-
-    /// Reload an existing asset while reusing the last path and loader
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        let Some(path) = self.paths.get(&handle.as_any()) else {
-            tracing::warn!("could not get path for handle {:?}", handle.id());
-            return;
-        };
-
-        self.ext.reload_sync(
-            &mut self.cache,
-            &mut self.render_cache,
-            &self.render_cache_invalidate_lookup,
-            self.load_ctx.clone(),
-            handle.as_any(),
-            path,
-        );
-    }
-
     //
     // Render assets
     //
@@ -474,6 +443,29 @@ impl AssetCache {
             }
         }
         true
+    }
+
+    //
+    // Ext re-exports
+    //
+
+    /// Reload an existing asset while reusing the last path and loader
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
+        self.ext.reload(&self.paths, handle.as_any());
+    }
+
+    /// Reload an existing asset while reusing the last path and loader
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
+        self.ext.reload_sync(
+            &mut self.cache,
+            &mut self.render_cache,
+            &self.render_cache_invalidate_lookup,
+            &self.paths,
+            self.load_ctx.clone(),
+            handle.as_any(),
+        );
     }
 }
 
@@ -653,7 +645,17 @@ impl AssetCacheExt {
         }
     }
 
-    // TODO: add reload normal way here
+    /// Queue a reload just like file watcher would
+    pub fn reload(&mut self, paths: &FxHashMap<DynAssetHandle, PathBuf>, handle: DynAssetHandle) {
+        let Some(path) = paths.get(&handle.as_any()) else {
+            tracing::warn!("could not get path for handle {:?}", handle.id());
+            return;
+        };
+
+        self.reload_sender
+            .try_send(path.clone())
+            .expect("could not send reload request");
+    }
 
     /// Immediately call the reload function sync
     pub fn reload_sync(
@@ -661,10 +663,15 @@ impl AssetCacheExt {
         cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
         render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
+        paths: &FxHashMap<DynAssetHandle, PathBuf>,
         load_ctx: LoadContext,
         handle: DynAssetHandle,
-        path: &Path,
     ) {
+        let Some(path) = paths.get(&handle.as_any()) else {
+            tracing::warn!("could not get path for handle {:?}", handle.id());
+            return;
+        };
+
         let Some(loader_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
             tracing::warn!("could not get asset handle {}", handle.id());
             return;
