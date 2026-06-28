@@ -32,6 +32,7 @@ pub trait AssetLoader: Send + Sync + Clone {
     type Asset: Asset;
     type Error: error::Error;
 
+    // TODO: should this be consuming self instead
     fn load(
         &self,
         load_ctx: LoadContext,

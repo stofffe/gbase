@@ -71,30 +71,6 @@ pub fn get<'a, T: Asset + 'static>(
     cache.get(handle)
 }
 
-// TODO: move justloaded here?
-pub enum GetAssetResultMut<'a, T: Asset> {
-    Loading,
-    Loaded(&'a mut T),
-    Failed,
-}
-
-impl<'a, T: Asset> GetAssetResultMut<'a, T> {
-    pub fn unwrap_loaded(self) -> &'a mut T {
-        match self {
-            GetAssetResultMut::Loaded(asset) => asset,
-            GetAssetResultMut::Loading => panic!("Asset is still loading"),
-            GetAssetResultMut::Failed => panic!("Asset failed to load"),
-        }
-    }
-}
-
-pub fn get_mut<'a, T: Asset + 'static>(
-    cache: &'a mut AssetCache,
-    handle: AssetHandle<T>,
-) -> GetAssetResultMut<'a, T> {
-    cache.get_mut(handle)
-}
-
 pub fn convert_asset<G: AssetConverter>(
     ctx: &mut Context,
     cache: &mut AssetCache,

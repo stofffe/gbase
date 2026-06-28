@@ -25,15 +25,15 @@ const NOISE_UNIFORM: NoiseGeneratorUniforms = NoiseGeneratorUniforms {
 
 pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu::Error> {
     // generate 3d texture
-    let texture = render::TextureBuilder::new(render::TextureSource::Empty(
-        NOISE_TEXTURE_DIM,
-        NOISE_TEXTURE_DIM,
-    ))
-    .depth_or_array_layers(NOISE_TEXTURE_DIM)
-    .with_format(wgpu::TextureFormat::Rgba8Unorm)
-    .dimension(wgpu::TextureDimension::D3)
-    .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
-    .build(ctx);
+    let texture = render::TextureBuilder::new()
+        .depth_or_array_layers(NOISE_TEXTURE_DIM)
+        .with_format(wgpu::TextureFormat::Rgba8Unorm)
+        .dimension(wgpu::TextureDimension::D3)
+        .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
+        .build(
+            ctx,
+            render::TextureSource::Empty(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM),
+        );
 
     let sampler = render::SamplerBuilder::new()
         .with_address_mode(wgpu::AddressMode::Repeat)

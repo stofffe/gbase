@@ -114,6 +114,7 @@ impl gbase::Callbacks for App {
         gbase::ContextBuilder::new()
             .log_level(gbase::tracing::Level::WARN)
             .window_attributes(Window::default_attributes().with_maximized(true))
+            .assets_path(".")
         // .vsync(false)
     }
 

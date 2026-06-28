@@ -7,7 +7,9 @@ use gbase::{
     audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random, render, time, tracing, wgpu,
+    load_b, random,
+    render::{self, TextureBuilder},
+    time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     CallbackResult, Callbacks, Context,
 };
@@ -387,10 +389,12 @@ impl Callbacks for App {
 
         let camera_buffer = render::UniformBufferBuilder::new().build(ctx);
 
-        let texture = gbase_utils::texture_builder_from_image_bytes(sprite_atlas::ATLAS_BYTES)
-            .expect("could not load texture from image bytes")
+        let texture_source =
+            gbase_utils::texture_source_from_image_bytes(sprite_atlas::ATLAS_BYTES)
+                .expect("could not load texture from image bytes");
+        let texture = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-            .build(ctx);
+            .build(ctx, texture_source);
         let sampler = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
             .build(ctx);

@@ -4,22 +4,17 @@ use gbase::{
     wgpu, Context,
 };
 
-/// Creates a texture builder from the bytes
+/// Creates a RGBA8 texture source from the bytes
 ///
 /// Uses ```image``` crate for decoding
 ///
 /// Does not account for gamma correction
-pub fn texture_builder_from_image_bytes(
+pub fn texture_source_from_image_bytes(
     bytes: &[u8],
-) -> Result<render::TextureBuilder, image::ImageError> {
+) -> Result<render::TextureSource, image::ImageError> {
     let img = image::load_from_memory(bytes)?.to_rgba8();
-    let builder = render::TextureBuilder::new(render::TextureSource::Data(
-        img.width(),
-        img.height(),
-        img.to_vec(),
-    ))
-    .with_format(gbase::wgpu::TextureFormat::Rgba8Unorm);
-    Ok(builder)
+    let source = render::TextureSource::Data(img.width(), img.height(), img.to_vec());
+    Ok(source)
 }
 
 //

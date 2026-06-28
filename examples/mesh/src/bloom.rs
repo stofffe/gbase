@@ -1,6 +1,6 @@
 use gbase::{
     asset::{self, ShaderGpuConverter, ShaderLoader},
-    render::{self, FrameBuffer, FrameBufferBuilder},
+    render::{self, FrameBuffer, FrameBufferBuilder, TextureSource},
     wgpu, Context,
 };
 
@@ -290,10 +290,7 @@ impl Bloom {
             .build(ctx);
 
         let image = render::Image::new_pixel_texture([0, 0, 0, 0]);
-        let texture = image.texture.clone().build(ctx);
-        let sampler = image.sampler.clone().build(ctx);
-        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-        let black_pixel = render::GpuImage::new(texture, view, sampler);
+        let black_pixel = render::GpuImage::from_image(ctx, image);
 
         Self {
             extract_pipeline_layout,

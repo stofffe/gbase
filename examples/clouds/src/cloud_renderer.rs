@@ -3,7 +3,7 @@ use crate::CloudParameters;
 use gbase::asset::{
     ImageGpuConverter, ImageLoader, MeshGpuConverter, ShaderGpuConverter, ShaderLoader,
 };
-use gbase::render::{GpuImage, GpuMesh, Image, Mesh};
+use gbase::render::{GpuImage, GpuMesh, Image, Mesh, SamplerBuilder, TextureBuilder};
 use gbase::{asset, tracing};
 use gbase::{
     render::{self, ShaderBuilder},
@@ -33,14 +33,18 @@ impl CloudRenderer {
         let weather_map_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/clouds_weather_map.png",
-            ImageLoader {},
+            ImageLoader::new()
+                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
+                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
         .watch(ctx, cache)
         .build(cache);
         let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/blue_noise.png",
-            ImageLoader {},
+            ImageLoader::new()
+                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
+                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
         .watch(ctx, cache)
         .build(cache);
@@ -135,18 +139,20 @@ impl CloudRenderer {
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
         if cache.handle_just_loaded(self.weather_map_handle.clone()) {
-            let img = cache
-                .get_mut(self.weather_map_handle.clone())
-                .unwrap_loaded();
-            img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-            img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+            // TODO:
+            // let img = cache
+            //     .get_mut(self.weather_map_handle.clone())
+            //     .unwrap_loaded();
+            // img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+            // img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
         }
         if cache.handle_just_loaded(self.blue_noise_handle.clone()) {
-            let img = cache
-                .get_mut(self.blue_noise_handle.clone())
-                .unwrap_loaded();
-            img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-            img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
+            // TODO:
+            // let img = cache
+            //     .get_mut(self.blue_noise_handle.clone())
+            //     .unwrap_loaded();
+            // img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
+            // img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
         }
 
         if !asset::handle_loaded(cache, self.shader_handle.clone())

@@ -57,6 +57,7 @@ impl Callbacks for App {
             )
             .window_attributes(winit::window::Window::default_attributes().with_maximized(true))
             .gpu_profiler_enabled(false)
+            .assets_path(".")
     }
 
     #[no_mangle]
@@ -170,23 +171,25 @@ impl Callbacks for App {
         }
 
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
-            for (mesh, _) in mesh_lod.meshes.clone() {
-                mesh.get_mut(cache)
-                    .unwrap_loaded()
-                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            }
+            // TODO:
+            // let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
+            // for (mesh, _) in mesh_lod.meshes.clone() {
+            // mesh.get_mut(cache)
+            //     .unwrap_loaded()
+            //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            // }
         }
 
         if self.sponza_gltf.loaded(cache) {
             let gltf = cache.get(self.sponza_gltf.clone()).unwrap_loaded().clone();
 
             for mesh in gltf.meshes.iter().clone() {
-                let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
-                prim.mesh
-                    .get_mut(cache)
-                    .unwrap_loaded()
-                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
+                // TODO:
+                // let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
+                // prim.mesh
+                //     .get_mut(cache)
+                //     .unwrap_loaded()
+                //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
 
                 let mesh = mesh.get(cache).unwrap_loaded();
                 for primitive in mesh.primitives.iter().clone() {
@@ -199,11 +202,13 @@ impl Callbacks for App {
                 // tracing::info!("node {:#?}", node);
 
                 if let Some(mesh) = node.mesh.clone() {
-                    let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
-                    prim.mesh
-                        .get_mut(cache)
-                        .unwrap_loaded()
-                        .extract_attributes(self.pbr_renderer.required_attributes().clone());
+                    // TODO:
+                    // let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone();
+                    // Assume 1 mesh = 1 prim
+                    // prim.mesh
+                    //     .get_mut(cache)
+                    //     .unwrap_loaded()
+                    //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
                 }
             }
         }

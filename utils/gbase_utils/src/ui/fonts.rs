@@ -56,11 +56,13 @@ impl FontAtlas {
             base_offset: max_neg_yoffset as f32 / max_height as f32,
         };
 
-        let texture =
-            render::TextureBuilder::new(render::TextureSource::Empty(texture_dim.x, texture_dim.y))
-                .with_format(wgpu::TextureFormat::R8Unorm)
-                .build(ctx)
-                .with_default_sampler_and_view(ctx);
+        let texture = render::TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::R8Unorm)
+            .build(
+                ctx,
+                render::TextureSource::Empty(texture_dim.x, texture_dim.y),
+            )
+            .with_default_sampler_and_view(ctx);
         let mut texture_atlas = crate::TextureAtlasBuilder::new().build(texture);
 
         let mut letter_info = HashMap::<char, LetterInfo>::new();

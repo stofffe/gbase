@@ -52,7 +52,7 @@ impl Callbacks for App {
                 .watch(ctx, cache)
                 .build(cache);
         let texture_handle =
-            asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader {})
+            asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader::default())
                 // TODO:
                 // .on_load(|img| {
                 //     img.texture = img

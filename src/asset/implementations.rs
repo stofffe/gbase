@@ -1,8 +1,10 @@
+use std::env::temp_dir;
+
 use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
     asset::{AssetConverter, ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult},
     filesystem,
-    render::{self, GpuImage},
+    render::{self, GpuImage, SamplerBuilder, TextureBuilder},
     Context,
 };
 
@@ -133,11 +135,35 @@ impl AssetConverter for ShaderGpuConverter {
 //
 // Image
 //
+//
 
 impl Asset for render::Image {}
 
-#[derive(Clone)]
-pub struct ImageLoader {}
+#[derive(Clone, Default)]
+pub struct ImageLoader {
+    pub texture_config: Option<TextureBuilder>,
+    pub sampler_config: Option<SamplerBuilder>,
+}
+
+impl ImageLoader {
+    pub fn new() -> Self {
+        Self {
+            texture_config: None,
+            sampler_config: None,
+        }
+    }
+
+    pub fn texture_config(mut self, texture_config: TextureBuilder) -> Self {
+        self.texture_config = Some(texture_config);
+        self
+    }
+
+    pub fn sampler_config(mut self, sampler_config: SamplerBuilder) -> Self {
+        self.sampler_config = Some(sampler_config);
+        self
+    }
+}
+
 impl AssetLoader for ImageLoader {
     type Asset = render::Image;
     type Error = filesystem::LoadFileError;
@@ -152,13 +178,15 @@ impl AssetLoader for ImageLoader {
         let img = image::load_from_memory(&bytes)
             .expect("could not load image")
             .to_rgba8();
-        let texture = render::TextureBuilder::new(render::TextureSource::Data(
-            img.width(),
-            img.height(),
-            img.to_vec(),
-        ));
-        let sampler = render::SamplerBuilder::new();
-        Ok(Self::Asset { texture, sampler })
+        let source = render::TextureSource::Data(img.width(), img.height(), img.to_vec());
+        let texture_config = self.texture_config.clone().unwrap_or(TextureBuilder::new());
+        let sampler_config = self.sampler_config.clone().unwrap_or(SamplerBuilder::new());
+
+        Ok(Self::Asset {
+            source,
+            texture_config,
+            sampler_config,
+        })
     }
 }
 
@@ -182,8 +210,8 @@ impl AssetConverter for ImageGpuConverter {
             GetAssetResult::Success(source) => source,
         };
 
-        let sampler = source.sampler.clone().build(ctx);
-        let texture = source.texture.build(ctx);
+        let sampler = source.sampler_config.clone().build(ctx);
+        let texture = source.texture_config.build(ctx, source.source.clone());
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
 
         let gpu_image = GpuImage::new(texture, view, sampler);

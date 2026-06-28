@@ -1,7 +1,7 @@
 use gbase::{
     filesystem,
     input::{self, KeyCode},
-    render::{self, ArcTextureView},
+    render::{self, ArcTextureView, TextureBuilder},
     wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
@@ -58,42 +58,58 @@ impl Callbacks for App {
         let texture_renderer_final = gbase_utils::TextureRenderer::new(ctx, cache);
 
         // textures
-        let texture1 = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/nature.jpg").unwrap(),
-        )
-        .unwrap()
-        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
-        let texture2 = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/city.jpg").unwrap(),
-        )
-        .unwrap()
-        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
+        let texture1 = TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .build(
+                ctx,
+                gbase_utils::texture_source_from_image_bytes(
+                    &filesystem::load_b!("textures/nature.jpg").unwrap(),
+                )
+                .unwrap(),
+            )
+            .with_default_sampler_and_view(ctx);
+        let texture2 = TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .build(
+                ctx,
+                gbase_utils::texture_source_from_image_bytes(
+                    &filesystem::load_b!("textures/city.jpg").unwrap(),
+                )
+                .unwrap(),
+            )
+            .with_default_sampler_and_view(ctx);
 
-        let texture3 = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/hellokitty.jpg").unwrap(),
-        )
-        .unwrap()
-        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
-        let texture4 = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/mario.jpg").unwrap(),
-        )
-        .unwrap()
-        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
-        let texture5 = gbase_utils::texture_builder_from_image_bytes(
-            &filesystem::load_b!("textures/antialiasing.png").unwrap(),
-        )
-        .unwrap()
-        .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
+        let texture3 = TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .build(
+                ctx,
+                gbase_utils::texture_source_from_image_bytes(
+                    &filesystem::load_b!("textures/hellokitty.jpg").unwrap(),
+                )
+                .unwrap(),
+            )
+            .with_default_sampler_and_view(ctx);
+        let texture4 = TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .build(
+                ctx,
+                gbase_utils::texture_source_from_image_bytes(
+                    &filesystem::load_b!("textures/mario.jpg").unwrap(),
+                )
+                .unwrap(),
+            )
+            .with_default_sampler_and_view(ctx);
+        let texture5 = TextureBuilder::new()
+            .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .build(
+                ctx,
+                gbase_utils::texture_source_from_image_bytes(
+                    &filesystem::load_b!("textures/antialiasing.png").unwrap(),
+                )
+                .unwrap(),
+            )
+            .with_default_sampler_and_view(ctx);
         let last_texture = texture1.view();
 
         // filters

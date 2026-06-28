@@ -63,16 +63,16 @@ impl ShadowPass {
         .usage(wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::STORAGE)
         .build(ctx);
 
-        let shadow_map = render::TextureBuilder::new(render::TextureSource::Empty(
-            SHADOW_MAP_RESOLUTION,
-            SHADOW_MAP_RESOLUTION,
-        ))
-        .label("shadow map")
-        // TODO: maybe use 16 bits?
-        .with_format(SHADOW_MAP_FORMAT)
-        .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-        .depth_or_array_layers(MAX_SHADOW_CASCADES)
-        .build(ctx);
+        let shadow_map = render::TextureBuilder::new()
+            .label("shadow map")
+            // TODO: maybe use 16 bits?
+            .with_format(SHADOW_MAP_FORMAT)
+            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+            .depth_or_array_layers(MAX_SHADOW_CASCADES)
+            .build(
+                ctx,
+                render::TextureSource::Empty(SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION),
+            );
 
         let light_matrices_index = render::UniformBufferBuilder::new().build(ctx);
 

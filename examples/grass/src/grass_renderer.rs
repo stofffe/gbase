@@ -6,7 +6,7 @@ use gbase::{
     input,
     render::{
         self, ArcBindGroupLayout, ArcPipelineLayout, BindGroupBindable, ColorTargetState, GpuImage,
-        RenderPassColorAttachment,
+        RenderPassColorAttachment, TextureBuilder,
     },
     wgpu, Context,
 };
@@ -90,13 +90,14 @@ impl GrassRenderer {
                 .build(ctx),
         ];
 
-        let perlin_noise_texture = gbase_utils::texture_builder_from_image_bytes(
+        let perlin_noise_texture_source = gbase_utils::texture_source_from_image_bytes(
             &filesystem::load_b!("textures/perlin_noise.png").unwrap(),
         )
-        .unwrap()
-        .label("perlin noise")
-        .build(ctx)
-        .with_default_sampler_and_view(ctx);
+        .unwrap();
+        let perlin_noise_texture = TextureBuilder::new()
+            .label("perlin noise")
+            .build(ctx, perlin_noise_texture_source)
+            .with_default_sampler_and_view(ctx);
 
         let tile_buffer = [
             render::UniformBufferBuilder::new()

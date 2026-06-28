@@ -8,6 +8,11 @@ use crate::{
 // Shader Builder
 //
 
+pub struct Shader {
+    source: String,
+    shader_conf: ShaderBuilder,
+}
+
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
     pub label: Option<String>,

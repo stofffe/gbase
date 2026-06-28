@@ -597,13 +597,12 @@ fn create_font_atlas(
         }
     }
 
-    let font_atlas = render::TextureBuilder::new(render::TextureSource::Data(
-        atlas_side_size as u32,
-        atlas_side_size as u32,
-        atlas_data,
-    ))
-    .with_format(wgpu::TextureFormat::R8Unorm)
-    .build(ctx);
+    let font_atlas = render::TextureBuilder::new()
+        .with_format(wgpu::TextureFormat::R8Unorm)
+        .build(
+            ctx,
+            render::TextureSource::Data(atlas_side_size as u32, atlas_side_size as u32, atlas_data),
+        );
 
     (atlas_glyph_lookup, font_atlas)
 }

@@ -1,8 +1,8 @@
-use crate::{texture_builder_from_image_bytes, Transform3D};
+use crate::{texture_source_from_image_bytes, Transform3D};
 use gbase::{
     asset::{Asset, AssetCache, AssetHandle, LoadContext},
     glam::{Quat, Vec3},
-    render::{self, Image, Mesh, SamplerBuilder, VertexAttributeId},
+    render::{self, Image, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
     tracing, wgpu,
 };
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -366,53 +366,50 @@ pub fn parse_gltf_material(
         let texture_buffer = &buffer[offset..offset + length];
         let sampler = texture.sampler();
 
-        let texture_builder = texture_builder_from_image_bytes(texture_buffer)
-            .expect("could not load")
-            .with_format(format);
+        let texture_source =
+            texture_source_from_image_bytes(texture_buffer).expect("could not load");
+        let texture_config =
+            TextureBuilder::new().with_format(gbase::wgpu::TextureFormat::Rgba8Unorm);
+        let sampler_config = SamplerBuilder::new()
+            .min_mag_filter(
+                sampler
+                    .min_filter()
+                    // TODO: handle mipmap filters
+                    .map_or(wgpu::FilterMode::Linear, |filter| match filter {
+                        gltf::texture::MinFilter::Nearest
+                        | gltf::texture::MinFilter::NearestMipmapLinear
+                        | gltf::texture::MinFilter::NearestMipmapNearest => {
+                            wgpu::FilterMode::Nearest
+                        }
+                        gltf::texture::MinFilter::Linear
+                        | gltf::texture::MinFilter::LinearMipmapNearest
+                        | gltf::texture::MinFilter::LinearMipmapLinear => wgpu::FilterMode::Linear,
+                    }),
+                sampler
+                    .mag_filter()
+                    .map_or(wgpu::FilterMode::Linear, |filter| match filter {
+                        gltf::texture::MagFilter::Nearest => wgpu::FilterMode::Nearest,
+                        gltf::texture::MagFilter::Linear => wgpu::FilterMode::Linear,
+                    }),
+            )
+            .address_mode_separate(
+                match sampler.wrap_s() {
+                    gltf::texture::WrappingMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+                    gltf::texture::WrappingMode::MirroredRepeat => wgpu::AddressMode::MirrorRepeat,
+                    gltf::texture::WrappingMode::Repeat => wgpu::AddressMode::Repeat,
+                },
+                match sampler.wrap_t() {
+                    gltf::texture::WrappingMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
+                    gltf::texture::WrappingMode::MirroredRepeat => wgpu::AddressMode::MirrorRepeat,
+                    gltf::texture::WrappingMode::Repeat => wgpu::AddressMode::Repeat,
+                },
+                wgpu::AddressMode::default(),
+            );
 
         let image = Image {
-            texture: texture_builder,
-            sampler: SamplerBuilder::new()
-                .min_mag_filter(
-                    sampler
-                        .min_filter()
-                        // TODO: handle mipmap filters
-                        .map_or(wgpu::FilterMode::Linear, |filter| match filter {
-                            gltf::texture::MinFilter::Nearest
-                            | gltf::texture::MinFilter::NearestMipmapLinear
-                            | gltf::texture::MinFilter::NearestMipmapNearest => {
-                                wgpu::FilterMode::Nearest
-                            }
-                            gltf::texture::MinFilter::Linear
-                            | gltf::texture::MinFilter::LinearMipmapNearest
-                            | gltf::texture::MinFilter::LinearMipmapLinear => {
-                                wgpu::FilterMode::Linear
-                            }
-                        }),
-                    sampler
-                        .mag_filter()
-                        .map_or(wgpu::FilterMode::Linear, |filter| match filter {
-                            gltf::texture::MagFilter::Nearest => wgpu::FilterMode::Nearest,
-                            gltf::texture::MagFilter::Linear => wgpu::FilterMode::Linear,
-                        }),
-                )
-                .address_mode_separate(
-                    match sampler.wrap_s() {
-                        gltf::texture::WrappingMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
-                        gltf::texture::WrappingMode::MirroredRepeat => {
-                            wgpu::AddressMode::MirrorRepeat
-                        }
-                        gltf::texture::WrappingMode::Repeat => wgpu::AddressMode::Repeat,
-                    },
-                    match sampler.wrap_t() {
-                        gltf::texture::WrappingMode::ClampToEdge => wgpu::AddressMode::ClampToEdge,
-                        gltf::texture::WrappingMode::MirroredRepeat => {
-                            wgpu::AddressMode::MirrorRepeat
-                        }
-                        gltf::texture::WrappingMode::Repeat => wgpu::AddressMode::Repeat,
-                    },
-                    wgpu::AddressMode::default(),
-                ),
+            source: texture_source,
+            texture_config,
+            sampler_config,
         };
 
         let handle = load_ctx.insert(image);
@@ -431,9 +428,10 @@ pub fn parse_gltf_material(
             return image.clone();
         }
         let image = Image {
-            texture: render::TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec()))
+            source: render::TextureSource::Data(1, 1, color.to_vec()),
+            texture_config: render::TextureBuilder::new()
                 .with_format(wgpu::TextureFormat::Rgba8Unorm),
-            sampler: render::SamplerBuilder::new()
+            sampler_config: render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         };
 

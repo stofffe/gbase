@@ -5,7 +5,7 @@ use super::{
 use crate::{
     asset::{
         self, AssetConverter, ConvertAssetStatus, DerivedAsset, DynLoader, GetAssetResult,
-        GetAssetResultMut, InsertAssetBuilder, LoadAssetBuilder, RenderAssetKey,
+        InsertAssetBuilder, LoadAssetBuilder, RenderAssetKey,
     },
     filesystem::{self, FileSystemContext},
     render::ArcHandle,
@@ -135,10 +135,6 @@ impl AssetCache {
                 reload_functions: FxHashMap::default(),
                 reload_watcher,
                 reload_receiver,
-
-                write_handles: FxHashMap::default(),
-                write_functions: FxHashMap::default(),
-                write_dirty: FxHashSet::default(),
             },
         }
     }
@@ -185,37 +181,6 @@ impl AssetCache {
             .expect("could not downcast");
 
         GetAssetResult::Success(asset)
-    }
-
-    pub fn get_mut<'a, T: Asset + 'static>(
-        &'a mut self,
-        handle: AssetHandle<T>,
-    ) -> GetAssetResultMut<'a, T> {
-        let Some(asset) = self.cache.get_mut(&handle.as_any()) else {
-            return GetAssetResultMut::Failed;
-        };
-
-        let LoadAssetResult::Success(asset) = asset else {
-            return GetAssetResultMut::Loading;
-        };
-
-        let asset = (asset.as_mut() as &mut dyn Any)
-            .downcast_mut::<T>()
-            .expect("could not downcast");
-
-        // invalidate gpu cache
-        invalidate_render_cache(
-            &mut self.render_cache,
-            &self.render_cache_invalidate_lookup,
-            handle.as_any(),
-        );
-
-        // set dirty
-        // TODO: move inside
-        #[cfg(not(target_arch = "wasm32"))]
-        self.ext.write_dirty.insert(handle.clone().as_any());
-
-        GetAssetResultMut::Loaded(asset)
     }
 
     //
@@ -472,7 +437,6 @@ impl AssetCache {
                 &mut self.just_loaded,
                 self.load_ctx.clone(),
             );
-            self.ext.poll_write(&mut self.cache);
         }
 
         self.poll_loaded();
@@ -601,11 +565,6 @@ pub struct AssetCacheExt {
     reload_watcher:
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
     reload_receiver: async_channel::Receiver<PathBuf>,
-
-    // writing
-    write_handles: FxHashMap<DynAssetHandle, PathBuf>,
-    write_functions: FxHashMap<TypeId, DynAssetWriteFn>,
-    write_dirty: FxHashSet<DynAssetHandle>,
 }
 
 #[derive(Debug, Clone)]
@@ -677,60 +636,6 @@ impl AssetCacheExt {
             });
     }
 
-    /// Register asset for being written to disk when updated
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn write<T: AssetWriter>(&mut self, handle: AssetHandle<T::Asset>, path: &Path) {
-        let path = path.to_path_buf();
-
-        // map handle to path
-        self.write_handles.insert(handle.as_any(), path.clone());
-
-        // map handle to type
-        self.handle_to_type
-            .insert(handle.as_any(), TypeId::of::<T::Asset>());
-
-        // TODO:
-        // store reload function
-        self.write_functions
-            .entry(TypeId::of::<T::Asset>())
-            .or_insert_with(|| {
-                Box::new(|asset, path| {
-                    let typed = (asset.as_mut() as &mut dyn Any)
-                        .downcast_mut::<T::Asset>()
-                        .expect("could not cast during write");
-                    T::write(typed, path);
-                })
-            });
-    }
-
-    // check if any files are scheduled for writing to disk
-    pub fn poll_write(&mut self, cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>) {
-        for handle in self.write_dirty.drain() {
-            if let Some(path) = self.write_handles.get(&handle) {
-                let asset = cache.get_mut(&handle);
-
-                // write if loaded
-                if let Some(asset) = asset {
-                    let LoadAssetResult::Success(asset) = asset else {
-                        panic!("tried to poll write on asset not loaded");
-                    };
-
-                    let ty_id = self
-                        .handle_to_type
-                        .get(&handle)
-                        .expect("could not get type id from asset handle");
-
-                    let write_fn = self
-                        .write_functions
-                        .get(ty_id)
-                        .expect("could not get write fn");
-
-                    write_fn(asset, path);
-                }
-            }
-        }
-    }
-
     // checks if any files changed and spawns a thread which reloads the data
     pub fn poll_reload(
         &mut self,
@@ -794,9 +699,6 @@ impl<T: Asset + 'static> AssetHandle<T> {
     }
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
         cache.get(self.clone())
-    }
-    pub fn get_mut<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResultMut<'a, T> {
-        cache.get_mut(self.clone())
     }
     pub fn convert<G: AssetConverter<SourceAsset = T>>(
         &self,

@@ -48,15 +48,6 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 }
 
 // TODO: can these just store bool instead?
-impl<T: AssetWriter> LoadAssetBuilder<T> {
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn write(self, cache: &mut AssetCache) -> Self {
-        cache.ext.write::<T>(self.handle.clone(), &self.path);
-        self
-    }
-}
-
-// TODO: can these just store bool instead?
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn watch(self, ctx: &Context, cache: &mut AssetCache) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
@@ -83,13 +74,6 @@ pub struct LoadSyncAssetBuilder<T: AssetLoader> {
     loader: T,
     handle: AssetHandle<T::Asset>,
     path: PathBuf,
-}
-#[cfg(not(target_arch = "wasm32"))]
-impl<T: AssetWriter> LoadSyncAssetBuilder<T> {
-    pub fn write(self, cache: &mut AssetCache) -> Self {
-        cache.ext.write::<T>(self.handle.clone(), &self.path);
-        self
-    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]

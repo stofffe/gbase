@@ -1,20 +1,24 @@
 use crate::{
-    render::{self, next_id, ArcSampler, ArcTexture, ArcTextureView},
+    render::{self, ArcSampler, ArcTexture, ArcTextureView},
     Context,
 };
 
+// TODO: should this have view aswell?
+// TODO: should it be renamed to Texture
+// TODO: should this be moved to assets?
 #[derive(Debug, Clone)]
 pub struct Image {
-    pub texture: render::TextureBuilder,
-    pub sampler: render::SamplerBuilder,
+    pub source: TextureSource,
+    pub texture_config: TextureBuilder,
+    pub sampler_config: SamplerBuilder,
 }
 
 impl Image {
     pub fn new_pixel_texture(color: [u8; 4]) -> Self {
         Self {
-            texture: TextureBuilder::new(render::TextureSource::Data(1, 1, color.to_vec()))
-                .with_format(wgpu::TextureFormat::Rgba8Unorm),
-            sampler: SamplerBuilder::new()
+            source: TextureSource::Data(1, 1, color.to_vec()),
+            texture_config: TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm),
+            sampler_config: SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         }
     }
@@ -163,7 +167,7 @@ impl SamplerBuilder {
 // Texture
 //
 
-// TODO use struct notation?
+// TODO: is this replaceable by multiple build methods
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum TextureSource {
     /// (width, height, bytes)
@@ -174,8 +178,6 @@ pub enum TextureSource {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TextureBuilder {
-    pub source: TextureSource,
-
     label: Option<String>,
     usage: wgpu::TextureUsages,
     format: wgpu::TextureFormat,
@@ -187,9 +189,8 @@ pub struct TextureBuilder {
 }
 
 impl TextureBuilder {
-    pub fn new(source: TextureSource) -> Self {
+    pub fn new() -> Self {
         Self {
-            source,
             label: None,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             format: wgpu::TextureFormat::Rgba8UnormSrgb,
@@ -201,10 +202,10 @@ impl TextureBuilder {
         }
     }
 
-    pub fn build(&self, ctx: &mut Context) -> render::ArcTexture {
+    pub fn build(&self, ctx: &mut Context, source: TextureSource) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
-        match self.source {
+        match source {
             TextureSource::Empty(width, height) => {
                 let texture = device.create_texture(&wgpu::TextureDescriptor {
                     label: self.label.as_deref(),
@@ -432,8 +433,8 @@ impl GpuImage {
         }
     }
     pub fn from_image(ctx: &mut Context, image: Image) -> Self {
-        let texture = image.texture.clone().build(ctx);
-        let sampler = image.sampler.clone().build(ctx);
+        let texture = image.texture_config.clone().build(ctx, image.source);
+        let sampler = image.sampler_config.clone().build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
         Self {
             texture,

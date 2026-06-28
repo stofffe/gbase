@@ -26,12 +26,9 @@ impl PixelCache {
             Some(handle) => handle.clone(),
             None => {
                 let image = Image {
-                    texture: render::TextureBuilder::new(render::TextureSource::Data(
-                        1,
-                        1,
-                        value.to_vec(),
-                    )),
-                    sampler: render::SamplerBuilder::new()
+                    source: render::TextureSource::Data(1, 1, value.to_vec()),
+                    texture_config: render::TextureBuilder::new(),
+                    sampler_config: render::SamplerBuilder::new()
                         .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
                 };
                 let handle = asset::AssetBuilder::insert(image).build(cache);

@@ -156,15 +156,18 @@ impl Callbacks for App {
 
         let shadow_pass = ShadowPass::new(ctx, cache);
 
-        let shadow_map_rgb = render::TextureBuilder::new(render::TextureSource::Empty(
-            gbase_utils::SHADOW_MAP_RESOLUTION,
-            gbase_utils::SHADOW_MAP_RESOLUTION,
-        ))
-        .label("shadow map rgb")
-        .with_format(wgpu::TextureFormat::Rgba8Unorm)
-        .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
-        .depth_or_array_layers(gbase_utils::MAX_SHADOW_CASCADES)
-        .build(ctx);
+        let shadow_map_rgb = render::TextureBuilder::new()
+            .label("shadow map rgb")
+            .with_format(wgpu::TextureFormat::Rgba8Unorm)
+            .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+            .depth_or_array_layers(gbase_utils::MAX_SHADOW_CASCADES)
+            .build(
+                ctx,
+                render::TextureSource::Empty(
+                    gbase_utils::SHADOW_MAP_RESOLUTION,
+                    gbase_utils::SHADOW_MAP_RESOLUTION,
+                ),
+            );
 
         Self {
             hdr_framebuffer_1: hdr_framebuffer,
@@ -209,20 +212,22 @@ impl Callbacks for App {
         }
 
         if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
-            for (mesh, _) in mesh_lod.meshes.clone() {
-                mesh.get_mut(cache)
-                    .unwrap_loaded()
-                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            }
+            // TODO:
+            // let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
+            // for (mesh, _) in mesh_lod.meshes.clone() {
+            //     mesh.get_mut(cache)
+            //         .unwrap_loaded()
+            //         .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            // }
         }
         if cache.handle_just_loaded(self.ak47_mesh.clone()) {
-            let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap_loaded();
-            for (mesh, _) in mesh_lod.meshes.clone() {
-                mesh.get_mut(cache)
-                    .unwrap_loaded()
-                    .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            }
+            // TODO:
+            // let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap_loaded();
+            // for (mesh, _) in mesh_lod.meshes.clone() {
+            //     mesh.get_mut(cache)
+            //         .unwrap_loaded()
+            //         .extract_attributes(self.pbr_renderer.required_attributes().clone());
+            // }
         }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
