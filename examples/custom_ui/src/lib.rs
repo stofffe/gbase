@@ -32,7 +32,7 @@ struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn init_ctx() -> gbase::ContextBuilder {
-        gbase::ContextBuilder::new().vsync(true)
+        gbase::ContextBuilder::new().vsync(true).assets_path(".")
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
@@ -72,8 +72,9 @@ impl Callbacks for App {
             .background_color(WHITE)
             .draw_with_children(&mut self.layouter, |layouter| {
                 UIElement::new()
-                    .text("Hello my name is not bobbyyy 
-Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy")
+                    .text(
+                        "Hello my name is not bobbyyy  Hello my name is not bobbyyy Hello my name is not bobbyyy",
+                    )
                     .font_size(64)
                     .background_color(BLUE)
                     .draw(layouter);
@@ -84,7 +85,7 @@ Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not b
                     .draw(layouter);
                 UIElement::new()
                     // .text("Hello my name is bobbyyy")
-                    .text("abc")
+                    .text("abcd")
                     .font_size(128)
                     .background_color(BLUE)
                     .draw(layouter);
@@ -172,8 +173,10 @@ Hello my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not b
 #[cfg(not(target_arch = "wasm32"))]
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, _ctx: &mut Context, cache: &mut AssetCache) {
+    fn hot_reload(&mut self, ctx: &mut Context, cache: &mut AssetCache) {
         Self::init_ctx().init_logging();
-        self.renderer.hot_reload(cache);
+
+        self.renderer
+            .hot_reload(ctx, cache, "assets/fonts/font.ttf");
     }
 }

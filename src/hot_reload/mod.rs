@@ -112,7 +112,7 @@ impl HotReloadContext {
             return false;
         }
 
-        const DLL_RELOAD_DELAY: f32 = 0.1;
+        const DLL_RELOAD_DELAY: f32 = 1.0;
         if self.dll_last_update.elapsed().as_secs_f32() < DLL_RELOAD_DELAY {
             return false;
         }

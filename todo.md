@@ -2,7 +2,12 @@ next up
     [] asset deps
     [] cache asset path + type -> asset? (maybe need COW if asset is modified)
     [] finish ui
-    [] remove run being async
+    [] put image crate behind feature flag
+    [] create debug mode feature flag instead of checking if not wasm
+    [] move egui from core to utils
+    [] fix all asset paths in examples
+    [] fix hot reload looping if fps is low
+    [x] remove run being async
 
 [] whatevs
     [] explore drop on commandencoder to not miss submitting
@@ -211,7 +216,7 @@ ui 2
     [] (){} weird sizes
 
 MPM
-    [] implement fixed time step
+    [x] implement fixed time step
 links
 https://www.sci.utah.edu/publications/Sol2021b/CH0003%20pre-proof-without-videos.pdf
 https://www.math.ucla.edu/~cffjiang/research/mpmcourse/mpmcourse.pdf

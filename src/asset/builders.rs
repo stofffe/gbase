@@ -21,6 +21,17 @@ impl AssetBuilder {
             path: path.into(),
         }
     }
+    pub fn load_sync<T: AssetLoader + 'static>(
+        cache: &AssetCache,
+        path: impl Into<PathBuf>,
+        loader: T,
+    ) -> LoadSyncAssetBuilder<T> {
+        LoadSyncAssetBuilder::<T> {
+            loader,
+            handle: AssetHandle::new(cache.asset_handle_ctx()),
+            path: path.into(),
+        }
+    }
 }
 
 //

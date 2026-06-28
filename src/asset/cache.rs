@@ -1,11 +1,10 @@
 use super::{
-    Asset, AssetHandle, AssetLoader, AssetWriter, DynAsset, DynAssetHandle, DynAssetLoadFn,
-    DynAssetWriteFn, DynRenderAsset,
+    Asset, AssetHandle, AssetLoader, DynAsset, DynAssetHandle, DynAssetLoadFn, DynDerivedAsset,
 };
 use crate::{
     asset::{
-        self, AssetConverter, ConvertAssetStatus, DerivedAsset, DynLoader, GetAssetResult,
-        InsertAssetBuilder, LoadAssetBuilder, RenderAssetKey,
+        self, AssetConverter, ConvertAssetStatus, DerivedAsset, DerivedAssetKey, DynLoader,
+        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadSyncAssetBuilder,
     },
     filesystem::{self, FileSystemContext},
     render::ArcHandle,
@@ -51,8 +50,8 @@ pub struct AssetCache {
     cache: FxHashMap<DynAssetHandle, LoadAssetResult>,
 
     // derived cache
-    render_cache: FxHashMap<RenderAssetKey, DynRenderAsset>,
-    render_cache_last_valid: FxHashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
+    render_cache_last_valid: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
 
     // async loading
@@ -63,7 +62,6 @@ pub struct AssetCache {
 
     // lookups
     paths: FxHashMap<DynAssetHandle, PathBuf>,
-    loaders: FxHashMap<DynAssetHandle, DynLoader>,
 
     // thread copyable state
     load_ctx: LoadContext,
@@ -82,7 +80,7 @@ impl AssetCache {
         let (load_sender, load_receiver) = async_channel::unbounded();
 
         #[cfg(not(target_arch = "wasm32"))]
-        let (reload_watcher, reload_receiver) = {
+        let ext = {
             let (reload_sender, reload_receiver) = async_channel::unbounded();
             let sender_copy = reload_sender.clone();
             let reload_watcher = notify_debouncer_mini::new_debouncer(
@@ -97,7 +95,15 @@ impl AssetCache {
                 },
             )
             .expect("could not create watcher");
-            (reload_watcher, reload_receiver)
+
+            AssetCacheExt {
+                reload_watcher,
+                reload_sender,
+                reload_receiver,
+
+                reload_handles: FxHashMap::default(),
+                reload_functions_sync: FxHashMap::default(),
+            }
         };
 
         let asset_handle_ctx = AssetHandleContext::new();
@@ -120,7 +126,6 @@ impl AssetCache {
             load_receiver,
 
             paths: FxHashMap::default(),
-            loaders: FxHashMap::default(),
 
             load_ctx,
             asset_handle_ctx,
@@ -128,14 +133,7 @@ impl AssetCache {
             dependencies: FxHashMap::default(),
 
             #[cfg(not(target_arch = "wasm32"))]
-            ext: AssetCacheExt {
-                handle_to_type: FxHashMap::default(),
-
-                reload_handles: FxHashMap::default(),
-                reload_functions: FxHashMap::default(),
-                reload_watcher,
-                reload_receiver,
-            },
+            ext,
         }
     }
 
@@ -149,10 +147,6 @@ impl AssetCache {
 
     pub fn asset_handle_ctx(&self) -> &AssetHandleContext {
         &self.asset_handle_ctx
-    }
-
-    pub async fn wait_for_handle(&self) {
-        // what can i do here
     }
 
     //
@@ -203,6 +197,14 @@ impl AssetCache {
         asset::AssetBuilder::load(self, path, loader)
     }
 
+    pub fn load_sync_builder<T: AssetLoader + 'static>(
+        &mut self,
+        path: impl Into<PathBuf>,
+        loader: T,
+    ) -> LoadSyncAssetBuilder<T> {
+        asset::AssetBuilder::load_sync(self, path, loader)
+    }
+
     //
     // Reloading
     //
@@ -216,8 +218,6 @@ impl AssetCache {
         let path = path.to_path_buf();
 
         self.paths.insert(handle.as_any(), path.clone());
-        self.loaders
-            .insert(handle.as_any(), Box::new(loader.clone()));
 
         self.currently_loading.insert(handle.as_any());
 
@@ -287,8 +287,6 @@ impl AssetCache {
         let path = path.to_path_buf();
 
         self.paths.insert(handle.as_any(), path.clone());
-        self.loaders
-            .insert(handle.as_any(), Box::new(loader.clone()));
 
         // load sync
         let data = pollster::block_on(loader.load(self.load_ctx.clone(), &path));
@@ -310,56 +308,35 @@ impl AssetCache {
     }
 
     /// Reload an existing asset while reusing the last path and loader
+    #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        if let Some((path, loader)) = self.get_handle_path_and_loader::<T>(handle.clone()) {
-            self.load(handle, &path, loader);
-        } else {
-            tracing::warn!("could not reload asset");
-        }
+        let Some(path) = self.paths.get(&handle.as_any()) else {
+            tracing::warn!("could not get path for handle {:?}", handle.id());
+            return;
+        };
+
+        self.ext
+            .reload_sender
+            .try_send(path.clone())
+            .expect("could not send reload request");
     }
 
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        if let Some((path, loader)) = self.get_handle_path_and_loader::<T>(handle.clone()) {
-            self.load_sync(handle, &path, loader);
-        } else {
-            tracing::warn!("could not reload asset");
-        }
-    }
-
-    // TODO: this probably should not use a generic, it should store the type some other way if
-    // possible, maybe the handle can store the loader type
-    fn get_handle_path_and_loader<T: AssetLoader + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-    ) -> Option<(PathBuf, T)> {
-        // load prev path
         let Some(path) = self.paths.get(&handle.as_any()) else {
-            tracing::warn!("trying to reload asset without previous path");
-            return None;
-        };
-        let path = path.clone();
-
-        // load prev loader
-        let Some(loader) = self.loaders.get(&handle.as_any()) else {
-            tracing::warn!("trying to reload asset without previous path");
-            return None;
+            tracing::warn!("could not get path for handle {:?}", handle.id());
+            return;
         };
 
-        // TODO: not the best maybe
-        let loader = (loader.as_ref() as &dyn Any).downcast_ref::<T>();
-        let Some(loader) = loader else {
-            tracing::warn!(
-                "could not find loader of type {:?} for handle {:?}",
-                std::any::type_name::<T>(),
-                handle.id(),
-            );
-
-            return None;
-        };
-
-        Some((path, loader.clone()))
+        self.ext.reload_sync(
+            &mut self.cache,
+            &mut self.render_cache,
+            &self.render_cache_invalidate_lookup,
+            self.load_ctx.clone(),
+            handle.as_any(),
+            path,
+        );
     }
 
     //
@@ -434,7 +411,7 @@ impl AssetCache {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.ext.poll_reload(
+            self.ext.poll_reload_sync(
                 &mut self.cache,
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
@@ -466,6 +443,10 @@ impl AssetCache {
                 handle.clone(),
             );
         }
+    }
+
+    pub fn clear_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
+        self.cache.remove(&handle.as_any());
     }
 
     pub fn clear_cpu_handles(&mut self) {
@@ -560,15 +541,17 @@ impl LoadContext {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub struct AssetCacheExt {
-    handle_to_type: FxHashMap<DynAssetHandle, TypeId>,
-
     // reloading
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
-    // TODO: still needed?
-    reload_functions: FxHashMap<TypeId, DynAssetLoadFn>,
+    reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
+
+    // channel for requesting reloads
+    reload_sender: async_channel::Sender<PathBuf>,
+    reload_receiver: async_channel::Receiver<PathBuf>,
+
+    // keep watcher handle alive
     reload_watcher:
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
-    reload_receiver: async_channel::Receiver<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -603,29 +586,29 @@ impl AssetCacheExt {
         path: &Path,
         loader: T,
     ) {
-        // need absolute path since notify uses them
-        let asset_path = filesystem_ctx.format_asset_path(path);
+        let path = filesystem_ctx.format_asset_path(path);
+        // path must be canoicalized since watcher will do it internally
+        let path = std::fs::canonicalize(path).unwrap();
 
         // start watching path
         self.reload_watcher
             .watcher()
             .watch(
-                &asset_path,
+                &path,
                 notify_debouncer_mini::notify::RecursiveMode::Recursive, // TODO: non recursive?
             )
-            .unwrap_or_else(|err| panic!("could not watch {}: {:?}", asset_path.display(), err));
+            .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
 
         // map path to handle
-        let handles = self.reload_handles.entry(asset_path).or_default();
+        dbg!(&path);
+        let handles = self.reload_handles.entry(path).or_default();
         handles.push(handle.as_any());
 
-        // map handle to type
-        self.handle_to_type
-            .insert(handle.as_any(), TypeId::of::<T::Asset>());
-
         // store reload function
-        self.reload_functions
-            .entry(TypeId::of::<T::Asset>())
+        // TODO: needs to be called even without watch()
+        tracing::error!("register {}", handle.as_any().id());
+        self.reload_functions_sync
+            .entry(handle.as_any())
             .or_insert_with(|| {
                 Box::new(move |load_ctx, path| {
                     let result = pollster::block_on(loader.clone().load(load_ctx, path));
@@ -641,10 +624,10 @@ impl AssetCacheExt {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload(
+    pub fn poll_reload_sync(
         &mut self,
         cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
-        render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
+        render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         just_loaded: &mut FxHashSet<DynAssetHandle>,
         load_ctx: LoadContext,
@@ -652,20 +635,15 @@ impl AssetCacheExt {
         while let Ok(path) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get_mut(&path) {
                 for handle in handles {
-                    // println!("reload {:?}", path);
+                    println!("reload {:?}", path);
                     just_loaded.insert(handle.clone());
 
-                    let ty_id = self
-                        .handle_to_type
-                        .get(handle)
-                        .expect("could not get type id from asset handle");
-
                     // load new fn
-                    let loader_fn = self
-                        .reload_functions
-                        .get(ty_id)
+                    let loader_fn_sync = self
+                        .reload_functions_sync
+                        .get(&handle.as_any())
                         .expect("could not get loader fn");
-                    let asset = loader_fn(load_ctx.clone(), &path);
+                    let asset = loader_fn_sync(load_ctx.clone(), &path);
 
                     // insert into cache
                     cache.insert(handle.clone(), asset);
@@ -680,10 +658,32 @@ impl AssetCacheExt {
             }
         }
     }
+
+    /// Immediately call the reload function sync
+    pub fn reload_sync(
+        &mut self,
+        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
+        render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
+        render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
+        load_ctx: LoadContext,
+        handle: DynAssetHandle,
+        path: &Path,
+    ) {
+        tracing::error!("get {}", handle.as_any().id());
+        let Some(loader_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
+            tracing::warn!("could not get asset handle {}", handle.id());
+            return;
+        };
+
+        let asset = loader_fn_sync(load_ctx, path);
+
+        cache.insert(handle.clone(), asset);
+        invalidate_render_cache(render_cache, render_cache_invalidate_lookup, handle);
+    }
 }
 
 pub fn invalidate_render_cache(
-    render_cache: &mut FxHashMap<RenderAssetKey, DynRenderAsset>,
+    render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
     render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
     handle: DynAssetHandle,
 ) {

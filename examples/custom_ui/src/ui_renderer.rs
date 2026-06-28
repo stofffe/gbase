@@ -9,7 +9,7 @@ use gbase::{
     bytemuck, filesystem,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 use std::{collections::HashMap, path::PathBuf};
 
@@ -42,6 +42,8 @@ impl UIRenderer {
                     settings: fontdue::FontSettings::default(),
                 },
             )
+            // TODO: dont actually want this but needed for manual reloading for now
+            .watch(ctx, cache)
             .build(cache);
 
         //
@@ -228,8 +230,22 @@ impl UIRenderer {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn hot_reload(&mut self, cache: &mut AssetCache) {
-        cache.reload_sync::<FontLoader>(self.font.clone());
+    pub fn hot_reload(
+        &mut self,
+        ctx: &mut gbase::Context,
+        cache: &mut AssetCache,
+        font_path: impl Into<PathBuf>,
+    ) {
+        // clear handle to not use old data
+        cache.clear_handle(self.font.clone());
+        self.font = cache
+            .load_builder(
+                font_path,
+                FontLoader {
+                    settings: fontdue::FontSettings::default(),
+                },
+            )
+            .build(cache);
     }
 }
 
@@ -668,6 +684,7 @@ impl AssetLoader for FontLoader {
         let bytes = load_ctx.load_bytes(path).await?;
         let font = fontdue::Font::from_bytes(bytes, self.settings)
             .expect("could not create font from bytes");
+
         Ok(Font { font })
     }
 }
