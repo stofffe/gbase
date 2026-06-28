@@ -17,10 +17,10 @@ pub struct GaussianFilter {
 
 impl GaussianFilter {
     pub fn new(ctx: &mut Context) -> Self {
-        let shader = render::ShaderBuilder::new(
-            include_str!("../../assets/shaders/gaussian_filter.wgsl").to_string(),
-        )
-        .build(ctx);
+        let shader = render::ShaderBuilder::new().build(
+            ctx,
+            include_str!("../../assets/shaders/gaussian_filter.wgsl"),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

@@ -51,7 +51,7 @@ impl GizmoRenderer {
             .screen_size(ctx)
             .build(ctx);
 
-        let shader = ShaderBuilder::new(include_str!("../assets/shaders/gizmo.wgsl")).build(ctx);
+        let shader = ShaderBuilder::new().build(ctx, include_str!("../assets/shaders/gizmo.wgsl"));
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);

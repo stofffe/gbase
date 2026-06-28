@@ -13,7 +13,7 @@ use std::collections::BTreeSet;
 
 pub struct CloudRenderer {
     mesh_handle: asset::AssetHandle<Mesh>,
-    shader_handle: asset::AssetHandle<ShaderBuilder>,
+    shader_handle: asset::AssetHandle<render::Shader>,
     weather_map_handle: asset::AssetHandle<Image>,
     blue_noise_handle: asset::AssetHandle<Image>,
 

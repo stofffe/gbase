@@ -1,3 +1,3 @@
 fn main() {
-    wesl_test::run()
+    // wesl_test::run()
 }

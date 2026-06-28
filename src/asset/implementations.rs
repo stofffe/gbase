@@ -4,7 +4,7 @@ use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
     asset::{AssetConverter, ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult},
     filesystem,
-    render::{self, GpuImage, SamplerBuilder, TextureBuilder},
+    render::{self, GpuImage, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
 };
 
@@ -67,12 +67,12 @@ impl AssetConverter for BoundingBoxConverter {
 // Shader
 //
 
-impl Asset for render::ShaderBuilder {}
+impl Asset for Shader {}
 
 #[derive(Clone)]
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
-    type Asset = render::ShaderBuilder;
+    type Asset = Shader;
     type Error = filesystem::LoadFileError;
 
     async fn load(
@@ -81,15 +81,13 @@ impl AssetLoader for ShaderLoader {
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
         let source = _load_ctx.load_string(path).await?;
+        let config = ShaderBuilder::new().label(
+            path.to_str()
+                .expect("could not convert path to string")
+                .to_string(),
+        );
 
-        Ok(Self::Asset {
-            label: Some(
-                path.to_str()
-                    .expect("could not convert path to string")
-                    .to_string(),
-            ),
-            source,
-        })
+        Ok(Self::Asset { source, config })
     }
 }
 
@@ -97,7 +95,7 @@ impl DerivedAsset for wgpu::ShaderModule {}
 
 pub struct ShaderGpuConverter;
 impl AssetConverter for ShaderGpuConverter {
-    type SourceAsset = render::ShaderBuilder;
+    type SourceAsset = render::Shader;
     type TargetAsset = wgpu::ShaderModule;
     type Error = wgpu::Error;
 
@@ -121,7 +119,7 @@ impl AssetConverter for ShaderGpuConverter {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            match source.build_err_non_arc(ctx) {
+            match source.config.build_err_non_arc(ctx, source.source.clone()) {
                 Ok(shader_module) => ConvertAssetStatus::Success(shader_module),
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);

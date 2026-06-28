@@ -9,7 +9,9 @@ use gbase::{
         ShaderGpuConverter,
     },
     glam::{Mat4, Vec3},
-    render::{self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer},
+    render::{
+        self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer, Shader, ShaderBuilder,
+    },
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -19,8 +21,8 @@ use std::collections::BTreeSet;
 //
 
 pub struct PbrRenderer {
-    forward_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
-    deferred_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    forward_shader_handle: asset::AssetHandle<render::Shader>,
+    deferred_shader_handle: asset::AssetHandle<render::Shader>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -46,11 +48,10 @@ impl PbrRenderer {
         // .watch(cache)
         // .build(cache);
 
-        let forward_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
-            include_str!("../assets/shaders/mesh.wgsl"),
-        ))
-        .build(cache);
-        let deferred_shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
+        let forward_shader_handle =
+            asset::AssetBuilder::insert(Shader::new(include_str!("../assets/shaders/mesh.wgsl")))
+                .build(cache);
+        let deferred_shader_handle = asset::AssetBuilder::insert(render::Shader::new(
             include_str!("../assets/shaders/deferred_mesh.wgsl"),
         ))
         .build(cache);

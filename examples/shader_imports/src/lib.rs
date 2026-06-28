@@ -18,7 +18,7 @@ pub fn run() {
 pub struct ShaderExtendedLoader {}
 
 impl asset::AssetLoader for ShaderExtendedLoader {
-    type Asset = render::ShaderBuilder;
+    type Asset = render::Shader;
     type Error = filesystem::LoadFileError;
 
     async fn load(
@@ -73,7 +73,7 @@ impl asset::AssetLoader for ShaderExtendedLoader {
 
         // TODO: add defines
 
-        Ok(render::ShaderBuilder::new(output))
+        Ok(render::Shader::new(output))
     }
 }
 
@@ -82,7 +82,7 @@ struct App {
     bindgroup_layout: render::ArcBindGroupLayout,
 
     texture_handle: AssetHandle<Image>,
-    shader_handle: AssetHandle<render::ShaderBuilder>,
+    shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
 }
 

@@ -18,7 +18,7 @@ struct App {
     bindgroup_layout: render::ArcBindGroupLayout,
 
     texture_handle: AssetHandle<Image>,
-    shader_handle: AssetHandle<render::ShaderBuilder>,
+    shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
 }
 

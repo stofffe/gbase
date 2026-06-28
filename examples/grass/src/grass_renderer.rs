@@ -37,16 +37,16 @@ pub struct GrassRenderer {
 
     instance_pipeline_layout: ArcPipelineLayout,
     instance_bindgroup_layout: ArcBindGroupLayout,
-    instance_shader_handle: AssetHandle<render::ShaderBuilder>,
+    instance_shader_handle: AssetHandle<render::Shader>,
 
     draw_pipeline_layout: ArcPipelineLayout,
     draw_bindgroup_layout: ArcBindGroupLayout,
-    draw_shader_handle: AssetHandle<render::ShaderBuilder>,
+    draw_shader_handle: AssetHandle<render::Shader>,
 
     render_pipeline_layout: ArcPipelineLayout,
     render_bindgroup_layout: ArcBindGroupLayout,
-    render_deferred_shader_handle: AssetHandle<render::ShaderBuilder>,
-    render_forward_shader_handle: AssetHandle<render::ShaderBuilder>,
+    render_deferred_shader_handle: AssetHandle<render::Shader>,
+    render_forward_shader_handle: AssetHandle<render::Shader>,
 
     app_info: gbase_utils::AppInfo,
     debug_input: gbase_utils::DebugInput,

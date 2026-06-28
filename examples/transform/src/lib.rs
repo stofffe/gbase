@@ -31,7 +31,7 @@ impl Callbacks for App {
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Shader
         let shader_str = filesystem::load_s!("shaders/transform.wgsl").unwrap();
-        let shader = render::ShaderBuilder::new(shader_str).build(ctx);
+        let shader = render::ShaderBuilder::new().build(ctx, shader_str);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(

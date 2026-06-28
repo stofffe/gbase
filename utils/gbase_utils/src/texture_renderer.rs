@@ -1,14 +1,14 @@
 use gbase::{
     asset::{self, MeshGpuConverter, ShaderGpuConverter},
-    render::{self, ArcTextureView, ShaderBuilder},
+    render::{self, ArcTextureView, Shader, ShaderBuilder},
     wgpu, Context,
 };
 
 use crate::CameraUniform;
 
 pub struct TextureRenderer {
-    shader_handle: asset::AssetHandle<ShaderBuilder>,
-    shader_depth_handle: asset::AssetHandle<ShaderBuilder>,
+    shader_handle: asset::AssetHandle<Shader>,
+    shader_depth_handle: asset::AssetHandle<Shader>,
     sampler: render::ArcSampler,
     vertices: asset::AssetHandle<render::Mesh>,
 }
@@ -23,13 +23,13 @@ impl TextureRenderer {
         //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
         //         .watch(cache)
         //         .build(cache);
-        let shader_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(include_str!(
+        let shader_handle = asset::AssetBuilder::insert(render::Shader::new(include_str!(
             "../assets/shaders/texture.wgsl"
         )))
         .build(cache);
-        let shader_depth_handle = asset::AssetBuilder::insert(render::ShaderBuilder::new(
-            include_str!("../assets/shaders/texture_depth.wgsl"),
-        ))
+        let shader_depth_handle = asset::AssetBuilder::insert(render::Shader::new(include_str!(
+            "../assets/shaders/texture_depth.wgsl"
+        )))
         .build(cache);
 
         let sampler = render::SamplerBuilder::new()

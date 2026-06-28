@@ -7,7 +7,7 @@ use gbase::{
 pub struct Tonemap {
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
-    shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    shader_handle: asset::AssetHandle<render::Shader>,
 }
 
 impl Tonemap {
@@ -84,19 +84,19 @@ impl Tonemap {
 pub struct Bloom {
     extract_pipeline_layout: render::ArcPipelineLayout,
     extract_bindgroup_layout: render::ArcBindGroupLayout,
-    extract_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    extract_shader_handle: asset::AssetHandle<render::Shader>,
 
     downsample_pipeline_layout: render::ArcPipelineLayout,
     downsample_bindgroup_layout: render::ArcBindGroupLayout,
-    downsample_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    downsample_shader_handle: asset::AssetHandle<render::Shader>,
 
     upsample_pipeline_layout: render::ArcPipelineLayout,
     upsample_bindgroup_layout: render::ArcBindGroupLayout,
-    upsample_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    upsample_shader_handle: asset::AssetHandle<render::Shader>,
 
     combine_pipeline_layout: render::ArcPipelineLayout,
     combine_bindgroup_layout: render::ArcBindGroupLayout,
-    combine_shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    combine_shader_handle: asset::AssetHandle<render::Shader>,
 
     downsampling_buffer: FrameBuffer,
     upsampling_buffer: FrameBuffer,

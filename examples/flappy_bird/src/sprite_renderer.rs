@@ -38,11 +38,11 @@ impl SpriteRenderer {
             render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_sprites * 6))
                 .build(ctx);
 
-        let shader = render::ShaderBuilder::new(
+        let shader = render::ShaderBuilder::new().build(
+            ctx,
             filesystem::load_s!("shaders/sprite_renderer.wgsl")
                 .expect("could not load sprite renderer shader"),
-        )
-        .build(ctx);
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -107,7 +107,7 @@ impl SpriteRenderer {
         // Stencil
 
         let stencil_shader =
-            render::ShaderBuilder::new(include_str!("../assets/shaders/stencil.wgsl")).build(ctx);
+            render::ShaderBuilder::new().build(ctx, include_str!("../assets/shaders/stencil.wgsl"));
 
         let stencil_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![render::BindGroupLayoutEntry::new().uniform().vertex()])

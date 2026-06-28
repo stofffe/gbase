@@ -9,37 +9,46 @@ use crate::{
 //
 
 pub struct Shader {
-    source: String,
-    shader_conf: ShaderBuilder,
+    pub source: String,
+    pub config: ShaderBuilder,
+}
+
+impl Shader {
+    pub fn new(source: impl Into<String>) -> Self {
+        Self {
+            source: source.into(),
+            config: ShaderBuilder::new(),
+        }
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Hash)]
 pub struct ShaderBuilder {
     pub label: Option<String>,
-    pub source: String,
 }
 
 impl ShaderBuilder {
-    pub fn new(source: impl Into<String>) -> Self {
-        Self {
-            source: source.into(),
-            label: None,
-        }
+    pub fn new() -> Self {
+        Self { label: None }
     }
 
     /// Create shader module
     ///
     /// panics if source is invalid
-    pub fn build(&self, ctx: &mut Context) -> ArcShaderModule {
-        ArcHandle::new(ctx, self.build_non_arc(ctx))
+    pub fn build(&self, ctx: &mut Context, source: impl Into<String>) -> ArcShaderModule {
+        ArcHandle::new(ctx, self.build_non_arc(ctx, source.into()))
     }
 
     /// Create shader module
     ///
     /// Not supported on WASM (blocking call)
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn build_err(&self, ctx: &mut Context) -> Result<ArcShaderModule, wgpu::Error> {
-        self.build_err_non_arc(ctx)
+    pub fn build_err(
+        &self,
+        ctx: &mut Context,
+        source: impl Into<String>,
+    ) -> Result<ArcShaderModule, wgpu::Error> {
+        self.build_err_non_arc(ctx, source.into())
             .map(|module| ArcHandle::new(ctx, module))
     }
 
@@ -47,10 +56,11 @@ impl ShaderBuilder {
     pub(crate) fn build_err_non_arc(
         &self,
         ctx: &Context,
+        source: String,
     ) -> Result<wgpu::ShaderModule, wgpu::Error> {
         let device = render::device(ctx);
         device.push_error_scope(wgpu::ErrorFilter::Validation);
-        let shader = self.build_non_arc(ctx);
+        let shader = self.build_non_arc(ctx, source);
         pollster::block_on(async {
             if let Some(err) = device.pop_error_scope().await {
                 Err(err)
@@ -60,11 +70,11 @@ impl ShaderBuilder {
         })
     }
 
-    pub(crate) fn build_non_arc(&self, ctx: &Context) -> wgpu::ShaderModule {
+    pub(crate) fn build_non_arc(&self, ctx: &Context, source: String) -> wgpu::ShaderModule {
         let device = render::device(ctx);
-        let mut shader_code = String::with_capacity(self.source.len());
+        let mut shader_code = String::with_capacity(source.len());
 
-        shader_code.push_str(&self.source);
+        shader_code.push_str(&source);
 
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: self.label.as_deref(),
@@ -78,10 +88,6 @@ impl ShaderBuilder {
 impl ShaderBuilder {
     pub fn label(mut self, value: String) -> Self {
         self.label = Some(value);
-        self
-    }
-    pub fn source(mut self, value: String) -> Self {
-        self.source = value;
         self
     }
 }

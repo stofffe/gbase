@@ -14,7 +14,7 @@ use gbase::{
 use std::{collections::HashMap, path::PathBuf};
 
 pub struct UIRenderer {
-    shader_handle: AssetHandle<render::ShaderBuilder>,
+    shader_handle: AssetHandle<render::Shader>,
     bindgroup_layout: render::ArcBindGroupLayout,
     pipeline_layout: render::ArcPipelineLayout,
 

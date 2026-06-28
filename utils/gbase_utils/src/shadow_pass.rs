@@ -15,7 +15,7 @@ pub struct ShadowPass {
     bindgroup_layout: render::ArcBindGroupLayout,
     instances: render::StorageBuffer<Vec<ShadowInstance>>,
 
-    shader_handle: asset::AssetHandle<render::ShaderBuilder>,
+    shader_handle: asset::AssetHandle<render::Shader>,
     pub shadow_map: render::ArcTexture,
     pub light_matrices_buffer: render::StorageBuffer<Vec<Mat4>>,
     pub light_matrices_index: render::UniformBuffer<u32>,
