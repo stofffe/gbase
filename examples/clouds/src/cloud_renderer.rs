@@ -37,8 +37,8 @@ impl CloudRenderer {
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
         let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/blue_noise.png",
@@ -46,8 +46,8 @@ impl CloudRenderer {
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
@@ -63,8 +63,8 @@ impl CloudRenderer {
             "assets/shaders/clouds.wgsl",
             ShaderLoader {},
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

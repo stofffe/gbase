@@ -144,8 +144,8 @@ impl GrassRenderer {
             "assets/shaders/grass_compute_instance.wgsl",
             ShaderLoader {},
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![instance_bindgroup_layout.clone()])
@@ -173,8 +173,8 @@ impl GrassRenderer {
             "assets/shaders/grass_compute_draw.wgsl",
             ShaderLoader {},
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![draw_bindgroup_layout.clone()])
@@ -204,13 +204,13 @@ impl GrassRenderer {
 
         let render_deferred_shader_handle = cache
             .load_builder("assets/shaders/grass_deferred.wgsl", ShaderLoader {})
-            .watch(ctx, cache)
-            .build(cache);
+            .watch(true)
+            .build(ctx, cache);
 
         let render_forward_shader_handle = cache
             .load_builder("assets/shaders/grass.wgsl", ShaderLoader {})
-            .watch(ctx, cache)
-            .build(cache);
+            .watch(true)
+            .build(ctx, cache);
 
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout.clone()])

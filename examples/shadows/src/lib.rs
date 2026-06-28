@@ -119,16 +119,16 @@ impl Callbacks for App {
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let ak47_mesh = AssetBuilder::load(
             cache,
             "assets/models/ak47.glb",
             MeshLodLoader::new().with_required_attr(pbr_renderer.required_attributes().clone()),
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,

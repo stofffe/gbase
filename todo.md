@@ -1,12 +1,15 @@
 next up
     [] asset deps
     [] cache asset path + type -> asset? (maybe need COW if asset is modified)
+    [] cache path -> assethandle to reuse now that its immutable
     [] finish ui
     [] put image crate behind feature flag
     [] create debug mode feature flag instead of checking if not wasm
     [] move egui from core to utils
     [] fix all asset paths in examples
     [] fix hot reload looping if fps is low
+    [] manual reloading requires watch, not good
+    [] move derived asset validation to ext
     [x] remove run being async
 
 [] whatevs

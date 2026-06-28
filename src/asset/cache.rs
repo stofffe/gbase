@@ -4,7 +4,7 @@ use super::{
 use crate::{
     asset::{
         self, AssetConverter, ConvertAssetStatus, DerivedAsset, DerivedAssetKey, DynLoader,
-        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadSyncAssetBuilder,
+        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder,
     },
     filesystem::{self, FileSystemContext},
     render::ArcHandle,
@@ -197,14 +197,6 @@ impl AssetCache {
         asset::AssetBuilder::load(self, path, loader)
     }
 
-    pub fn load_sync_builder<T: AssetLoader + 'static>(
-        &mut self,
-        path: impl Into<PathBuf>,
-        loader: T,
-    ) -> LoadSyncAssetBuilder<T> {
-        asset::AssetBuilder::load_sync(self, path, loader)
-    }
-
     //
     // Reloading
     //
@@ -226,7 +218,8 @@ impl AssetCache {
         let loaded_sender_clone = self.load_sender.clone();
         let load_context = self.load_ctx.clone();
 
-        // TODO: insert loading before actually loading
+        #[cfg(not(target_arch = "wasm32"))]
+        self.ext.register_load(handle.as_any(), loader.clone());
 
         // load async
         #[cfg(not(target_arch = "wasm32"))]
@@ -290,7 +283,6 @@ impl AssetCache {
 
         // load sync
         let data = pollster::block_on(loader.load(self.load_ctx.clone(), &path));
-
         match data {
             Ok(asset) => {
                 self.cache
@@ -303,6 +295,9 @@ impl AssetCache {
         }
 
         self.just_loaded.insert(handle.as_any());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        self.ext.register_load(handle.as_any(), loader);
 
         handle
     }
@@ -577,6 +572,25 @@ impl AssetHandleContext {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl AssetCacheExt {
+    pub fn register_load<T: AssetLoader + 'static>(&mut self, handle: DynAssetHandle, loader: T) {
+        // store reload function
+        // TODO: needs to be called even without watch()
+        self.reload_functions_sync
+            .entry(handle.as_any())
+            .or_insert_with(|| {
+                Box::new(move |load_ctx, path| {
+                    let result = pollster::block_on(loader.clone().load(load_ctx, path));
+                    match result {
+                        Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
+                        Err(err) => {
+                            tracing::error!("could not reload asset {:?}: {}", path, err);
+                            LoadAssetResult::Error
+                        }
+                    }
+                })
+            });
+    }
+
     /// Register asset for being watched for hot reloads
     #[cfg(not(target_arch = "wasm32"))]
     pub fn watch<T: AssetLoader + 'static>(
@@ -584,7 +598,6 @@ impl AssetCacheExt {
         filesystem_ctx: &FileSystemContext,
         handle: AssetHandle<T::Asset>,
         path: &Path,
-        loader: T,
     ) {
         let path = filesystem_ctx.format_asset_path(path);
         // path must be canoicalized since watcher will do it internally
@@ -600,27 +613,8 @@ impl AssetCacheExt {
             .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
 
         // map path to handle
-        dbg!(&path);
         let handles = self.reload_handles.entry(path).or_default();
         handles.push(handle.as_any());
-
-        // store reload function
-        // TODO: needs to be called even without watch()
-        tracing::error!("register {}", handle.as_any().id());
-        self.reload_functions_sync
-            .entry(handle.as_any())
-            .or_insert_with(|| {
-                Box::new(move |load_ctx, path| {
-                    let result = pollster::block_on(loader.clone().load(load_ctx, path));
-                    match result {
-                        Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
-                        Err(err) => {
-                            tracing::error!("could not reload asset {:?}: {}", path, err);
-                            LoadAssetResult::Error
-                        }
-                    }
-                })
-            });
     }
 
     // checks if any files changed and spawns a thread which reloads the data
@@ -659,6 +653,8 @@ impl AssetCacheExt {
         }
     }
 
+    // TODO: add reload normal way here
+
     /// Immediately call the reload function sync
     pub fn reload_sync(
         &mut self,
@@ -669,7 +665,6 @@ impl AssetCacheExt {
         handle: DynAssetHandle,
         path: &Path,
     ) {
-        tracing::error!("get {}", handle.as_any().id());
         let Some(loader_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
             tracing::warn!("could not get asset handle {}", handle.id());
             return;

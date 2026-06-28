@@ -43,8 +43,8 @@ impl UIRenderer {
                 },
             )
             // TODO: dont actually want this but needed for manual reloading for now
-            .watch(ctx, cache)
-            .build(cache);
+            // .watch(true)
+            .build(ctx, cache);
 
         //
         // gpu resources
@@ -52,8 +52,8 @@ impl UIRenderer {
 
         let shader_handle = cache
             .load_builder("assets/shaders/ui.wgsl", ShaderLoader {})
-            .watch(ctx, cache)
-            .build(cache);
+            .watch(true)
+            .build(ctx, cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -245,7 +245,7 @@ impl UIRenderer {
                     settings: fontdue::FontSettings::default(),
                 },
             )
-            .build(cache);
+            .build(ctx, cache);
     }
 }
 

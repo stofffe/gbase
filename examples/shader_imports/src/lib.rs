@@ -116,12 +116,12 @@ impl Callbacks for App {
             "shaders/texture_import.wgsl",
             ShaderExtendedLoader {},
         )
-        .watch(ctx, cache)
-        .build(cache);
+        .watch(true)
+        .build(ctx, cache);
         let texture_handle =
             asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader::default())
-                .watch(ctx, cache)
-                .build(cache);
+                .watch(true)
+                .build(ctx, cache);
 
         let mesh = render::MeshBuilder::quad()
             .build()

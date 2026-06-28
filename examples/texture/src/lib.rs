@@ -49,19 +49,12 @@ impl Callbacks for App {
             .build_uncached(ctx);
         let shader_handle =
             asset::AssetBuilder::load(cache, "shaders/texture.wgsl", ShaderLoader {})
-                .watch(ctx, cache)
-                .build(cache);
+                .watch(true)
+                .build(ctx, cache);
         let texture_handle =
             asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader::default())
-                // TODO:
-                // .on_load(|img| {
-                //     img.texture = img
-                //         .texture
-                //         .clone()
-                //         .with_format(wgpu::TextureFormat::Rgba8Unorm)
-                // })
-                .watch(ctx, cache)
-                .build(cache);
+                .watch(true)
+                .build(ctx, cache);
 
         let mesh = render::MeshBuilder::quad()
             .build()
