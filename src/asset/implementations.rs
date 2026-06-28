@@ -111,15 +111,17 @@ impl AssetConverter for ShaderGpuConverter {
             GetAssetResult::Success(source) => source,
         };
 
+        let shader_source = source.source.clone();
+
         #[cfg(target_arch = "wasm32")]
         {
-            let shader_module = source.build_non_arc(ctx);
+            let shader_module = source.config.build_non_arc(ctx, shader_source);
             crate::asset::ConvertAssetStatus::Success(shader_module)
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            match source.config.build_err_non_arc(ctx, source.source.clone()) {
+            match source.config.build_err_non_arc(ctx, shader_source) {
                 Ok(shader_module) => ConvertAssetStatus::Success(shader_module),
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);

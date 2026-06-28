@@ -123,8 +123,23 @@ impl AssetWriter for MeshLodLoader {
     }
 }
 
-#[derive(Clone)]
-pub struct GltfLoader {}
+#[derive(Clone, Default)]
+pub struct GltfLoader {
+    required_attributes: Option<BTreeSet<VertexAttributeId>>,
+}
+
+impl GltfLoader {
+    pub fn new() -> Self {
+        Self {
+            required_attributes: None,
+        }
+    }
+
+    pub fn required_attributes(mut self, attributes: BTreeSet<VertexAttributeId>) -> Self {
+        self.required_attributes = Some(attributes);
+        self
+    }
+}
 
 impl AssetLoader for GltfLoader {
     type Asset = Gltf;
@@ -136,7 +151,11 @@ impl AssetLoader for GltfLoader {
         path: &std::path::Path,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(path).await?;
-        Ok(parse_gltf_file(&load_ctx, &bytes))
+        Ok(parse_gltf_file(
+            &load_ctx,
+            &bytes,
+            self.required_attributes.as_ref(),
+        ))
     }
 }
 

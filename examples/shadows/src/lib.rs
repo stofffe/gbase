@@ -75,6 +75,7 @@ impl Callbacks for App {
             )
             .window_attributes(winit::window::Window::default_attributes().with_maximized(true))
             .gpu_profiler_enabled(true)
+            .assets_path(".")
     }
 
     #[no_mangle]
@@ -114,14 +115,20 @@ impl Callbacks for App {
         let helmet_mesh = AssetBuilder::load(
             cache,
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
+            MeshLodLoader::new()
+                .with_node_name("mesh_damaged_helmet")
+                .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
         .watch(ctx, cache)
         .build(cache);
 
-        let ak47_mesh = AssetBuilder::load(cache, "assets/models/ak47.glb", MeshLodLoader::new())
-            .watch(ctx, cache)
-            .build(cache);
+        let ak47_mesh = AssetBuilder::load(
+            cache,
+            "assets/models/ak47.glb",
+            MeshLodLoader::new().with_required_attr(pbr_renderer.required_attributes().clone()),
+        )
+        .watch(ctx, cache)
+        .build(cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -209,25 +216,6 @@ impl Callbacks for App {
         }
         if input::key_just_pressed(ctx, input::KeyCode::F2) {
             profile::enable_gpu_profiling(ctx, false);
-        }
-
-        if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            // TODO:
-            // let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
-            // for (mesh, _) in mesh_lod.meshes.clone() {
-            //     mesh.get_mut(cache)
-            //         .unwrap_loaded()
-            //         .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            // }
-        }
-        if cache.handle_just_loaded(self.ak47_mesh.clone()) {
-            // TODO:
-            // let mesh_lod = self.ak47_mesh.get_mut(cache).unwrap_loaded();
-            // for (mesh, _) in mesh_lod.meshes.clone() {
-            //     mesh.get_mut(cache)
-            //         .unwrap_loaded()
-            //         .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            // }
         }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {

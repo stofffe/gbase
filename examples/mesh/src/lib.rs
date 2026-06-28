@@ -36,7 +36,9 @@ struct App {
     lights: PbrLightUniforms,
 
     helmet_mesh: AssetHandle<MeshLod>,
+
     sponza_gltf: AssetHandle<Gltf>,
+    sponza_lod_meshes: Vec<(AssetHandle<MeshLod>, Transform3D)>,
 
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
@@ -98,13 +100,19 @@ impl Callbacks for App {
         let helmet_mesh = AssetBuilder::load(
             cache,
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new().with_node_name("mesh_damaged_helmet"),
+            MeshLodLoader::new()
+                .with_node_name("mesh_damaged_helmet")
+                .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
         .watch(ctx, cache)
         .build(cache);
-        let sponza_gltf = AssetBuilder::load(cache, "assets/models/sponza.glb", GltfLoader {})
-            .watch(ctx, cache)
-            .build(cache);
+        let sponza_gltf = AssetBuilder::load(
+            cache,
+            "assets/models/sponza.glb",
+            GltfLoader::new().required_attributes(pbr_renderer.required_attributes().clone()),
+        )
+        .watch(ctx, cache)
+        .build(cache);
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -156,6 +164,8 @@ impl Callbacks for App {
 
             framebuffer_renderer,
             depth_buffer,
+
+            sponza_lod_meshes: Vec::new(),
         }
     }
 
@@ -166,51 +176,21 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        if self.sponza_gltf.just_loaded(cache) {
+            for node in &self.sponza_gltf.get(cache).unwrap_loaded().clone().nodes {
+                let node = node.get(cache).unwrap_loaded();
+                let transform = node.transform.clone();
+                if let Some(mesh) = node.mesh.clone() {
+                    let mesh = mesh.get(cache).unwrap_loaded();
+                    let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
+                    let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
+                    self.sponza_lod_meshes.push((cache.insert(lod), transform));
+                }
+            }
+        }
+
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
-        }
-
-        if cache.handle_just_loaded(self.helmet_mesh.clone()) {
-            // TODO:
-            // let mesh_lod = self.helmet_mesh.get_mut(cache).unwrap_loaded();
-            // for (mesh, _) in mesh_lod.meshes.clone() {
-            // mesh.get_mut(cache)
-            //     .unwrap_loaded()
-            //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
-            // }
-        }
-
-        if self.sponza_gltf.loaded(cache) {
-            let gltf = cache.get(self.sponza_gltf.clone()).unwrap_loaded().clone();
-
-            for mesh in gltf.meshes.iter().clone() {
-                // TODO:
-                // let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone(); // Assume 1 mesh = 1 prim
-                // prim.mesh
-                //     .get_mut(cache)
-                //     .unwrap_loaded()
-                //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
-
-                let mesh = mesh.get(cache).unwrap_loaded();
-                for primitive in mesh.primitives.iter().clone() {
-                    // tracing::info!("prim {:#?}", primitive);
-                }
-            }
-
-            for node in gltf.nodes.iter() {
-                let node = node.get(cache).unwrap_loaded();
-                // tracing::info!("node {:#?}", node);
-
-                if let Some(mesh) = node.mesh.clone() {
-                    // TODO:
-                    // let prim = &mesh.get(cache).unwrap_loaded().primitives[0].clone();
-                    // Assume 1 mesh = 1 prim
-                    // prim.mesh
-                    //     .get_mut(cache)
-                    //     .unwrap_loaded()
-                    //     .extract_attributes(self.pbr_renderer.required_attributes().clone());
-                }
-            }
         }
 
         let _guard = tracing::span!(tracing::Level::TRACE, "render").entered();
@@ -229,26 +209,8 @@ impl Callbacks for App {
                 .with_pos(vec3(0.0, 5.0, 0.0))
                 .with_scale(Vec3::ONE * 5.0),
         )];
-
-        let i = 0;
-        let j = 4;
-        if self.sponza_gltf.loaded(cache) {
-            for node in &self.sponza_gltf.get(cache).unwrap_loaded().clone().nodes {
-                let node = node.get(cache).unwrap_loaded();
-                let transform = node.transform.clone();
-                if let Some(mesh) = node.mesh.clone() {
-                    let mesh = mesh.get(cache).unwrap_loaded();
-                    let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
-                    let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
-                    meshes.push((cache.insert(lod), transform));
-                }
-            }
-
-            // for submesh in &self.sponza_gltf.get(cache).unwrap().clone().meshes[i..i + j] {
-            //     let prim = &submesh.get(cache).unwrap().primitives[0].clone(); // Assume 1 mesh = 1 prim
-            //     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
-            //     meshes.push((cache.insert(lod), Transform3D::default()));
-            // }
+        for (mesh, transform) in self.sponza_lod_meshes.iter() {
+            meshes.push((mesh.clone(), transform.clone()));
         }
 
         self.shadow_pass.render(

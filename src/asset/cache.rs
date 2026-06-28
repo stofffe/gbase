@@ -139,6 +139,10 @@ impl AssetCache {
         }
     }
 
+    pub fn cache_size(&self) -> usize {
+        self.cache.len()
+    }
+
     pub fn load_context(&self) -> &LoadContext {
         &self.load_ctx
     }

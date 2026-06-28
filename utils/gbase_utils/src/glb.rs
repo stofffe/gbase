@@ -69,7 +69,11 @@ pub fn parse_gltf_primitives(
     primitives
 }
 
-pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
+pub fn parse_gltf_file(
+    load_ctx: &LoadContext,
+    bytes: &[u8],
+    required_attributes: Option<&BTreeSet<VertexAttributeId>>,
+) -> Gltf {
     let mut gltf_cache = GltfLoadCache::new();
     let glb = gltf::Glb::from_slice(bytes).expect("could not import glb from slice");
     let info = gltf::Gltf::from_slice(bytes).expect("could not import info from slice");
@@ -77,7 +81,13 @@ pub fn parse_gltf_file(load_ctx: &LoadContext, bytes: &[u8]) -> Gltf {
 
     // let mut nodes = Vec::new();
     for node in info.nodes() {
-        parse_gltf_node(load_ctx, &buffer, &mut gltf_cache, node);
+        parse_gltf_node(
+            load_ctx,
+            &buffer,
+            &mut gltf_cache,
+            required_attributes,
+            node,
+        );
     }
 
     let GltfLoadCache {
@@ -100,6 +110,7 @@ fn parse_gltf_node(
     load_ctx: &LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
+    required_attributes: Option<&BTreeSet<VertexAttributeId>>,
     node: gltf::Node<'_>,
 ) -> AssetHandle<GltfNode> {
     if let Some(node_handle) = gltf_cache.nodes.get(&node.index()) {
@@ -114,7 +125,7 @@ fn parse_gltf_node(
 
     let mesh = node
         .mesh()
-        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, gltf_cache, mesh));
+        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, gltf_cache, required_attributes, mesh));
 
     let (translation, rotation, scale) = node.transform().decomposed();
     let transform = Transform3D::new(
@@ -125,7 +136,8 @@ fn parse_gltf_node(
 
     let mut children = Vec::new();
     for child in node.children() {
-        let child_node_handle = parse_gltf_node(load_ctx, buffer, gltf_cache, child);
+        let child_node_handle =
+            parse_gltf_node(load_ctx, buffer, gltf_cache, required_attributes, child);
         children.push(child_node_handle);
     }
 
@@ -149,6 +161,7 @@ fn parse_gltf_mesh(
     load_ctx: &LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
+    required_attributes: Option<&BTreeSet<VertexAttributeId>>,
     mesh: gltf::Mesh<'_>,
 ) -> AssetHandle<GltfMesh> {
     if let Some(mesh_handle) = gltf_cache.meshes.get(&mesh.index()) {
@@ -163,7 +176,14 @@ fn parse_gltf_mesh(
 
     let mut primitives = Vec::new();
     for primitive in mesh.primitives() {
-        let primitive = parse_gltf_primitive(load_ctx, buffer, gltf_cache, primitive, &name, None); // TODO: maybe add this option
+        let primitive = parse_gltf_primitive(
+            load_ctx,
+            buffer,
+            gltf_cache,
+            primitive,
+            &name,
+            required_attributes,
+        ); // TODO: maybe add this option
         primitives.push(primitive);
     }
 
@@ -342,7 +362,7 @@ pub fn parse_gltf_material(
         gltf_cache: &mut GltfLoadCache,
         buffer: &[u8],
         texture: &gltf::texture::Texture<'_>,
-        format: wgpu::TextureFormat,
+        format: wgpu::TextureFormat, // TODO: why is this unused
     ) -> AssetHandle<Image> {
         if let Some(image) = gltf_cache.images.get(&texture.index()) {
             tracing::info!("Loaded {:?} from gltf image cache", texture.index());
