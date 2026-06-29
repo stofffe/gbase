@@ -54,7 +54,6 @@ pub struct AssetCache {
 
     // async loading
     // TODO: maybe these should be derived from cache every frame? O(n)
-    currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
 
     load_sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
@@ -90,7 +89,6 @@ impl AssetCache {
             render_cache_last_valid: FxHashMap::default(),
             render_cache_invalidate_lookup: FxHashMap::default(),
 
-            currently_loading: FxHashSet::default(),
             just_loaded: FxHashSet::default(),
             load_sender,
             load_receiver,
@@ -186,21 +184,21 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
-        self.currently_loading.insert(handle.as_any());
+        self.cache.insert(handle.as_any(), LoadAssetResult::Loading);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        self.ext.register_load::<T>(
+            self.load_ctx.clone(),
+            handle.as_any(),
+            path.clone(),
+            settings.clone(),
+        );
 
         // TODO: are all of these needed?
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
         let load_ctx = self.load_ctx.clone();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load::<T>(
-            load_ctx.clone(),
-            handle.as_any(),
-            path.clone(),
-            settings.clone(),
-        );
 
         async fn spawn_load_fn<T: AssetLoader>(
             load_ctx: LoadContext,
@@ -370,7 +368,6 @@ impl AssetCache {
     pub fn poll_loaded(&mut self) {
         while let Ok((handle, asset)) = self.load_receiver.try_recv() {
             if let LoadAssetResult::Success(_) = &asset {
-                self.currently_loading.remove(&handle.as_any());
                 self.just_loaded.insert(handle.clone());
             }
 
@@ -404,24 +401,21 @@ impl AssetCache {
             .retain(|(handle, _), _| Arc::strong_count(&handle.id) > 1);
     }
 
-    pub fn all_loaded(&self) -> bool {
-        self.currently_loading.is_empty()
-    }
-
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
         self.just_loaded.contains(&handle.as_any())
     }
-    pub fn handle_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
-        !self.currently_loading.contains(&handle.as_any())
-    }
 
-    pub fn handles_loaded(&self, handles: impl IntoIterator<Item = DynAssetHandle>) -> bool {
-        for handle in handles {
-            if !self.currently_loading.contains(&handle) {
-                return false;
-            }
+    pub fn handle_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
+        let Some(load_result) = self.cache.get(&handle.as_any()) else {
+            tracing::warn!("trying to use invalid handle");
+            return false;
+        };
+        // TODO: should error count as loaded or not?
+        match load_result {
+            LoadAssetResult::Success(_) => true,
+            LoadAssetResult::Loading => false,
+            LoadAssetResult::Error => false,
         }
-        true
     }
 
     //

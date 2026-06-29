@@ -79,6 +79,7 @@ impl AssetCacheExt {
                 Box::new(move || {
                     let result =
                         pollster::block_on(T::load(load_ctx.clone(), &path, settings.clone()));
+
                     match result {
                         Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
                         Err(err) => {
@@ -151,6 +152,7 @@ impl AssetCacheExt {
     }
 
     /// Queue a reload just like file watcher would
+    // TODO: this is probably more useful if the reload func would load async
     pub fn reload(&mut self, handle: DynAssetHandle) {
         // TODO: only use of paths, maybe remove?
         let Some(path) = self.paths.get(&handle.as_any()) else {

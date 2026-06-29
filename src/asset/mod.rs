@@ -50,11 +50,6 @@ pub fn reload_asset_sync<T: AssetLoader + 'static>(
     cache.reload_sync::<T>(handle)
 }
 
-/// Check if all current assets are loaded
-pub fn all_loaded(cache: &AssetCache) -> bool {
-    cache.all_loaded()
-}
-
 /// Check if a specific asset is loaded
 pub fn handle_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
     cache.handle_loaded(handle.clone())
