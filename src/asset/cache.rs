@@ -172,12 +172,12 @@ impl AssetCache {
         asset::AssetBuilder::insert(value)
     }
 
-    pub fn load_builder<T: AssetLoader + 'static>(
+    pub fn load_builder<T: AssetLoader>(
         &mut self,
         path: impl Into<PathBuf>,
-        loader: T,
+        settings: T::Settings,
     ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load(self, path, loader)
+        asset::AssetBuilder::load(self, path, settings)
     }
 
     //
@@ -188,7 +188,7 @@ impl AssetCache {
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
-        loader: T,
+        settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
@@ -196,19 +196,19 @@ impl AssetCache {
 
         self.currently_loading.insert(handle.as_any());
 
-        let path_clone = path.clone();
         let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
-        let load_context = self.load_ctx.clone();
+        let load_ctx = self.load_ctx.clone();
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load(handle.as_any(), loader.clone());
+        self.ext
+            .register_load::<T>(handle.as_any(), settings.clone());
 
         // load async
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             pollster::block_on(async {
-                let data = loader.load(load_context, &path_clone).await;
+                let data = T::load(load_ctx, &path, settings).await;
 
                 match data {
                     Ok(asset) => loaded_sender_clone
@@ -230,7 +230,7 @@ impl AssetCache {
 
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(async move {
-            let data = loader.load(load_context, &path_clone).await;
+            let data = T::load(load_ctx, &path, settings).await;
 
             match data {
                 Ok(asset) => loaded_sender_clone
@@ -258,14 +258,12 @@ impl AssetCache {
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
-        loader: T,
+        settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
-        self.paths.insert(handle.as_any(), path.clone());
-
         // load sync
-        let data = pollster::block_on(loader.load(self.load_ctx.clone(), &path));
+        let data = pollster::block_on(T::load(self.load_ctx.clone(), &path, settings.clone()));
         match data {
             Ok(asset) => {
                 self.cache
@@ -277,10 +275,12 @@ impl AssetCache {
             }
         }
 
-        self.just_loaded.insert(handle.as_any());
+        self.paths.insert(handle.as_any(), path.clone());
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load(handle.as_any(), loader);
+        self.ext.register_load::<T>(handle.as_any(), settings);
+
+        self.just_loaded.insert(handle.as_any());
 
         handle
     }

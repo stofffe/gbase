@@ -9,8 +9,9 @@ use gbase::{
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
-    Alignment, Direction, Gltf, GltfLoader, MeshLod, MeshLodLoader, PbrLightUniforms, PbrRenderer,
-    SizeKind, Transform3D, Widget, BLACK, GRAY, WHITE,
+    Alignment, Direction, Gltf, GltfLoader, GltfLoaderSettings, MeshLod, MeshLodLoader,
+    MeshLodLoaderSettings, PbrLightUniforms, PbrRenderer, SizeKind, Transform3D, Widget, BLACK,
+    GRAY, WHITE,
 };
 use std::f32::consts::PI;
 
@@ -97,19 +98,20 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load(
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>(
             cache,
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new()
+            MeshLodLoaderSettings::new()
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
         .watch(true)
         .build(ctx, cache);
-        let sponza_gltf = AssetBuilder::load(
+        let sponza_gltf = AssetBuilder::load::<GltfLoader>(
             cache,
             "assets/models/sponza.glb",
-            GltfLoader::new().required_attributes(pbr_renderer.required_attributes().clone()),
+            GltfLoaderSettings::new()
+                .required_attributes(pbr_renderer.required_attributes().clone()),
         )
         .watch(true)
         .build(ctx, cache);

@@ -13,13 +13,13 @@ impl AssetBuilder {
             handle: None,
         }
     }
-    pub fn load<T: AssetLoader + 'static>(
+    pub fn load<T: AssetLoader>(
         cache: &AssetCache, // TODO: will this be needed later?
         path: impl Into<PathBuf>,
-        loader: T,
+        settings: T::Settings,
     ) -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
-            loader,
+            settings,
             path: path.into(),
 
             handle: None,
@@ -57,7 +57,7 @@ impl<T: Asset> InsertAssetBuilder<T> {
 //
 
 pub struct LoadAssetBuilder<T: AssetLoader> {
-    loader: T,
+    settings: T::Settings,
     path: PathBuf,
 
     handle: Option<AssetHandle<T::Asset>>,
@@ -78,10 +78,10 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
 
         #[cfg(not(target_arch = "wasm32"))]
         if self.sync {
-            return cache.load_sync(handle, &self.path, self.loader);
+            return cache.load_sync::<T>(handle, &self.path, self.settings);
         }
 
-        cache.load::<T>(handle, &self.path, self.loader)
+        cache.load::<T>(handle, &self.path, self.settings)
     }
 
     pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {

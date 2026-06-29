@@ -1,6 +1,7 @@
 use gbase::{
-    asset::{self, ShaderGpuConverter, ShaderLoader},
+    asset::{self, NoSettings, ShaderGpuConverter, ShaderLoader},
     render::{self, FrameBuffer, FrameBufferBuilder, TextureSource},
+    tracing::subscriber::NoSubscriber,
     wgpu, Context,
 };
 
@@ -30,7 +31,7 @@ impl Tonemap {
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/tonemap.wgsl",
-            ShaderLoader {},
+            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);
@@ -164,7 +165,7 @@ impl Bloom {
         let extract_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/bloom_extract.wgsl",
-            ShaderLoader {},
+            NoSettings {},
         )
         .watch(true)
         .build(ctx, cache);
@@ -191,7 +192,7 @@ impl Bloom {
         let downsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/bloom_downsample.wgsl",
-            ShaderLoader {},
+            NoSettings {},
         )
         .watch(true)
         .build(ctx, cache);
@@ -222,7 +223,7 @@ impl Bloom {
         let upsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/bloom_upsample.wgsl",
-            ShaderLoader {},
+            NoSettings {},
         )
         .watch(true)
         .build(ctx, cache);
@@ -269,7 +270,7 @@ impl Bloom {
         let combine_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/bloom_combine.wgsl",
-            ShaderLoader {},
+            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);

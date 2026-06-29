@@ -1,7 +1,8 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
-    ImageGpuConverter, ImageLoader, MeshGpuConverter, ShaderGpuConverter, ShaderLoader,
+    ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter, NoSettings,
+    ShaderGpuConverter, ShaderLoader,
 };
 use gbase::render::{GpuImage, GpuMesh, Image, Mesh, SamplerBuilder, TextureBuilder};
 use gbase::{asset, tracing};
@@ -33,7 +34,7 @@ impl CloudRenderer {
         let weather_map_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/clouds_weather_map.png",
-            ImageLoader::new()
+            ImageLoaderSettings::new()
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
@@ -42,7 +43,7 @@ impl CloudRenderer {
         let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>(
             cache,
             "assets/textures/blue_noise.png",
-            ImageLoader::new()
+            ImageLoaderSettings::new()
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         )
@@ -61,7 +62,7 @@ impl CloudRenderer {
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/clouds.wgsl",
-            ShaderLoader {},
+            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);

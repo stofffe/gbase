@@ -3,13 +3,14 @@ use core::f32;
 use gbase::{
     asset::{
         AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
-        ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult, ShaderGpuConverter,
-        ShaderLoader,
+        ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult, NoSettings,
+        ShaderGpuConverter, ShaderLoader,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    tracing, wgpu, Context,
+    tracing::{self, subscriber::NoSubscriber},
+    wgpu, Context,
 };
 use std::{collections::HashMap, path::PathBuf};
 
@@ -36,9 +37,9 @@ impl UIRenderer {
         max_elements: u64,
     ) -> Self {
         let font = cache
-            .load_builder(
+            .load_builder::<FontLoader>(
                 font_path,
-                FontLoader {
+                FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),
                 },
             )
@@ -51,7 +52,7 @@ impl UIRenderer {
         //
 
         let shader_handle = cache
-            .load_builder("assets/shaders/ui.wgsl", ShaderLoader {})
+            .load_builder::<ShaderLoader>("assets/shaders/ui.wgsl", NoSettings {})
             .watch(true)
             .build(ctx, cache);
 
@@ -239,9 +240,9 @@ impl UIRenderer {
         // clear handle to not use old data
         cache.clear_handle(self.font.clone());
         self.font = cache
-            .load_builder(
+            .load_builder::<FontLoader>(
                 font_path,
-                FontLoader {
+                FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),
                 },
             )
@@ -668,22 +669,25 @@ pub struct Font {
 
 impl gbase::asset::Asset for Font {}
 
+pub struct FontLoader {}
+
 #[derive(Clone)]
-pub struct FontLoader {
+pub struct FontLoaderSettings {
     settings: fontdue::FontSettings,
 }
 
 impl AssetLoader for FontLoader {
     type Asset = Font;
+    type Settings = FontLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         load_ctx: gbase::asset::LoadContext,
         path: &std::path::Path,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(path).await?;
-        let font = fontdue::Font::from_bytes(bytes, self.settings)
+        let font = fontdue::Font::from_bytes(bytes, settings.settings)
             .expect("could not create font from bytes");
 
         Ok(Font { font })

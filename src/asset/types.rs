@@ -27,20 +27,20 @@ pub type DynLoader = Box<dyn Any>;
 
 pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
-pub trait AssetLoader: Send + Sync + Clone {
+pub trait AssetSettings: Send + Sync + Clone {}
+impl<T: Send + Sync + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+
+pub trait AssetLoader: Send + Sync {
     type Asset: Asset;
+    type Settings: AssetSettings;
     type Error: error::Error;
 
     // TODO: should this be consuming self instead
     fn load(
-        &self,
         load_ctx: LoadContext,
         path: &Path,
+        settings: Self::Settings,
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
-}
-
-pub trait AssetWriter: AssetLoader {
-    fn write(asset: &Self::Asset, path: &Path);
 }
 
 pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
@@ -64,12 +64,16 @@ pub enum ConvertAssetStatus<T: DerivedAsset> {
     Failed,
 }
 
+pub trait AssetWriter: AssetLoader {
+    fn write(asset: &Self::Asset, path: &Path);
+}
+
 //
 // Other
 //
 
 #[derive(thiserror::Error, Debug)]
-pub enum EmptyError {
-    #[error("empty")]
-    Err,
-}
+pub enum EmptyError {}
+
+#[derive(Debug, Clone)]
+pub struct NoSettings;

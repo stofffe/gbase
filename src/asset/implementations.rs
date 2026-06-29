@@ -2,7 +2,9 @@ use std::env::temp_dir;
 
 use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
-    asset::{AssetConverter, ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult},
+    asset::{
+        AssetConverter, ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult, NoSettings,
+    },
     filesystem,
     render::{self, GpuImage, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
@@ -73,12 +75,13 @@ impl Asset for Shader {}
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
     type Asset = Shader;
+    type Settings = NoSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         _load_ctx: super::LoadContext,
         path: &std::path::Path,
+        _settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let source = _load_ctx.load_string(path).await?;
         let config = ShaderBuilder::new().label(
@@ -139,13 +142,15 @@ impl AssetConverter for ShaderGpuConverter {
 
 impl Asset for render::Image {}
 
+pub struct ImageLoader {}
+
 #[derive(Clone, Default)]
-pub struct ImageLoader {
+pub struct ImageLoaderSettings {
     pub texture_config: Option<TextureBuilder>,
     pub sampler_config: Option<SamplerBuilder>,
 }
 
-impl ImageLoader {
+impl ImageLoaderSettings {
     pub fn new() -> Self {
         Self {
             texture_config: None,
@@ -166,12 +171,13 @@ impl ImageLoader {
 
 impl AssetLoader for ImageLoader {
     type Asset = render::Image;
+    type Settings = ImageLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         load_ctx: super::LoadContext,
         path: &std::path::Path,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(path).await?;
 
@@ -179,8 +185,14 @@ impl AssetLoader for ImageLoader {
             .expect("could not load image")
             .to_rgba8();
         let source = render::TextureSource::Data(img.width(), img.height(), img.to_vec());
-        let texture_config = self.texture_config.clone().unwrap_or(TextureBuilder::new());
-        let sampler_config = self.sampler_config.clone().unwrap_or(SamplerBuilder::new());
+        let texture_config = settings
+            .texture_config
+            .clone()
+            .unwrap_or(TextureBuilder::new());
+        let sampler_config = settings
+            .sampler_config
+            .clone()
+            .unwrap_or(SamplerBuilder::new());
 
         Ok(Self::Asset {
             source,

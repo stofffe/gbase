@@ -1,6 +1,6 @@
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle, ShaderGpuConverter, ShaderLoader},
+    asset::{self, AssetHandle, NoSettings, ShaderGpuConverter, ShaderLoader},
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
     input,
@@ -8,6 +8,7 @@ use gbase::{
         self, ArcBindGroupLayout, ArcPipelineLayout, BindGroupBindable, ColorTargetState, GpuImage,
         RenderPassColorAttachment, TextureBuilder,
     },
+    tracing::subscriber::NoSubscriber,
     wgpu, Context,
 };
 use gbase_utils::{CameraFrustum, CameraUniform, DeferredBuffers};
@@ -139,10 +140,10 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_handle = asset::AssetBuilder::load(
+        let instance_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/grass_compute_instance.wgsl",
-            ShaderLoader {},
+            NoSettings {},
         )
         .watch(true)
         .build(ctx, cache);
@@ -171,7 +172,7 @@ impl GrassRenderer {
         let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
             cache,
             "assets/shaders/grass_compute_draw.wgsl",
-            ShaderLoader {},
+            NoSettings {},
         )
         .watch(true)
         .build(ctx, cache);
@@ -203,12 +204,12 @@ impl GrassRenderer {
             .build(ctx);
 
         let render_deferred_shader_handle = cache
-            .load_builder("assets/shaders/grass_deferred.wgsl", ShaderLoader {})
+            .load_builder::<ShaderLoader>("assets/shaders/grass_deferred.wgsl", NoSettings {})
             .watch(true)
             .build(ctx, cache);
 
         let render_forward_shader_handle = cache
-            .load_builder("assets/shaders/grass.wgsl", ShaderLoader {})
+            .load_builder::<ShaderLoader>("assets/shaders/grass.wgsl", NoSettings {})
             .watch(true)
             .build(ctx, cache);
 

@@ -1,6 +1,7 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageLoader, MeshGpuConverter, ShaderGpuConverter,
+        self, AssetHandle, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        NoSettings, ShaderGpuConverter,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -19,12 +20,13 @@ pub struct ShaderExtendedLoader {}
 
 impl asset::AssetLoader for ShaderExtendedLoader {
     type Asset = render::Shader;
+    type Settings = NoSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         load_ctx: asset::LoadContext,
         path: &std::path::Path,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         // pseduo code
         // load file content of path (for this asset)
@@ -111,17 +113,20 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle = asset::AssetBuilder::load(
+        let shader_handle = asset::AssetBuilder::load::<ShaderExtendedLoader>(
             cache,
             "shaders/texture_import.wgsl",
-            ShaderExtendedLoader {},
+            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);
-        let texture_handle =
-            asset::AssetBuilder::load(cache, "textures/texture.jpeg", ImageLoader::default())
-                .watch(true)
-                .build(ctx, cache);
+        let texture_handle = asset::AssetBuilder::load::<ImageLoader>(
+            cache,
+            "textures/texture.jpeg",
+            ImageLoaderSettings::default(),
+        )
+        .watch(true)
+        .build(ctx, cache);
 
         let mesh = render::MeshBuilder::quad()
             .build()

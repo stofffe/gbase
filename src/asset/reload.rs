@@ -51,13 +51,17 @@ impl AssetCacheExt {
         }
     }
 
-    pub fn register_load<T: AssetLoader + 'static>(&mut self, handle: DynAssetHandle, loader: T) {
+    pub fn register_load<T: AssetLoader + 'static>(
+        &mut self,
+        handle: DynAssetHandle,
+        settings: T::Settings,
+    ) {
         // store reload function
         self.reload_functions_sync
             .entry(handle.as_any())
             .or_insert_with(|| {
                 Box::new(move |load_ctx, path| {
-                    let result = pollster::block_on(loader.clone().load(load_ctx, path));
+                    let result = pollster::block_on(T::load(load_ctx, path, settings.clone()));
                     match result {
                         Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
                         Err(err) => {

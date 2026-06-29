@@ -43,12 +43,15 @@ impl MeshLod {
 impl Asset for MeshLod {}
 
 #[derive(Clone)]
-pub struct MeshLodLoader {
+pub struct MeshLodLoader {}
+
+#[derive(Clone)]
+pub struct MeshLodLoaderSettings {
     node_name: Option<String>,
     required_attributes: Option<BTreeSet<VertexAttributeId>>,
 }
 
-impl MeshLodLoader {
+impl MeshLodLoaderSettings {
     pub fn new() -> Self {
         Self {
             node_name: None,
@@ -69,23 +72,24 @@ impl MeshLodLoader {
 
 impl AssetLoader for MeshLodLoader {
     type Asset = MeshLod;
+    type Settings = MeshLodLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         load_ctx: LoadContext,
         path: &std::path::Path,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(path).await?;
         let primitives =
-            parse_gltf_primitives(&load_ctx, &bytes, self.required_attributes.as_ref());
+            parse_gltf_primitives(&load_ctx, &bytes, settings.required_attributes.as_ref());
 
         // extract material from LOD0
         let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
 
         // extract lod levels
         let mut parsed_primitives = Vec::new();
-        match &self.node_name {
+        match &settings.node_name {
             Some(node_name) => {
                 for prim in primitives.iter() {
                     if let Some(a) = prim.name.strip_prefix(node_name) {
@@ -124,11 +128,14 @@ impl AssetWriter for MeshLodLoader {
 }
 
 #[derive(Clone, Default)]
-pub struct GltfLoader {
+pub struct GltfLoader {}
+
+#[derive(Clone)]
+pub struct GltfLoaderSettings {
     required_attributes: Option<BTreeSet<VertexAttributeId>>,
 }
 
-impl GltfLoader {
+impl GltfLoaderSettings {
     pub fn new() -> Self {
         Self {
             required_attributes: None,
@@ -143,18 +150,19 @@ impl GltfLoader {
 
 impl AssetLoader for GltfLoader {
     type Asset = Gltf;
+    type Settings = GltfLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        &self,
         load_ctx: LoadContext,
         path: &std::path::Path,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(path).await?;
         Ok(parse_gltf_file(
             &load_ctx,
             &bytes,
-            self.required_attributes.as_ref(),
+            settings.required_attributes.as_ref(),
         ))
     }
 }

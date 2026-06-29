@@ -8,7 +8,10 @@ use gbase::{
     tracing::{self, span},
     wgpu, winit, CallbackResult, Callbacks, Context,
 };
-use gbase_utils::{Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, Transform3D};
+use gbase_utils::{
+    Camera, Material, MeshLodLoader, MeshLodLoaderSettings, PbrLightUniforms, PbrRenderer,
+    Transform3D,
+};
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
 
@@ -110,20 +113,21 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load(
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>(
             cache,
             "assets/models/helmet_lod.glb",
-            MeshLodLoader::new()
+            MeshLodLoaderSettings::new()
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
         .watch(true)
         .build(ctx, cache);
 
-        let ak47_mesh = AssetBuilder::load(
+        let ak47_mesh = AssetBuilder::load::<MeshLodLoader>(
             cache,
             "assets/models/ak47.glb",
-            MeshLodLoader::new().with_required_attr(pbr_renderer.required_attributes().clone()),
+            MeshLodLoaderSettings::new()
+                .with_required_attr(pbr_renderer.required_attributes().clone()),
         )
         .watch(true)
         .build(ctx, cache);
