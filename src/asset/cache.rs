@@ -53,6 +53,7 @@ pub struct AssetCache {
     render_cache_invalidate_lookup: FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
 
     // async loading
+    // TODO: maybe these should be derived from cache every frame? O(n)
     currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
 
@@ -140,24 +141,21 @@ impl AssetCache {
     }
 
     pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
-        let Some(asset) = self.cache.get(&handle.as_any()) else {
-            if self.currently_loading.contains(&handle.as_any()) {
-                return GetAssetResult::Loading;
-            } else {
-                return GetAssetResult::Failed;
+        let Some(load_result) = self.cache.get(&handle.as_any()) else {
+            tracing::warn!("trying to use invalid handle");
+            return GetAssetResult::Failed;
+        };
+
+        match load_result {
+            LoadAssetResult::Success(asset) => {
+                let asset = (asset.as_ref() as &dyn Any)
+                    .downcast_ref::<T>()
+                    .expect("could not downcast");
+                GetAssetResult::Success(asset)
             }
-        };
-
-        let LoadAssetResult::Success(asset) = asset else {
-            return GetAssetResult::Loading;
-        };
-
-        // TODO: retuen errors as well?
-        let asset = (asset.as_ref() as &dyn Any)
-            .downcast_ref::<T>()
-            .expect("could not downcast");
-
-        GetAssetResult::Success(asset)
+            LoadAssetResult::Loading => GetAssetResult::Loading,
+            LoadAssetResult::Error => GetAssetResult::Failed,
+        }
     }
 
     //
