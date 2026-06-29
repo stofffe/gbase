@@ -11,9 +11,7 @@ use crate::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
-    future::Future,
     path::{Path, PathBuf},
-    process::Output,
     sync::{Arc, Mutex},
 };
 
@@ -192,14 +190,19 @@ impl AssetCache {
 
         self.currently_loading.insert(handle.as_any());
 
+        // TODO: are all of these needed?
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
         let load_ctx = self.load_ctx.clone();
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.ext
-            .register_load::<T>(handle.as_any(), path.clone(), settings.clone());
+        self.ext.register_load::<T>(
+            load_ctx.clone(),
+            handle.as_any(),
+            path.clone(),
+            settings.clone(),
+        );
 
         async fn spawn_load_fn<T: AssetLoader>(
             load_ctx: LoadContext,
@@ -274,7 +277,8 @@ impl AssetCache {
         }
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load::<T>(handle.as_any(), path, settings);
+        self.ext
+            .register_load::<T>(self.load_ctx.clone(), handle.as_any(), path, settings);
 
         self.just_loaded.insert(handle.as_any());
 
@@ -358,7 +362,6 @@ impl AssetCache {
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
                 &mut self.just_loaded,
-                self.load_ctx.clone(),
             );
         }
 
@@ -440,7 +443,6 @@ impl AssetCache {
             &mut self.cache,
             &mut self.render_cache,
             &self.render_cache_invalidate_lookup,
-            self.load_ctx.clone(),
             handle.as_any(),
         );
     }
