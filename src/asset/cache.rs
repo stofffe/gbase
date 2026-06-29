@@ -63,6 +63,7 @@ pub struct AssetCache {
     dependencies: FxHashMap<DynAssetHandle, Vec<DynAssetHandle>>,
 
     // thread copyable state
+    // TODO: maybe dont store and instead create when function is called
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
 
@@ -189,7 +190,7 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         self.ext.register_load::<T>(
             self.load_ctx.clone(),
-            handle.as_any(),
+            handle.clone(),
             path.clone(),
             settings.clone(),
         );
@@ -197,7 +198,6 @@ impl AssetCache {
         // TODO: are all of these needed?
         let path_clone = path.clone();
         let handle_clone = handle.clone();
-        let loaded_sender_clone = self.load_sender.clone();
         let load_ctx = self.load_ctx.clone();
 
         async fn spawn_load_fn<T: AssetLoader>(
@@ -205,20 +205,19 @@ impl AssetCache {
             handle: AssetHandle<T::Asset>,
             path: PathBuf,
             settings: T::Settings,
-
-            loaded_sender_clone: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
         ) {
+            let loaded_sender = load_ctx.sender.clone();
             let data = T::load(load_ctx, &path, settings).await;
 
             match data {
-                Ok(asset) => loaded_sender_clone
+                Ok(asset) => loaded_sender
                     .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
                     .await
                     .expect("could not send"),
                 Err(err) => {
                     // TODO: doesnt include asset base
                     tracing::error!("error loading asset {:?}: {}", path, err);
-                    loaded_sender_clone
+                    loaded_sender
                         .send((handle.as_any(), LoadAssetResult::Error))
                         .await
                         .expect("could not send");
@@ -234,7 +233,6 @@ impl AssetCache {
                 handle_clone,
                 path_clone,
                 settings,
-                loaded_sender_clone,
             ))
         });
 
@@ -244,7 +242,6 @@ impl AssetCache {
             handle_clone,
             path_clone,
             settings,
-            loaded_sender_clone,
         ));
 
         handle
@@ -274,7 +271,7 @@ impl AssetCache {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.ext
-            .register_load::<T>(self.load_ctx.clone(), handle.as_any(), path, settings);
+            .register_load::<T>(self.load_ctx.clone(), handle.clone(), path, settings);
 
         self.just_loaded.insert(handle.as_any());
 
@@ -353,8 +350,7 @@ impl AssetCache {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.ext.poll_reload_sync(
-                &mut self.cache,
+            self.ext.poll_reload(
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
                 &mut self.just_loaded,
@@ -458,9 +454,9 @@ pub fn invalidate_render_cache(
 
 #[derive(Debug, Clone)]
 pub struct LoadContext {
-    sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
-    asset_handle_ctx: AssetHandleContext,
-    filesystem_ctx: filesystem::FileSystemContext,
+    pub(crate) sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
+    pub(crate) asset_handle_ctx: AssetHandleContext,
+    pub(crate) filesystem_ctx: filesystem::FileSystemContext,
 }
 
 impl LoadContext {

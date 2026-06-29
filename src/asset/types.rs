@@ -14,7 +14,8 @@ use std::{
 
 pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
-pub type DynAssetLoadFn = Box<dyn Fn() -> LoadAssetResult>;
+pub type DynAssetLoadFn = Box<dyn Fn()>;
+pub type DynAssetLoadFnSync = Box<dyn Fn() -> LoadAssetResult>;
 
 pub type DynDerivedAsset = ArcHandle<dyn Any>;
 pub type DerivedAssetKey = (DynAssetHandle, TypeId);

@@ -1,6 +1,6 @@
 use crate::asset::{
     invalidate_render_cache, AssetLoader, DerivedAssetKey, DynAssetHandle, DynAssetLoadFn,
-    DynDerivedAsset, LoadAssetResult, LoadContext,
+    DynAssetLoadFnSync, DynDerivedAsset, LoadAssetResult, LoadContext,
 };
 use crate::{asset::AssetHandle, filesystem::FileSystemContext};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -13,7 +13,8 @@ pub struct AssetCacheExt {
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
     // functions for reloading handles sync
     // use same settings as when it was initially loaded
-    reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
+    reload_functions: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
+    reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFnSync>,
 
     // path lookups
     paths: FxHashMap<DynAssetHandle, PathBuf>,
@@ -49,22 +50,46 @@ impl AssetCacheExt {
             reload_sender,
             reload_receiver,
 
-            reload_handles: FxHashMap::default(),
-            reload_functions_sync: FxHashMap::default(),
             paths: FxHashMap::default(),
+
+            reload_handles: FxHashMap::default(),
+            reload_functions: FxHashMap::default(),
+            reload_functions_sync: FxHashMap::default(),
         }
     }
 
     pub fn register_load<T: AssetLoader + 'static>(
         &mut self,
         load_ctx: LoadContext,
-        handle: DynAssetHandle,
+        handle: AssetHandle<T::Asset>,
         path: PathBuf,
         settings: T::Settings,
     ) {
         self.paths.insert(handle.as_any(), path.clone());
 
-        // store reload function
+        // store reload function sync
+        let path_clone = path.clone();
+        let load_ctx_clone = load_ctx.clone();
+        let settings_clone = settings.clone();
+        self.reload_functions_sync
+            .entry(handle.as_any())
+            .or_insert_with(|| {
+                Box::new(move || {
+                    let result = pollster::block_on(T::load(
+                        load_ctx_clone.clone(),
+                        &path_clone,
+                        settings_clone.clone(),
+                    ));
+
+                    match result {
+                        Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
+                        Err(err) => {
+                            tracing::error!("could not reload asset {:?}: {}", path_clone, err);
+                            LoadAssetResult::Error
+                        }
+                    }
+                })
+            });
 
         // NOTE:
         // this currently captures load_ctx, path and settings
@@ -73,20 +98,51 @@ impl AssetCacheExt {
         // settings wont know about the type so it must be captured
         // storing it as dyn Any and downcasting might work, currently I
         // dont see the benefit it gives so ill keep it like this for now
-        self.reload_functions_sync
+        //
+        // store reload functions async
+        self.reload_functions
             .entry(handle.as_any())
             .or_insert_with(|| {
                 Box::new(move || {
-                    let result =
-                        pollster::block_on(T::load(load_ctx.clone(), &path, settings.clone()));
+                    async fn spawn_load_fn<T: AssetLoader>(
+                        load_ctx: LoadContext,
+                        handle: AssetHandle<T::Asset>,
+                        path: PathBuf,
+                        settings: T::Settings,
+                    ) {
+                        let loaded_sender = load_ctx.sender.clone();
+                        let data = T::load(load_ctx, &path, settings).await;
 
-                    match result {
-                        Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
-                        Err(err) => {
-                            tracing::error!("could not reload asset {:?}: {}", path, err);
-                            LoadAssetResult::Error
+                        match data {
+                            Ok(asset) => loaded_sender
+                                .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
+                                .await
+                                .expect("could not send"),
+                            Err(err) => {
+                                // TODO: doesnt include asset base
+                                tracing::error!("error loading asset {:?}: {}", path, err);
+                                loaded_sender
+                                    .send((handle.as_any(), LoadAssetResult::Error))
+                                    .await
+                                    .expect("could not send");
+                            }
                         }
                     }
+
+                    let path_clone = path.clone();
+                    let handle_clone = handle.clone();
+                    let load_ctx_clone = load_ctx.clone();
+                    let settings_clone = settings.clone();
+
+                    // load async
+                    std::thread::spawn(move || {
+                        pollster::block_on(spawn_load_fn::<T>(
+                            load_ctx_clone,
+                            handle_clone,
+                            path_clone,
+                            settings_clone,
+                        ))
+                    });
                 })
             });
     }
@@ -117,9 +173,8 @@ impl AssetCacheExt {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload_sync(
+    pub fn poll_reload(
         &mut self,
-        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
         render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         just_loaded: &mut FxHashSet<DynAssetHandle>,
@@ -131,14 +186,12 @@ impl AssetCacheExt {
                     just_loaded.insert(handle.clone());
 
                     // load new fn
-                    let loader_fn_sync = self
-                        .reload_functions_sync
+                    let loader_fn_async = self
+                        .reload_functions
                         .get(&handle.as_any())
                         .expect("could not get loader fn");
-                    let asset = loader_fn_sync();
 
-                    // insert into cache
-                    cache.insert(handle.clone(), asset);
+                    loader_fn_async();
 
                     // invalidate render cache
                     invalidate_render_cache(
@@ -152,9 +205,7 @@ impl AssetCacheExt {
     }
 
     /// Queue a reload just like file watcher would
-    // TODO: this is probably more useful if the reload func would load async
     pub fn reload(&mut self, handle: DynAssetHandle) {
-        // TODO: only use of paths, maybe remove?
         let Some(path) = self.paths.get(&handle.as_any()) else {
             tracing::warn!("could not get path for handle {:?}", handle.id());
             return;
