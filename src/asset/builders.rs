@@ -76,11 +76,12 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
                 .watch::<T>(&ctx.filesystem, handle.clone(), &self.path);
         }
 
+        #[cfg(not(target_arch = "wasm32"))]
         if self.sync {
-            cache.load_sync(handle, &self.path, self.loader)
-        } else {
-            cache.load::<T>(handle, &self.path, self.loader)
+            return cache.load_sync(handle, &self.path, self.loader);
         }
+
+        cache.load::<T>(handle, &self.path, self.loader)
     }
 
     pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {

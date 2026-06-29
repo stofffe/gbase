@@ -4,11 +4,17 @@ mod handle;
 mod implementations;
 mod types;
 
+#[cfg(not(target_arch = "wasm32"))]
+mod reload;
+
 pub use builders::*;
 pub use cache::*;
 pub use handle::*;
 pub use implementations::*;
 pub use types::*;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use reload::*;
 
 use crate::Context;
 
@@ -27,6 +33,7 @@ pub enum AssetError {
 //
 
 // force reload an asset
+#[cfg(not(target_arch = "wasm32"))]
 pub fn reload_asset<T: AssetLoader + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T::Asset>,
@@ -35,6 +42,7 @@ pub fn reload_asset<T: AssetLoader + 'static>(
 }
 
 // force reload an asset
+#[cfg(not(target_arch = "wasm32"))]
 pub fn reload_asset_sync<T: AssetLoader + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T::Asset>,
