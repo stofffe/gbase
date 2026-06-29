@@ -19,8 +19,6 @@ pub type DynAssetLoadFn = Box<dyn Fn(LoadContext, &Path) -> LoadAssetResult>;
 pub type DynDerivedAsset = ArcHandle<dyn Any>;
 pub type DerivedAssetKey = (DynAssetHandle, TypeId);
 
-pub type DynLoader = Box<dyn Any>;
-
 //
 // Traits
 //

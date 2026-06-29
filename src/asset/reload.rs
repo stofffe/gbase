@@ -15,6 +15,9 @@ pub struct AssetCacheExt {
     // use same settings as when it was initially loaded
     reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
 
+    // path lookups
+    paths: FxHashMap<DynAssetHandle, PathBuf>,
+
     // channel for requesting reloads
     reload_sender: async_channel::Sender<PathBuf>,
     reload_receiver: async_channel::Receiver<PathBuf>,
@@ -48,14 +51,18 @@ impl AssetCacheExt {
 
             reload_handles: FxHashMap::default(),
             reload_functions_sync: FxHashMap::default(),
+            paths: FxHashMap::default(),
         }
     }
 
     pub fn register_load<T: AssetLoader + 'static>(
         &mut self,
         handle: DynAssetHandle,
+        path: PathBuf,
         settings: T::Settings,
     ) {
+        self.paths.insert(handle.as_any(), path.clone());
+
         // store reload function
         self.reload_functions_sync
             .entry(handle.as_any())
@@ -135,8 +142,8 @@ impl AssetCacheExt {
     }
 
     /// Queue a reload just like file watcher would
-    pub fn reload(&mut self, paths: &FxHashMap<DynAssetHandle, PathBuf>, handle: DynAssetHandle) {
-        let Some(path) = paths.get(&handle.as_any()) else {
+    pub fn reload(&mut self, handle: DynAssetHandle) {
+        let Some(path) = self.paths.get(&handle.as_any()) else {
             tracing::warn!("could not get path for handle {:?}", handle.id());
             return;
         };
@@ -152,11 +159,10 @@ impl AssetCacheExt {
         cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
         render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
-        paths: &FxHashMap<DynAssetHandle, PathBuf>,
         load_ctx: LoadContext,
         handle: DynAssetHandle,
     ) {
-        let Some(path) = paths.get(&handle.as_any()) else {
+        let Some(path) = self.paths.get(&handle.as_any()) else {
             tracing::warn!("could not get path for handle {:?}", handle.id());
             return;
         };

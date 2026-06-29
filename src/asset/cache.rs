@@ -55,11 +55,9 @@ pub struct AssetCache {
     // async loading
     currently_loading: FxHashSet<DynAssetHandle>,
     just_loaded: FxHashSet<DynAssetHandle>,
+
     load_sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
     load_receiver: async_channel::Receiver<(DynAssetHandle, LoadAssetResult)>,
-
-    // lookups
-    paths: FxHashMap<DynAssetHandle, PathBuf>,
 
     // thread copyable state
     load_ctx: LoadContext,
@@ -95,8 +93,6 @@ impl AssetCache {
             just_loaded: FxHashSet::default(),
             load_sender,
             load_receiver,
-
-            paths: FxHashMap::default(),
 
             load_ctx,
             asset_handle_ctx,
@@ -192,8 +188,6 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         let path = path.to_path_buf();
 
-        self.paths.insert(handle.as_any(), path.clone());
-
         self.currently_loading.insert(handle.as_any());
 
         let handle_clone = handle.clone();
@@ -202,7 +196,7 @@ impl AssetCache {
 
         #[cfg(not(target_arch = "wasm32"))]
         self.ext
-            .register_load::<T>(handle.as_any(), settings.clone());
+            .register_load::<T>(handle.as_any(), path.clone(), settings.clone());
 
         // load async
         #[cfg(not(target_arch = "wasm32"))]
@@ -275,10 +269,8 @@ impl AssetCache {
             }
         }
 
-        self.paths.insert(handle.as_any(), path.clone());
-
         #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load::<T>(handle.as_any(), settings);
+        self.ext.register_load::<T>(handle.as_any(), path, settings);
 
         self.just_loaded.insert(handle.as_any());
 
@@ -434,7 +426,7 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.ext.reload(&self.paths, handle.as_any());
+        self.ext.reload(handle.as_any());
     }
 
     /// Reload an existing asset while reusing the last path and loader
@@ -444,7 +436,6 @@ impl AssetCache {
             &mut self.cache,
             &mut self.render_cache,
             &self.render_cache_invalidate_lookup,
-            &self.paths,
             self.load_ctx.clone(),
             handle.as_any(),
         );
