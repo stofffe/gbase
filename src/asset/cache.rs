@@ -150,12 +150,24 @@ impl AssetCache {
         &self.asset_handle_ctx
     }
 
+    pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
+        AssetHandle::new(&self.asset_handle_ctx)
+    }
+
     //
     // Assets
     //
 
-    pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
+    pub fn insert_new_handle<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        self.insert_existing_handle(data, handle)
+    }
+
+    pub fn insert_existing_handle<T: Asset + 'static>(
+        &mut self,
+        data: T,
+        handle: AssetHandle<T>,
+    ) -> AssetHandle<T> {
         self.cache
             .insert(handle.as_any(), LoadAssetResult::Success(Box::new(data)));
         handle

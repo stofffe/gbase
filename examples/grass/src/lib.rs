@@ -105,8 +105,9 @@ impl Callbacks for App {
         )
         .build(cache);
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert(plane_material);
-        let plane_mesh = cache.insert(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
+        let plane_material = cache.insert_new_handle(plane_material);
+        let plane_mesh =
+            cache.insert_new_handle(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 

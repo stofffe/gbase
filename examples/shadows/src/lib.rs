@@ -6,11 +6,9 @@ use gbase::{
     input::{self, mouse_button_pressed},
     load_b, profile, render, time,
     tracing::{self, span},
-    wgpu, winit, CallbackResult, Callbacks, Context, ContextBuilder,
+    wgpu, winit, CallbackResult, Callbacks, Context,
 };
-use gbase_utils::{
-    Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, Transform3D, ViewPort,
-};
+use gbase_utils::{Camera, Material, MeshLodLoader, PbrLightUniforms, PbrRenderer, Transform3D};
 use gbase_utils::{MeshLod, ShadowPass};
 use std::f32::consts::PI;
 
@@ -52,7 +50,7 @@ fn mesh_to_lod_mesh(
     mesh: AssetHandle<render::Mesh>,
     material: AssetHandle<Material>,
 ) -> AssetHandle<MeshLod> {
-    cache.insert(MeshLod {
+    cache.insert_new_handle(MeshLod {
         meshes: vec![(mesh, 0.0)],
         material,
     })
@@ -158,7 +156,7 @@ impl Callbacks for App {
         )
         .build(cache);
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert(plane_material);
+        let plane_material = cache.insert_new_handle(plane_material);
         let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
         let shadow_pass = ShadowPass::new(ctx, cache);

@@ -8,18 +8,21 @@ use crate::{
 pub struct AssetBuilder {}
 impl AssetBuilder {
     pub fn insert<T: Asset>(value: T) -> InsertAssetBuilder<T> {
-        InsertAssetBuilder::<T> { value }
+        InsertAssetBuilder::<T> {
+            value,
+            handle: None,
+        }
     }
     pub fn load<T: AssetLoader + 'static>(
-        cache: &AssetCache,
+        cache: &AssetCache, // TODO: will this be needed later?
         path: impl Into<PathBuf>,
         loader: T,
     ) -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
-            handle: AssetHandle::new(cache.asset_handle_ctx()),
-            path: path.into(),
             loader,
+            path: path.into(),
 
+            handle: None,
             sync: false,
             watch: false,
         }
@@ -32,11 +35,20 @@ impl AssetBuilder {
 
 pub struct InsertAssetBuilder<T: Asset> {
     value: T,
+
+    handle: Option<AssetHandle<T>>,
 }
 
 impl<T: Asset> InsertAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T> {
-        cache.insert(self.value)
+        let handle = self.handle.unwrap_or(cache.new_empty_handle());
+
+        cache.insert_existing_handle(self.value, handle)
+    }
+
+    pub fn handle(mut self, handle: AssetHandle<T>) -> Self {
+        self.handle = Some(handle);
+        self
     }
 }
 
@@ -46,27 +58,34 @@ impl<T: Asset> InsertAssetBuilder<T> {
 
 pub struct LoadAssetBuilder<T: AssetLoader> {
     loader: T,
-    handle: AssetHandle<T::Asset>,
     path: PathBuf,
 
+    handle: Option<AssetHandle<T::Asset>>,
     watch: bool,
     sync: bool,
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn build(self, ctx: &Context, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
+        let handle = self.handle.unwrap_or(cache.new_empty_handle());
+
         if self.watch {
             #[cfg(not(target_arch = "wasm32"))]
             cache
                 .ext
-                .watch::<T>(&ctx.filesystem, self.handle.clone(), &self.path);
+                .watch::<T>(&ctx.filesystem, handle.clone(), &self.path);
         }
 
         if self.sync {
-            cache.load_sync(self.handle, &self.path, self.loader)
+            cache.load_sync(handle, &self.path, self.loader)
         } else {
-            cache.load::<T>(self.handle, &self.path, self.loader)
+            cache.load::<T>(handle, &self.path, self.loader)
         }
+    }
+
+    pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {
+        self.handle = Some(handle);
+        self
     }
 
     pub fn watch(mut self, watch: bool) -> Self {

@@ -184,7 +184,8 @@ impl Callbacks for App {
                     let mesh = mesh.get(cache).unwrap_loaded();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
-                    self.sponza_lod_meshes.push((cache.insert(lod), transform));
+                    self.sponza_lod_meshes
+                        .push((cache.insert_new_handle(lod), transform));
                 }
             }
         }

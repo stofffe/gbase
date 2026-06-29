@@ -245,6 +245,7 @@ impl UIRenderer {
                     settings: fontdue::FontSettings::default(),
                 },
             )
+            .handle(self.font.clone())
             .build(ctx, cache);
     }
 }
