@@ -5,6 +5,7 @@ use crate::asset::{
 use crate::{asset::AssetHandle, filesystem::FileSystemContext};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::TypeId;
+use std::future::Future;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -58,14 +59,60 @@ impl AssetCacheExt {
         }
     }
 
-    pub fn register_load<T: AssetLoader + 'static>(
+    pub fn register_load<T, F, R>(
         &mut self,
         load_ctx: LoadContext,
         handle: AssetHandle<T::Asset>,
         path: PathBuf,
         settings: T::Settings,
-    ) {
+
+        spawn_load_fn: F,
+    ) where
+        T: AssetLoader + 'static,
+        F: Fn(LoadContext, AssetHandle<T::Asset>, PathBuf, T::Settings) -> R
+            + Send
+            + Sync
+            + 'static
+            + Clone,
+        R: Future<Output = ()>,
+    {
         self.paths.insert(handle.as_any(), path.clone());
+
+        let path_clone = path.clone();
+        let handle_clone = handle.clone();
+        let load_ctx_clone = load_ctx.clone();
+        let settings_clone = settings.clone();
+
+        // NOTE:
+        // this currently captures load_ctx, path and settings
+        // load_ctx and path can be used as paramters if they are stored
+        // and loaded from handles hash maps
+        // settings wont know about the type so it must be captured
+        // storing it as dyn Any and downcasting might work, currently I
+        // dont see the benefit it gives so ill keep it like this for now
+        //
+        // store reload functions async
+        self.reload_functions
+            .entry(handle.as_any())
+            .or_insert_with(|| {
+                Box::new(move || {
+                    let path_clone = path_clone.clone();
+                    let handle_clone = handle_clone.clone();
+                    let load_ctx_clone = load_ctx_clone.clone();
+                    let settings_clone = settings_clone.clone();
+                    let spawn_load_fn_clone = spawn_load_fn.clone();
+
+                    // load async
+                    std::thread::spawn(move || {
+                        pollster::block_on(spawn_load_fn_clone(
+                            load_ctx_clone,
+                            handle_clone,
+                            path_clone,
+                            settings_clone,
+                        ))
+                    });
+                })
+            });
 
         // store reload function sync
         let path_clone = path.clone();
@@ -88,61 +135,6 @@ impl AssetCacheExt {
                             LoadAssetResult::Error
                         }
                     }
-                })
-            });
-
-        // NOTE:
-        // this currently captures load_ctx, path and settings
-        // load_ctx and path can be used as paramters if they are stored
-        // and loaded from handles hash maps
-        // settings wont know about the type so it must be captured
-        // storing it as dyn Any and downcasting might work, currently I
-        // dont see the benefit it gives so ill keep it like this for now
-        //
-        // store reload functions async
-        self.reload_functions
-            .entry(handle.as_any())
-            .or_insert_with(|| {
-                Box::new(move || {
-                    async fn spawn_load_fn<T: AssetLoader>(
-                        load_ctx: LoadContext,
-                        handle: AssetHandle<T::Asset>,
-                        path: PathBuf,
-                        settings: T::Settings,
-                    ) {
-                        let loaded_sender = load_ctx.sender.clone();
-                        let data = T::load(load_ctx, &path, settings).await;
-
-                        match data {
-                            Ok(asset) => loaded_sender
-                                .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
-                                .await
-                                .expect("could not send"),
-                            Err(err) => {
-                                // TODO: doesnt include asset base
-                                tracing::error!("error loading asset {:?}: {}", path, err);
-                                loaded_sender
-                                    .send((handle.as_any(), LoadAssetResult::Error))
-                                    .await
-                                    .expect("could not send");
-                            }
-                        }
-                    }
-
-                    let path_clone = path.clone();
-                    let handle_clone = handle.clone();
-                    let load_ctx_clone = load_ctx.clone();
-                    let settings_clone = settings.clone();
-
-                    // load async
-                    std::thread::spawn(move || {
-                        pollster::block_on(spawn_load_fn::<T>(
-                            load_ctx_clone,
-                            handle_clone,
-                            path_clone,
-                            settings_clone,
-                        ))
-                    });
                 })
             });
     }

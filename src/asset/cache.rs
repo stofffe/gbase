@@ -177,6 +177,31 @@ impl AssetCache {
     // Reloading
     //
 
+    async fn spawn_load_fn<T: AssetLoader>(
+        load_ctx: LoadContext,
+        handle: AssetHandle<T::Asset>,
+        path: PathBuf,
+        settings: T::Settings,
+    ) {
+        let loaded_sender = load_ctx.sender.clone();
+        let data = T::load(load_ctx, &path, settings).await;
+
+        match data {
+            Ok(asset) => loaded_sender
+                .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
+                .await
+                .expect("could not send"),
+            Err(err) => {
+                // TODO: doesnt include asset base
+                tracing::error!("error loading asset {:?}: {}", path, err);
+                loaded_sender
+                    .send((handle.as_any(), LoadAssetResult::Error))
+                    .await
+                    .expect("could not send");
+            }
+        }
+    }
+
     pub fn load<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
@@ -187,48 +212,24 @@ impl AssetCache {
 
         self.cache.insert(handle.as_any(), LoadAssetResult::Loading);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load::<T>(
-            self.load_ctx.clone(),
-            handle.clone(),
-            path.clone(),
-            settings.clone(),
-        );
-
         // TODO: are all of these needed?
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let load_ctx = self.load_ctx.clone();
 
-        async fn spawn_load_fn<T: AssetLoader>(
-            load_ctx: LoadContext,
-            handle: AssetHandle<T::Asset>,
-            path: PathBuf,
-            settings: T::Settings,
-        ) {
-            let loaded_sender = load_ctx.sender.clone();
-            let data = T::load(load_ctx, &path, settings).await;
-
-            match data {
-                Ok(asset) => loaded_sender
-                    .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
-                    .await
-                    .expect("could not send"),
-                Err(err) => {
-                    // TODO: doesnt include asset base
-                    tracing::error!("error loading asset {:?}: {}", path, err);
-                    loaded_sender
-                        .send((handle.as_any(), LoadAssetResult::Error))
-                        .await
-                        .expect("could not send");
-                }
-            }
-        }
+        #[cfg(not(target_arch = "wasm32"))]
+        self.ext.register_load::<T, _, _>(
+            self.load_ctx.clone(),
+            handle.clone(),
+            path.clone(),
+            settings.clone(),
+            Self::spawn_load_fn::<T>,
+        );
 
         // load async
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
-            pollster::block_on(spawn_load_fn::<T>(
+            pollster::block_on(Self::spawn_load_fn::<T>(
                 load_ctx,
                 handle_clone,
                 path_clone,
@@ -237,7 +238,7 @@ impl AssetCache {
         });
 
         #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(spawn_load_fn::<T>(
+        wasm_bindgen_futures::spawn_local(Self::spawn_load_fn::<T>(
             load_ctx,
             handle_clone,
             path_clone,
@@ -269,9 +270,14 @@ impl AssetCache {
             }
         }
 
-        #[cfg(not(target_arch = "wasm32"))]
-        self.ext
-            .register_load::<T>(self.load_ctx.clone(), handle.clone(), path, settings);
+        // TODO:
+        self.ext.register_load::<T, _, _>(
+            self.load_ctx.clone(),
+            handle.clone(),
+            path,
+            settings,
+            Self::spawn_load_fn::<T>,
+        );
 
         self.just_loaded.insert(handle.as_any());
 
