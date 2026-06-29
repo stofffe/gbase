@@ -11,7 +11,9 @@ use crate::{
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
+    future::Future,
     path::{Path, PathBuf},
+    process::Output,
     sync::{Arc, Mutex},
 };
 
@@ -59,12 +61,12 @@ pub struct AssetCache {
     load_sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
     load_receiver: async_channel::Receiver<(DynAssetHandle, LoadAssetResult)>,
 
+    // dependency tracking
+    dependencies: FxHashMap<DynAssetHandle, Vec<DynAssetHandle>>,
+
     // thread copyable state
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
-
-    // dependency tracking
-    dependencies: FxHashMap<DynAssetHandle, Vec<DynAssetHandle>>,
 
     // hot reload context
     #[cfg(not(target_arch = "wasm32"))]
@@ -190,6 +192,7 @@ impl AssetCache {
 
         self.currently_loading.insert(handle.as_any());
 
+        let path_clone = path.clone();
         let handle_clone = handle.clone();
         let loaded_sender_clone = self.load_sender.clone();
         let load_ctx = self.load_ctx.clone();
@@ -198,51 +201,52 @@ impl AssetCache {
         self.ext
             .register_load::<T>(handle.as_any(), path.clone(), settings.clone());
 
-        // load async
-        #[cfg(not(target_arch = "wasm32"))]
-        std::thread::spawn(move || {
-            pollster::block_on(async {
-                let data = T::load(load_ctx, &path, settings).await;
+        async fn spawn_load_fn<T: AssetLoader>(
+            load_ctx: LoadContext,
+            handle: AssetHandle<T::Asset>,
+            path: PathBuf,
+            settings: T::Settings,
 
-                match data {
-                    Ok(asset) => loaded_sender_clone
-                        .try_send((
-                            handle_clone.as_any(),
-                            LoadAssetResult::Success(Box::new(asset)),
-                        ))
-                        .expect("could not send"),
-                    Err(err) => {
-                        // TODO: doesnt include asset base
-                        tracing::error!("error loading asset {:?}: {}", path, err);
-                        loaded_sender_clone
-                            .try_send((handle_clone.as_any(), LoadAssetResult::Error))
-                            .expect("could not send");
-                    }
-                }
-            })
-        });
-
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(async move {
+            loaded_sender_clone: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
+        ) {
             let data = T::load(load_ctx, &path, settings).await;
 
             match data {
                 Ok(asset) => loaded_sender_clone
-                    .send((
-                        handle_clone.as_any(),
-                        LoadAssetResult::Success(Box::new(asset)),
-                    ))
+                    .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
                     .await
                     .expect("could not send"),
                 Err(err) => {
+                    // TODO: doesnt include asset base
                     tracing::error!("error loading asset {:?}: {}", path, err);
                     loaded_sender_clone
-                        .send((handle_clone.as_any(), LoadAssetResult::Error))
+                        .send((handle.as_any(), LoadAssetResult::Error))
                         .await
-                        .expect("could not send")
+                        .expect("could not send");
                 }
             }
+        }
+
+        // load async
+        #[cfg(not(target_arch = "wasm32"))]
+        std::thread::spawn(move || {
+            pollster::block_on(spawn_load_fn::<T>(
+                load_ctx,
+                handle_clone,
+                path_clone,
+                settings,
+                loaded_sender_clone,
+            ))
         });
+
+        #[cfg(target_arch = "wasm32")]
+        wasm_bindgen_futures::spawn_local(spawn_load_fn::<T>(
+            load_ctx,
+            handle_clone,
+            path_clone,
+            settings,
+            loaded_sender_clone,
+        ));
 
         handle
     }
@@ -504,6 +508,7 @@ impl LoadContext {
     }
 }
 
+// TODO: maybe move this to load context
 #[derive(Debug, Clone)]
 pub struct AssetHandleContext {
     id: Arc<Mutex<u64>>,
