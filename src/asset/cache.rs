@@ -513,13 +513,6 @@ impl LoadContext {
         handle
     }
 
-    // TODO: ref vs owned self?
-    // pub async fn load<T: LoadableAsset>(&self, path: impl Into<PathBuf>) -> AssetHandle<T> {
-    //     let path = path.into();
-    //     let value = T::load(self.clone(), &path).await;
-    //     self.insert(value)
-    // }
-
     pub async fn load_bytes(
         &self,
         path: impl AsRef<Path>,
@@ -572,13 +565,10 @@ impl AssetHandleContext {
     }
 }
 
-// TODO: check if canoicalize is necessary
-
 #[cfg(not(target_arch = "wasm32"))]
 impl AssetCacheExt {
     pub fn register_load<T: AssetLoader + 'static>(&mut self, handle: DynAssetHandle, loader: T) {
         // store reload function
-        // TODO: needs to be called even without watch()
         self.reload_functions_sync
             .entry(handle.as_any())
             .or_insert_with(|| {
@@ -612,7 +602,7 @@ impl AssetCacheExt {
             .watcher()
             .watch(
                 &path,
-                notify_debouncer_mini::notify::RecursiveMode::Recursive, // TODO: non recursive?
+                notify_debouncer_mini::notify::RecursiveMode::NonRecursive, // recursive mode does not matter for files
             )
             .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
 

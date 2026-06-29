@@ -26,11 +26,20 @@ pub enum AssetError {
 // Commands
 //
 
+// force reload an asset
 pub fn reload_asset<T: AssetLoader + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T::Asset>,
 ) {
     cache.reload::<T>(handle)
+}
+
+// force reload an asset
+pub fn reload_asset_sync<T: AssetLoader + 'static>(
+    cache: &mut AssetCache,
+    handle: AssetHandle<T::Asset>,
+) {
+    cache.reload_sync::<T>(handle)
 }
 
 /// Check if all current assets are loaded
