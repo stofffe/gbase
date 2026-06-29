@@ -356,11 +356,7 @@ impl AssetCache {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            self.ext.poll_reload(
-                &mut self.render_cache,
-                &self.render_cache_invalidate_lookup,
-                &mut self.just_loaded,
-            );
+            self.ext.poll_reload();
         }
 
         self.poll_loaded();

@@ -17,9 +17,6 @@ pub struct AssetCacheExt {
     reload_functions: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
     reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFnSync>,
 
-    // path lookups
-    paths: FxHashMap<DynAssetHandle, PathBuf>,
-
     // channel for requesting reloads
     reload_sender: async_channel::Sender<PathBuf>,
     reload_receiver: async_channel::Receiver<PathBuf>,
@@ -51,8 +48,6 @@ impl AssetCacheExt {
             reload_sender,
             reload_receiver,
 
-            paths: FxHashMap::default(),
-
             reload_handles: FxHashMap::default(),
             reload_functions: FxHashMap::default(),
             reload_functions_sync: FxHashMap::default(),
@@ -76,8 +71,6 @@ impl AssetCacheExt {
             + Clone,
         R: Future<Output = ()>,
     {
-        self.paths.insert(handle.as_any(), path.clone());
-
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let load_ctx_clone = load_ctx.clone();
@@ -165,32 +158,11 @@ impl AssetCacheExt {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload(
-        &mut self,
-        render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
-        render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
-        just_loaded: &mut FxHashSet<DynAssetHandle>,
-    ) {
+    pub fn poll_reload(&mut self) {
         while let Ok(path) = self.reload_receiver.try_recv() {
-            if let Some(handles) = self.reload_handles.get_mut(&path) {
-                for handle in handles {
-                    println!("reload {:?}", path);
-                    just_loaded.insert(handle.clone());
-
-                    // load new fn
-                    let loader_fn_async = self
-                        .reload_functions
-                        .get(&handle.as_any())
-                        .expect("could not get loader fn");
-
-                    loader_fn_async();
-
-                    // invalidate render cache
-                    invalidate_render_cache(
-                        render_cache,
-                        render_cache_invalidate_lookup,
-                        handle.as_any(),
-                    );
+            if let Some(handles) = self.reload_handles.get(&path) {
+                for handle in handles.clone() {
+                    self.reload(handle.as_any());
                 }
             }
         }
@@ -198,14 +170,12 @@ impl AssetCacheExt {
 
     /// Queue a reload just like file watcher would
     pub fn reload(&mut self, handle: DynAssetHandle) {
-        let Some(path) = self.paths.get(&handle.as_any()) else {
-            tracing::warn!("could not get path for handle {:?}", handle.id());
+        let Some(loader_fn_sync) = self.reload_functions.get(&handle.as_any()) else {
+            tracing::warn!("could not get asset handle {}", handle.id());
             return;
         };
 
-        self.reload_sender
-            .try_send(path.clone())
-            .expect("could not send reload request");
+        loader_fn_sync();
     }
 
     /// Immediately call the reload function sync
