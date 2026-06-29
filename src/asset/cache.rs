@@ -451,6 +451,18 @@ impl AssetCache {
     }
 }
 
+pub fn invalidate_render_cache(
+    render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
+    render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
+    handle: DynAssetHandle,
+) {
+    if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {
+        for render_type in render_types {
+            render_cache.remove(&(handle.clone(), *render_type));
+        }
+    }
+}
+
 //
 // Load context
 //
@@ -483,6 +495,10 @@ impl LoadContext {
         handle
     }
 
+    //
+    // Re-export filesytem loading functions
+    //
+
     pub async fn load_bytes(
         &self,
         path: impl AsRef<Path>,
@@ -496,10 +512,6 @@ impl LoadContext {
         self.filesystem_ctx.load_asset_string(path).await
     }
 }
-
-//
-// Hot reload extension
-//
 
 #[derive(Debug, Clone)]
 pub struct AssetHandleContext {
@@ -517,18 +529,6 @@ impl AssetHandleContext {
         let id = *id_guard;
         *id_guard += 1;
         id
-    }
-}
-
-pub fn invalidate_render_cache(
-    render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
-    render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
-    handle: DynAssetHandle,
-) {
-    if let Some(render_types) = render_cache_invalidate_lookup.get(&handle) {
-        for render_type in render_types {
-            render_cache.remove(&(handle.clone(), *render_type));
-        }
     }
 }
 

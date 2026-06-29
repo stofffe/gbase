@@ -9,8 +9,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 pub struct AssetCacheExt {
-    // reloading
+    /// which handles map to a certain path
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
+    // functions for reloading handles sync
+    // use same settings as when it was initially loaded
     reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
 
     // channel for requesting reloads
