@@ -90,14 +90,27 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
-        let mesh = asset::convert_asset(ctx, cache, self.mesh_handle.clone(), MeshGpuConverter)
-            .unwrap_success();
-        let shader =
-            asset::convert_asset(ctx, cache, self.shader_handle.clone(), ShaderGpuConverter)
-                .unwrap_success();
-        let texture =
-            asset::convert_asset(ctx, cache, self.texture_handle.clone(), ImageGpuConverter)
-                .unwrap_success();
+        let mesh = asset::convert_asset::<MeshGpuConverter>(
+            ctx,
+            cache,
+            self.mesh_handle.clone(),
+            &NoSettings,
+        )
+        .unwrap_success();
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
+            ctx,
+            cache,
+            self.shader_handle.clone(),
+            &NoSettings,
+        )
+        .unwrap_success();
+        let texture = asset::convert_asset::<ImageGpuConverter>(
+            ctx,
+            cache,
+            self.texture_handle.clone(),
+            &NoSettings,
+        )
+        .unwrap_success();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![

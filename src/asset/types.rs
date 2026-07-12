@@ -44,16 +44,20 @@ pub trait AssetLoader: Send + Sync {
 
 pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
 
+pub trait DerivedAssetSettings: Send + Sync {}
+impl<T: Send + Sync + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+
 pub trait AssetConverter {
     type SourceAsset: Asset;
     type TargetAsset: DerivedAsset + Clone;
+    type Settings: DerivedAssetSettings;
     type Error: error::Error;
 
     fn convert(
-        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset>;
 }
 
@@ -70,6 +74,12 @@ pub trait AssetWriter: AssetLoader {
 //
 // Other
 //
+
+#[derive(thiserror::Error, Debug)]
+pub enum AssetError {
+    #[error("asset path not found")]
+    PathNotFound,
+}
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}

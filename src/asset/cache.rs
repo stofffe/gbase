@@ -292,14 +292,14 @@ impl AssetCache {
         &mut self,
         ctx: &mut Context,
         handle: AssetHandle<G::SourceAsset>,
-        converter: G,
+        settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
         let key = (handle.clone().as_any(), TypeId::of::<G::TargetAsset>());
 
         let render_asset_handle = match self.render_cache.get(&key) {
             Some(render_asset_handle) => render_asset_handle.clone(),
             None => {
-                match converter.convert(ctx, self, handle.clone()) {
+                match G::convert(ctx, self, handle.clone(), settings) {
                     ConvertAssetStatus::SourceLoading => return ConvertAssetResult::Loading,
 
                     // TODO: insert last valid so we dont hit this each time?
@@ -534,8 +534,8 @@ impl<T: Asset + 'static> AssetHandle<T> {
         &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
-        converter: G,
+        settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        cache.convert(ctx, self.clone(), converter)
+        cache.convert::<G>(ctx, self.clone(), settings)
     }
 }

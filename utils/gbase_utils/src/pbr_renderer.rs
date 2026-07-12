@@ -5,9 +5,10 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, BoundingBoxConverter, ImageGpuConverter, MeshGpuConverter,
+        self, AssetHandle, BoundingBoxConverter, ImageGpuConverter, MeshGpuConverter, NoSettings,
         ShaderGpuConverter,
     },
+    egui_wgpu::WgpuError::NoSurfaceFormatsAvailable,
     glam::{Mat4, Vec3},
     render::{
         self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer, Shader, ShaderBuilder,
@@ -36,14 +37,14 @@ impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         // let forward_shader_handle = asset::AssetBuilder::load(
         //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
-        //     ShaderLoader {},
+        //     NoSettingsNoSettings{},
         // )
         // .watch(cache)
         // .build(cache);
         //
         // let deferred_shader_handle = asset::AssetBuilder::load(
         //     "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl",
-        //     ShaderLoader {},
+        //     NoSettingsNoSettings{},
         // )
         // .watch(cache)
         // .build(cache);
@@ -194,11 +195,11 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
             self.forward_shader_handle.clone(),
-            ShaderGpuConverter {},
+            &NoSettings,
         )
         .unwrap_success();
         let mut buffers = Vec::new();
@@ -233,7 +234,7 @@ impl PbrRenderer {
             }
             let bounds = mesh_lod
                 .clone()
-                .convert(ctx, cache, LodMeshToBoundingBoxConverter {})
+                .convert::<LodMeshToBoundingBoxConverter>(ctx, cache, &NoSettings)
                 .unwrap_success();
             frustum.sphere_inside(&bounds, transform)
         });
@@ -246,7 +247,7 @@ impl PbrRenderer {
         for (mesh_lod, transform) in frame_meshes {
             let bounds = mesh_lod
                 .clone()
-                .convert(ctx, cache, LodMeshToBoundingBoxConverter {})
+                .convert::<LodMeshToBoundingBoxConverter>(ctx, cache, &NoSettings)
                 .unwrap_success();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
@@ -308,23 +309,39 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh =
-                asset::convert_asset(ctx, cache, mesh, MeshGpuConverter).unwrap_success();
-            let base_color_texture =
-                asset::convert_asset(ctx, cache, base_color_texture, ImageGpuConverter)
-                    .unwrap_success();
+            let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(ctx, cache, mesh, &NoSettings)
+                .unwrap_success();
+            let base_color_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                base_color_texture,
+                &NoSettings,
+            )
+            .unwrap_success();
             let normal_texture =
-                asset::convert_asset(ctx, cache, normal_texture, ImageGpuConverter)
+                asset::convert_asset::<ImageGpuConverter>(ctx, cache, normal_texture, &NoSettings)
                     .unwrap_success();
-            let metallic_roughness_texture =
-                asset::convert_asset(ctx, cache, metallic_roughness_texture, ImageGpuConverter)
-                    .unwrap_success();
-            let occlusion_texture =
-                asset::convert_asset(ctx, cache, occlusion_texture, ImageGpuConverter)
-                    .unwrap_success();
-            let emissive_texture =
-                asset::convert_asset(ctx, cache, emissive_texture, ImageGpuConverter)
-                    .unwrap_success();
+            let metallic_roughness_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                metallic_roughness_texture,
+                &NoSettings,
+            )
+            .unwrap_success();
+            let occlusion_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                occlusion_texture,
+                &NoSettings,
+            )
+            .unwrap_success();
+            let emissive_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                emissive_texture,
+                &NoSettings,
+            )
+            .unwrap_success();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()

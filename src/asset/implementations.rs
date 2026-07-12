@@ -1,5 +1,3 @@
-use std::env::temp_dir;
-
 use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
     asset::{
@@ -21,14 +19,15 @@ impl DerivedAsset for render::GpuMesh {}
 pub struct MeshGpuConverter;
 impl AssetConverter for MeshGpuConverter {
     type SourceAsset = render::Mesh;
-    type Error = EmptyError;
     type TargetAsset = render::GpuMesh;
+    type Error = EmptyError;
+    type Settings = NoSettings;
 
     fn convert(
-        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        _settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
@@ -42,17 +41,18 @@ impl AssetConverter for MeshGpuConverter {
 
 impl DerivedAsset for render::BoundingBox {}
 
-pub struct BoundingBoxConverter {}
+pub struct BoundingBoxConverter;
 impl AssetConverter for BoundingBoxConverter {
     type SourceAsset = render::Mesh;
     type TargetAsset = render::BoundingBox;
     type Error = EmptyError;
+    type Settings = NoSettings;
 
     fn convert(
-        &self,
         _ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        _settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
@@ -97,16 +97,18 @@ impl AssetLoader for ShaderLoader {
 impl DerivedAsset for wgpu::ShaderModule {}
 
 pub struct ShaderGpuConverter;
+
 impl AssetConverter for ShaderGpuConverter {
     type SourceAsset = render::Shader;
     type TargetAsset = wgpu::ShaderModule;
     type Error = wgpu::Error;
+    type Settings = NoSettings;
 
     fn convert(
-        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        _settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
@@ -209,12 +211,13 @@ impl AssetConverter for ImageGpuConverter {
     type SourceAsset = render::Image;
     type TargetAsset = render::GpuImage;
     type Error = EmptyError;
+    type Settings = NoSettings;
 
     fn convert(
-        &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        _settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match source.get(cache) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,

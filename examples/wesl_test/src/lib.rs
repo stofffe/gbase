@@ -214,7 +214,7 @@
 //             .bind_groups(vec![bindgroup_layout.clone()])
 //             .build_uncached(ctx);
 //         // let shader_handle =
-//         //     asset::AssetBuilder::load(cache, "shaders/texture.wgsl", ShaderLoader {})
+//         //     asset::AssetBuilder::load(cache, "shaders/texture.wgsl", assets::NoSettings {})
 //         //         .watch(ctx, cache)
 //         //         .build(cache);
 //         let shader_handle = asset::AssetBuilder::load(

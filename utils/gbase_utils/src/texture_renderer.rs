@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, MeshGpuConverter, ShaderGpuConverter},
+    asset::{self, MeshGpuConverter, NoSettings, ShaderGpuConverter},
     render::{self, ArcTextureView, Shader, ShaderBuilder},
     wgpu, Context,
 };
@@ -106,9 +106,13 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader =
-            asset::convert_asset(ctx, cache, self.shader_handle.clone(), ShaderGpuConverter)
-                .unwrap_success();
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
+            ctx,
+            cache,
+            self.shader_handle.clone(),
+            &NoSettings,
+        )
+        .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(self.vertices.get(cache).unwrap_loaded().buffer_layout())
@@ -126,7 +130,7 @@ impl TextureRenderer {
                 let gpu_mesh = self
                     .vertices
                     .clone()
-                    .convert(ctx, cache, MeshGpuConverter)
+                    .convert::<MeshGpuConverter>(ctx, cache, &NoSettings)
                     .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
@@ -179,11 +183,11 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
             self.shader_depth_handle.clone(),
-            ShaderGpuConverter,
+            &NoSettings,
         )
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
@@ -207,7 +211,7 @@ impl TextureRenderer {
                 let gpu_mesh = self
                     .vertices
                     .clone()
-                    .convert(ctx, cache, MeshGpuConverter)
+                    .convert::<MeshGpuConverter>(ctx, cache, &NoSettings)
                     .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);

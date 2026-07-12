@@ -19,16 +19,6 @@ pub use reload::*;
 use crate::Context;
 
 //
-// Errors
-//
-
-#[derive(thiserror::Error, Debug)]
-pub enum AssetError {
-    #[error("asset path not found")]
-    PathNotFound,
-}
-
-//
 // Commands
 //
 
@@ -87,7 +77,7 @@ pub fn convert_asset<G: AssetConverter>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     handle: AssetHandle<G::SourceAsset>,
-    converter: G,
+    settings: &G::Settings,
 ) -> ConvertAssetResult<G::TargetAsset> {
-    cache.convert(ctx, handle, converter)
+    cache.convert::<G>(ctx, handle, settings)
 }
