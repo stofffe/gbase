@@ -164,7 +164,7 @@ impl ShadowPass {
 
                 let bounds = handle
                     .clone()
-                    .convert::<LodMeshToBoundingBoxConverter>(ctx, cache, &NoSettings)
+                    .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
                     .unwrap_success();
                 frustums[i].sphere_inside(&bounds, transform)
             });
@@ -201,11 +201,10 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
+                let gpu_mesh = asset::convert_asset_default_settings::<MeshGpuConverter>(
                     ctx,
                     cache,
                     mesh_handle.clone(),
-                    &NoSettings,
                 )
                 .unwrap_success();
                 draws.push(gpu_mesh);
@@ -232,11 +231,10 @@ impl ShadowPass {
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                 ])
                 .build(ctx);
-            let shader = asset::convert_asset::<ShaderGpuConverter>(
+            let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
                 ctx,
                 cache,
                 self.shader_handle.clone(),
-                &NoSettings,
             )
             .unwrap_success();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())

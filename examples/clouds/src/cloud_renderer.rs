@@ -4,10 +4,10 @@ use gbase::asset::{
     ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter, NoSettings,
     ShaderGpuConverter, ShaderLoader,
 };
-use gbase::render::{GpuImage, GpuMesh, Image, Mesh, SamplerBuilder, TextureBuilder};
+use gbase::render::{Image, Mesh, SamplerBuilder, TextureBuilder};
 use gbase::{asset, tracing};
 use gbase::{
-    render::{self, ShaderBuilder},
+    render::{self},
     wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -167,18 +167,16 @@ impl CloudRenderer {
 
         self.app_info.update_buffer(ctx);
 
-        let weather_map = asset::convert_asset::<ImageGpuConverter>(
+        let weather_map = asset::convert_asset_default_settings::<ImageGpuConverter>(
             ctx,
             cache,
             self.weather_map_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
-        let blue_noise = asset::convert_asset::<ImageGpuConverter>(
+        let blue_noise = asset::convert_asset_default_settings::<ImageGpuConverter>(
             ctx,
             cache,
             self.blue_noise_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
@@ -204,11 +202,10 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
+        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
             ctx,
             cache,
             self.shader_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let mesh = self.mesh_handle.get(cache).unwrap_loaded();
@@ -219,11 +216,10 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = asset::convert_asset::<MeshGpuConverter>(
+        let mesh_gpu = asset::convert_asset_default_settings::<MeshGpuConverter>(
             ctx,
             cache,
             self.mesh_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let mut encoder = render::EncoderBuilder::new().build(ctx);

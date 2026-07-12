@@ -195,11 +195,10 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
+        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
             ctx,
             cache,
             self.forward_shader_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let mut buffers = Vec::new();
@@ -234,7 +233,7 @@ impl PbrRenderer {
             }
             let bounds = mesh_lod
                 .clone()
-                .convert::<LodMeshToBoundingBoxConverter>(ctx, cache, &NoSettings)
+                .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
                 .unwrap_success();
             frustum.sphere_inside(&bounds, transform)
         });
@@ -247,7 +246,7 @@ impl PbrRenderer {
         for (mesh_lod, transform) in frame_meshes {
             let bounds = mesh_lod
                 .clone()
-                .convert::<LodMeshToBoundingBoxConverter>(ctx, cache, &NoSettings)
+                .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
                 .unwrap_success();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
@@ -309,37 +308,35 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(ctx, cache, mesh, &NoSettings)
-                .unwrap_success();
-            let base_color_texture = asset::convert_asset::<ImageGpuConverter>(
+            let gpu_mesh =
+                asset::convert_asset_default_settings::<MeshGpuConverter>(ctx, cache, mesh)
+                    .unwrap_success();
+            let base_color_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
                 ctx,
                 cache,
                 base_color_texture,
-                &NoSettings,
             )
             .unwrap_success();
-            let normal_texture =
-                asset::convert_asset::<ImageGpuConverter>(ctx, cache, normal_texture, &NoSettings)
-                    .unwrap_success();
-            let metallic_roughness_texture = asset::convert_asset::<ImageGpuConverter>(
+            let normal_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
                 ctx,
                 cache,
-                metallic_roughness_texture,
-                &NoSettings,
+                normal_texture,
             )
             .unwrap_success();
-            let occlusion_texture = asset::convert_asset::<ImageGpuConverter>(
+            let metallic_roughness_texture = asset::convert_asset_default_settings::<
+                ImageGpuConverter,
+            >(ctx, cache, metallic_roughness_texture)
+            .unwrap_success();
+            let occlusion_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
                 ctx,
                 cache,
                 occlusion_texture,
-                &NoSettings,
             )
             .unwrap_success();
-            let emissive_texture = asset::convert_asset::<ImageGpuConverter>(
+            let emissive_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
                 ctx,
                 cache,
                 emissive_texture,
-                &NoSettings,
             )
             .unwrap_success();
 

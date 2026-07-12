@@ -106,11 +106,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
+        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
             ctx,
             cache,
             self.shader_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
@@ -130,7 +129,7 @@ impl TextureRenderer {
                 let gpu_mesh = self
                     .vertices
                     .clone()
-                    .convert::<MeshGpuConverter>(ctx, cache, &NoSettings)
+                    .convert_default_settings::<MeshGpuConverter>(ctx, cache)
                     .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
@@ -183,11 +182,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
+        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
             ctx,
             cache,
             self.shader_depth_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
@@ -211,7 +209,7 @@ impl TextureRenderer {
                 let gpu_mesh = self
                     .vertices
                     .clone()
-                    .convert::<MeshGpuConverter>(ctx, cache, &NoSettings)
+                    .convert_default_settings::<MeshGpuConverter>(ctx, cache)
                     .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);

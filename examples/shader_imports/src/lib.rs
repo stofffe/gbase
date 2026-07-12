@@ -159,25 +159,22 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
-        let mesh = asset::convert_asset::<MeshGpuConverter>(
+        let mesh = asset::convert_asset_default_settings::<MeshGpuConverter>(
             ctx,
             cache,
             self.mesh_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
+        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
             ctx,
             cache,
             self.shader_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
-        let texture = asset::convert_asset::<ImageGpuConverter>(
+        let texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
             ctx,
             cache,
             self.texture_handle.clone(),
-            &NoSettings,
         )
         .unwrap_success();
 

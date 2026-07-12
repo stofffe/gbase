@@ -116,20 +116,22 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let ConvertAssetResult::Success(shader) =
-            self.shader_handle
-                .convert::<ShaderGpuConverter>(ctx, cache, &NoSettings)
+        let ConvertAssetResult::Success(shader) = self
+            .shader_handle
+            .convert_default_settings::<ShaderGpuConverter>(ctx, cache)
         else {
             return;
         };
-        let ConvertAssetResult::Success(font_atlas) = self.font.convert::<FontAtlasConverter>(
-            ctx,
-            cache,
-            &FontAtlasConverterSettings {
-                supported_chars: &self.font_atlas_supported_chars,
-                font_raster_size: self.font_atlas_raster_size,
-            },
-        ) else {
+        let ConvertAssetResult::Success(font_atlas) =
+            self.font.convert_custom_settings::<FontAtlasConverter>(
+                ctx,
+                cache,
+                &FontAtlasConverterSettings {
+                    supported_chars: &self.font_atlas_supported_chars,
+                    font_raster_size: self.font_atlas_raster_size,
+                },
+            )
+        else {
             return;
         };
 
@@ -344,14 +346,16 @@ impl UIRenderer {
         // TODO: bad?
         let font = font.clone();
 
-        let ConvertAssetResult::Success(font_atlas) = self.font.convert::<FontAtlasConverter>(
-            ctx,
-            cache,
-            &FontAtlasConverterSettings {
-                supported_chars: &self.font_atlas_supported_chars,
-                font_raster_size: self.font_atlas_raster_size,
-            },
-        ) else {
+        let ConvertAssetResult::Success(font_atlas) =
+            self.font.convert_custom_settings::<FontAtlasConverter>(
+                ctx,
+                cache,
+                &FontAtlasConverterSettings {
+                    supported_chars: &self.font_atlas_supported_chars,
+                    font_raster_size: self.font_atlas_raster_size,
+                },
+            )
+        else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,

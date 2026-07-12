@@ -84,5 +84,5 @@ pub enum AssetError {
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NoSettings;

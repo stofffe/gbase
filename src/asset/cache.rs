@@ -524,18 +524,29 @@ impl<T: Asset + 'static> AssetHandle<T> {
     pub fn loaded(&self, cache: &AssetCache) -> bool {
         cache.handle_loaded(self.clone())
     }
+
     pub fn just_loaded(&self, cache: &AssetCache) -> bool {
         cache.handle_just_loaded(self.clone())
     }
+
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
         cache.get(self.clone())
     }
-    pub fn convert<G: AssetConverter<SourceAsset = T>>(
+
+    pub fn convert_custom_settings<G: AssetConverter<SourceAsset = T>>(
         &self,
         ctx: &mut Context,
         cache: &mut AssetCache,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
         cache.convert::<G>(ctx, self.clone(), settings)
+    }
+
+    pub fn convert_default_settings<G: AssetConverter<SourceAsset = T, Settings: Default>>(
+        &self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
+    ) -> ConvertAssetResult<G::TargetAsset> {
+        cache.convert::<G>(ctx, self.clone(), &G::Settings::default())
     }
 }
