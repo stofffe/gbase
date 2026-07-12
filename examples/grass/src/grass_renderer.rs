@@ -141,7 +141,6 @@ impl GrassRenderer {
             .build(ctx);
 
         let instance_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/grass_compute_instance.wgsl",
         )
         .watch(true)
@@ -169,7 +168,6 @@ impl GrassRenderer {
             .build(ctx);
 
         let draw_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/grass_compute_draw.wgsl",
         )
         .watch(true)

@@ -28,7 +28,6 @@ impl Tonemap {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
         let shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/tonemap.wgsl",
         )
         .watch(true)
@@ -164,7 +163,6 @@ impl Bloom {
             .bind_groups(vec![extract_bindgroup_layout.clone()])
             .build(ctx);
         let extract_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/bloom_extract.wgsl",
         )
         .watch(true)
@@ -190,7 +188,6 @@ impl Bloom {
             .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
         let downsample_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/bloom_downsample.wgsl",
         )
         .watch(true)
@@ -220,7 +217,6 @@ impl Bloom {
             .bind_groups(vec![upsample_bindgroup_layout.clone()])
             .build(ctx);
         let upsample_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/bloom_upsample.wgsl",
         )
         .watch(true)
@@ -266,7 +262,6 @@ impl Bloom {
             .bind_groups(vec![combine_bindgroup_layout.clone()])
             .build(ctx);
         let combine_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/bloom_combine.wgsl",
         )
         .watch(true)

@@ -1,4 +1,5 @@
 next up
+    [] investigate if asset cache can be put in ctx
     [] asset loaders fn without settings (default settings)
     [] asset deps
     [] cache path -> assethandle to reuse now that its immutable

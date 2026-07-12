@@ -32,7 +32,6 @@ impl CloudRenderer {
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
         let weather_map_texture = asset::AssetBuilder::load_custom_settings::<ImageLoader>(
-            cache,
             "assets/textures/clouds_weather_map.png",
             ImageLoaderSettings::new()
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
@@ -41,7 +40,6 @@ impl CloudRenderer {
         .watch(true)
         .build(ctx, cache);
         let blue_noise_texture = asset::AssetBuilder::load_custom_settings::<ImageLoader>(
-            cache,
             "assets/textures/blue_noise.png",
             ImageLoaderSettings::new()
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
@@ -60,7 +58,6 @@ impl CloudRenderer {
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
         let shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            cache,
             "assets/shaders/clouds.wgsl",
         )
         .watch(true)

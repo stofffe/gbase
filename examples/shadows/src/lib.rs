@@ -114,7 +114,6 @@ impl Callbacks for App {
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
         let helmet_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
-            cache,
             "assets/models/helmet_lod.glb",
             MeshLodLoaderSettings::new()
                 .with_node_name("mesh_damaged_helmet")
@@ -124,7 +123,6 @@ impl Callbacks for App {
         .build(ctx, cache);
 
         let ak47_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
-            cache,
             "assets/models/ak47.glb",
             MeshLodLoaderSettings::new()
                 .with_required_attr(pbr_renderer.required_attributes().clone()),

@@ -170,14 +170,14 @@ impl AssetCache {
         path: impl Into<PathBuf>,
         settings: T::Settings,
     ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load_custom_settings(self, path, settings)
+        asset::AssetBuilder::load_custom_settings(path, settings)
     }
 
     pub fn load_builder_default_settings<T: AssetLoader<Settings: Default>>(
         &mut self,
         path: impl Into<PathBuf>,
     ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load_default_settings(self, path)
+        asset::AssetBuilder::load_default_settings(path)
     }
 
     //

@@ -6,6 +6,7 @@ use crate::{
 };
 
 pub struct AssetBuilder {}
+
 impl AssetBuilder {
     pub fn insert<T: Asset>(value: T) -> InsertAssetBuilder<T> {
         InsertAssetBuilder::<T> {
@@ -15,7 +16,6 @@ impl AssetBuilder {
     }
 
     pub fn load_custom_settings<T: AssetLoader>(
-        cache: &AssetCache, // TODO: will this be needed later?
         path: impl Into<PathBuf>,
         settings: T::Settings,
     ) -> LoadAssetBuilder<T> {
@@ -30,7 +30,6 @@ impl AssetBuilder {
     }
 
     pub fn load_default_settings<T: AssetLoader<Settings: Default>>(
-        cache: &AssetCache, // TODO: will this be needed later?
         path: impl Into<PathBuf>,
     ) -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
@@ -84,8 +83,8 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn build(self, ctx: &Context, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
         let handle = self.handle.unwrap_or(cache.new_empty_handle());
 
+        #[cfg(not(target_arch = "wasm32"))]
         if self.watch {
-            #[cfg(not(target_arch = "wasm32"))]
             cache
                 .ext
                 .watch::<T>(&ctx.filesystem, handle.clone(), &self.path);
@@ -101,6 +100,11 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
 
     pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {
         self.handle = Some(handle);
+        self
+    }
+
+    pub fn settings(mut self, settings: T::Settings) -> Self {
+        self.settings = settings;
         self
     }
 
