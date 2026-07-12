@@ -37,7 +37,7 @@ impl UIRenderer {
         max_elements: u64,
     ) -> Self {
         let font = cache
-            .load_builder::<FontLoader>(
+            .load_builder_custom_settings::<FontLoader>(
                 font_path,
                 FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),
@@ -52,7 +52,7 @@ impl UIRenderer {
         //
 
         let shader_handle = cache
-            .load_builder::<ShaderLoader>("assets/shaders/ui.wgsl", NoSettings)
+            .load_builder_default_settings::<ShaderLoader>("assets/shaders/ui.wgsl")
             .watch(true)
             .build(ctx, cache);
 
@@ -243,7 +243,7 @@ impl UIRenderer {
         // clear handle to not use old data
         cache.clear_handle(self.font.clone());
         self.font = cache
-            .load_builder::<FontLoader>(
+            .load_builder_custom_settings::<FontLoader>(
                 font_path,
                 FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),

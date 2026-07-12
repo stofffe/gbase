@@ -140,10 +140,9 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        let instance_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
             cache,
             "assets/shaders/grass_compute_instance.wgsl",
-            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);
@@ -169,10 +168,9 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>(
+        let draw_shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
             cache,
             "assets/shaders/grass_compute_draw.wgsl",
-            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);
@@ -204,12 +202,12 @@ impl GrassRenderer {
             .build(ctx);
 
         let render_deferred_shader_handle = cache
-            .load_builder::<ShaderLoader>("assets/shaders/grass_deferred.wgsl", NoSettings)
+            .load_builder_default_settings::<ShaderLoader>("assets/shaders/grass_deferred.wgsl")
             .watch(true)
             .build(ctx, cache);
 
         let render_forward_shader_handle = cache
-            .load_builder::<ShaderLoader>("assets/shaders/grass.wgsl", NoSettings)
+            .load_builder_default_settings::<ShaderLoader>("assets/shaders/grass.wgsl")
             .watch(true)
             .build(ctx, cache);
 

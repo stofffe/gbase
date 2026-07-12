@@ -13,13 +13,28 @@ impl AssetBuilder {
             handle: None,
         }
     }
-    pub fn load<T: AssetLoader>(
+
+    pub fn load_custom_settings<T: AssetLoader>(
         cache: &AssetCache, // TODO: will this be needed later?
         path: impl Into<PathBuf>,
         settings: T::Settings,
     ) -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
             settings,
+            path: path.into(),
+
+            handle: None,
+            sync: false,
+            watch: false,
+        }
+    }
+
+    pub fn load_default_settings<T: AssetLoader<Settings: Default>>(
+        cache: &AssetCache, // TODO: will this be needed later?
+        path: impl Into<PathBuf>,
+    ) -> LoadAssetBuilder<T> {
+        LoadAssetBuilder::<T> {
+            settings: T::Settings::default(),
             path: path.into(),
 
             handle: None,

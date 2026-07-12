@@ -113,7 +113,7 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>(
+        let helmet_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
             cache,
             "assets/models/helmet_lod.glb",
             MeshLodLoaderSettings::new()
@@ -123,7 +123,7 @@ impl Callbacks for App {
         .watch(true)
         .build(ctx, cache);
 
-        let ak47_mesh = AssetBuilder::load::<MeshLodLoader>(
+        let ak47_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
             cache,
             "assets/models/ak47.glb",
             MeshLodLoaderSettings::new()

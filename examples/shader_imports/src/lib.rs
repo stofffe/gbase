@@ -113,17 +113,15 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle = asset::AssetBuilder::load::<ShaderExtendedLoader>(
+        let shader_handle = asset::AssetBuilder::load_default_settings::<ShaderExtendedLoader>(
             cache,
             "shaders/texture_import.wgsl",
-            NoSettings,
         )
         .watch(true)
         .build(ctx, cache);
-        let texture_handle = asset::AssetBuilder::load::<ImageLoader>(
+        let texture_handle = asset::AssetBuilder::load_default_settings::<ImageLoader>(
             cache,
             "textures/texture.jpeg",
-            ImageLoaderSettings::default(),
         )
         .watch(true)
         .build(ctx, cache);
