@@ -15,25 +15,8 @@ impl AssetBuilder {
         }
     }
 
-    pub fn load_custom_settings<T: AssetLoader>(
-        path: impl Into<PathBuf>,
-        settings: T::Settings,
-    ) -> LoadAssetBuilder<T> {
+    pub fn load<T: AssetLoader>(path: impl Into<PathBuf>) -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
-            settings,
-            path: path.into(),
-
-            handle: None,
-            sync: false,
-            watch: false,
-        }
-    }
-
-    pub fn load_default_settings<T: AssetLoader<Settings: Default>>(
-        path: impl Into<PathBuf>,
-    ) -> LoadAssetBuilder<T> {
-        LoadAssetBuilder::<T> {
-            settings: T::Settings::default(),
             path: path.into(),
 
             handle: None,
@@ -71,7 +54,6 @@ impl<T: Asset> InsertAssetBuilder<T> {
 //
 
 pub struct LoadAssetBuilder<T: AssetLoader> {
-    settings: T::Settings,
     path: PathBuf,
 
     handle: Option<AssetHandle<T::Asset>>,
@@ -80,7 +62,23 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
-    pub fn build(self, ctx: &Context, cache: &mut AssetCache) -> AssetHandle<T::Asset> {
+    pub fn build_default_settings(
+        self,
+        ctx: &Context,
+        cache: &mut AssetCache,
+    ) -> AssetHandle<T::Asset>
+    where
+        T::Settings: Default,
+    {
+        self.build_custom_settings(ctx, cache, T::Settings::default())
+    }
+
+    pub fn build_custom_settings(
+        self,
+        ctx: &Context,
+        cache: &mut AssetCache,
+        settings: T::Settings,
+    ) -> AssetHandle<T::Asset> {
         let handle = self.handle.unwrap_or(cache.new_empty_handle());
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -92,19 +90,14 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
 
         #[cfg(not(target_arch = "wasm32"))]
         if self.sync {
-            return cache.load_sync::<T>(handle, &self.path, self.settings);
+            return cache.load_sync::<T>(handle, &self.path, settings);
         }
 
-        cache.load::<T>(handle, &self.path, self.settings)
+        cache.load::<T>(handle, &self.path, settings)
     }
 
     pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {
         self.handle = Some(handle);
-        self
-    }
-
-    pub fn settings(mut self, settings: T::Settings) -> Self {
-        self.settings = settings;
         self
     }
 

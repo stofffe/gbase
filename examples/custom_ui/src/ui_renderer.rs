@@ -2,7 +2,7 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
+        AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
         ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult, NoSettings,
         ShaderGpuConverter, ShaderLoader,
     },
@@ -36,25 +36,22 @@ impl UIRenderer {
         font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
-        let font = cache
-            .load_builder_custom_settings::<FontLoader>(
-                font_path,
-                FontLoaderSettings {
-                    settings: fontdue::FontSettings::default(),
-                },
-            )
-            // TODO: dont actually want this but needed for manual reloading for now
-            // .watch(true)
-            .build(ctx, cache);
+        let font = AssetBuilder::load::<FontLoader>(font_path).build_custom_settings(
+            ctx,
+            cache,
+            FontLoaderSettings {
+                settings: fontdue::FontSettings::default(),
+            },
+        );
 
         //
         // gpu resources
         //
 
         let shader_handle = cache
-            .load_builder_default_settings::<ShaderLoader>("assets/shaders/ui.wgsl")
+            .load_builder::<ShaderLoader>("assets/shaders/ui.wgsl")
             .watch(true)
-            .build(ctx, cache);
+            .build_default_settings(ctx, cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -242,15 +239,15 @@ impl UIRenderer {
     ) {
         // clear handle to not use old data
         cache.clear_handle(self.font.clone());
-        self.font = cache
-            .load_builder_custom_settings::<FontLoader>(
-                font_path,
+        self.font = AssetBuilder::load::<FontLoader>(font_path)
+            .handle(self.font.clone())
+            .build_custom_settings(
+                ctx,
+                cache,
                 FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),
                 },
-            )
-            .handle(self.font.clone())
-            .build(ctx, cache);
+            );
     }
 }
 

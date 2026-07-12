@@ -165,19 +165,11 @@ impl AssetCache {
         asset::AssetBuilder::insert(value)
     }
 
-    pub fn load_builder_custom_settings<T: AssetLoader>(
-        &mut self,
-        path: impl Into<PathBuf>,
-        settings: T::Settings,
-    ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load_custom_settings(path, settings)
-    }
-
-    pub fn load_builder_default_settings<T: AssetLoader<Settings: Default>>(
+    pub fn load_builder<T: AssetLoader<Settings: Default>>(
         &mut self,
         path: impl Into<PathBuf>,
     ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load_default_settings(path)
+        asset::AssetBuilder::load(path)
     }
 
     //
@@ -209,7 +201,7 @@ impl AssetCache {
         }
     }
 
-    pub fn load<T: AssetLoader + Send + Sync + 'static>(
+    pub(crate) fn load<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,

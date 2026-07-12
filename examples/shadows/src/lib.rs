@@ -113,22 +113,24 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
-            "assets/models/helmet_lod.glb",
-            MeshLodLoaderSettings::new()
-                .with_node_name("mesh_damaged_helmet")
-                .with_required_attr(pbr_renderer.required_attributes().clone()),
-        )
-        .watch(true)
-        .build(ctx, cache);
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
+            .watch(true)
+            .build_custom_settings(
+                ctx,
+                cache,
+                MeshLodLoaderSettings::new()
+                    .with_node_name("mesh_damaged_helmet")
+                    .with_required_attr(pbr_renderer.required_attributes().clone()),
+            );
 
-        let ak47_mesh = AssetBuilder::load_custom_settings::<MeshLodLoader>(
-            "assets/models/ak47.glb",
-            MeshLodLoaderSettings::new()
-                .with_required_attr(pbr_renderer.required_attributes().clone()),
-        )
-        .watch(true)
-        .build(ctx, cache);
+        let ak47_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/ak47.glb")
+            .watch(true)
+            .build_custom_settings(
+                ctx,
+                cache,
+                MeshLodLoaderSettings::new()
+                    .with_required_attr(pbr_renderer.required_attributes().clone()),
+            );
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,

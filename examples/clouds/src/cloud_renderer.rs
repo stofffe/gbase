@@ -1,7 +1,7 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
-    ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter, NoSettings,
+    AssetBuilder, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
     ShaderGpuConverter, ShaderLoader,
 };
 use gbase::render::{Image, Mesh, SamplerBuilder, TextureBuilder};
@@ -31,22 +31,17 @@ impl CloudRenderer {
         cache: &mut gbase::asset::AssetCache,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map_texture = asset::AssetBuilder::load_custom_settings::<ImageLoader>(
-            "assets/textures/clouds_weather_map.png",
-            ImageLoaderSettings::new()
-                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
-                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
-        )
-        .watch(true)
-        .build(ctx, cache);
-        let blue_noise_texture = asset::AssetBuilder::load_custom_settings::<ImageLoader>(
-            "assets/textures/blue_noise.png",
-            ImageLoaderSettings::new()
-                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
-                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
-        )
-        .watch(true)
-        .build(ctx, cache);
+        let image_loader_options = ImageLoaderSettings::new()
+            .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
+            .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat));
+        let weather_map_texture =
+            AssetBuilder::load::<ImageLoader>("assets/textures/clouds_weather_map.png")
+                .watch(true)
+                .build_custom_settings(ctx, cache, image_loader_options.clone());
+        let blue_noise_texture =
+            asset::AssetBuilder::load::<ImageLoader>("assets/textures/blue_noise.png")
+                .watch(true)
+                .build_custom_settings(ctx, cache, image_loader_options);
 
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
@@ -57,11 +52,9 @@ impl CloudRenderer {
             ]));
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
-        let shader_handle = asset::AssetBuilder::load_default_settings::<ShaderLoader>(
-            "assets/shaders/clouds.wgsl",
-        )
-        .watch(true)
-        .build(ctx, cache);
+        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/clouds.wgsl")
+            .watch(true)
+            .build_default_settings(ctx, cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
