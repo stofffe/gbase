@@ -57,7 +57,6 @@ impl AssetCacheExt {
         handle: AssetHandle<T::Asset>,
         path: PathBuf,
         settings: T::Settings,
-        loader: AssetCacheLoad,
         load_ctx: LoadContext,
     ) where
         T: AssetLoader + 'static,
@@ -65,7 +64,7 @@ impl AssetCacheExt {
         let path_clone = path.clone();
         let handle_clone = handle.clone();
         let settings_clone = settings.clone();
-        let loader_clone = loader.clone();
+        let load_ctx_clone = load_ctx.clone();
 
         // store reload function async
         self.reload_functions
@@ -75,8 +74,13 @@ impl AssetCacheExt {
                     let path_clone = path_clone.clone();
                     let handle_clone = handle_clone.clone();
                     let settings_clone = settings_clone.clone();
-                    let loader_clone = loader_clone.clone();
-                    loader_clone.request_load::<T>(handle_clone, &path_clone, settings_clone);
+                    let load_ctx_clone = load_ctx_clone.clone();
+                    AssetCacheLoad::request_load::<T>(
+                        load_ctx_clone,
+                        handle_clone,
+                        &path_clone,
+                        settings_clone,
+                    );
                 })
             });
 

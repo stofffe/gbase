@@ -38,9 +38,17 @@ pub struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new(load_ctx: LoadContext) -> Self {
+    pub(crate) fn new(filesystem_ctx: filesystem::FileSystemContext) -> Self {
         let (request_sender, request_receiver) = async_channel::unbounded();
         let (response_sender, response_receiver) = async_channel::unbounded();
+
+        let asset_handle_ctx = AssetHandleContext::new();
+        let load_ctx = LoadContext::new(
+            asset_handle_ctx,
+            filesystem_ctx,
+            request_sender.clone(),
+            response_sender.clone(),
+        );
 
         Self {
             load_ctx,
@@ -54,19 +62,21 @@ impl AssetCacheLoad {
     }
 
     pub(crate) fn request_load<T: AssetLoader + 'static>(
-        &self,
+        load_ctx: LoadContext,
+
         handle: AssetHandle<T::Asset>,
         path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let load_ctx = self.load_ctx.clone();
+        let load_ctx_clone = load_ctx.clone();
         let path = path.to_path_buf();
-        let sender = self.response_sender.clone();
+        let sender = load_ctx.response_sender.clone();
         let dyn_handle = handle.as_any().clone();
 
-        self.request_sender
+        load_ctx
+            .request_sender
             .try_send(Box::pin(async move {
-                let data = T::load(load_ctx, &path, settings).await;
+                let data = T::load(load_ctx_clone.clone(), &path, settings).await;
 
                 match data {
                     Ok(asset) => {
@@ -152,26 +162,46 @@ impl AssetCacheLoad {
 pub struct LoadContext {
     pub(crate) asset_handle_ctx: AssetHandleContext,
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
+
+    pub(crate) request_sender: async_channel::Sender<LoadRequest>,
+    pub(crate) response_sender: async_channel::Sender<LoadResponse>,
 }
 
 impl LoadContext {
     pub fn new(
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
+
+        request_sender: async_channel::Sender<LoadRequest>,
+        response_sender: async_channel::Sender<LoadResponse>,
     ) -> Self {
         Self {
             asset_handle_ctx,
             filesystem_ctx,
+
+            request_sender,
+            response_sender,
         }
     }
 
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        // let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        // self.sender
-        //     .try_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
-        //     .expect("could not send asset handle");
-        // TODO:
-        todo!()
+        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        self.response_sender
+            .try_send(LoadResponse {
+                handle: handle.as_any(),
+                result: LoadAssetResult::Success(Box::new(value)),
+            })
+            .expect("could not send asset handle");
+        handle
+    }
+
+    pub fn request_load<T: AssetLoader + 'static>(
+        &self,
+        handle: AssetHandle<T::Asset>,
+        path: &Path,
+        settings: T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        AssetCacheLoad::request_load::<T>(self.clone(), handle, path, settings)
     }
 
     //

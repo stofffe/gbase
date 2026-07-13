@@ -47,6 +47,7 @@ pub struct AssetCache {
     cache: FxHashMap<DynAssetHandle, LoadAssetResult>,
 
     // derived cache
+    // TODO: create new AssetCacheDerived struct
     render_cache: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
     // TODO: maybe move to ext?
     render_cache_last_valid: FxHashMap<DerivedAssetKey, DynDerivedAsset>,
@@ -54,12 +55,8 @@ pub struct AssetCache {
 
     // async loading
     // TODO: maybe these should be derived from cache every frame? O(n)
+    // TODO: move to loader?
     just_loaded: FxHashSet<DynAssetHandle>,
-
-    // thread copyable state
-    // TODO: maybe dont store and instead create when function is called
-    load_ctx: LoadContext,
-    asset_handle_ctx: AssetHandleContext,
 
     loader: AssetCacheLoad,
 
@@ -70,23 +67,16 @@ pub struct AssetCache {
 
 impl AssetCache {
     pub fn new(ctx: &Context) -> Self {
-        let asset_handle_ctx = AssetHandleContext::new();
-        let load_ctx = LoadContext::new(asset_handle_ctx.clone(), ctx.filesystem.clone());
-
-        let loader = AssetCacheLoad::new(load_ctx.clone());
+        let loader = AssetCacheLoad::new(ctx.filesystem.clone());
         loader.start_background_loader();
 
         Self {
             cache: FxHashMap::default(),
+            just_loaded: FxHashSet::default(),
 
             render_cache: FxHashMap::default(),
             render_cache_last_valid: FxHashMap::default(),
             render_cache_invalidate_lookup: FxHashMap::default(),
-
-            just_loaded: FxHashSet::default(),
-
-            load_ctx,
-            asset_handle_ctx,
 
             loader,
 
@@ -100,15 +90,15 @@ impl AssetCache {
     }
 
     pub fn load_context(&self) -> &LoadContext {
-        &self.load_ctx
+        &self.loader.load_ctx
     }
 
     pub fn asset_handle_ctx(&self) -> &AssetHandleContext {
-        &self.asset_handle_ctx
+        &self.loader.load_ctx.asset_handle_ctx
     }
 
     pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
-        AssetHandle::new(&self.asset_handle_ctx)
+        AssetHandle::new(self.asset_handle_ctx())
     }
 
     //
@@ -116,7 +106,7 @@ impl AssetCache {
     //
 
     pub fn insert_new_handle<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        let handle = AssetHandle::<T>::new(self.asset_handle_ctx());
         self.insert_existing_handle(data, handle)
     }
 
@@ -172,8 +162,14 @@ impl AssetCache {
         self.cache.insert(handle.as_any(), LoadAssetResult::Loading);
 
         // request load
-        self.loader
-            .request_load::<T>(handle.clone(), path, settings.clone());
+        AssetCacheLoad::request_load::<T>(
+            self.loader.load_ctx.clone(),
+            handle.clone(),
+            path,
+            settings.clone(),
+        );
+        // self.loader
+        //     .request_load::<T>(handle.clone(), path, settings.clone());
 
         // register reload
         #[cfg(not(target_arch = "wasm32"))]
@@ -181,8 +177,7 @@ impl AssetCache {
             handle.clone(),
             path.to_path_buf(),
             settings.clone(),
-            self.loader.clone(),
-            self.load_ctx.clone(),
+            self.loader.load_ctx.clone(),
         );
 
         handle
@@ -198,7 +193,11 @@ impl AssetCache {
         let path = path.to_path_buf();
 
         // load sync
-        let data = pollster::block_on(T::load(self.load_ctx.clone(), &path, settings.clone()));
+        let data = pollster::block_on(T::load(
+            self.loader.load_ctx.clone(),
+            &path,
+            settings.clone(),
+        ));
         match data {
             Ok(asset) => {
                 self.cache
@@ -216,8 +215,7 @@ impl AssetCache {
             handle.clone(),
             path.to_path_buf(),
             settings.clone(),
-            self.loader.clone(),
-            self.load_ctx.clone(),
+            self.loader.load_ctx.clone(),
         );
 
         self.just_loaded.insert(handle.as_any());
