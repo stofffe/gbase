@@ -1,18 +1,21 @@
 use super::{Asset, AssetLoader, DynAsset, DynAssetHandle, DynDerivedAsset};
 use crate::{
     asset::{
-        self, AssetConverter, AssetHandle, ConvertAssetStatus, DerivedAsset, DerivedAssetKey,
-        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder,
+        self, AssetCacheLoad, AssetConverter, AssetHandle, AssetHandleContext, ConvertAssetStatus,
+        DerivedAsset, DerivedAssetKey, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder,
+        LoadContext,
     },
-    filesystem::{self},
     render::ArcHandle,
     Context,
 };
+use futures::{FutureExt, StreamExt};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
+    future::Future,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    pin::Pin,
+    sync::Arc,
 };
 
 pub enum LoadAssetResult {
@@ -56,18 +59,16 @@ pub struct AssetCache {
     // TODO: maybe these should be derived from cache every frame? O(n)
     just_loaded: FxHashSet<DynAssetHandle>,
 
-    load_sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
     load_receiver: async_channel::Receiver<(DynAssetHandle, LoadAssetResult)>,
-
-    // dependency tracking
-    dependencies: FxHashMap<DynAssetHandle, Vec<DynAssetHandle>>,
 
     // thread copyable state
     // TODO: maybe dont store and instead create when function is called
     load_ctx: LoadContext,
     asset_handle_ctx: AssetHandleContext,
 
-    // hot reload context
+    pub(crate) loader: AssetCacheLoad,
+
+    // asset reload context
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ext: asset::reload::AssetCacheExt,
 }
@@ -83,6 +84,9 @@ impl AssetCache {
             ctx.filesystem.clone(),
         );
 
+        let loader = AssetCacheLoad::new(load_ctx.clone());
+        loader.start_background_loader();
+
         Self {
             cache: FxHashMap::default(),
 
@@ -91,13 +95,12 @@ impl AssetCache {
             render_cache_invalidate_lookup: FxHashMap::default(),
 
             just_loaded: FxHashSet::default(),
-            load_sender,
             load_receiver,
 
             load_ctx,
             asset_handle_ctx,
 
-            dependencies: FxHashMap::default(),
+            loader,
 
             #[cfg(not(target_arch = "wasm32"))]
             ext: asset::AssetCacheExt::new(),
@@ -175,78 +178,64 @@ impl AssetCache {
     //
     // Reloading
     //
+    // async fn spawn_load_fn<T: AssetLoader>(
+    //     load_ctx: LoadContext,
+    //     handle: AssetHandle<T::Asset>,
+    //     path: PathBuf,
+    //     settings: T::Settings,
+    // ) {
+    //     let loaded_sender = load_ctx.sender.clone();
+    //     let data = T::load(load_ctx, &path, settings).await;
+    //
+    //     match data {
+    //         Ok(asset) => loaded_sender
+    //             .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
+    //             .await
+    //             .expect("could not send"),
+    //         Err(err) => {
+    //             // TODO: doesnt include asset base
+    //             tracing::error!("error loading asset {:?}: {}", path, err);
+    //             loaded_sender
+    //                 .send((handle.as_any(), LoadAssetResult::Error))
+    //                 .await
+    //                 .expect("could not send");
+    //         }
+    //     }
+    // }
+    //
 
-    async fn spawn_load_fn<T: AssetLoader>(
-        load_ctx: LoadContext,
-        handle: AssetHandle<T::Asset>,
-        path: PathBuf,
-        settings: T::Settings,
-    ) {
-        let loaded_sender = load_ctx.sender.clone();
-        let data = T::load(load_ctx, &path, settings).await;
-
-        match data {
-            Ok(asset) => loaded_sender
-                .send((handle.as_any(), LoadAssetResult::Success(Box::new(asset))))
-                .await
-                .expect("could not send"),
-            Err(err) => {
-                // TODO: doesnt include asset base
-                tracing::error!("error loading asset {:?}: {}", path, err);
-                loaded_sender
-                    .send((handle.as_any(), LoadAssetResult::Error))
-                    .await
-                    .expect("could not send");
-            }
-        }
-    }
-
-    pub(crate) fn load<T: AssetLoader + Send + Sync + 'static>(
+    pub(crate) fn load<T: AssetLoader + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let path = path.to_path_buf();
-
         self.cache.insert(handle.as_any(), LoadAssetResult::Loading);
 
-        // TODO: are all of these needed?
-        let path_clone = path.clone();
-        let handle_clone = handle.clone();
-        let load_ctx = self.load_ctx.clone();
+        self.loader
+            .request_load::<T>(handle.clone(), path, settings);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        self.ext.register_load::<T, _, _>(
-            self.load_ctx.clone(),
-            handle.clone(),
-            path.clone(),
-            settings.clone(),
-            Self::spawn_load_fn::<T>,
-        );
-
-        // load async
-        #[cfg(not(target_arch = "wasm32"))]
-        std::thread::spawn(move || {
-            pollster::block_on(Self::spawn_load_fn::<T>(
-                load_ctx,
-                handle_clone,
-                path_clone,
-                settings,
-            ))
-        });
-
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(Self::spawn_load_fn::<T>(
-            load_ctx,
-            handle_clone,
-            path_clone,
-            settings,
-        ));
+        // let path = path.to_path_buf();
+        //
+        // self.cache.insert(handle.as_any(), LoadAssetResult::Loading);
+        //
+        // // TODO: are all of these needed?
+        // let path_clone = path.clone();
+        // let handle_clone = handle.clone();
+        // let load_ctx = self.load_ctx.clone();
+        //
+        // #[cfg(not(target_arch = "wasm32"))]
+        // self.ext.register_load::<T, _, _>(
+        //     self.load_ctx.clone(),
+        //     handle.clone(),
+        //     path.clone(),
+        //     settings.clone(),
+        //     Self::spawn_load_fn::<T>,
+        // );
 
         handle
     }
-
+    //
     #[cfg(not(target_arch = "wasm32"))]
     pub fn load_sync<T: AssetLoader + Send + Sync + 'static>(
         &mut self,
@@ -254,33 +243,35 @@ impl AssetCache {
         path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let path = path.to_path_buf();
-
-        // load sync
-        let data = pollster::block_on(T::load(self.load_ctx.clone(), &path, settings.clone()));
-        match data {
-            Ok(asset) => {
-                self.cache
-                    .insert(handle.as_any(), LoadAssetResult::Success(Box::new(asset)));
-            }
-            Err(err) => {
-                tracing::error!("error loading asset {:?}: {}", path, err);
-                self.cache.insert(handle.as_any(), LoadAssetResult::Error);
-            }
-        }
-
-        // TODO:
-        self.ext.register_load::<T, _, _>(
-            self.load_ctx.clone(),
-            handle.clone(),
-            path,
-            settings,
-            Self::spawn_load_fn::<T>,
-        );
-
-        self.just_loaded.insert(handle.as_any());
-
-        handle
+        todo!()
+        // let path = path.to_path_buf();
+        //
+        //
+        // // load sync
+        // let data = pollster::block_on(T::load(self.load_ctx.clone(), &path, settings.clone()));
+        // match data {
+        //     Ok(asset) => {
+        //         self.cache
+        //             .insert(handle.as_any(), LoadAssetResult::Success(Box::new(asset)));
+        //     }
+        //     Err(err) => {
+        //         tracing::error!("error loading asset {:?}: {}", path, err);
+        //         self.cache.insert(handle.as_any(), LoadAssetResult::Error);
+        //     }
+        // }
+        //
+        // // TODO:
+        // self.ext.register_load::<T, _, _>(
+        //     self.load_ctx.clone(),
+        //     handle.clone(),
+        //     path,
+        //     settings,
+        //     Self::spawn_load_fn::<T>,
+        // );
+        //
+        // self.just_loaded.insert(handle.as_any());
+        //
+        // handle
     }
 
     //
@@ -363,21 +354,18 @@ impl AssetCache {
 
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(&mut self) {
-        while let Ok((handle, asset)) = self.load_receiver.try_recv() {
-            if let LoadAssetResult::Success(_) = &asset {
-                self.just_loaded.insert(handle.clone());
+        while let Ok(response) = self.loader.response_receiver.try_recv() {
+            if let LoadAssetResult::Success(_) = response.result {
+                self.just_loaded.insert(response.handle.clone());
             }
 
-            // insert in cache
-            self.cache.insert(handle.clone(), asset);
-
-            // TODO: can i just place this success and remove caching kinda?
+            self.cache.insert(response.handle.clone(), response.result);
 
             // invalidate render cache
             invalidate_render_cache(
                 &mut self.render_cache,
                 &self.render_cache_invalidate_lookup,
-                handle.clone(),
+                response.handle.clone(),
             );
         }
     }
@@ -446,76 +434,6 @@ pub fn invalidate_render_cache(
         for render_type in render_types {
             render_cache.remove(&(handle.clone(), *render_type));
         }
-    }
-}
-
-//
-// Load context
-//
-
-#[derive(Debug, Clone)]
-pub struct LoadContext {
-    pub(crate) sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
-    pub(crate) asset_handle_ctx: AssetHandleContext,
-    pub(crate) filesystem_ctx: filesystem::FileSystemContext,
-}
-
-impl LoadContext {
-    pub fn new(
-        sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
-        asset_handle_ctx: AssetHandleContext,
-        filesystem_ctx: filesystem::FileSystemContext,
-    ) -> Self {
-        Self {
-            sender,
-            asset_handle_ctx,
-            filesystem_ctx,
-        }
-    }
-
-    pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.sender
-            .try_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
-            .expect("could not send asset handle");
-        handle
-    }
-
-    //
-    // Re-export filesytem loading functions
-    //
-
-    pub async fn load_bytes(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<Vec<u8>, filesystem::LoadFileError> {
-        self.filesystem_ctx.load_asset_bytes(path).await
-    }
-    pub async fn load_string(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<String, filesystem::LoadFileError> {
-        self.filesystem_ctx.load_asset_string(path).await
-    }
-}
-
-// TODO: maybe move this to load context
-#[derive(Debug, Clone)]
-pub struct AssetHandleContext {
-    id: Arc<Mutex<u64>>,
-}
-
-impl AssetHandleContext {
-    fn new() -> Self {
-        Self {
-            id: Arc::new(Mutex::new(0)),
-        }
-    }
-    pub fn next_id(&self) -> u64 {
-        let mut id_guard = self.id.lock().expect("could not unlock asset id lock");
-        let id = *id_guard;
-        *id_guard += 1;
-        id
     }
 }
 

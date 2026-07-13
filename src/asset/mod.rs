@@ -2,6 +2,7 @@ mod builders;
 mod cache;
 mod handle;
 mod implementations;
+mod load;
 mod types;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -11,6 +12,7 @@ pub use builders::*;
 pub use cache::*;
 pub use handle::*;
 pub use implementations::*;
+pub use load::*;
 pub use types::*;
 
 #[cfg(not(target_arch = "wasm32"))]

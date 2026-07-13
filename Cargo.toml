@@ -12,6 +12,7 @@ encase = { version = "0.6.1", features = ["glam"] }
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 image = "0.25.6"
 async-channel = "2.5.0"
+futures = "0.3.32"
 rustc-hash = "2.1.1"
 
 # tracing
