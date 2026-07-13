@@ -1,11 +1,11 @@
 use crate::asset::{
-    invalidate_render_cache, AssetLoader, DerivedAssetKey, DynAssetHandle, DynAssetLoadFn,
-    DynAssetLoadFnSync, DynDerivedAsset, LoadAssetResult, LoadContext,
+    invalidate_render_cache_for_handle, AssetCacheLoad, AssetLoader, DerivedAssetKey,
+    DynAssetHandle, DynAssetLoadFn, DynAssetLoadFnSync, DynDerivedAsset, LoadAssetResult,
+    LoadContext,
 };
 use crate::{asset::AssetHandle, filesystem::FileSystemContext};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::TypeId;
-use std::future::Future;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -18,7 +18,6 @@ pub struct AssetCacheExt {
     reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFnSync>,
 
     // channel for requesting reloads
-    reload_sender: async_channel::Sender<PathBuf>,
     reload_receiver: async_channel::Receiver<PathBuf>,
 
     // keep watcher handle alive
@@ -45,7 +44,6 @@ impl AssetCacheExt {
 
         Self {
             reload_watcher,
-            reload_sender,
             reload_receiver,
 
             reload_handles: FxHashMap::default(),
@@ -54,56 +52,31 @@ impl AssetCacheExt {
         }
     }
 
-    pub fn register_load<T, F, R>(
+    pub fn register_reloadable<T>(
         &mut self,
-        load_ctx: LoadContext,
         handle: AssetHandle<T::Asset>,
         path: PathBuf,
         settings: T::Settings,
-
-        spawn_load_fn: F,
+        loader: AssetCacheLoad,
+        load_ctx: LoadContext,
     ) where
         T: AssetLoader + 'static,
-        F: Fn(LoadContext, AssetHandle<T::Asset>, PathBuf, T::Settings) -> R
-            + Send
-            + Sync
-            + 'static
-            + Clone,
-        R: Future<Output = ()>,
     {
         let path_clone = path.clone();
         let handle_clone = handle.clone();
-        let load_ctx_clone = load_ctx.clone();
         let settings_clone = settings.clone();
+        let loader_clone = loader.clone();
 
-        // NOTE:
-        // this currently captures load_ctx, path and settings
-        // load_ctx and path can be used as paramters if they are stored
-        // and loaded from handles hash maps
-        // settings wont know about the type so it must be captured
-        // storing it as dyn Any and downcasting might work, currently I
-        // dont see the benefit it gives so ill keep it like this for now
-        //
-        // store reload functions async
+        // store reload function async
         self.reload_functions
             .entry(handle.as_any())
-            .or_insert_with(|| {
+            .or_insert_with(move || {
                 Box::new(move || {
                     let path_clone = path_clone.clone();
                     let handle_clone = handle_clone.clone();
-                    let load_ctx_clone = load_ctx_clone.clone();
                     let settings_clone = settings_clone.clone();
-                    let spawn_load_fn_clone = spawn_load_fn.clone();
-
-                    // load async
-                    std::thread::spawn(move || {
-                        pollster::block_on(spawn_load_fn_clone(
-                            load_ctx_clone,
-                            handle_clone,
-                            path_clone,
-                            settings_clone,
-                        ))
-                    });
+                    let loader_clone = loader_clone.clone();
+                    loader_clone.request_load::<T>(handle_clone, &path_clone, settings_clone);
                 })
             });
 
@@ -133,7 +106,7 @@ impl AssetCacheExt {
     }
 
     /// Register asset for being watched for hot reloads
-    pub fn watch<T: AssetLoader + 'static>(
+    pub fn watch_asset<T: AssetLoader + 'static>(
         &mut self,
         filesystem_ctx: &FileSystemContext,
         handle: AssetHandle<T::Asset>,
@@ -170,12 +143,12 @@ impl AssetCacheExt {
 
     /// Queue a reload just like file watcher would
     pub fn reload(&mut self, handle: DynAssetHandle) {
-        let Some(loader_fn_sync) = self.reload_functions.get(&handle.as_any()) else {
+        let Some(reload_fn) = self.reload_functions.get(&handle.as_any()) else {
             tracing::warn!("could not get asset handle {}", handle.id());
             return;
         };
 
-        loader_fn_sync();
+        reload_fn();
     }
 
     /// Immediately call the reload function sync
@@ -186,14 +159,15 @@ impl AssetCacheExt {
         render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
         handle: DynAssetHandle,
     ) {
-        let Some(loader_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
+        let Some(reload_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
             tracing::warn!("could not get asset handle {}", handle.id());
             return;
         };
 
-        let asset = loader_fn_sync();
+        let asset = reload_fn_sync();
 
         cache.insert(handle.clone(), asset);
-        invalidate_render_cache(render_cache, render_cache_invalidate_lookup, handle);
+
+        invalidate_render_cache_for_handle(render_cache, render_cache_invalidate_lookup, handle);
     }
 }

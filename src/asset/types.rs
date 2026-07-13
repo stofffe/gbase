@@ -12,7 +12,7 @@ use std::{
 // Types
 //
 
-pub type DynAsset = Box<dyn Asset + Send>;
+pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynAssetLoadFn = Box<dyn Fn()>;
 pub type DynAssetLoadFnSync = Box<dyn Fn() -> LoadAssetResult>;
@@ -29,10 +29,13 @@ pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe ren
 pub trait AssetSettings: Send + Sync + Clone {}
 impl<T: Send + Sync + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
+pub trait AssetError: error::Error + Send {}
+impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
+
 pub trait AssetLoader: Send + Sync {
-    type Asset: Asset + Send;
-    type Settings: AssetSettings + Send;
-    type Error: error::Error + Send;
+    type Asset: Asset;
+    type Settings: AssetSettings;
+    type Error: AssetError;
 
     #[cfg(not(target_arch = "wasm32"))]
     fn load(
@@ -81,12 +84,6 @@ pub trait AssetWriter: AssetLoader {
 //
 // Other
 //
-
-#[derive(thiserror::Error, Debug)]
-pub enum AssetError {
-    #[error("asset path not found")]
-    PathNotFound,
-}
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}

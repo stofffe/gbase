@@ -10,6 +10,7 @@ next up
     [] fix hot reload looping if fps is low
     [] (asset + builder caching)?
     [] finish ui
+    [] go over pub and pub(crate)
     [x] move derived asset validation to ext
     [x] manual reloading requires watch, not good
     [x] remove run being async

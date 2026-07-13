@@ -4,7 +4,7 @@ use crate::{
     asset::{Asset, AssetHandle, AssetLoader, DynAssetHandle, LoadAssetResult},
     filesystem,
 };
-#[cfg(not(target_arch = "wasm32"))]
+
 use std::{future::Future, pin::Pin};
 use std::{
     path::Path,
@@ -26,6 +26,7 @@ pub struct LoadResponse {
     pub(crate) result: LoadAssetResult,
 }
 
+#[derive(Clone)]
 pub struct AssetCacheLoad {
     pub(crate) load_ctx: LoadContext,
 
@@ -37,7 +38,7 @@ pub struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub fn new(load_ctx: LoadContext) -> Self {
+    pub(crate) fn new(load_ctx: LoadContext) -> Self {
         let (request_sender, request_receiver) = async_channel::unbounded();
         let (response_sender, response_receiver) = async_channel::unbounded();
 
@@ -53,7 +54,7 @@ impl AssetCacheLoad {
     }
 
     pub(crate) fn request_load<T: AssetLoader + 'static>(
-        &mut self,
+        &self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
         settings: T::Settings,
@@ -103,9 +104,9 @@ impl AssetCacheLoad {
     pub fn start_background_loader(&self) {
         let request_receiver_copy = self.request_receiver.clone();
 
-        // TODO: handle wasm
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
+            // TODO: should probably use better executor
             pollster::block_on(Self::background_loader(request_receiver_copy));
         });
 
@@ -113,7 +114,10 @@ impl AssetCacheLoad {
         wasm_bindgen_futures::spawn_local(Self::background_loader(request_receiver_copy));
     }
 
-    pub async fn background_loader(requests: async_channel::Receiver<LoadRequest>) {
+    /// Implementation of background loader
+    ///
+    /// Should be started using `start_background_loader`
+    async fn background_loader(requests: async_channel::Receiver<LoadRequest>) {
         let mut running = futures::stream::FuturesUnordered::new();
 
         loop {
@@ -146,30 +150,28 @@ impl AssetCacheLoad {
 
 #[derive(Debug, Clone)]
 pub struct LoadContext {
-    pub(crate) sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
     pub(crate) asset_handle_ctx: AssetHandleContext,
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
 }
 
 impl LoadContext {
     pub fn new(
-        sender: async_channel::Sender<(DynAssetHandle, LoadAssetResult)>,
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
     ) -> Self {
         Self {
-            sender,
             asset_handle_ctx,
             filesystem_ctx,
         }
     }
 
     pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.sender
-            .try_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
-            .expect("could not send asset handle");
-        handle
+        // let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        // self.sender
+        //     .try_send((handle.as_any(), LoadAssetResult::Success(Box::new(value))))
+        //     .expect("could not send asset handle");
+        // TODO:
+        todo!()
     }
 
     //

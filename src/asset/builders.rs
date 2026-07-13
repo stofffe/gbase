@@ -85,7 +85,7 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
         if self.watch {
             cache
                 .ext
-                .watch::<T>(&ctx.filesystem, handle.clone(), &self.path);
+                .watch_asset::<T>(&ctx.filesystem, handle.clone(), &self.path);
         }
 
         #[cfg(not(target_arch = "wasm32"))]
