@@ -1,8 +1,4 @@
 import "texture_helper"
-// import shaders::texture_helper::RED;
-// import super::random::rand::BLUE;
-// import random::noise::perlin::value_noise;
-// import package::random::rand::BLUE;
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -32,7 +28,7 @@ struct VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if true {
-        return RED;
+        return custom_color();
     }
     return textureSample(tex, samp, in.uv);
 }

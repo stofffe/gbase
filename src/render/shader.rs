@@ -54,7 +54,7 @@ impl ShaderBuilder {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn build_err_non_arc(
+    pub fn build_err_non_arc(
         &self,
         ctx: &Context,
         source: String,
@@ -71,7 +71,7 @@ impl ShaderBuilder {
         })
     }
 
-    pub(crate) fn build_non_arc(&self, ctx: &Context, source: String) -> wgpu::ShaderModule {
+    pub fn build_non_arc(&self, ctx: &Context, source: String) -> wgpu::ShaderModule {
         let device = render::device(ctx);
         let mut shader_code = String::with_capacity(source.len());
 

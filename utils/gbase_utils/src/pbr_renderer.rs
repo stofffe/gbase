@@ -1,18 +1,12 @@
 use crate::{
-    BoundingBoxWrapper, BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
+    BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
     LodMeshToBoundingBoxConverter, Material, MeshLod, PixelCache, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{
-        self, AssetHandle, BoundingBoxConverter, ImageGpuConverter, MeshGpuConverter, NoSettings,
-        ShaderGpuConverter,
-    },
-    egui_wgpu::WgpuError::NoSurfaceFormatsAvailable,
+    asset::{self, AssetHandle, ImageGpuConverter, MeshGpuConverter, ShaderGpuConverter},
     glam::{Mat4, Vec3},
-    render::{
-        self, BindGroupBindable, GpuImage, GpuMesh, Image, Mesh, RawBuffer, Shader, ShaderBuilder,
-    },
+    render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;

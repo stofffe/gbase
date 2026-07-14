@@ -1,14 +1,15 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
+        DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter, ImageLoader, MeshGpuConverter,
         NoSettings, ShaderGpuConverter,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
+    tracing,
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
-use std::collections::{HashSet, VecDeque};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub fn run() {
@@ -16,10 +17,18 @@ pub fn run() {
 }
 
 #[derive(Debug, Clone)]
-pub struct ShaderExtendedLoader {}
+pub struct ShaderWithImports {
+    source: String,
+    imports: Vec<AssetHandle<ShaderWithImports>>,
+}
 
-impl asset::AssetLoader for ShaderExtendedLoader {
-    type Asset = render::Shader;
+impl Asset for ShaderWithImports {}
+
+#[derive(Debug, Clone)]
+pub struct ShaderWithImportsLoader {}
+
+impl asset::AssetLoader for ShaderWithImportsLoader {
+    type Asset = ShaderWithImports;
     type Settings = NoSettings;
     type Error = filesystem::LoadFileError;
 
@@ -28,54 +37,124 @@ impl asset::AssetLoader for ShaderExtendedLoader {
         path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        // pseduo code
-        // load file content of path (for this asset)
-        // for each import
-        //  load new asset
-        //  add new asset to dependencies (load ctx?)
-        //
-        // wait for dependencies? async? (need wait for single asset load?)
-        // combine str
+        let mut source = String::new();
+        let mut imports = Vec::new();
 
-        let mut imported_paths = HashSet::new();
-        let mut import_path_stack = VecDeque::new();
+        let source_code = load_ctx.load_string(&path).await?;
 
-        let normalized_path = filesystem::normalize_path(path);
-        import_path_stack.push_front(normalized_path);
+        for line in source_code.lines() {
+            if let Some(rest) = line.trim().strip_prefix("import \"") {
+                if let Some(import_relative_path) = rest.strip_suffix('"') {
+                    let parent_folder = path.parent().expect("could not get parent");
+                    let full_path = parent_folder
+                        .join(import_relative_path)
+                        .with_extension("wgsl");
+                    let normalized_full_path = filesystem::normalize_path(full_path);
 
-        let mut output = String::new();
-        while let Some(path) = import_path_stack.pop_front() {
-            // only include once
-            if imported_paths.contains(&path) {
-                continue;
-            } else {
-                imported_paths.insert(path.clone());
+                    let import = load_ctx.request_load::<ShaderWithImportsLoader>(
+                        &normalized_full_path,
+                        settings.clone(),
+                    );
+
+                    imports.push(import);
+
+                    continue;
+                }
             }
 
-            let source_code = load_ctx.load_string(&path).await?;
+            source.push_str(line);
+            source.push('\n');
+        }
 
-            // resolve imports
-            for line in source_code.lines() {
-                if let Some(rest) = line.trim().strip_prefix("import \"") {
-                    if let Some(import_relative_path) = rest.strip_suffix('"') {
-                        let parent_folder = path.parent().expect("could not get parent");
-                        let full_path = parent_folder
-                            .join(import_relative_path)
-                            .with_extension("wgsl");
-                        let normalized_full_path = filesystem::normalize_path(full_path);
-                        import_path_stack.push_front(normalized_full_path);
-                        continue;
-                    }
+        tracing::info!("LOADED ASSET SOURCE\n {}", source);
+        tracing::info!("LOADED ASSET IMPORTS\n {:?}", imports);
+
+        Ok(ShaderWithImports { source, imports })
+    }
+}
+
+#[derive(Clone)]
+struct ShaderWithImportsFinal {
+    source: String,
+}
+
+impl DerivedAsset for ShaderWithImportsFinal {}
+
+struct ShaderWithImportsConverter {}
+
+impl AssetConverter for ShaderWithImportsConverter {
+    type SourceAsset = ShaderWithImports;
+    type TargetAsset = ShaderWithImportsFinal;
+    type Settings = NoSettings;
+    type Error = EmptyError;
+
+    fn convert(
+        ctx: &mut Context,
+        cache: &mut asset::AssetCache,
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        settings: &Self::Settings,
+    ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
+        let source = match source.get(cache) {
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Success(source) => source,
+        }
+        .clone();
+
+        let mut import_sources = Vec::new();
+        for import in source.imports.iter() {
+            let conversion_result =
+                import.convert_custom_settings::<ShaderWithImportsConverter>(ctx, cache, settings);
+            match conversion_result {
+                asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+                // TODO: add source failed?
+                asset::ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
+                asset::ConvertAssetResult::Success(result) => {
+                    import_sources.push(result.source.clone())
                 }
-
-                output.push_str(line);
-                output.push('\n');
             }
         }
 
-        // TODO: add defines
+        let mut resoved_source = String::new();
+        for import in import_sources {
+            // TODO: maybe insert on line it was included?
+            resoved_source.push_str(&import);
+        }
+        resoved_source.push_str(&source.source);
 
-        Ok(render::Shader::new(output))
+        tracing::info!("CONVERTED ASSET {}", resoved_source);
+
+        ConvertAssetStatus::Success(ShaderWithImportsFinal {
+            source: resoved_source,
+        })
+    }
+}
+
+struct ShaderWithImportGpuConverter;
+
+impl AssetConverter for ShaderWithImportGpuConverter {
+    type SourceAsset = ShaderWithImports;
+    type TargetAsset = wgpu::ShaderModule;
+    type Settings = NoSettings;
+    type Error = EmptyError;
+
+    fn convert(
+        ctx: &mut Context,
+        cache: &mut asset::AssetCache,
+        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
+        settings: &Self::Settings,
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
+        let result = cache.convert::<ShaderWithImportsConverter>(ctx, source.clone(), settings);
+
+        let shader = match result {
+            asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            asset::ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
+            asset::ConvertAssetResult::Success(arc_handle) => arc_handle,
+        };
+
+        let shader = render::ShaderBuilder::new().build_non_arc(ctx, shader.source.clone());
+
+        ConvertAssetStatus::Success(shader)
     }
 }
 
@@ -84,7 +163,7 @@ struct App {
     bindgroup_layout: render::ArcBindGroupLayout,
 
     texture_handle: AssetHandle<Image>,
-    shader_handle: AssetHandle<render::Shader>,
+    shader_handle: AssetHandle<ShaderWithImports>,
     mesh_handle: AssetHandle<render::Mesh>,
 }
 
@@ -114,7 +193,7 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
         let shader_handle =
-            asset::AssetBuilder::load::<ShaderExtendedLoader>("shaders/texture_import.wgsl")
+            asset::AssetBuilder::load::<ShaderWithImportsLoader>("shaders/texture_import.wgsl")
                 .watch(true)
                 .build_default_settings(ctx, cache);
         let texture_handle = asset::AssetBuilder::load::<ImageLoader>("textures/texture.jpeg")
@@ -146,30 +225,25 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        if !asset::handle_loaded(cache, self.mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.shader_handle.clone())
-            || !asset::handle_loaded(cache, self.texture_handle.clone())
-        {
+        let ConvertAssetResult::Success(mesh) = asset::convert_asset_default_settings::<
+            MeshGpuConverter,
+        >(ctx, cache, self.mesh_handle.clone()) else {
             return CallbackResult::Continue;
-        }
-        let mesh = asset::convert_asset_default_settings::<MeshGpuConverter>(
-            ctx,
-            cache,
-            self.mesh_handle.clone(),
-        )
-        .unwrap_success();
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
-            ctx,
-            cache,
-            self.shader_handle.clone(),
-        )
-        .unwrap_success();
-        let texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
-            ctx,
-            cache,
-            self.texture_handle.clone(),
-        )
-        .unwrap_success();
+        };
+
+        let ConvertAssetResult::Success(shader) = asset::convert_asset_default_settings::<
+            ShaderWithImportGpuConverter,
+        >(ctx, cache, self.shader_handle.clone()) else {
+            return CallbackResult::Continue;
+        };
+
+        let ConvertAssetResult::Success(texture) = asset::convert_asset_default_settings::<
+            ImageGpuConverter,
+        >(
+            ctx, cache, self.texture_handle.clone()
+        ) else {
+            return CallbackResult::Continue;
+        };
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![

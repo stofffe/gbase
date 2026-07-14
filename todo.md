@@ -1,4 +1,8 @@
 next up
+    [] asset loaded must track deps
+    [] reload on sub assets changed
+        [] implement traversable dependency graph
+    [] when loading sub dependecy its not inserted into the currently loading
     [] investigate if asset cache can be put in ctx
     [] asset loaders fn without settings (default settings)
     [] asset deps
@@ -11,6 +15,7 @@ next up
     [] (asset + builder caching)?
     [] finish ui
     [] go over pub and pub(crate)
+    [] have default clear color if no render commands are sent (stop pink flashing)
     [x] move derived asset validation to ext
     [x] manual reloading requires watch, not good
     [x] remove run being async

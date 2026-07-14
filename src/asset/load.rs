@@ -73,6 +73,16 @@ impl AssetCacheLoad {
         let sender = load_ctx.response_sender.clone();
         let dyn_handle = handle.as_any().clone();
 
+        // TODO: is this correct?
+        // set currently loading
+        sender
+            .try_send(LoadResponse {
+                handle: dyn_handle.clone(),
+                result: LoadAssetResult::Loading,
+            })
+            .expect("could not send load success response");
+
+        // request load
         load_ctx
             .request_sender
             .try_send(Box::pin(async move {
@@ -195,12 +205,13 @@ impl LoadContext {
         handle
     }
 
+    /// Request load with new handle
     pub fn request_load<T: AssetLoader + 'static>(
         &self,
-        handle: AssetHandle<T::Asset>,
         path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
+        let handle = AssetHandle::new(&self.asset_handle_ctx);
         AssetCacheLoad::request_load::<T>(self.clone(), handle, path, settings)
     }
 
