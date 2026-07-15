@@ -1,7 +1,11 @@
 use futures::{FutureExt, StreamExt};
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::{
-    asset::{Asset, AssetHandle, AssetLoader, DynAssetHandle, LoadAssetResult},
+    asset::{
+        convert::AssetCacheDerived, Asset, AssetHandle, AssetHandleContext, AssetLoader, DynAsset,
+        DynAssetHandle,
+    },
     filesystem,
 };
 
@@ -10,6 +14,12 @@ use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
+
+pub enum LoadAssetResult {
+    Loading,
+    Success(DynAsset),
+    Error,
+}
 
 //
 // Load
@@ -26,7 +36,6 @@ pub struct LoadResponse {
     pub(crate) result: LoadAssetResult,
 }
 
-#[derive(Clone)]
 pub struct AssetCacheLoad {
     pub(crate) load_ctx: LoadContext,
 
@@ -35,14 +44,23 @@ pub struct AssetCacheLoad {
 
     pub(crate) response_sender: async_channel::Sender<LoadResponse>,
     pub(crate) response_receiver: async_channel::Receiver<LoadResponse>,
+
+    // TODO: maybe these should be derived from cache every frame? O(n)
+    // TODO: should failed loads be put here?
+    pub(crate) just_loaded: FxHashSet<DynAssetHandle>,
 }
 
+// pbr needs math.h
+//
+
 impl AssetCacheLoad {
-    pub(crate) fn new(filesystem_ctx: filesystem::FileSystemContext) -> Self {
+    pub(crate) fn new(
+        asset_handle_ctx: AssetHandleContext,
+        filesystem_ctx: filesystem::FileSystemContext,
+    ) -> Self {
         let (request_sender, request_receiver) = async_channel::unbounded();
         let (response_sender, response_receiver) = async_channel::unbounded();
 
-        let asset_handle_ctx = AssetHandleContext::new();
         let load_ctx = LoadContext::new(
             asset_handle_ctx,
             filesystem_ctx,
@@ -50,8 +68,12 @@ impl AssetCacheLoad {
             response_sender.clone(),
         );
 
+        let just_loaded = FxHashSet::default();
+
         Self {
             load_ctx,
+
+            just_loaded,
 
             request_sender,
             request_receiver,
@@ -61,7 +83,40 @@ impl AssetCacheLoad {
         }
     }
 
+    pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
+        self.just_loaded.contains(&handle.as_any())
+    }
+
+    // check if any files completed loading and update cache and invalidate render cache
+    pub fn poll_loaded(
+        &mut self,
+        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
+        derived: &mut AssetCacheDerived,
+    ) {
+        self.just_loaded.clear();
+
+        while let Ok(response) = self.response_receiver.try_recv() {
+            if let LoadAssetResult::Success(_) = response.result {
+                self.just_loaded.insert(response.handle.clone());
+            }
+
+            cache.insert(response.handle.clone(), response.result);
+
+            // invalidate render cache
+            derived.invalidate_render_cache_for_handle(response.handle.clone());
+        }
+    }
+
     pub(crate) fn request_load<T: AssetLoader + 'static>(
+        &self,
+        handle: AssetHandle<T::Asset>,
+        path: &Path,
+        settings: T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        Self::request_load_func::<T>(self.load_ctx.clone(), handle, path, settings)
+    }
+
+    pub(crate) fn request_load_func<T: AssetLoader + 'static>(
         load_ctx: LoadContext,
 
         handle: AssetHandle<T::Asset>,
@@ -134,7 +189,7 @@ impl AssetCacheLoad {
         wasm_bindgen_futures::spawn_local(Self::background_loader(request_receiver_copy));
     }
 
-    /// Implementation of background loader
+    /// Implementation of an asset loader that runs in the background
     ///
     /// Should be started using `start_background_loader`
     async fn background_loader(requests: async_channel::Receiver<LoadRequest>) {
@@ -212,7 +267,7 @@ impl LoadContext {
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let handle = AssetHandle::new(&self.asset_handle_ctx);
-        AssetCacheLoad::request_load::<T>(self.clone(), handle, path, settings)
+        AssetCacheLoad::request_load_func::<T>(self.clone(), handle, path, settings)
     }
 
     //
@@ -230,25 +285,5 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
         self.filesystem_ctx.load_asset_string(path).await
-    }
-}
-
-// TODO: maybe move this to load context
-#[derive(Debug, Clone)]
-pub struct AssetHandleContext {
-    id: Arc<Mutex<u64>>,
-}
-
-impl AssetHandleContext {
-    pub fn new() -> Self {
-        Self {
-            id: Arc::new(Mutex::new(0)),
-        }
-    }
-    pub fn next_id(&self) -> u64 {
-        let mut id_guard = self.id.lock().expect("could not unlock asset id lock");
-        let id = *id_guard;
-        *id_guard += 1;
-        id
     }
 }

@@ -1,11 +1,10 @@
 next up
-    [] asset loaded must track deps
-    [] reload on sub assets changed
-        [] implement traversable dependency graph
+    [] decide between derived or converter
+    [] implement traversable dependency graph
+        [] asset_loaded() must track deps
+        [] reload on sub assets changed
     [] when loading sub dependecy its not inserted into the currently loading
     [] investigate if asset cache can be put in ctx
-    [] asset loaders fn without settings (default settings)
-    [] asset deps
     [] cache path -> assethandle to reuse now that its immutable
     [] put image crate behind feature flag
     [] create debug mode feature flag instead of checking if not wasm
@@ -16,6 +15,7 @@ next up
     [] finish ui
     [] go over pub and pub(crate)
     [] have default clear color if no render commands are sent (stop pink flashing)
+    [x] asset loaders fn without settings (default settings)
     [x] move derived asset validation to ext
     [x] manual reloading requires watch, not good
     [x] remove run being async

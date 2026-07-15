@@ -1,5 +1,9 @@
 use super::{AssetCache, AssetHandle, LoadContext};
-use crate::{asset::LoadAssetResult, render::ArcHandle, Context};
+use crate::{
+    asset::{AssetCacheLoad, AssetCacheStorage, ConvertContext, GetAssetResult, LoadAssetResult},
+    render::ArcHandle,
+    Context,
+};
 use core::error;
 use std::{
     any::{Any, TypeId},
@@ -65,7 +69,7 @@ pub trait AssetConverter {
 
     fn convert(
         ctx: &mut Context,
-        cache: &mut AssetCache,
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset>;

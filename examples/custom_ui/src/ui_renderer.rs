@@ -3,13 +3,12 @@ use core::f32;
 use gbase::{
     asset::{
         AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
-        ConvertAssetStatus, DerivedAsset, EmptyError, GetAssetResult, NoSettings,
+        ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError, GetAssetResult,
         ShaderGpuConverter, ShaderLoader,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
     render::{self, BindGroupBindable},
-    tracing::{self, subscriber::NoSubscriber},
     wgpu, Context,
 };
 use std::{collections::HashMap, path::PathBuf};
@@ -722,11 +721,11 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
 
     fn convert(
         ctx: &mut gbase::Context,
-        cache: &mut AssetCache,
+        convert_ctx: &mut ConvertContext<'_>,
         source: AssetHandle<Self::SourceAsset>,
         settings: &Self::Settings,
     ) -> gbase::asset::ConvertAssetStatus<Self::TargetAsset> {
-        let source = match source.get(cache) {
+        let source = match convert_ctx.get(source) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,

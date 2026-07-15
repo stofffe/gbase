@@ -1,8 +1,8 @@
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
-        DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter, ImageLoader, MeshGpuConverter,
-        NoSettings, ShaderGpuConverter,
+        ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter, ImageLoader,
+        MeshGpuConverter, NoSettings, ShaderGpuConverter,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -90,11 +90,11 @@ impl AssetConverter for ShaderWithImportsConverter {
 
     fn convert(
         ctx: &mut Context,
-        cache: &mut asset::AssetCache,
+        convert_ctx: &mut ConvertContext<'_>,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
-        let source = match source.get(cache) {
+        let source = match convert_ctx.get(source) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -103,8 +103,12 @@ impl AssetConverter for ShaderWithImportsConverter {
 
         let mut import_sources = Vec::new();
         for import in source.imports.iter() {
-            let conversion_result =
-                import.convert_custom_settings::<ShaderWithImportsConverter>(ctx, cache, settings);
+            let conversion_result = convert_ctx
+                .convert_custom_settings::<ShaderWithImportsConverter>(
+                    ctx,
+                    import.clone(),
+                    settings,
+                );
             match conversion_result {
                 asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
                 // TODO: add source failed?
@@ -140,11 +144,15 @@ impl AssetConverter for ShaderWithImportGpuConverter {
 
     fn convert(
         ctx: &mut Context,
-        cache: &mut asset::AssetCache,
+        convert_ctx: &mut asset::ConvertContext,
         source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let result = cache.convert::<ShaderWithImportsConverter>(ctx, source.clone(), settings);
+        let result = convert_ctx.convert_custom_settings::<ShaderWithImportsConverter>(
+            ctx,
+            source.clone(),
+            settings,
+        );
 
         let shader = match result {
             asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,

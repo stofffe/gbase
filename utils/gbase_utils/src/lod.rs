@@ -2,7 +2,7 @@ use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
         self, Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, AssetWriter,
-        ConvertAssetStatus, DerivedAsset, EmptyError, LoadContext, NoSettings,
+        ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError, LoadContext, NoSettings,
     },
     filesystem,
     render::{self, BoundingBox, VertexAttributeId},
@@ -188,15 +188,19 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
 
     fn convert(
         _ctx: &mut gbase::Context,
-        cache: &mut AssetCache,
+        convert_ctx: &mut ConvertContext<'_>,
         source: AssetHandle<Self::SourceAsset>,
         _settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = cache.get(source.clone()).unwrap_loaded();
+        let source = convert_ctx.get(source.clone()).unwrap_loaded();
         let handle = source.meshes[0].0.clone();
 
-        let bounding_box =
-            BoundingBoxWrapper(handle.get(cache).unwrap_loaded().calculate_bounding_box());
+        let bounding_box = BoundingBoxWrapper(
+            convert_ctx
+                .get(handle)
+                .unwrap_loaded()
+                .calculate_bounding_box(),
+        );
         ConvertAssetStatus::Success(bounding_box)
     }
 }

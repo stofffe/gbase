@@ -1,8 +1,10 @@
 mod builders;
 mod cache;
+mod convert;
 mod handle;
 mod implementations;
 mod load;
+mod storage;
 mod types;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -10,9 +12,11 @@ mod reload;
 
 pub use builders::*;
 pub use cache::*;
+pub use convert::*;
 pub use handle::*;
 pub use implementations::*;
 pub use load::*;
+pub use storage::*;
 pub use types::*;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -44,28 +48,12 @@ pub fn reload_asset_sync<T: AssetLoader + 'static>(
 
 /// Check if a specific asset is loaded
 pub fn handle_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
-    cache.handle_loaded(handle.clone())
+    cache.handle_successfully_loaded(handle.clone())
 }
 
 /// Check if a specific asset is loaded
 pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
     cache.handle_just_loaded(handle.clone())
-}
-
-pub enum GetAssetResult<'a, T: Asset> {
-    Loading,
-    Success(&'a T),
-    Failed,
-}
-
-impl<'a, T: Asset> GetAssetResult<'a, T> {
-    pub fn unwrap_loaded(self) -> &'a T {
-        match self {
-            GetAssetResult::Success(asset) => asset,
-            GetAssetResult::Loading => panic!("Asset is still loading"),
-            GetAssetResult::Failed => panic!("Asset failed to load"),
-        }
-    }
 }
 
 pub fn get<'a, T: Asset + 'static>(

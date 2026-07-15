@@ -1,15 +1,14 @@
+use crate::asset::convert::AssetCacheDerived;
 use crate::asset::{
-    invalidate_render_cache_for_handle, AssetCacheLoad, AssetLoader, DerivedAssetKey,
-    DynAssetHandle, DynAssetLoadFn, DynAssetLoadFnSync, DynDerivedAsset, LoadAssetResult,
-    LoadContext,
+    AssetCacheLoad, AssetLoader, DynAssetHandle, DynAssetLoadFn, DynAssetLoadFnSync,
+    LoadAssetResult, LoadContext,
 };
 use crate::{asset::AssetHandle, filesystem::FileSystemContext};
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::any::TypeId;
+use rustc_hash::FxHashMap;
 use std::path::Path;
 use std::path::PathBuf;
 
-pub struct AssetCacheExt {
+pub struct AssetCacheReload {
     /// which handles map to a certain path
     reload_handles: FxHashMap<PathBuf, Vec<DynAssetHandle>>,
     // functions for reloading handles sync
@@ -25,7 +24,7 @@ pub struct AssetCacheExt {
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
 }
 
-impl AssetCacheExt {
+impl AssetCacheReload {
     pub fn new() -> Self {
         let (reload_sender, reload_receiver) = async_channel::unbounded();
         let sender_copy = reload_sender.clone();
@@ -75,7 +74,7 @@ impl AssetCacheExt {
                     let handle_clone = handle_clone.clone();
                     let settings_clone = settings_clone.clone();
                     let load_ctx_clone = load_ctx_clone.clone();
-                    AssetCacheLoad::request_load::<T>(
+                    AssetCacheLoad::request_load_func::<T>(
                         load_ctx_clone,
                         handle_clone,
                         &path_clone,
@@ -159,8 +158,7 @@ impl AssetCacheExt {
     pub fn reload_sync(
         &mut self,
         cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
-        render_cache: &mut FxHashMap<DerivedAssetKey, DynDerivedAsset>,
-        render_cache_invalidate_lookup: &FxHashMap<DynAssetHandle, FxHashSet<TypeId>>,
+        derived: &mut AssetCacheDerived,
         handle: DynAssetHandle,
     ) {
         let Some(reload_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
@@ -172,6 +170,6 @@ impl AssetCacheExt {
 
         cache.insert(handle.clone(), asset);
 
-        invalidate_render_cache_for_handle(render_cache, render_cache_invalidate_lookup, handle);
+        derived.invalidate_render_cache_for_handle(handle);
     }
 }

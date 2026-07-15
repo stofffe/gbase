@@ -71,7 +71,7 @@ impl<T: 'static> Clone for AssetHandle<T> {
 
 impl<T: Asset + 'static> AssetHandle<T> {
     pub fn loaded(&self, cache: &AssetCache) -> bool {
-        cache.handle_loaded(self.clone())
+        cache.handle_successfully_loaded(self.clone())
     }
 
     pub fn just_loaded(&self, cache: &AssetCache) -> bool {
