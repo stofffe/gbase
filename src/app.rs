@@ -470,7 +470,7 @@ fn update_and_render(
 
     cache.poll();
     // TODO: dont do this every frame?
-    cache.clear_cpu_handles();
+    cache.clear_asset_handles();
     cache.clear_derived_handles();
 
     CallbackResult::Continue

@@ -38,9 +38,11 @@ pub struct InsertAssetBuilder<T: Asset> {
 
 impl<T: Asset> InsertAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T> {
-        let handle = self.handle.unwrap_or(cache.new_empty_handle());
-
-        cache.insert_existing_handle(self.value, handle)
+        if let Some(handle) = self.handle {
+            cache.overwrite_handle(self.value, handle)
+        } else {
+            cache.insert(self.value)
+        }
     }
 
     pub fn handle(mut self, handle: AssetHandle<T>) -> Self {

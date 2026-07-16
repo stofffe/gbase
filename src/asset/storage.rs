@@ -1,8 +1,10 @@
-use std::{any::Any, sync::Arc};
+use std::{any::Any, convert, sync::Arc};
 
 use rustc_hash::FxHashMap;
 
-use crate::asset::{Asset, AssetHandle, AssetHandleContext, DynAssetHandle, LoadAssetResult};
+use crate::asset::{
+    Asset, AssetCacheDerived, AssetHandle, AssetHandleContext, DynAssetHandle, LoadAssetResult,
+};
 
 pub enum GetAssetResult<'a, T: Asset> {
     Loading,
@@ -81,16 +83,20 @@ impl AssetCacheStorage {
 
     pub fn insert_new_handle<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.insert_existing_handle(data, handle)
+        self.cache
+            .insert(handle.as_any(), LoadAssetResult::Success(Box::new(data)));
+        handle
     }
 
     pub fn insert_existing_handle<T: Asset + 'static>(
         &mut self,
+        converter: &mut AssetCacheDerived,
         data: T,
         handle: AssetHandle<T>,
     ) -> AssetHandle<T> {
         self.cache
             .insert(handle.as_any(), LoadAssetResult::Success(Box::new(data)));
+        converter.invalidate_render_cache_for_handle(handle.as_any());
         handle
     }
 }

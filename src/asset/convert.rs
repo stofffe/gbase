@@ -49,6 +49,16 @@ impl AssetCacheDerived {
         }
     }
 
+    pub fn clear_handle(&mut self, handle: DynAssetHandle) {
+        if let Some(render_types) = self.render_cache_invalidate_lookup.get(&handle) {
+            for render_type in render_types {
+                self.render_cache.remove(&(handle.clone(), *render_type));
+                self.render_cache_last_valid
+                    .remove(&(handle.clone(), *render_type));
+            }
+        }
+    }
+
     pub fn clear_unused_handles(&mut self) {
         // TODO: clear all other stuff related to this handle
         self.render_cache

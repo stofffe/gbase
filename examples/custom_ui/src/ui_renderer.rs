@@ -237,7 +237,7 @@ impl UIRenderer {
         font_path: impl Into<PathBuf>,
     ) {
         // clear handle to not use old data
-        cache.clear_handle(self.font.clone());
+        cache.clear_asset_handle(self.font.clone());
         self.font = AssetBuilder::load::<FontLoader>(font_path)
             .handle(self.font.clone())
             .build_custom_settings(

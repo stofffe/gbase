@@ -172,16 +172,17 @@ impl AssetCache {
     // Storage re-exports
     //
 
-    pub fn insert_new_handle<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
+    pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         self.storage.insert_new_handle(data)
     }
 
-    pub fn insert_existing_handle<T: Asset + 'static>(
+    pub fn overwrite_handle<T: Asset + 'static>(
         &mut self,
         data: T,
         handle: AssetHandle<T>,
     ) -> AssetHandle<T> {
-        self.storage.insert_existing_handle(data, handle)
+        self.storage
+            .insert_existing_handle(&mut self.derived, data, handle)
     }
 
     pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
@@ -192,11 +193,11 @@ impl AssetCache {
         self.storage.handle_successfully_loaded(handle)
     }
 
-    pub fn clear_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
+    pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
         self.storage.clear_handle(handle);
     }
 
-    pub fn clear_cpu_handles(&mut self) {
+    pub fn clear_asset_handles(&mut self) {
         self.storage.clear_unused_handles();
     }
 

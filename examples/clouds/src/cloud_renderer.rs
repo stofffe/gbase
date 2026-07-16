@@ -128,23 +128,6 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
-        if cache.handle_just_loaded(self.weather_map_handle.clone()) {
-            // TODO:
-            // let img = cache
-            //     .get_mut(self.weather_map_handle.clone())
-            //     .unwrap_loaded();
-            // img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-            // img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-        }
-        if cache.handle_just_loaded(self.blue_noise_handle.clone()) {
-            // TODO:
-            // let img = cache
-            //     .get_mut(self.blue_noise_handle.clone())
-            //     .unwrap_loaded();
-            // img.sampler.set_address_mode(wgpu::AddressMode::Repeat);
-            // img.texture.set_format(wgpu::TextureFormat::Rgba8Unorm);
-        }
-
         if !asset::handle_loaded(cache, self.shader_handle.clone())
             || !asset::handle_loaded(cache, self.mesh_handle.clone())
             || !asset::handle_loaded(cache, self.weather_map_handle.clone())
