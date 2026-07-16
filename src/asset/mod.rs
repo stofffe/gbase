@@ -1,6 +1,6 @@
 mod builders;
 mod cache;
-mod convert;
+mod derive;
 mod handle;
 mod implementations;
 mod load;
@@ -12,7 +12,7 @@ mod reload;
 
 pub use builders::*;
 pub use cache::*;
-pub use convert::*;
+pub use derive::*;
 pub use handle::*;
 pub use implementations::*;
 pub use load::*;

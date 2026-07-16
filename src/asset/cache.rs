@@ -2,15 +2,13 @@ use super::{Asset, AssetLoader};
 use crate::{
     asset::{
         self,
-        convert::{AssetCacheDerived, ConvertAssetResult},
-        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, ConvertAssetStatus,
-        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult,
+        derive::{AssetCacheDerived, ConvertAssetResult},
+        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, GetAssetResult,
+        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult,
     },
-    render::ArcHandle,
     Context,
 };
 use std::{
-    any::TypeId,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -210,7 +208,7 @@ impl AssetCache {
     }
 
     //
-    // Convert re-exports
+    // Derive re-exports
     //
 
     pub fn clear_derived_handles(&mut self) {

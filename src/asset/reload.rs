@@ -1,4 +1,4 @@
-use crate::asset::convert::AssetCacheDerived;
+use crate::asset::derive::AssetCacheDerived;
 use crate::asset::{
     AssetCacheLoad, AssetLoader, DynAssetHandle, DynAssetLoadFn, DynAssetLoadFnSync,
     LoadAssetResult, LoadContext,
