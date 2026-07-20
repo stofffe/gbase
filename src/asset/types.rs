@@ -16,7 +16,7 @@ pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
-pub type DynDerivedAsset = ArcHandle<dyn Any>;
+pub type DynDerivedAsset = ArcHandle<dyn Any + Send + Sync>;
 pub type DerivedAssetKey = (DynAssetHandle, TypeId);
 
 //
@@ -49,14 +49,14 @@ pub trait AssetLoader: Send {
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
 }
 
-pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
+pub trait DerivedAsset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
 pub trait DerivedAssetSettings: Send {}
 impl<T: Send + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
     type SourceAsset: Asset;
-    type TargetAsset: DerivedAsset + Clone;
+    type TargetAsset: DerivedAsset;
     type Settings: DerivedAssetSettings;
     type Error: error::Error;
 

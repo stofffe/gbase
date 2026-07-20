@@ -1,21 +1,19 @@
 // from GGEZ https://github.com/ggez/ggez
 
+use crate::Context;
 use std::{any::Any, sync::Arc};
-
-use crate::{render::next_id, Context};
 
 /// Arc'd WGPU handles are used widely across the graphics module.
 ///
 /// Beyond allowing for Clone, they also allow different GPU resources to be
 /// unique identified via `id` - primarily used when caching (see the other `gpu` modules).
 #[derive(Debug)]
-pub struct ArcHandle<T: ?Sized + 'static> {
+pub struct ArcHandle<T: ?Sized + Send + Sync + 'static> {
     pub handle: Arc<T>,
     id: u64,
 }
 
-impl<T: 'static> ArcHandle<T> {
-    // TODO: maybe take ctx directly instead?
+impl<T: Send + Sync + 'static> ArcHandle<T> {
     pub fn new(ctx: &mut Context, handle: T) -> Self {
         ArcHandle {
             handle: Arc::new(handle),
@@ -29,7 +27,7 @@ impl<T: 'static> ArcHandle<T> {
     }
 }
 
-impl<T: ?Sized + 'static> Clone for ArcHandle<T> {
+impl<T: Send + Sync + ?Sized + 'static> Clone for ArcHandle<T> {
     fn clone(&self) -> Self {
         ArcHandle {
             handle: Arc::clone(&self.handle),
@@ -38,21 +36,21 @@ impl<T: ?Sized + 'static> Clone for ArcHandle<T> {
     }
 }
 
-impl<T: 'static> PartialEq for ArcHandle<T> {
+impl<T: Send + Sync + 'static> PartialEq for ArcHandle<T> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl<T: 'static> Eq for ArcHandle<T> {}
+impl<T: Send + Sync + 'static> Eq for ArcHandle<T> {}
 
-impl<T: 'static> std::hash::Hash for ArcHandle<T> {
+impl<T: Send + Sync + 'static> std::hash::Hash for ArcHandle<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
 }
 
-impl<T: 'static> std::ops::Deref for ArcHandle<T> {
+impl<T: Send + Sync + 'static> std::ops::Deref for ArcHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -60,27 +58,27 @@ impl<T: 'static> std::ops::Deref for ArcHandle<T> {
     }
 }
 
-impl<T: 'static> AsRef<T> for ArcHandle<T> {
+impl<T: Send + Sync + 'static> AsRef<T> for ArcHandle<T> {
     fn as_ref(&self) -> &T {
         self.handle.as_ref()
     }
 }
 // Convert from and to any
 
-impl<T: Any + 'static> ArcHandle<T> {
-    pub fn upcast(self) -> ArcHandle<dyn Any> {
+impl<T: Any + Send + Sync + 'static> ArcHandle<T> {
+    pub fn upcast(self) -> ArcHandle<dyn Any + Send + Sync> {
         ArcHandle {
-            handle: self.handle as Arc<dyn Any>,
+            handle: self.handle as Arc<dyn Any + Send + Sync>,
             id: self.id,
         }
     }
 }
 
-impl ArcHandle<dyn Any> {
-    pub fn downcast<G: Clone>(&self) -> Option<ArcHandle<G>> {
-        if let Some(handle) = self.handle.clone().downcast_ref::<G>() {
+impl ArcHandle<dyn Any + Send + Sync> {
+    pub fn downcast<G: Any + Send + Sync>(&self) -> Option<ArcHandle<G>> {
+        if let Ok(handle) = self.handle.clone().downcast::<G>() {
             Some(ArcHandle {
-                handle: handle.clone().into(),
+                handle,
                 id: self.id,
             })
         } else {
