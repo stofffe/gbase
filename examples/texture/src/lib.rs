@@ -49,10 +49,10 @@ impl Callbacks for App {
             .build_uncached(ctx);
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>("shaders/texture.wgsl")
             .watch(true)
-            .build_default_settings(ctx, cache);
+            .build_default_settings(cache);
         let texture_handle = asset::AssetBuilder::load::<ImageLoader>("textures/texture.jpeg")
             .watch(true)
-            .build_default_settings(ctx, cache);
+            .build_default_settings(cache);
 
         let mesh = render::MeshBuilder::quad()
             .build()

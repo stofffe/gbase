@@ -36,7 +36,6 @@ impl UIRenderer {
         max_elements: u64,
     ) -> Self {
         let font = AssetBuilder::load::<FontLoader>(font_path).build_custom_settings(
-            ctx,
             cache,
             FontLoaderSettings {
                 settings: fontdue::FontSettings::default(),
@@ -50,7 +49,7 @@ impl UIRenderer {
         let shader_handle = cache
             .load_builder::<ShaderLoader>("assets/shaders/ui.wgsl")
             .watch(true)
-            .build_default_settings(ctx, cache);
+            .build_default_settings(cache);
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -241,7 +240,6 @@ impl UIRenderer {
         self.font = AssetBuilder::load::<FontLoader>(font_path)
             .handle(self.font.clone())
             .build_custom_settings(
-                ctx,
                 cache,
                 FontLoaderSettings {
                     settings: fontdue::FontSettings::default(),

@@ -203,10 +203,10 @@ impl Callbacks for App {
         let shader_handle =
             asset::AssetBuilder::load::<ShaderWithImportsLoader>("shaders/texture_import.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
         let texture_handle = asset::AssetBuilder::load::<ImageLoader>("textures/texture.jpeg")
             .watch(true)
-            .build_default_settings(ctx, cache);
+            .build_default_settings(cache);
 
         let mesh = render::MeshBuilder::quad()
             .build()

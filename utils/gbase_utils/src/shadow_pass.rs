@@ -37,7 +37,7 @@ impl ShadowPass {
         let shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/shadow_pass.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // light matrices

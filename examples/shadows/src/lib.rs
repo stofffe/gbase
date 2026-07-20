@@ -116,7 +116,6 @@ impl Callbacks for App {
         let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
             .watch(true)
             .build_custom_settings(
-                ctx,
                 cache,
                 MeshLodLoaderSettings::new()
                     .with_node_name("mesh_damaged_helmet")
@@ -126,7 +125,6 @@ impl Callbacks for App {
         let ak47_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/ak47.glb")
             .watch(true)
             .build_custom_settings(
-                ctx,
                 cache,
                 MeshLodLoaderSettings::new()
                     .with_required_attr(pbr_renderer.required_attributes().clone()),

@@ -30,7 +30,7 @@ impl Tonemap {
         let shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/tonemap.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -164,7 +164,7 @@ impl Bloom {
         let extract_shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_extract.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
 
         //
         // Downsample
@@ -188,7 +188,7 @@ impl Bloom {
         let downsample_shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_downsample.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
 
         //
         // Upsample
@@ -216,7 +216,7 @@ impl Bloom {
         let upsample_shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_upsample.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
 
         //
         // Combine
@@ -260,7 +260,7 @@ impl Bloom {
         let combine_shader_handle =
             asset::AssetBuilder::load::<ShaderLoader>("assets/shaders/bloom_combine.wgsl")
                 .watch(true)
-                .build_default_settings(ctx, cache);
+                .build_default_settings(cache);
 
         let downsampling_buffer = FrameBufferBuilder::new()
             .label("downsampling")

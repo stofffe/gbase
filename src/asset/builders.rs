@@ -62,20 +62,15 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
-    pub fn build_default_settings(
-        self,
-        ctx: &Context,
-        cache: &mut AssetCache,
-    ) -> AssetHandle<T::Asset>
+    pub fn build_default_settings(self, cache: &mut AssetCache) -> AssetHandle<T::Asset>
     where
         T::Settings: Default,
     {
-        self.build_custom_settings(ctx, cache, T::Settings::default())
+        self.build_custom_settings(cache, T::Settings::default())
     }
 
     pub fn build_custom_settings(
         self,
-        ctx: &Context,
         cache: &mut AssetCache,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
