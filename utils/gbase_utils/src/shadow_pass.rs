@@ -39,7 +39,7 @@ impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/shadow_pass.wgsl"),
             );

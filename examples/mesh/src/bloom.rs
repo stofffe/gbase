@@ -29,7 +29,7 @@ impl Tonemap {
             .build(ctx);
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/tonemap.wgsl"),
             );
@@ -165,7 +165,7 @@ impl Bloom {
             .build(ctx);
         let extract_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/bloom_extract.wgsl"),
             );
@@ -191,7 +191,7 @@ impl Bloom {
             .build(ctx);
         let downsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/bloom_downsample.wgsl"),
             );
@@ -221,7 +221,7 @@ impl Bloom {
             .build(ctx);
         let upsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/bloom_upsample.wgsl"),
             );
@@ -267,7 +267,7 @@ impl Bloom {
             .build(ctx);
         let combine_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/bloom_combine.wgsl"),
             );

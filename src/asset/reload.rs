@@ -92,10 +92,6 @@ impl AssetCacheReload {
 
     pub fn poll_reload_fns(&mut self) {
         while let Ok(reload_fn_request) = self.reload_fn_receiver.try_recv() {
-            tracing::info!(
-                "RECEIVE RELOAD FN for handle {}",
-                reload_fn_request.handle.id()
-            );
             self.reload_functions
                 .insert(reload_fn_request.handle.clone(), reload_fn_request.load_fn);
         }
@@ -103,11 +99,6 @@ impl AssetCacheReload {
 
     pub fn poll_watch(&mut self, filesystem_ctx: FileSystemContext) {
         while let Ok(watch_request) = self.watch_receiver.try_recv() {
-            tracing::info!(
-                "RECEIVE REGISTER WATCH FOR {}",
-                watch_request.path.display()
-            );
-
             let path = filesystem_ctx.format_asset_path(watch_request.path);
             // path must be canoicalized since watcher will do it internally
             let path = std::fs::canonicalize(path).unwrap();

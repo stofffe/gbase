@@ -144,7 +144,7 @@ impl GrassRenderer {
 
         let instance_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/grass_compute_instance.wgsl"),
             );
@@ -172,7 +172,7 @@ impl GrassRenderer {
 
         let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(
+            .build(
                 cache,
                 ShaderLoaderSettings::new("assets/shaders/grass_compute_draw.wgsl"),
             );
@@ -203,21 +203,15 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_deferred_shader_handle = cache
-            .load_builder::<ShaderLoader>()
-            .watch(true)
-            .build_custom_settings(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/grass_deferred.wgsl"),
-            );
+        let render_deferred_shader_handle = cache.load_builder::<ShaderLoader>().watch(true).build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/grass_deferred.wgsl"),
+        );
 
-        let render_forward_shader_handle = cache
-            .load_builder::<ShaderLoader>()
-            .watch(true)
-            .build_custom_settings(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/grass.wgsl"),
-            );
+        let render_forward_shader_handle = cache.load_builder::<ShaderLoader>().watch(true).build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/grass.wgsl"),
+        );
 
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout.clone()])

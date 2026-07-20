@@ -216,6 +216,9 @@ pub struct LoadContext {
     // channel for registering reload fns
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) reload_handle_sender: async_channel::Sender<ReloadFnHandleRequest>,
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) watch: bool,
 }
 
 impl LoadContext {
@@ -242,6 +245,8 @@ impl LoadContext {
             watch_handle_sender: reloader.watch_sender.clone(),
             #[cfg(not(target_arch = "wasm32"))]
             reload_handle_sender: reloader.reload_fn_sender.clone(),
+            #[cfg(not(target_arch = "wasm32"))]
+            watch: false,
         }
     }
 
@@ -288,7 +293,10 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
         #[cfg(not(target_arch = "wasm32"))]
-        self.register_watch(path.as_ref().to_path_buf()).await;
+        if self.watch {
+            self.register_watch(path.as_ref().to_path_buf()).await;
+        }
+
         self.filesystem_ctx.load_asset_bytes(&path).await
     }
 
@@ -297,14 +305,21 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
         #[cfg(not(target_arch = "wasm32"))]
-        self.register_watch(path.as_ref().to_path_buf()).await;
+        if self.watch {
+            self.register_watch(path.as_ref().to_path_buf()).await;
+        }
+
         self.filesystem_ctx.load_asset_string(path).await
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn watch(&mut self, enable: bool) {
+        self.watch = enable;
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     async fn register_watch(&self, path: impl Into<PathBuf>) {
         let path = path.into();
-        tracing::info!("SEND WATCH HANDLE {}: {}", self.handle.id(), path.display());
         self.watch_handle_sender
             .send(WatchHandleRequest {
                 handle: self.handle.clone(),
@@ -331,7 +346,6 @@ impl LoadContext {
             AssetCacheLoad::request_load_func::<T>(load_ctx_clone, handle_clone, settings_clone);
         });
 
-        tracing::info!("SEND RELOAD FN {}", handle.id());
         // send over channel
         self.reload_handle_sender
             .try_send(ReloadFnHandleRequest {

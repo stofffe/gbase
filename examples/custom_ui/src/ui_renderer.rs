@@ -35,7 +35,7 @@ impl UIRenderer {
         font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
-        let font = AssetBuilder::load::<FontLoader>().build_custom_settings(
+        let font = AssetBuilder::load::<FontLoader>().build(
             cache,
             FontLoaderSettings {
                 path: font_path.into(),
@@ -50,7 +50,7 @@ impl UIRenderer {
         let shader_handle = cache
             .load_builder::<ShaderLoader>()
             .watch(true)
-            .build_custom_settings(cache, ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
+            .build(cache, ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -240,7 +240,7 @@ impl UIRenderer {
         cache.clear_asset_handle(self.font.clone());
         self.font = AssetBuilder::load::<FontLoader>()
             .handle(self.font.clone())
-            .build_custom_settings(
+            .build(
                 cache,
                 FontLoaderSettings {
                     path: font_path.into(),

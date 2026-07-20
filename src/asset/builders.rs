@@ -53,22 +53,15 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
-    // TODO: remove
-    // pub fn build_custom_settings(self, cache: &mut AssetCache) -> AssetHandle<T::Asset>
-    // where
-    //     T::Settings: Default,
-    // {
-    //     self.build_custom_settings(cache, T::Settings::default())
-    // }
-
-    pub fn build_custom_settings(
-        self,
-        cache: &mut AssetCache,
-        settings: T::Settings,
-    ) -> AssetHandle<T::Asset> {
+    pub fn build(self, cache: &mut AssetCache, settings: T::Settings) -> AssetHandle<T::Asset> {
         let handle = self.handle.unwrap_or(cache.new_empty_handle());
 
-        cache.load::<T>(handle.clone(), settings);
+        cache.load::<T>(
+            handle.clone(),
+            settings,
+            #[cfg(not(target_arch = "wasm32"))]
+            self.watch,
+        );
 
         handle
     }

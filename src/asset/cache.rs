@@ -109,8 +109,12 @@ impl AssetCache {
         &mut self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
+        #[cfg(not(target_arch = "wasm32"))] watch: bool,
     ) {
-        let load_ctx = self.load_ctx(handle.clone());
+        let mut load_ctx = self.load_ctx(handle.clone());
+
+        #[cfg(not(target_arch = "wasm32"))]
+        load_ctx.watch(watch);
 
         // register reload fns
         #[cfg(not(target_arch = "wasm32"))]
