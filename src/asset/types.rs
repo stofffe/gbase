@@ -25,13 +25,13 @@ pub type DerivedAssetKey = (DynAssetHandle, TypeId);
 
 pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
-pub trait AssetSettings: Send + Sync + Clone {}
-impl<T: Send + Sync + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait AssetSettings: Send + Clone {}
+impl<T: Send + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetError: error::Error + Send {}
 impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
 
-pub trait AssetLoader: Send + Sync {
+pub trait AssetLoader: Send {
     type Asset: Asset;
     type Settings: AssetSettings;
     type Error: AssetError;
@@ -53,8 +53,8 @@ pub trait AssetLoader: Send + Sync {
 
 pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
 
-pub trait DerivedAssetSettings: Send + Sync {}
-impl<T: Send + Sync + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait DerivedAssetSettings: Send {}
+impl<T: Send + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
     type SourceAsset: Asset;
