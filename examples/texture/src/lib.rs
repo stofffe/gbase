@@ -1,7 +1,7 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageLoader, MeshGpuConverter, ShaderGpuConverter,
-        ShaderLoader,
+        self, AssetHandle, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -47,12 +47,12 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>("shaders/texture.wgsl")
+        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .watch(true)
-            .build_default_settings(cache);
-        let texture_handle = asset::AssetBuilder::load::<ImageLoader>("textures/texture.jpeg")
+            .build_custom_settings(cache, ShaderLoaderSettings::new("shaders/texture.wgsl"));
+        let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
             .watch(true)
-            .build_default_settings(cache);
+            .build_custom_settings(cache, ImageLoaderSettings::new("textures/texture.jpeg"));
 
         let mesh = render::MeshBuilder::quad()
             .build()

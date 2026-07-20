@@ -39,7 +39,6 @@ pub trait AssetLoader: Send {
     #[cfg(not(target_arch = "wasm32"))]
     fn load(
         load_ctx: LoadContext,
-        path: &Path,
         settings: Self::Settings,
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + Send;
 

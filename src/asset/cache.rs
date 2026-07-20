@@ -108,16 +108,15 @@ impl AssetCache {
     pub(crate) fn load<T: AssetLoader + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
-        path: &Path,
         settings: T::Settings,
     ) {
         let load_ctx = self.load_ctx(handle.clone());
 
         // register reload fns
         #[cfg(not(target_arch = "wasm32"))]
-        load_ctx.register_reload_fns::<T>(handle.clone(), path.to_path_buf(), settings.clone());
+        load_ctx.register_reload_fns::<T>(handle.clone(), settings.clone());
 
-        load_ctx.request_load_with_handle::<T>(handle.clone(), path, settings.clone());
+        load_ctx.request_load_with_handle::<T>(handle.clone(), settings.clone());
     }
 
     pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
@@ -132,11 +131,8 @@ impl AssetCache {
         asset::AssetBuilder::insert(value)
     }
 
-    pub fn load_builder<T: AssetLoader<Settings: Default>>(
-        &mut self,
-        path: impl Into<PathBuf>,
-    ) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load(path)
+    pub fn load_builder<T: AssetLoader>(&mut self) -> LoadAssetBuilder<T> {
+        asset::AssetBuilder::load()
     }
 
     //

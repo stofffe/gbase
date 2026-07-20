@@ -98,19 +98,19 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>("assets/models/helmet_lod.glb")
+        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>()
             .watch(true)
             .build_custom_settings(
                 cache,
-                MeshLodLoaderSettings::new()
+                MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
                     .with_node_name("mesh_damaged_helmet")
                     .with_required_attr(pbr_renderer.required_attributes().clone()),
             );
-        let sponza_gltf = AssetBuilder::load::<GltfLoader>("assets/models/sponza.glb")
+        let sponza_gltf = AssetBuilder::load::<GltfLoader>()
             .watch(true)
             .build_custom_settings(
                 cache,
-                GltfLoaderSettings::new()
+                GltfLoaderSettings::new("assets/models/sponza.glb")
                     .required_attributes(pbr_renderer.required_attributes().clone()),
             );
 

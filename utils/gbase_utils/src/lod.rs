@@ -8,7 +8,7 @@ use gbase::{
     render::{self, BoundingBox, VertexAttributeId},
     tracing::{self, subscriber::NoSubscriber},
 };
-use std::{collections::BTreeSet, ops::Deref};
+use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct MeshLod {
@@ -47,13 +47,15 @@ pub struct MeshLodLoader {}
 
 #[derive(Clone)]
 pub struct MeshLodLoaderSettings {
+    path: PathBuf,
     node_name: Option<String>,
     required_attributes: Option<BTreeSet<VertexAttributeId>>,
 }
 
 impl MeshLodLoaderSettings {
-    pub fn new() -> Self {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
+            path: path.into(),
             node_name: None,
             required_attributes: None,
         }
@@ -77,10 +79,9 @@ impl AssetLoader for MeshLodLoader {
 
     async fn load(
         load_ctx: LoadContext,
-        path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = load_ctx.load_bytes(path).await?;
+        let bytes = load_ctx.load_bytes(&settings.path).await?;
         let primitives =
             parse_gltf_primitives(&load_ctx, &bytes, settings.required_attributes.as_ref());
 
@@ -132,12 +133,14 @@ pub struct GltfLoader {}
 
 #[derive(Clone)]
 pub struct GltfLoaderSettings {
+    path: PathBuf,
     required_attributes: Option<BTreeSet<VertexAttributeId>>,
 }
 
 impl GltfLoaderSettings {
-    pub fn new() -> Self {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
+            path: path.into(),
             required_attributes: None,
         }
     }
@@ -155,10 +158,9 @@ impl AssetLoader for GltfLoader {
 
     async fn load(
         load_ctx: LoadContext,
-        path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = load_ctx.load_bytes(path).await?;
+        let bytes = load_ctx.load_bytes(&settings.path).await?;
         Ok(parse_gltf_file(
             &load_ctx,
             &bytes,

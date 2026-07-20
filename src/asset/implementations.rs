@@ -1,7 +1,9 @@
+use std::path::PathBuf;
+
 use super::{Asset, AssetCache, AssetHandle, AssetLoader};
 use crate::{
     asset::{
-        AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
+        derive, AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
         GetAssetResult, NoSettings,
     },
     filesystem,
@@ -73,20 +75,32 @@ impl AssetConverter for BoundingBoxConverter {
 impl Asset for Shader {}
 
 #[derive(Clone)]
+pub struct ShaderLoaderSettings {
+    path: PathBuf,
+}
+
+impl ShaderLoaderSettings {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
+#[derive(Clone)]
 pub struct ShaderLoader {}
 impl AssetLoader for ShaderLoader {
     type Asset = Shader;
-    type Settings = NoSettings;
+    type Settings = ShaderLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
         _load_ctx: super::LoadContext,
-        path: &std::path::Path,
-        _settings: Self::Settings,
+        settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let source = _load_ctx.load_string(path).await?;
+        let source = _load_ctx.load_string(&settings.path).await?;
         let config = ShaderBuilder::new().label(
-            path.to_str()
+            settings
+                .path
+                .to_str()
                 .expect("could not convert path to string")
                 .to_string(),
         );
@@ -149,13 +163,15 @@ pub struct ImageLoader {}
 
 #[derive(Clone, Default)]
 pub struct ImageLoaderSettings {
+    pub path: PathBuf,
     pub texture_config: Option<TextureBuilder>,
     pub sampler_config: Option<SamplerBuilder>,
 }
 
 impl ImageLoaderSettings {
-    pub fn new() -> Self {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
+            path: path.into(),
             texture_config: None,
             sampler_config: None,
         }
@@ -179,10 +195,9 @@ impl AssetLoader for ImageLoader {
 
     async fn load(
         load_ctx: super::LoadContext,
-        path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = load_ctx.load_bytes(path).await?;
+        let bytes = load_ctx.load_bytes(&settings.path).await?;
 
         let img = image::load_from_memory(&bytes)
             .expect("could not load image")

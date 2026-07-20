@@ -4,7 +4,7 @@ use gbase::{
     asset::{
         AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
         ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError, GetAssetResult,
-        ShaderGpuConverter, ShaderLoader,
+        ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
@@ -35,9 +35,10 @@ impl UIRenderer {
         font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
-        let font = AssetBuilder::load::<FontLoader>(font_path).build_custom_settings(
+        let font = AssetBuilder::load::<FontLoader>().build_custom_settings(
             cache,
             FontLoaderSettings {
+                path: font_path.into(),
                 settings: fontdue::FontSettings::default(),
             },
         );
@@ -47,9 +48,9 @@ impl UIRenderer {
         //
 
         let shader_handle = cache
-            .load_builder::<ShaderLoader>("assets/shaders/ui.wgsl")
+            .load_builder::<ShaderLoader>()
             .watch(true)
-            .build_default_settings(cache);
+            .build_custom_settings(cache, ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -237,11 +238,12 @@ impl UIRenderer {
     ) {
         // clear handle to not use old data
         cache.clear_asset_handle(self.font.clone());
-        self.font = AssetBuilder::load::<FontLoader>(font_path)
+        self.font = AssetBuilder::load::<FontLoader>()
             .handle(self.font.clone())
             .build_custom_settings(
                 cache,
                 FontLoaderSettings {
+                    path: font_path.into(),
                     settings: fontdue::FontSettings::default(),
                 },
             );
@@ -672,6 +674,7 @@ pub struct FontLoader {}
 
 #[derive(Clone)]
 pub struct FontLoaderSettings {
+    path: PathBuf,
     settings: fontdue::FontSettings,
 }
 
@@ -682,10 +685,9 @@ impl AssetLoader for FontLoader {
 
     async fn load(
         load_ctx: gbase::asset::LoadContext,
-        path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = load_ctx.load_bytes(path).await?;
+        let bytes = load_ctx.load_bytes(&settings.path).await?;
         let font = fontdue::Font::from_bytes(bytes, settings.settings)
             .expect("could not create font from bytes");
 

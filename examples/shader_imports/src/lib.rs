@@ -1,8 +1,10 @@
+use std::path::PathBuf;
+
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
         ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter, ImageLoader,
-        MeshGpuConverter, NoSettings, ShaderGpuConverter,
+        ImageLoaderSettings, MeshGpuConverter, NoSettings, ShaderGpuConverter,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -24,37 +26,47 @@ pub struct ShaderWithImports {
 
 impl Asset for ShaderWithImports {}
 
+#[derive(Clone)]
+pub struct ShaderWithImportsLoaderSettings {
+    path: PathBuf,
+}
+
+impl ShaderWithImportsLoaderSettings {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ShaderWithImportsLoader {}
 
 impl asset::AssetLoader for ShaderWithImportsLoader {
     type Asset = ShaderWithImports;
-    type Settings = NoSettings;
+    type Settings = ShaderWithImportsLoaderSettings;
     type Error = filesystem::LoadFileError;
 
     async fn load(
         load_ctx: asset::LoadContext,
-        path: &std::path::Path,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let mut source = String::new();
         let mut imports = Vec::new();
 
-        let source_code = load_ctx.load_string(&path).await?;
+        let source_code = load_ctx.load_string(&settings.path).await?;
 
         for line in source_code.lines() {
             if let Some(rest) = line.trim().strip_prefix("import \"") {
                 if let Some(import_relative_path) = rest.strip_suffix('"') {
-                    let parent_folder = path.parent().expect("could not get parent");
+                    let parent_folder = settings.path.parent().expect("could not get parent");
                     let full_path = parent_folder
                         .join(import_relative_path)
                         .with_extension("wgsl");
                     let normalized_full_path = filesystem::normalize_path(full_path);
 
-                    let import = load_ctx.request_load::<ShaderWithImportsLoader>(
-                        &normalized_full_path,
-                        settings.clone(),
-                    );
+                    let mut settings_with_new_path = settings.clone();
+                    settings_with_new_path.path = normalized_full_path;
+                    let import =
+                        load_ctx.request_load::<ShaderWithImportsLoader>(settings_with_new_path);
 
                     imports.push(import);
 
@@ -200,13 +212,15 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle =
-            asset::AssetBuilder::load::<ShaderWithImportsLoader>("shaders/texture_import.wgsl")
-                .watch(true)
-                .build_default_settings(cache);
-        let texture_handle = asset::AssetBuilder::load::<ImageLoader>("textures/texture.jpeg")
+        let shader_handle = asset::AssetBuilder::load::<ShaderWithImportsLoader>()
             .watch(true)
-            .build_default_settings(cache);
+            .build_custom_settings(
+                cache,
+                ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
+            );
+        let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
+            .watch(true)
+            .build_custom_settings(cache, ImageLoaderSettings::new("textures/texture.jpeg"));
 
         let mesh = render::MeshBuilder::quad()
             .build()

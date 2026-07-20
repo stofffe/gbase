@@ -96,11 +96,9 @@ impl AssetCacheLoad {
         load_ctx: LoadContext,
 
         handle: AssetHandle<T::Asset>,
-        path: &Path,
         settings: T::Settings,
     ) {
         let load_ctx_clone = load_ctx.clone();
-        let path = path.to_path_buf();
         let sender = load_ctx.load_response_sender.clone();
         let dyn_handle = handle.as_any().clone();
 
@@ -117,7 +115,7 @@ impl AssetCacheLoad {
         load_ctx
             .load_request_sender
             .try_send(Box::pin(async move {
-                let data = T::load(load_ctx_clone.clone(), &path, settings).await;
+                let data = T::load(load_ctx_clone.clone(), settings).await;
 
                 match data {
                     Ok(asset) => {
@@ -261,15 +259,14 @@ impl LoadContext {
     /// Request load with new handle
     pub fn request_load<T: AssetLoader + 'static>(
         &self,
-        path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let handle = AssetHandle::new(&self.asset_handle_ctx);
 
         #[cfg(not(target_arch = "wasm32"))]
-        self.register_reload_fns::<T>(handle.clone(), path.to_path_buf(), settings.clone());
+        self.register_reload_fns::<T>(handle.clone(), settings.clone());
 
-        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), path, settings);
+        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), settings);
 
         handle
     }
@@ -278,13 +275,12 @@ impl LoadContext {
     pub fn request_load_with_handle<T: AssetLoader + 'static>(
         &self,
         handle: AssetHandle<T::Asset>,
-        path: &Path,
         settings: T::Settings,
     ) {
         #[cfg(not(target_arch = "wasm32"))]
-        self.register_reload_fns::<T>(handle.clone(), path.to_path_buf(), settings.clone());
+        self.register_reload_fns::<T>(handle.clone(), settings.clone());
 
-        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), path, settings);
+        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), settings);
     }
 
     pub async fn load_bytes(
@@ -322,25 +318,17 @@ impl LoadContext {
     pub(crate) fn register_reload_fns<T: AssetLoader + 'static>(
         &self,
         handle: AssetHandle<T::Asset>,
-        path: PathBuf,
         settings: T::Settings,
     ) {
         // async
-        let path_clone = path.clone();
         let handle_clone = handle.clone();
         let settings_clone = settings.clone();
         let load_ctx_clone = self.clone();
         let load_fn = Box::new(move || {
-            let path_clone = path_clone.clone();
             let handle_clone = handle_clone.clone();
             let settings_clone = settings_clone.clone();
             let load_ctx_clone = load_ctx_clone.clone();
-            AssetCacheLoad::request_load_func::<T>(
-                load_ctx_clone,
-                handle_clone,
-                &path_clone,
-                settings_clone,
-            );
+            AssetCacheLoad::request_load_func::<T>(load_ctx_clone, handle_clone, settings_clone);
         });
 
         tracing::info!("SEND RELOAD FN {}", handle.id());

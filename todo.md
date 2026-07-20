@@ -1,5 +1,7 @@
 next up
     [] all assets are being watched, make it a context builder option
+        [] remove watch from builder and 
+    [] remove watch from builder and 
     [] decide between derived or converter
     [] implement traversable dependency graph
         [] asset_loaded() must track deps

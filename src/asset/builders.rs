@@ -1,9 +1,4 @@
-use std::path::PathBuf;
-
-use crate::{
-    asset::{Asset, AssetCache, AssetHandle, AssetLoader},
-    Context,
-};
+use crate::asset::{Asset, AssetCache, AssetHandle, AssetLoader};
 
 pub struct AssetBuilder {}
 
@@ -15,10 +10,8 @@ impl AssetBuilder {
         }
     }
 
-    pub fn load<T: AssetLoader>(path: impl Into<PathBuf>) -> LoadAssetBuilder<T> {
+    pub fn load<T: AssetLoader>() -> LoadAssetBuilder<T> {
         LoadAssetBuilder::<T> {
-            path: path.into(),
-
             handle: None,
             watch: false,
         }
@@ -55,19 +48,18 @@ impl<T: Asset> InsertAssetBuilder<T> {
 //
 
 pub struct LoadAssetBuilder<T: AssetLoader> {
-    path: PathBuf,
-
     handle: Option<AssetHandle<T::Asset>>,
     watch: bool,
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
-    pub fn build_default_settings(self, cache: &mut AssetCache) -> AssetHandle<T::Asset>
-    where
-        T::Settings: Default,
-    {
-        self.build_custom_settings(cache, T::Settings::default())
-    }
+    // TODO: remove
+    // pub fn build_custom_settings(self, cache: &mut AssetCache) -> AssetHandle<T::Asset>
+    // where
+    //     T::Settings: Default,
+    // {
+    //     self.build_custom_settings(cache, T::Settings::default())
+    // }
 
     pub fn build_custom_settings(
         self,
@@ -76,7 +68,7 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     ) -> AssetHandle<T::Asset> {
         let handle = self.handle.unwrap_or(cache.new_empty_handle());
 
-        cache.load::<T>(handle.clone(), &self.path, settings);
+        cache.load::<T>(handle.clone(), settings);
 
         handle
     }
