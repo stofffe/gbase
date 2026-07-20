@@ -1,4 +1,5 @@
 next up
+    [] all assets are being watched, make it a context builder option
     [] decide between derived or converter
     [] implement traversable dependency graph
         [] asset_loaded() must track deps

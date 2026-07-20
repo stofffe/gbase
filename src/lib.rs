@@ -11,6 +11,24 @@ compile_error!("The 'hot_reload' feature is not supported on wasm32");
 compile_error!("The 'trace_tracy' feature is not supported on wasm32");
 
 //
+// Conditional send/sync
+//
+
+#[cfg(not(target_arch = "wasm32"))]
+pub trait ConditionalSend: Send {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Send> ConditionalSend for T {}
+#[cfg(target_arch = "wasm32")]
+pub trait ConditionalSend {}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub trait ConditionalSync: Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+impl<T: Sync> ConditionalSync for T {}
+#[cfg(target_arch = "wasm32")]
+pub trait ConditionalSync {}
+
+//
 // Modules
 //
 

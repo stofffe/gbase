@@ -85,7 +85,7 @@ impl Callbacks for App {
                     .draw(layouter);
                 UIElement::new()
                     // .text("Hello my name is bobbyyy")
-                    .text("abcd")
+                    .text("abcd 123")
                     .font_size(128)
                     .background_color(BLUE)
                     .draw(layouter);

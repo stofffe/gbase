@@ -1,6 +1,6 @@
-use super::{AssetCache, AssetHandle, LoadContext};
+use super::{AssetHandle, LoadContext};
 use crate::{
-    asset::{AssetCacheLoad, AssetCacheStorage, ConvertContext, GetAssetResult, LoadAssetResult},
+    asset::{ConvertContext, LoadAssetResult},
     render::ArcHandle,
     Context,
 };
@@ -18,8 +18,8 @@ use std::{
 
 pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
-pub type DynAssetLoadFn = Box<dyn Fn()>;
-pub type DynAssetLoadFnSync = Box<dyn Fn() -> LoadAssetResult>;
+pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
+pub type DynAssetLoadFnSync = Box<dyn Fn() -> LoadAssetResult + Send>;
 
 pub type DynDerivedAsset = ArcHandle<dyn Any>;
 pub type DerivedAssetKey = (DynAssetHandle, TypeId);

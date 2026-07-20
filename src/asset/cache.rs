@@ -1,11 +1,15 @@
 use super::{Asset, AssetLoader};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::asset::{ReloadFnHandleRequest, WatchHandleRequest};
 use crate::{
     asset::{
         self,
         derive::{AssetCacheDerived, ConvertAssetResult},
         AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, GetAssetResult,
-        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult,
+        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext, LoadRequest,
+        LoadResponse,
     },
+    filesystem::FileSystemContext,
     Context,
 };
 use std::{
@@ -35,6 +39,7 @@ impl AssetHandleContext {
 
 pub struct AssetCache {
     asset_handle_ctx: AssetHandleContext,
+    filesystem_ctx: FileSystemContext,
 
     storage: AssetCacheStorage,
 
@@ -49,16 +54,21 @@ pub struct AssetCache {
 impl AssetCache {
     pub fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
+        let filesystem_ctx = ctx.filesystem.clone();
 
         let storage = AssetCacheStorage::new(asset_handle_ctx.clone());
 
-        let loader = AssetCacheLoad::new(asset_handle_ctx.clone(), ctx.filesystem.clone());
+        let loader = AssetCacheLoad::new();
         loader.start_background_loader();
 
         let derived = AssetCacheDerived::new();
 
+        #[cfg(not(target_arch = "wasm32"))]
+        let reloader = asset::AssetCacheReload::new();
+
         Self {
             asset_handle_ctx,
+            filesystem_ctx,
 
             storage,
 
@@ -66,43 +76,48 @@ impl AssetCache {
             derived,
 
             #[cfg(not(target_arch = "wasm32"))]
-            reloader: asset::AssetCacheReload::new(),
+            reloader,
         }
     }
 
-    pub fn poll(&mut self) {
+    pub fn load_ctx<T: Asset>(&self, handle: AssetHandle<T>) -> LoadContext {
+        LoadContext::new(
+            handle.as_any(),
+            self.asset_handle_ctx.clone(),
+            self.filesystem_ctx.clone(),
+            &self.loader,
+            #[cfg(not(target_arch = "wasm32"))]
+            &self.reloader,
+        )
+    }
+
+    pub fn poll(&mut self, ctx: &Context) {
         #[cfg(not(target_arch = "wasm32"))]
-        self.reloader.poll_reload();
+        {
+            // TODO: does order matter?
+            self.reloader.poll_reload();
+            self.reloader.poll_reload_fns();
+            self.reloader.poll_watch(ctx.filesystem.clone());
+        }
 
         self.loader
             .poll_loaded(&mut self.storage.cache, &mut self.derived);
     }
 
+    // TODO: just call load ctx functions from here
     pub(crate) fn load<T: AssetLoader + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
         path: &Path,
         settings: T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        // set current status to loading
-        self.storage
-            .cache
-            .insert(handle.as_any(), LoadAssetResult::Loading);
+    ) {
+        let load_ctx = self.load_ctx(handle.clone());
 
-        // request load
-        self.loader
-            .request_load::<T>(handle.clone(), path, settings.clone());
-
-        // register reload
+        // register reload fns
         #[cfg(not(target_arch = "wasm32"))]
-        self.reloader.register_reloadable::<T>(
-            handle.clone(),
-            path.to_path_buf(),
-            settings.clone(),
-            self.loader.load_ctx.clone(),
-        );
+        load_ctx.register_reload_fns::<T>(handle.clone(), path.to_path_buf(), settings.clone());
 
-        handle
+        load_ctx.request_load_with_handle::<T>(handle.clone(), path, settings.clone());
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -112,12 +127,9 @@ impl AssetCache {
         path: &Path,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
+        let load_ctx = self.load_ctx(handle.clone());
         // load sync
-        let data = pollster::block_on(T::load(
-            self.loader.load_ctx.clone(),
-            path,
-            settings.clone(),
-        ));
+        let data = pollster::block_on(T::load(load_ctx.clone(), path, settings.clone()));
         match data {
             Ok(asset) => {
                 self.storage
@@ -134,15 +146,6 @@ impl AssetCache {
 
         // TODO: should failed loads be put here?
         self.loader.just_loaded.insert(handle.as_any());
-
-        // register reload
-        #[cfg(not(target_arch = "wasm32"))]
-        self.reloader.register_reloadable::<T>(
-            handle.clone(),
-            path.to_path_buf(),
-            settings.clone(),
-            self.loader.load_ctx.clone(),
-        );
 
         handle
     }
