@@ -20,7 +20,6 @@ impl AssetBuilder {
             path: path.into(),
 
             handle: None,
-            sync: false,
             watch: false,
         }
     }
@@ -60,7 +59,6 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 
     handle: Option<AssetHandle<T::Asset>>,
     watch: bool,
-    sync: bool,
 }
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
@@ -83,11 +81,6 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     ) -> AssetHandle<T::Asset> {
         let handle = self.handle.unwrap_or(cache.new_empty_handle());
 
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.sync {
-            return cache.load_sync::<T>(handle, &self.path, settings);
-        }
-
         cache.load::<T>(handle.clone(), &self.path, settings);
 
         handle
@@ -100,11 +93,6 @@ impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
 
     pub fn watch(mut self, watch: bool) -> Self {
         self.watch = watch;
-        self
-    }
-
-    pub fn sync(mut self, sync: bool) -> Self {
-        self.sync = sync;
         self
     }
 }

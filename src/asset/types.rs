@@ -1,9 +1,5 @@
 use super::{AssetHandle, LoadContext};
-use crate::{
-    asset::{ConvertContext, LoadAssetResult},
-    render::ArcHandle,
-    Context,
-};
+use crate::{asset::ConvertContext, render::ArcHandle, Context};
 use core::error;
 use std::{
     any::{Any, TypeId},
@@ -19,7 +15,6 @@ use std::{
 pub type DynAsset = Box<dyn Asset>;
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
-pub type DynAssetLoadFnSync = Box<dyn Fn() -> LoadAssetResult + Send>;
 
 pub type DynDerivedAsset = ArcHandle<dyn Any>;
 pub type DerivedAssetKey = (DynAssetHandle, TypeId);

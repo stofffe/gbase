@@ -7,11 +7,9 @@ diagnostic (off, derivative_uniformity);
 struct VertexInput {
     // instance
     @location(0) @interpolate(flat) element_type: u32,
-
     @location(1) position: vec2f,
     @location(2) size: vec2f,
     @location(3) color: vec4f,
-
     @location(4) font_atlas_offset: vec2f,
     @location(5) font_atlas_size: vec2f,
 }
@@ -64,6 +62,10 @@ const EDGE_CUTOFF = 0.5;
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     let font_sdf = textureSample(font_atlas_texture, font_atlas_sampler, in.atlas_uv);
 
+    // if true {
+    //     return vec4f(1.0, 1.0, 1.0, 1.0);
+    // }
+
     if in.element_type == ELEMENT_TYPE_CONTAINER {
         return vec4f(in.color);
     } else if in.element_type == ELEMENT_TYPE_GLYPH {
@@ -75,5 +77,4 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     } else {
         return vec4f(1.0, 0.0, 1.0, 1.0);
     }
-
 }

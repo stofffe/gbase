@@ -37,15 +37,6 @@ pub fn reload_asset<T: AssetLoader + 'static>(
     cache.reload::<T>(handle)
 }
 
-// force reload an asset
-#[cfg(not(target_arch = "wasm32"))]
-pub fn reload_asset_sync<T: AssetLoader + 'static>(
-    cache: &mut AssetCache,
-    handle: AssetHandle<T::Asset>,
-) {
-    cache.reload_sync::<T>(handle)
-}
-
 /// Check if a specific asset is loaded
 pub fn handle_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
     cache.handle_successfully_loaded(handle.clone())

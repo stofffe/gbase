@@ -120,36 +120,6 @@ impl AssetCache {
         load_ctx.request_load_with_handle::<T>(handle.clone(), path, settings.clone());
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn load_sync<T: AssetLoader + Send + Sync + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-        path: &Path,
-        settings: T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        let load_ctx = self.load_ctx(handle.clone());
-        // load sync
-        let data = pollster::block_on(T::load(load_ctx.clone(), path, settings.clone()));
-        match data {
-            Ok(asset) => {
-                self.storage
-                    .cache
-                    .insert(handle.as_any(), LoadAssetResult::Success(Box::new(asset)));
-            }
-            Err(err) => {
-                tracing::error!("error loading asset {:?}: {}", path, err);
-                self.storage
-                    .cache
-                    .insert(handle.as_any(), LoadAssetResult::Error);
-            }
-        }
-
-        // TODO: should failed loads be put here?
-        self.loader.just_loaded.insert(handle.as_any());
-
-        handle
-    }
-
     pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
         AssetHandle::new(&self.asset_handle_ctx)
     }
@@ -236,12 +206,5 @@ impl AssetCache {
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
         self.reloader.reload(handle.as_any());
-    }
-
-    /// Reload an existing asset while reusing the last path and loader
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload_sync<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.reloader
-            .reload_sync(&mut self.storage.cache, &mut self.derived, handle.as_any());
     }
 }

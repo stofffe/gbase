@@ -343,32 +343,12 @@ impl LoadContext {
             );
         });
 
-        // sync
-        let path_clone = path.clone();
-        let load_ctx_clone = self.clone();
-        let load_sync_fn = Box::new(move || {
-            let result = pollster::block_on(T::load(
-                load_ctx_clone.clone(),
-                &path_clone.clone(),
-                settings.clone(),
-            ));
-
-            match result {
-                Ok(asset) => LoadAssetResult::Success(Box::new(asset)),
-                Err(err) => {
-                    tracing::error!("could not reload asset {:?}: {}", path_clone.clone(), err);
-                    LoadAssetResult::Error
-                }
-            }
-        });
-
         tracing::info!("SEND RELOAD FN {}", handle.id());
         // send over channel
         self.reload_handle_sender
             .try_send(ReloadFnHandleRequest {
                 handle: handle.as_any(),
                 load_fn,
-                load_sync_fn,
             })
             .expect("could not send register reload handle request");
     }

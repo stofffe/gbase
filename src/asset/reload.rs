@@ -1,5 +1,4 @@
-use crate::asset::derive::AssetCacheDerived;
-use crate::asset::{DynAssetHandle, DynAssetLoadFn, DynAssetLoadFnSync, LoadAssetResult};
+use crate::asset::{DynAssetHandle, DynAssetLoadFn};
 use crate::filesystem::FileSystemContext;
 use rustc_hash::FxHashMap;
 use std::collections::HashSet;
@@ -12,7 +11,6 @@ pub struct AssetCacheReload {
     // functions for reloading handles sync
     // use same settings as when it was initially loaded
     reload_functions: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
-    reload_functions_sync: FxHashMap<DynAssetHandle, DynAssetLoadFnSync>,
 
     // channel for requesting reloads
     pub(crate) reload_sender: async_channel::Sender<ReloadHandleRequest>,
@@ -41,7 +39,6 @@ pub struct WatchHandleRequest {
 pub struct ReloadFnHandleRequest {
     pub handle: DynAssetHandle,
     pub load_fn: DynAssetLoadFn,
-    pub load_sync_fn: DynAssetLoadFnSync,
 }
 
 impl AssetCacheReload {
@@ -79,7 +76,6 @@ impl AssetCacheReload {
 
             reload_handles: FxHashMap::default(),
             reload_functions: FxHashMap::default(),
-            reload_functions_sync: FxHashMap::default(),
         }
     }
 
@@ -102,8 +98,6 @@ impl AssetCacheReload {
             );
             self.reload_functions
                 .insert(reload_fn_request.handle.clone(), reload_fn_request.load_fn);
-            self.reload_functions_sync
-                .insert(reload_fn_request.handle, reload_fn_request.load_sync_fn);
         }
     }
 
@@ -141,24 +135,5 @@ impl AssetCacheReload {
         };
 
         reload_fn();
-    }
-
-    /// Immediately call the reload function sync
-    pub fn reload_sync(
-        &mut self,
-        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
-        derived: &mut AssetCacheDerived,
-        handle: DynAssetHandle,
-    ) {
-        let Some(reload_fn_sync) = self.reload_functions_sync.get(&handle.as_any()) else {
-            tracing::warn!("could not get asset handle {}", handle.id());
-            return;
-        };
-
-        let asset = reload_fn_sync();
-
-        cache.insert(handle.clone(), asset);
-
-        derived.invalidate_render_cache_for_handle(handle);
     }
 }
