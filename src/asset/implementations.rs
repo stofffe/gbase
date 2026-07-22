@@ -7,7 +7,7 @@ use crate::{
         GetAssetResult, NoSettings,
     },
     filesystem,
-    render::{self, GpuImage, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
+    render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
 };
 
@@ -19,20 +19,29 @@ impl Asset for render::Mesh {}
 
 impl DerivedAsset for render::GpuMesh {}
 
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct MeshGpuConverterSettings {
+    mesh: AssetHandle<Mesh>,
+}
+
+impl MeshGpuConverterSettings {
+    pub fn new(mesh: AssetHandle<Mesh>) -> Self {
+        Self { mesh }
+    }
+}
+
 pub struct MeshGpuConverter;
 impl AssetConverter for MeshGpuConverter {
-    type SourceAsset = render::Mesh;
     type TargetAsset = render::GpuMesh;
     type Error = EmptyError;
-    type Settings = NoSettings;
+    type Settings = MeshGpuConverterSettings;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.mesh.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -44,20 +53,23 @@ impl AssetConverter for MeshGpuConverter {
 
 impl DerivedAsset for render::BoundingBox {}
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct BoundingBoxConverterOptions {
+    mesh: AssetHandle<Mesh>,
+}
+
 pub struct BoundingBoxConverter;
 impl AssetConverter for BoundingBoxConverter {
-    type SourceAsset = render::Mesh;
     type TargetAsset = render::BoundingBox;
     type Error = EmptyError;
-    type Settings = NoSettings;
+    type Settings = BoundingBoxConverterOptions;
 
     fn convert(
         _ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.mesh.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -113,19 +125,27 @@ impl DerivedAsset for wgpu::ShaderModule {}
 
 pub struct ShaderGpuConverter;
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct ShaderGpuConverterOptions {
+    shader: AssetHandle<Shader>,
+}
+impl ShaderGpuConverterOptions {
+    pub fn new(shader: AssetHandle<Shader>) -> Self {
+        Self { shader }
+    }
+}
+
 impl AssetConverter for ShaderGpuConverter {
-    type SourceAsset = render::Shader;
     type TargetAsset = wgpu::ShaderModule;
     type Error = wgpu::Error;
-    type Settings = NoSettings;
+    type Settings = ShaderGpuConverterOptions;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.shader.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -222,20 +242,29 @@ impl AssetLoader for ImageLoader {
 
 impl DerivedAsset for render::GpuImage {}
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct ImageGpuConverterOptions {
+    image: AssetHandle<Image>,
+}
+
+impl ImageGpuConverterOptions {
+    pub fn new(image: AssetHandle<Image>) -> Self {
+        Self { image }
+    }
+}
+
 pub struct ImageGpuConverter;
 impl AssetConverter for ImageGpuConverter {
-    type SourceAsset = render::Image;
     type TargetAsset = render::GpuImage;
     type Error = EmptyError;
-    type Settings = NoSettings;
+    type Settings = ImageGpuConverterOptions;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.image.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,

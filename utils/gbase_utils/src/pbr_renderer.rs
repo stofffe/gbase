@@ -1,10 +1,14 @@
 use crate::{
     BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
-    LodMeshToBoundingBoxConverter, Material, MeshLod, PixelCache, Transform3D, THRESHOLDS,
+    LodMeshToBoundingBoxConverter, LodMeshToBoundingBoxConverterOptions, Material, MeshLod,
+    PixelCache, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
-    asset::{self, AssetHandle, ImageGpuConverter, MeshGpuConverter, ShaderGpuConverter},
+    asset::{
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
+        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+    },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
     tracing, wgpu, Context,
@@ -189,10 +193,10 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.forward_shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
         )
         .unwrap_success();
         let mut buffers = Vec::new();
@@ -225,10 +229,12 @@ impl PbrRenderer {
             if !mesh_lod.loaded(cache) {
                 return false;
             }
-            let bounds = mesh_lod
-                .clone()
-                .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
-                .unwrap_success();
+            let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
+                ctx,
+                cache,
+                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
+            )
+            .unwrap_success();
             frustum.sphere_inside(&bounds, transform)
         });
 
@@ -238,10 +244,12 @@ impl PbrRenderer {
 
         let mut final_meshes = Vec::new();
         for (mesh_lod, transform) in frame_meshes {
-            let bounds = mesh_lod
-                .clone()
-                .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
-                .unwrap_success();
+            let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
+                ctx,
+                cache,
+                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
+            )
+            .unwrap_success();
             let bounds_sphere = BoundingSphere::new(&bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
@@ -302,35 +310,40 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh =
-                asset::convert_asset_default_settings::<MeshGpuConverter>(ctx, cache, mesh)
-                    .unwrap_success();
-            let base_color_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
+            let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
                 ctx,
                 cache,
-                base_color_texture,
+                &MeshGpuConverterSettings::new(mesh.clone()),
             )
             .unwrap_success();
-            let normal_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
+            let base_color_texture = asset::convert_asset::<ImageGpuConverter>(
                 ctx,
                 cache,
-                normal_texture,
+                &ImageGpuConverterOptions::new(base_color_texture),
             )
             .unwrap_success();
-            let metallic_roughness_texture = asset::convert_asset_default_settings::<
-                ImageGpuConverter,
-            >(ctx, cache, metallic_roughness_texture)
-            .unwrap_success();
-            let occlusion_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
+            let normal_texture = asset::convert_asset::<ImageGpuConverter>(
                 ctx,
                 cache,
-                occlusion_texture,
+                &ImageGpuConverterOptions::new(normal_texture),
             )
             .unwrap_success();
-            let emissive_texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
+            let metallic_roughness_texture = asset::convert_asset::<ImageGpuConverter>(
                 ctx,
                 cache,
-                emissive_texture,
+                &ImageGpuConverterOptions::new(metallic_roughness_texture),
+            )
+            .unwrap_success();
+            let occlusion_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                &ImageGpuConverterOptions::new(occlusion_texture),
+            )
+            .unwrap_success();
+            let emissive_texture = asset::convert_asset::<ImageGpuConverter>(
+                ctx,
+                cache,
+                &ImageGpuConverterOptions::new(emissive_texture),
             )
             .unwrap_success();
 

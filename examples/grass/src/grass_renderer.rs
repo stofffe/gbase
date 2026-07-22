@@ -1,7 +1,8 @@
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, NoSettings, ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, NoSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        ShaderLoaderSettings,
     },
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
@@ -354,10 +355,10 @@ impl GrassRenderer {
                     ])
                     .build(ctx),
             ];
-            let instance_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+            let instance_shader = asset::convert_asset::<ShaderGpuConverter>(
                 ctx,
                 cache,
-                self.instance_shader_handle.clone(),
+                &ShaderGpuConverterOptions::new(self.instance_shader_handle.clone()),
             )
             .unwrap_success(); // TODO:
 
@@ -397,10 +398,10 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let draw_compute_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+            let draw_compute_shader = asset::convert_asset::<ShaderGpuConverter>(
                 ctx,
                 cache,
-                self.draw_shader_handle.clone(),
+                &ShaderGpuConverterOptions::new(self.draw_shader_handle.clone()),
             )
             .unwrap_success(); // TODO:
 
@@ -440,13 +441,12 @@ impl GrassRenderer {
                     view_format,
                     depth_buffer,
                 } => {
-                    let render_shader =
-                        asset::convert_asset_default_settings::<ShaderGpuConverter>(
-                            ctx,
-                            cache,
-                            self.render_forward_shader_handle.clone(),
-                        )
-                        .unwrap_success();
+                    let render_shader = asset::convert_asset::<ShaderGpuConverter>(
+                        ctx,
+                        cache,
+                        &ShaderGpuConverterOptions::new(self.render_forward_shader_handle.clone()),
+                    )
+                    .unwrap_success();
 
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
@@ -470,13 +470,12 @@ impl GrassRenderer {
                         });
                 }
                 RenderMode::Deferred { buffers } => {
-                    let render_shader =
-                        asset::convert_asset_default_settings::<ShaderGpuConverter>(
-                            ctx,
-                            cache,
-                            self.render_deferred_shader_handle.clone(),
-                        )
-                        .unwrap_success();
+                    let render_shader = asset::convert_asset::<ShaderGpuConverter>(
+                        ctx,
+                        cache,
+                        &ShaderGpuConverterOptions::new(self.render_deferred_shader_handle.clone()),
+                    )
+                    .unwrap_success();
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),

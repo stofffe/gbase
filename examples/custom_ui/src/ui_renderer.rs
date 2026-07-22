@@ -2,9 +2,10 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
-        ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError, GetAssetResult,
-        ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
+        self, AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader,
+        ConvertAssetResult, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
+        GetAssetResult, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        ShaderLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
@@ -112,22 +113,22 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let ConvertAssetResult::Success(shader) = self
-            .shader_handle
-            .convert_default_settings::<ShaderGpuConverter>(ctx, cache)
-        else {
+        let ConvertAssetResult::Success(shader) = asset::convert_asset::<ShaderGpuConverter>(
+            ctx,
+            cache,
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        ) else {
             return;
         };
-        let ConvertAssetResult::Success(font_atlas) =
-            self.font.convert_custom_settings::<FontAtlasConverter>(
-                ctx,
-                cache,
-                &FontAtlasConverterSettings {
-                    supported_chars: &self.font_atlas_supported_chars,
-                    font_raster_size: self.font_atlas_raster_size,
-                },
-            )
-        else {
+        let ConvertAssetResult::Success(font_atlas) = asset::convert_asset::<FontAtlasConverter>(
+            ctx,
+            cache,
+            &FontAtlasConverterSettings {
+                font: self.font.clone(),
+                supported_chars: self.font_atlas_supported_chars.to_vec(),
+                font_raster_size: self.font_atlas_raster_size as u32,
+            },
+        ) else {
             return;
         };
 
@@ -342,16 +343,15 @@ impl UIRenderer {
         // TODO: bad?
         let font = font.clone();
 
-        let ConvertAssetResult::Success(font_atlas) =
-            self.font.convert_custom_settings::<FontAtlasConverter>(
-                ctx,
-                cache,
-                &FontAtlasConverterSettings {
-                    supported_chars: &self.font_atlas_supported_chars,
-                    font_raster_size: self.font_atlas_raster_size,
-                },
-            )
-        else {
+        let ConvertAssetResult::Success(font_atlas) = asset::convert_asset::<FontAtlasConverter>(
+            ctx,
+            cache,
+            &FontAtlasConverterSettings {
+                font: self.font.clone(),
+                supported_chars: self.font_atlas_supported_chars.to_vec(),
+                font_raster_size: self.font_atlas_raster_size as u32,
+            },
+        ) else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
@@ -707,25 +707,24 @@ pub struct FontAtlasConverter<'a> {
     font_raster_size: f32,
 }
 
-#[derive(Clone)]
-pub struct FontAtlasConverterSettings<'a> {
-    supported_chars: &'a [char],
-    font_raster_size: f32,
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct FontAtlasConverterSettings {
+    pub font: AssetHandle<Font>,
+    pub supported_chars: Vec<char>,
+    pub font_raster_size: u32,
 }
 
 impl<'a> AssetConverter for FontAtlasConverter<'a> {
-    type SourceAsset = Font;
     type TargetAsset = FontAtlas;
     type Error = EmptyError;
-    type Settings = FontAtlasConverterSettings<'a>;
+    type Settings = FontAtlasConverterSettings;
 
     fn convert(
         ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>,
         settings: &Self::Settings,
     ) -> gbase::asset::ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.font.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -733,8 +732,8 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         let (lookup, texture) = create_font_atlas(
             ctx,
             &source.font,
-            settings.supported_chars,
-            settings.font_raster_size,
+            &settings.supported_chars,
+            settings.font_raster_size as f32,
         );
 
         ConvertAssetStatus::Success(FontAtlas { lookup, texture })

@@ -180,21 +180,31 @@ impl Deref for BoundingBoxWrapper {
     }
 }
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct LodMeshToBoundingBoxConverterOptions {
+    mesh_lod: AssetHandle<MeshLod>,
+}
+
+impl LodMeshToBoundingBoxConverterOptions {
+    pub fn new(mesh_lod: AssetHandle<MeshLod>) -> Self {
+        Self { mesh_lod }
+    }
+}
+
 impl DerivedAsset for BoundingBoxWrapper {}
 pub struct LodMeshToBoundingBoxConverter;
+
 impl AssetConverter for LodMeshToBoundingBoxConverter {
-    type SourceAsset = MeshLod;
     type Error = EmptyError;
     type TargetAsset = BoundingBoxWrapper;
-    type Settings = NoSettings;
+    type Settings = LodMeshToBoundingBoxConverterOptions;
 
     fn convert(
         _ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>,
-        _settings: &Self::Settings,
+        settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = convert_ctx.get(source.clone()).unwrap_loaded();
+        let source = convert_ctx.get(settings.mesh_lod.clone()).unwrap_loaded();
         let handle = source.meshes[0].0.clone();
 
         let bounding_box = BoundingBoxWrapper(

@@ -1,11 +1,11 @@
 use crate::{
-    BoundingBoxWrapper, Camera, CameraFrustum, LodMeshToBoundingBoxConverter, MeshLod, Plane,
-    Transform3D,
+    BoundingBoxWrapper, Camera, CameraFrustum, LodMeshToBoundingBoxConverter,
+    LodMeshToBoundingBoxConverterOptions, MeshLod, Plane, Transform3D,
 };
 use gbase::{
     asset::{
-        self, AssetHandle, MeshGpuConverter, NoSettings, ShaderGpuConverter, ShaderLoader,
-        ShaderLoaderSettings,
+        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, NoSettings,
+        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
@@ -164,10 +164,12 @@ impl ShadowPass {
                     return false;
                 }
 
-                let bounds = handle
-                    .clone()
-                    .convert_default_settings::<LodMeshToBoundingBoxConverter>(ctx, cache)
-                    .unwrap_success();
+                let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
+                    ctx,
+                    cache,
+                    &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
+                )
+                .unwrap_success();
                 frustums[i].sphere_inside(&bounds, transform)
             });
             let mut ranges = Vec::new();
@@ -203,10 +205,10 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let gpu_mesh = asset::convert_asset_default_settings::<MeshGpuConverter>(
+                let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
                     ctx,
                     cache,
-                    mesh_handle.clone(),
+                    &MeshGpuConverterSettings::new(mesh_handle.clone()),
                 )
                 .unwrap_success();
                 draws.push(gpu_mesh);
@@ -233,10 +235,10 @@ impl ShadowPass {
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                 ])
                 .build(ctx);
-            let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+            let shader = asset::convert_asset::<ShaderGpuConverter>(
                 ctx,
                 cache,
-                self.shader_handle.clone(),
+                &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
             )
             .unwrap_success();
             let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())

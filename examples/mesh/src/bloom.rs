@@ -1,5 +1,8 @@
 use gbase::{
-    asset::{self, NoSettings, ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings},
+    asset::{
+        self, NoSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        ShaderLoaderSettings,
+    },
     render::{self, FrameBuffer, FrameBufferBuilder, Shader},
     wgpu, Context,
 };
@@ -60,10 +63,10 @@ impl Tonemap {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success();
         let pipeline =
@@ -368,10 +371,10 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let extract_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let extract_shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.extract_shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.extract_shader_handle.clone()),
         )
         .unwrap_success();
         let extract_pipeline = render::RenderPipelineBuilder::new(
@@ -407,10 +410,10 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let downsample_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let downsample_shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.downsample_shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.downsample_shader_handle.clone()),
         )
         .unwrap_success();
         let downsample_pipeline = render::RenderPipelineBuilder::new(
@@ -456,10 +459,10 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let upsample_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let upsample_shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.upsample_shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.upsample_shader_handle.clone()),
         )
         .unwrap_success();
         let upsample_pipeline = render::RenderPipelineBuilder::new(
@@ -532,10 +535,10 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let combine_shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let combine_shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.combine_shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.combine_shader_handle.clone()),
         )
         .unwrap_success();
         let combine_pipeline = render::RenderPipelineBuilder::new(

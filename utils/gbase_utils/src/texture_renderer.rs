@@ -1,5 +1,8 @@
 use gbase::{
-    asset::{self, MeshGpuConverter, NoSettings, ShaderGpuConverter},
+    asset::{
+        self, MeshGpuConverter, MeshGpuConverterSettings, NoSettings, ShaderGpuConverter,
+        ShaderGpuConverterOptions,
+    },
     render::{self, ArcTextureView, Shader, ShaderBuilder},
     wgpu, Context,
 };
@@ -106,10 +109,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
@@ -126,11 +129,12 @@ impl TextureRenderer {
             .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
-                let gpu_mesh = self
-                    .vertices
-                    .clone()
-                    .convert_default_settings::<MeshGpuConverter>(ctx, cache)
-                    .unwrap_success();
+                let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
+                    ctx,
+                    cache,
+                    &MeshGpuConverterSettings::new(self.vertices.clone()),
+                )
+                .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);
@@ -182,10 +186,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.shader_depth_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.shader_depth_handle.clone()),
         )
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
@@ -206,11 +210,12 @@ impl TextureRenderer {
                 }
 
                 render_pass.set_pipeline(&pipeline);
-                let gpu_mesh = self
-                    .vertices
-                    .clone()
-                    .convert_default_settings::<MeshGpuConverter>(ctx, cache)
-                    .unwrap_success();
+                let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
+                    ctx,
+                    cache,
+                    &MeshGpuConverterSettings::new(self.vertices.clone()),
+                )
+                .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);

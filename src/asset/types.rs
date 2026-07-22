@@ -5,6 +5,7 @@ use std::{
     any::{Any, TypeId},
     fmt::Debug,
     future::Future,
+    hash::Hash,
     path::Path,
 };
 
@@ -17,7 +18,7 @@ pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
 pub type DynDerivedAsset = ArcHandle<dyn Any + Send + Sync>;
-pub type DerivedAssetKey = (DynAssetHandle, TypeId);
+// pub type DerivedAssetKey = (ArcHandle<dyn DerivedAssetSettings + Send + Sync>, TypeId);
 
 //
 // Traits
@@ -51,19 +52,18 @@ pub trait AssetLoader: Send {
 
 pub trait DerivedAsset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
 
-pub trait DerivedAssetSettings: Send {}
-impl<T: Send + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait DerivedAssetSettings: Send + Hash + Eq + Clone {}
+impl<T: Send + Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
-    type SourceAsset: Asset;
     type TargetAsset: DerivedAsset;
     type Settings: DerivedAssetSettings;
+    // TODO: is this even being used?
     type Error: error::Error;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset>;
 }

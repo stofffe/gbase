@@ -54,19 +54,17 @@ pub fn get<'a, T: Asset + 'static>(
     cache.get(handle)
 }
 
-pub fn convert_asset_custom_settings<G: AssetConverter>(
+pub fn convert_asset<G: AssetConverter + 'static>(
     ctx: &mut Context,
     cache: &mut AssetCache,
-    handle: AssetHandle<G::SourceAsset>,
     settings: &G::Settings,
 ) -> ConvertAssetResult<G::TargetAsset> {
-    cache.convert::<G>(ctx, handle, settings)
+    cache.convert::<G>(ctx, settings)
 }
 
-pub fn convert_asset_default_settings<G: AssetConverter<Settings: Default>>(
-    ctx: &mut Context,
-    cache: &mut AssetCache,
-    handle: AssetHandle<G::SourceAsset>,
-) -> ConvertAssetResult<G::TargetAsset> {
-    cache.convert::<G>(ctx, handle, &G::Settings::default())
-}
+// pub fn convert_asset_default_settings<G: AssetConverter<Settings: Default>>(
+//     ctx: &mut Context,
+//     cache: &mut AssetCache,
+// ) -> ConvertAssetResult<G::TargetAsset> {
+//     cache.convert::<G>(ctx, &G::Settings::default())
+// }

@@ -1,8 +1,9 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
-    AssetBuilder, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
-    ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
+    AssetBuilder, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings,
+    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+    ShaderLoader, ShaderLoaderSettings,
 };
 use gbase::render::{Image, Mesh, SamplerBuilder, TextureBuilder};
 use gbase::{asset, tracing};
@@ -149,16 +150,16 @@ impl CloudRenderer {
 
         self.app_info.update_buffer(ctx);
 
-        let weather_map = asset::convert_asset_default_settings::<ImageGpuConverter>(
+        let weather_map = asset::convert_asset::<ImageGpuConverter>(
             ctx,
             cache,
-            self.weather_map_handle.clone(),
+            &ImageGpuConverterOptions::new(self.weather_map_handle.clone()),
         )
         .unwrap_success();
-        let blue_noise = asset::convert_asset_default_settings::<ImageGpuConverter>(
+        let blue_noise = asset::convert_asset::<ImageGpuConverter>(
             ctx,
             cache,
-            self.blue_noise_handle.clone(),
+            &ImageGpuConverterOptions::new(self.blue_noise_handle.clone()),
         )
         .unwrap_success();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
@@ -184,10 +185,10 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success();
         let mesh = self.mesh_handle.get(cache).unwrap_loaded();
@@ -198,10 +199,10 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = asset::convert_asset_default_settings::<MeshGpuConverter>(
+        let mesh_gpu = asset::convert_asset::<MeshGpuConverter>(
             ctx,
             cache,
-            self.mesh_handle.clone(),
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         )
         .unwrap_success();
         let mut encoder = render::EncoderBuilder::new().build(ctx);

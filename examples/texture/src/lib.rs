@@ -1,7 +1,8 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
-        ShaderGpuConverter, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
+        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
+        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -85,22 +86,22 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
-        let mesh = asset::convert_asset_default_settings::<MeshGpuConverter>(
+        let mesh = asset::convert_asset::<MeshGpuConverter>(
             ctx,
             cache,
-            self.mesh_handle.clone(),
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         )
         .unwrap_success();
-        let shader = asset::convert_asset_default_settings::<ShaderGpuConverter>(
+        let shader = asset::convert_asset::<ShaderGpuConverter>(
             ctx,
             cache,
-            self.shader_handle.clone(),
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success();
-        let texture = asset::convert_asset_default_settings::<ImageGpuConverter>(
+        let texture = asset::convert_asset::<ImageGpuConverter>(
             ctx,
             cache,
-            self.texture_handle.clone(),
+            &ImageGpuConverterOptions::new(self.texture_handle.clone()),
         )
         .unwrap_success();
 

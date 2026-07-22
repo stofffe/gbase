@@ -21,7 +21,7 @@ pub enum CallbackResult {
     Exit,
 }
 
-/// User callbaks
+/// User callbacks
 pub trait Callbacks {
     /// Use a custom `ContextBuilder`
     fn init_ctx() -> ContextBuilder {

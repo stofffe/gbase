@@ -3,8 +3,9 @@ use std::path::PathBuf;
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
-        ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, NoSettings, ShaderGpuConverter,
+        ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter,
+        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        MeshGpuConverterSettings, NoSettings, ShaderGpuConverter,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -92,21 +93,29 @@ struct ShaderWithImportsFinal {
 
 impl DerivedAsset for ShaderWithImportsFinal {}
 
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct ShaderWithImportsConverterOptions {
+    shader: AssetHandle<ShaderWithImports>,
+}
+impl ShaderWithImportsConverterOptions {
+    pub fn new(shader: AssetHandle<ShaderWithImports>) -> Self {
+        Self { shader }
+    }
+}
+
 struct ShaderWithImportsConverter {}
 
 impl AssetConverter for ShaderWithImportsConverter {
-    type SourceAsset = ShaderWithImports;
     type TargetAsset = ShaderWithImportsFinal;
-    type Settings = NoSettings;
+    type Settings = ShaderWithImportsConverterOptions;
     type Error = EmptyError;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(source) {
+        let source = match convert_ctx.get(settings.shader.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
             GetAssetResult::Failed => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -115,12 +124,10 @@ impl AssetConverter for ShaderWithImportsConverter {
 
         let mut import_sources = Vec::new();
         for import in source.imports.iter() {
-            let conversion_result = convert_ctx
-                .convert_custom_settings::<ShaderWithImportsConverter>(
-                    ctx,
-                    import.clone(),
-                    settings,
-                );
+            let conversion_result = convert_ctx.convert::<ShaderWithImportsConverter>(
+                ctx,
+                &ShaderWithImportsConverterOptions::new(import.clone()),
+            );
             match conversion_result {
                 asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
                 // TODO: add source failed?
@@ -146,24 +153,32 @@ impl AssetConverter for ShaderWithImportsConverter {
     }
 }
 
-struct ShaderWithImportGpuConverter;
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct ShaderWithImportsGpuConverterSettings {
+    shader: AssetHandle<ShaderWithImports>,
+}
 
-impl AssetConverter for ShaderWithImportGpuConverter {
-    type SourceAsset = ShaderWithImports;
+impl ShaderWithImportsGpuConverterSettings {
+    pub fn new(shader: AssetHandle<ShaderWithImports>) -> Self {
+        Self { shader }
+    }
+}
+
+struct ShaderWithImportsGpuConverter;
+
+impl AssetConverter for ShaderWithImportsGpuConverter {
     type TargetAsset = wgpu::ShaderModule;
-    type Settings = NoSettings;
+    type Settings = ShaderWithImportsGpuConverterSettings;
     type Error = EmptyError;
 
     fn convert(
         ctx: &mut Context,
         convert_ctx: &mut asset::ConvertContext,
-        source: AssetHandle<Self::SourceAsset>, // TODO: make this refernce?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let result = convert_ctx.convert_custom_settings::<ShaderWithImportsConverter>(
+        let result = convert_ctx.convert::<ShaderWithImportsConverter>(
             ctx,
-            source.clone(),
-            settings,
+            &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         );
 
         let shader = match result {
@@ -247,22 +262,28 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let ConvertAssetResult::Success(mesh) = asset::convert_asset_default_settings::<
-            MeshGpuConverter,
-        >(ctx, cache, self.mesh_handle.clone()) else {
+        let ConvertAssetResult::Success(mesh) = asset::convert_asset::<MeshGpuConverter>(
+            ctx,
+            cache,
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+        ) else {
             return CallbackResult::Continue;
         };
 
-        let ConvertAssetResult::Success(shader) = asset::convert_asset_default_settings::<
-            ShaderWithImportGpuConverter,
-        >(ctx, cache, self.shader_handle.clone()) else {
+        let ConvertAssetResult::Success(shader) =
+            asset::convert_asset::<ShaderWithImportsGpuConverter>(
+                ctx,
+                cache,
+                &ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
+            )
+        else {
             return CallbackResult::Continue;
         };
 
-        let ConvertAssetResult::Success(texture) = asset::convert_asset_default_settings::<
-            ImageGpuConverter,
-        >(
-            ctx, cache, self.texture_handle.clone()
+        let ConvertAssetResult::Success(texture) = asset::convert_asset::<ImageGpuConverter>(
+            ctx,
+            cache,
+            &ImageGpuConverterOptions::new(self.texture_handle.clone()),
         ) else {
             return CallbackResult::Continue;
         };

@@ -5,13 +5,16 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::asset::{AssetCacheReload, ReloadFnHandleRequest, WatchHandleRequest};
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetCacheStorage, AssetHandle, AssetHandleContext,
-        AssetLoader, DynAsset, DynAssetHandle,
+        derive::AssetCacheDerived, Asset, AssetHandle, AssetHandleContext, AssetLoader, DynAsset,
+        DynAssetHandle,
     },
     filesystem,
 };
 
-use std::path::{Path, PathBuf};
+use std::{
+    any::type_name,
+    path::{Path, PathBuf},
+};
 use std::{future::Future, pin::Pin};
 
 pub enum LoadAssetResult {
@@ -87,8 +90,7 @@ impl AssetCacheLoad {
 
             cache.insert(response.handle.clone(), response.result);
 
-            // invalidate render cache
-            derived.invalidate_render_cache_for_handle(response.handle.clone());
+            derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
         }
     }
 
@@ -98,18 +100,10 @@ impl AssetCacheLoad {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
+        tracing::info!("REQUEST LOAD of {}", type_name::<T>());
         let load_ctx_clone = load_ctx.clone();
         let sender = load_ctx.load_response_sender.clone();
         let dyn_handle = handle.as_any().clone();
-
-        // TODO: is this correct?
-        // set currently loading
-        sender
-            .try_send(LoadResponse {
-                handle: dyn_handle.clone(),
-                result: LoadAssetResult::Loading,
-            })
-            .expect("could not send load success response");
 
         // request load
         load_ctx
@@ -262,21 +256,20 @@ impl LoadContext {
     }
 
     /// Request load with new handle
+    // TODO: does not set status to loading (maybe fine?)
     pub fn request_load<T: AssetLoader + 'static>(
         &self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let handle = AssetHandle::new(&self.asset_handle_ctx);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        self.register_reload_fns::<T>(handle.clone(), settings.clone());
-
-        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), settings);
+        self.request_load_with_handle::<T>(handle.clone(), settings);
 
         handle
     }
 
     /// Request load with existing handle
+    // TODO: does not set status to loading (maybe fine?)
     pub fn request_load_with_handle<T: AssetLoader + 'static>(
         &self,
         handle: AssetHandle<T::Asset>,

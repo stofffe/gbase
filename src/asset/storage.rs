@@ -90,13 +90,13 @@ impl AssetCacheStorage {
 
     pub fn insert_existing_handle<T: Asset + 'static>(
         &mut self,
-        converter: &mut AssetCacheDerived,
+        derived: &mut AssetCacheDerived,
         data: T,
         handle: AssetHandle<T>,
     ) -> AssetHandle<T> {
         self.cache
             .insert(handle.as_any(), LoadAssetResult::Success(Box::new(data)));
-        converter.invalidate_render_cache_for_handle(handle.as_any());
+        derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
         handle
     }
 }

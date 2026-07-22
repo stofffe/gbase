@@ -113,6 +113,11 @@ impl AssetCache {
     ) {
         let mut load_ctx = self.load_ctx(handle.clone());
 
+        // TODO: not done when loading sub assets through load ctx
+        self.storage
+            .cache
+            .insert(handle.as_any(), LoadAssetResult::Loading);
+
         #[cfg(not(target_arch = "wasm32"))]
         load_ctx.watch(watch);
 
@@ -185,17 +190,16 @@ impl AssetCache {
     //
 
     pub fn clear_derived_handles(&mut self) {
-        self.derived.clear_unused_handles();
+        // TODO:
+        // self.derived.clear_unused_handles();
     }
 
-    pub fn convert<G: AssetConverter>(
+    pub fn convert<G: AssetConverter + 'static>(
         &mut self,
         ctx: &mut Context,
-        handle: AssetHandle<G::SourceAsset>,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        self.derived
-            .convert::<G>(ctx, &self.storage, handle, settings)
+        self.derived.convert::<G>(ctx, &self.storage, settings)
     }
 
     //
