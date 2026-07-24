@@ -141,7 +141,7 @@ fn parse_gltf_node(
         children.push(child_node_handle);
     }
 
-    let node_handle = load_ctx.insert(GltfNode {
+    let node_handle = load_ctx.insert_asset(GltfNode {
         name,
         mesh,
         transform,
@@ -187,7 +187,7 @@ fn parse_gltf_mesh(
         primitives.push(primitive);
     }
 
-    let mesh_handle = load_ctx.insert(GltfMesh { name, primitives });
+    let mesh_handle = load_ctx.insert_asset(GltfMesh { name, primitives });
     if let Some(name) = mesh.name() {
         gltf_cache
             .named_meshes
@@ -340,7 +340,7 @@ fn parse_gltf_primitive(
     GltfPrimitive {
         name,
         material,
-        mesh: load_ctx.insert(mesh),
+        mesh: load_ctx.insert_asset(mesh),
     }
 }
 
@@ -432,7 +432,7 @@ pub fn parse_gltf_material(
             sampler_config,
         };
 
-        let handle = load_ctx.insert(image);
+        let handle = load_ctx.insert_asset(image);
         gltf_cache.images.insert(texture.index(), handle.clone());
         handle
     }
@@ -455,7 +455,7 @@ pub fn parse_gltf_material(
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         };
 
-        let handle = load_ctx.insert(image);
+        let handle = load_ctx.insert_asset(image);
         gltf_cache.single_pixel_images.insert(color, handle.clone());
         handle
     }
@@ -565,7 +565,7 @@ pub fn parse_gltf_material(
         None => single_pixel_image(load_ctx, gltf_cache, EMISSIVE_DEFAULT),
     };
 
-    let material_handle = load_ctx.insert(Material {
+    let material_handle = load_ctx.insert_asset(Material {
         base_color_texture,
         color_factor,
         metallic_roughness_texture,

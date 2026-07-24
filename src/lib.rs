@@ -40,6 +40,7 @@ pub mod input;
 pub mod profile;
 pub mod random;
 pub mod render;
+pub mod task;
 pub mod time;
 
 #[cfg(feature = "egui")]
@@ -86,6 +87,7 @@ pub struct Context {
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,
     pub profile: profile::ProfileContext,
+    pub(crate) task: task::TaskContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,

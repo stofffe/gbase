@@ -5,7 +5,7 @@ use crate::{
     asset::AssetCache,
     audio, filesystem, input,
     profile::{self, ProfilerWrapper},
-    random, render, time, Context,
+    random, render, task, time, Context,
 };
 use std::path::PathBuf;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -201,6 +201,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let render = render::RenderContext::new(&builder, window).await;
             let random = random::RandomContext::new();
             let profile = profile::ProfileContext::new(&builder, &render.device, &render.queue);
+            let task = task::TaskContext::new();
 
             let ctx = Context {
                 input,
@@ -210,6 +211,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 render,
                 random,
                 profile,
+                task,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),

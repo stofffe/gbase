@@ -67,7 +67,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path;
                     let import =
-                        load_ctx.request_load::<ShaderWithImportsLoader>(settings_with_new_path);
+                        load_ctx.load_asset::<ShaderWithImportsLoader>(settings_with_new_path);
 
                     imports.push(import);
 

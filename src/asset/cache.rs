@@ -10,6 +10,7 @@ use crate::{
         LoadResponse,
     },
     filesystem::FileSystemContext,
+    task::{TaskContext, TaskExecutor},
     Context,
 };
 use std::{
@@ -40,6 +41,7 @@ impl AssetHandleContext {
 pub struct AssetCache {
     asset_handle_ctx: AssetHandleContext,
     filesystem_ctx: FileSystemContext,
+    task_executor: TaskContext,
 
     storage: AssetCacheStorage,
 
@@ -55,11 +57,11 @@ impl AssetCache {
     pub fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
         let filesystem_ctx = ctx.filesystem.clone();
+        let task_executor = ctx.task.clone();
 
         let storage = AssetCacheStorage::new(asset_handle_ctx.clone());
 
         let loader = AssetCacheLoad::new();
-        loader.start_background_loader();
 
         let derived = AssetCacheDerived::new();
 
@@ -69,6 +71,7 @@ impl AssetCache {
         Self {
             asset_handle_ctx,
             filesystem_ctx,
+            task_executor,
 
             storage,
 
@@ -85,6 +88,7 @@ impl AssetCache {
             handle.as_any(),
             self.asset_handle_ctx.clone(),
             self.filesystem_ctx.clone(),
+            self.task_executor.clone(),
             &self.loader,
             #[cfg(not(target_arch = "wasm32"))]
             &self.reloader,
@@ -125,7 +129,7 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         load_ctx.register_reload_fns::<T>(handle.clone(), settings.clone());
 
-        load_ctx.request_load_with_handle::<T>(handle.clone(), settings.clone());
+        load_ctx.load_asset_with_handle::<T>(handle.clone(), settings.clone());
     }
 
     pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {

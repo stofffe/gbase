@@ -8,7 +8,7 @@ use crate::{
         derive::AssetCacheDerived, Asset, AssetHandle, AssetHandleContext, AssetLoader, DynAsset,
         DynAssetHandle,
     },
-    filesystem,
+    filesystem, task,
 };
 
 use std::{
@@ -39,9 +39,6 @@ pub struct LoadResponse {
 }
 
 pub struct AssetCacheLoad {
-    pub(crate) request_sender: async_channel::Sender<LoadRequest>,
-    pub(crate) request_receiver: async_channel::Receiver<LoadRequest>,
-
     pub(crate) response_sender: async_channel::Sender<LoadResponse>,
     pub(crate) response_receiver: async_channel::Receiver<LoadResponse>,
 
@@ -55,16 +52,12 @@ pub struct AssetCacheLoad {
 
 impl AssetCacheLoad {
     pub(crate) fn new() -> Self {
-        let (request_sender, request_receiver) = async_channel::unbounded();
         let (response_sender, response_receiver) = async_channel::unbounded();
 
         let just_loaded = FxHashSet::default();
 
         Self {
             just_loaded,
-
-            request_sender,
-            request_receiver,
 
             response_sender,
             response_receiver,
@@ -93,96 +86,6 @@ impl AssetCacheLoad {
             derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
         }
     }
-
-    pub(crate) fn request_load_func<T: AssetLoader + 'static>(
-        load_ctx: LoadContext,
-
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        tracing::info!("REQUEST LOAD of {}", type_name::<T>());
-        let load_ctx_clone = load_ctx.clone();
-        let sender = load_ctx.load_response_sender.clone();
-        let dyn_handle = handle.as_any().clone();
-
-        // request load
-        load_ctx
-            .load_request_sender
-            .try_send(Box::pin(async move {
-                let data = T::load(load_ctx_clone.clone(), settings).await;
-
-                match data {
-                    Ok(asset) => {
-                        let boxed_asset = Box::new(asset);
-                        sender
-                            .send(LoadResponse {
-                                handle: dyn_handle,
-                                result: LoadAssetResult::Success(boxed_asset),
-                            })
-                            .await
-                            .expect("could not send load success response");
-                    }
-                    Err(err) => {
-                        tracing::warn!("could not load asset {}", err);
-                        sender
-                            .send(LoadResponse {
-                                handle: dyn_handle,
-                                result: LoadAssetResult::Error,
-                            })
-                            .await
-                            .expect("could not send load error response");
-                    }
-                }
-            }))
-            .expect("could not send request to unbounded channel");
-    }
-
-    /// Start the background loader
-    ///
-    /// Native: Spawn a new thread with an executor
-    ///
-    /// Wasm: Attach background loader to JS scheduler
-    pub fn start_background_loader(&self) {
-        let request_receiver_copy = self.request_receiver.clone();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        std::thread::spawn(move || {
-            // TODO: should probably use better executor
-            pollster::block_on(Self::background_loader(request_receiver_copy));
-        });
-
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(Self::background_loader(request_receiver_copy));
-    }
-
-    /// Implementation of an asset loader that runs in the background
-    ///
-    /// Should be started using `start_background_loader`
-    async fn background_loader(requests: async_channel::Receiver<LoadRequest>) {
-        let mut running = futures::stream::FuturesUnordered::new();
-
-        loop {
-            if running.is_empty() {
-                // when no assets are loading, only await new requests
-                let load_request = requests.recv().await.expect("channel closed");
-                running.push(load_request);
-                continue;
-            } else {
-                // when assets are loading, await both assets and new requests
-                futures::select! {
-                    load_request = requests.recv().fuse() => {
-                        let request = load_request.expect("could not");
-                        running.push(request);
-                    }
-                    load_result = running.next().fuse() => {
-                        if load_result.is_none() {
-                            tracing::info!("finished loading all current load requests");
-                        }
-                    }
-                }
-            }
-        }
-    }
 }
 
 //
@@ -196,9 +99,7 @@ pub struct LoadContext {
 
     pub(crate) asset_handle_ctx: AssetHandleContext,
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
-
-    /// channel for loading additional assets
-    pub(crate) load_request_sender: async_channel::Sender<LoadRequest>,
+    pub(crate) task_ctx: task::TaskContext,
 
     /// channel for sending load result
     pub(crate) load_response_sender: async_channel::Sender<LoadResponse>,
@@ -221,6 +122,7 @@ impl LoadContext {
 
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
+        task_ctx: task::TaskContext,
 
         loader: &AssetCacheLoad,
 
@@ -231,8 +133,8 @@ impl LoadContext {
 
             asset_handle_ctx,
             filesystem_ctx,
+            task_ctx,
 
-            load_request_sender: loader.request_sender.clone(),
             load_response_sender: loader.response_sender.clone(),
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -244,7 +146,7 @@ impl LoadContext {
         }
     }
 
-    pub fn insert<T: Asset>(&self, value: T) -> AssetHandle<T> {
+    pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.load_response_sender
             .try_send(LoadResponse {
@@ -257,20 +159,20 @@ impl LoadContext {
 
     /// Request load with new handle
     // TODO: does not set status to loading (maybe fine?)
-    pub fn request_load<T: AssetLoader + 'static>(
+    pub fn load_asset<T: AssetLoader + 'static>(
         &self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         let handle = AssetHandle::new(&self.asset_handle_ctx);
 
-        self.request_load_with_handle::<T>(handle.clone(), settings);
+        self.load_asset_with_handle::<T>(handle.clone(), settings);
 
         handle
     }
 
     /// Request load with existing handle
     // TODO: does not set status to loading (maybe fine?)
-    pub fn request_load_with_handle<T: AssetLoader + 'static>(
+    pub fn load_asset_with_handle<T: AssetLoader + 'static>(
         &self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
@@ -278,7 +180,45 @@ impl LoadContext {
         #[cfg(not(target_arch = "wasm32"))]
         self.register_reload_fns::<T>(handle.clone(), settings.clone());
 
-        AssetCacheLoad::request_load_func::<T>(self.clone(), handle.clone(), settings);
+        self.load_asset_func::<T>(handle.clone(), settings);
+    }
+
+    fn load_asset_func<T: AssetLoader + 'static>(
+        &self,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) {
+        let load_ctx_clone = self.clone();
+        let sender = self.load_response_sender.clone();
+        let dyn_handle = handle.as_any();
+        let settings = settings.clone();
+
+        self.task_ctx.spawn_task(Box::pin(async move {
+            let data = T::load(load_ctx_clone.clone(), settings).await;
+
+            match data {
+                Ok(asset) => {
+                    let boxed_asset = Box::new(asset);
+                    sender
+                        .send(LoadResponse {
+                            handle: dyn_handle,
+                            result: LoadAssetResult::Success(boxed_asset),
+                        })
+                        .await
+                        .expect("could not send load success response");
+                }
+                Err(err) => {
+                    tracing::warn!("could not load asset {}", err);
+                    sender
+                        .send(LoadResponse {
+                            handle: dyn_handle,
+                            result: LoadAssetResult::Error,
+                        })
+                        .await
+                        .expect("could not send load error response");
+                }
+            }
+        }));
     }
 
     pub async fn load_bytes(
@@ -333,10 +273,10 @@ impl LoadContext {
         let settings_clone = settings.clone();
         let load_ctx_clone = self.clone();
         let load_fn = Box::new(move || {
+            let load_ctx_clone = load_ctx_clone.clone();
             let handle_clone = handle_clone.clone();
             let settings_clone = settings_clone.clone();
-            let load_ctx_clone = load_ctx_clone.clone();
-            AssetCacheLoad::request_load_func::<T>(load_ctx_clone, handle_clone, settings_clone);
+            load_ctx_clone.load_asset_func::<T>(handle_clone, settings_clone);
         });
 
         // send over channel
