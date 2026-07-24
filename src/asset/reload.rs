@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 pub struct AssetCacheReload {
-    /// which handles map to a certain path
+    /// which handles depend to a certain path
     reload_handles: FxHashMap<PathBuf, HashSet<DynAssetHandle>>,
 
     // functions for reloading handles sync
@@ -15,11 +15,13 @@ pub struct AssetCacheReload {
 
     // channel for requesting reloads
     reload_receiver: async_channel::Receiver<ReloadHandleRequest>,
+
     // watch
-    pub(crate) watch_sender: async_channel::Sender<WatchHandleRequest>,
+    watch_sender: async_channel::Sender<WatchHandleRequest>,
     watch_receiver: async_channel::Receiver<WatchHandleRequest>,
+
     // register
-    pub(crate) reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
+    reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
     reload_fn_receiver: async_channel::Receiver<ReloadFnHandleRequest>,
 
     // keep watcher handle alive

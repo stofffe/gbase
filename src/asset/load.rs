@@ -2,12 +2,12 @@
 use crate::asset::{AssetCacheReload, ReloadContext};
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetHandle, AssetHandleContext, AssetLoader, DynAsset,
-        DynAssetHandle,
+        derive::AssetCacheDerived, Asset, AssetCacheStorage, AssetHandle, AssetHandleContext,
+        AssetLoader, DynAsset, DynAssetHandle,
     },
     filesystem, task,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashSet;
 use std::path::Path;
 
 pub enum LoadAssetResult {
@@ -58,7 +58,7 @@ impl AssetCacheLoad {
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(
         &mut self,
-        cache: &mut FxHashMap<DynAssetHandle, LoadAssetResult>,
+        storage: &mut AssetCacheStorage,
         derived: &mut AssetCacheDerived,
     ) {
         self.just_loaded.clear();
@@ -68,7 +68,7 @@ impl AssetCacheLoad {
                 self.just_loaded.insert(response.handle.clone());
             }
 
-            cache.insert(response.handle.clone(), response.result);
+            storage.insert(response.handle.clone(), response.result);
 
             derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
         }
@@ -81,14 +81,12 @@ impl AssetCacheLoad {
 
 #[derive(Clone)]
 pub struct LoadContext {
-    // TODO: should this be here? related to the load_bytes functions
     pub(crate) handle: DynAssetHandle,
 
     pub(crate) asset_handle_ctx: AssetHandleContext,
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
     pub(crate) task_ctx: task::TaskContext,
 
-    /// channel for sending load result
     pub(crate) load_response_sender: async_channel::Sender<LoadResponse>,
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -126,6 +124,18 @@ impl LoadContext {
         }
     }
 
+    pub fn clone_with_new_handle(&self, handle: DynAssetHandle) -> Self {
+        Self {
+            handle,
+            asset_handle_ctx: self.asset_handle_ctx.clone(),
+            filesystem_ctx: self.filesystem_ctx.clone(),
+            task_ctx: self.task_ctx.clone(),
+            load_response_sender: self.load_response_sender.clone(),
+
+            #[cfg(not(target_arch = "wasm32"))]
+            reload_ctx: self.reload_ctx.clone(),
+        }
+    }
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.load_response_sender
@@ -138,7 +148,6 @@ impl LoadContext {
     }
 
     /// Request load with new handle
-    // TODO: does not set status to loading (maybe fine?)
     pub fn load_asset<T: AssetLoader + 'static>(
         &self,
         settings: T::Settings,
@@ -169,20 +178,18 @@ impl LoadContext {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        let load_ctx_clone = self.clone();
-        let sender = self.load_response_sender.clone();
-        let dyn_handle = handle.as_any();
-        let settings = settings.clone();
+        let load_ctx = self.clone_with_new_handle(handle.as_any());
+        let load_response_sender = self.load_response_sender.clone();
 
         self.task_ctx.spawn_task(Box::pin(async move {
-            let data = T::load(load_ctx_clone.clone(), settings).await;
+            let data = T::load(load_ctx, settings).await;
 
             match data {
                 Ok(asset) => {
                     let boxed_asset = Box::new(asset);
-                    sender
+                    load_response_sender
                         .send(LoadResponse {
-                            handle: dyn_handle,
+                            handle: handle.as_any(),
                             result: LoadAssetResult::Success(boxed_asset),
                         })
                         .await
@@ -190,9 +197,9 @@ impl LoadContext {
                 }
                 Err(err) => {
                     tracing::warn!("could not load asset {}", err);
-                    sender
+                    load_response_sender
                         .send(LoadResponse {
-                            handle: dyn_handle,
+                            handle: handle.as_any(),
                             result: LoadAssetResult::Error,
                         })
                         .await

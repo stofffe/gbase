@@ -3,34 +3,13 @@ use crate::{
     asset::{
         self,
         derive::{AssetCacheDerived, ConvertAssetResult},
-        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, GetAssetResult,
-        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext,
+        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
+        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext,
     },
     filesystem::FileSystemContext,
     task::TaskContext,
     Context,
 };
-use std::sync::{Arc, Mutex};
-
-// TODO: maybe move this to load context
-#[derive(Debug, Clone)]
-pub struct AssetHandleContext {
-    id: Arc<Mutex<u64>>,
-}
-
-impl AssetHandleContext {
-    pub fn new() -> Self {
-        Self {
-            id: Arc::new(Mutex::new(0)),
-        }
-    }
-    pub fn next_id(&self) -> u64 {
-        let mut id_guard = self.id.lock().expect("could not unlock asset id lock");
-        let id = *id_guard;
-        *id_guard += 1;
-        id
-    }
-}
 
 pub struct AssetCache {
     asset_handle_ctx: AssetHandleContext,
@@ -39,12 +18,12 @@ pub struct AssetCache {
 
     storage: AssetCacheStorage,
 
-    pub(crate) loader: AssetCacheLoad,
+    loader: AssetCacheLoad,
 
     derived: AssetCacheDerived,
 
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) reloader: asset::reload::AssetCacheReload,
+    reloader: asset::reload::AssetCacheReload,
 }
 
 impl AssetCache {
@@ -99,10 +78,9 @@ impl AssetCache {
         }
 
         self.loader
-            .poll_loaded(&mut self.storage.cache, &mut self.derived);
+            .poll_loaded(&mut self.storage, &mut self.derived);
     }
 
-    // TODO: just call load ctx functions from here
     pub(crate) fn load<T: AssetLoader + 'static>(
         &mut self,
         handle: AssetHandle<T::Asset>,
@@ -113,7 +91,6 @@ impl AssetCache {
 
         // TODO: not done when loading sub assets through load ctx
         self.storage
-            .cache
             .insert(handle.as_any(), LoadAssetResult::Loading);
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -128,7 +105,7 @@ impl AssetCache {
         load_ctx.load_asset_with_handle::<T>(handle, settings);
     }
 
-    pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
+    pub fn new_empty_handle<T: Asset>(&self) -> AssetHandle<T> {
         AssetHandle::new(&self.asset_handle_ctx)
     }
 
@@ -149,7 +126,7 @@ impl AssetCache {
     //
 
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
-        self.storage.insert_new_handle(data)
+        self.storage.insert_successful_new_handle(data)
     }
 
     pub fn overwrite_handle<T: Asset + 'static>(
@@ -158,7 +135,7 @@ impl AssetCache {
         handle: AssetHandle<T>,
     ) -> AssetHandle<T> {
         self.storage
-            .insert_existing_handle(&mut self.derived, data, handle)
+            .insert_successful_existing_handle(&mut self.derived, handle, data)
     }
 
     pub fn get<'a, T: Asset + 'static>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
@@ -170,11 +147,12 @@ impl AssetCache {
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
-        self.storage.clear_handle(handle);
+        self.storage
+            .clear_handle(&mut self.derived, handle.as_any());
     }
 
     pub fn clear_asset_handles(&mut self) {
-        self.storage.clear_unused_handles();
+        self.storage.clear_unused_handles(&mut self.derived);
     }
 
     //

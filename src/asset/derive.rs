@@ -10,27 +10,6 @@ use crate::{
     Context,
 };
 
-pub enum ConvertAssetResult<T: DerivedAsset> {
-    Loading,
-    Success(ArcHandle<T>),
-    Failed,
-}
-
-impl<T: DerivedAsset> ConvertAssetResult<T> {
-    /// Unwrap the result as a success
-    ///
-    /// Panics for other values than
-    pub fn unwrap_success(self) -> ArcHandle<T> {
-        match self {
-            ConvertAssetResult::Loading => {
-                panic!("asset conversion loading: unwrap success failed")
-            }
-            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
-            ConvertAssetResult::Success(arc_handle) => arc_handle,
-        }
-    }
-}
-
 pub struct AssetCacheDerived {
     pub(crate) typed_caches: FxHashMap<TypeId, Box<dyn DynDerivedCache>>,
 }
@@ -38,21 +17,6 @@ pub struct AssetCacheDerived {
 pub trait DynDerivedCache {
     fn as_any(&mut self) -> &mut dyn Any;
     fn invalidate(&mut self, handle: DynAssetHandle);
-}
-
-impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
-    fn as_any(&mut self) -> &mut dyn Any {
-        self as &mut dyn Any
-    }
-
-    fn invalidate(&mut self, handle: DynAssetHandle) {
-        if let Some(settings) = self.handle_to_settings.get(&handle) {
-            tracing::info!("INVALIDATE TYPED CACHE {}", type_name::<G>());
-            for setting in settings {
-                self.render_cache.remove(setting);
-            }
-        }
-    }
 }
 
 pub struct TypedDerivedCache<G: AssetConverter> {
@@ -104,6 +68,21 @@ impl<G: AssetConverter> TypedDerivedCache<G> {
                 .entry(handle.clone())
                 .or_default()
                 .insert(settings.clone());
+        }
+    }
+}
+
+impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
+    fn as_any(&mut self) -> &mut dyn Any {
+        self as &mut dyn Any
+    }
+
+    fn invalidate(&mut self, handle: DynAssetHandle) {
+        if let Some(settings) = self.handle_to_settings.get(&handle) {
+            tracing::info!("INVALIDATE TYPED CACHE {}", type_name::<G>());
+            for setting in settings {
+                self.render_cache.remove(setting);
+            }
         }
     }
 }
@@ -161,8 +140,6 @@ impl AssetCacheDerived {
         let mut convert_ctx = ConvertContext::new(storage, self);
         match G::convert(ctx, &mut convert_ctx, settings) {
             ConvertAssetStatus::SourceLoading => ConvertAssetResult::Loading,
-
-            // TODO: insert last valid so we dont hit this each time?
             ConvertAssetStatus::Failed => {
                 match self.get_typed_cache::<G>().get_last_valid(settings) {
                     Some(asset_handle) => {
@@ -179,7 +156,6 @@ impl AssetCacheDerived {
                     }
                 }
             }
-
             ConvertAssetStatus::Success(render_asset_handle) => {
                 let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
 
@@ -228,5 +204,26 @@ impl<'a> ConvertContext<'a> {
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
         self.derived.convert::<G>(ctx, self.storage, settings)
+    }
+}
+
+pub enum ConvertAssetResult<T: DerivedAsset> {
+    Loading,
+    Success(ArcHandle<T>),
+    Failed,
+}
+
+impl<T: DerivedAsset> ConvertAssetResult<T> {
+    /// Unwrap the result as a success
+    ///
+    /// Panics for other values than
+    pub fn unwrap_success(self) -> ArcHandle<T> {
+        match self {
+            ConvertAssetResult::Loading => {
+                panic!("asset conversion loading: unwrap success failed")
+            }
+            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
+            ConvertAssetResult::Success(arc_handle) => arc_handle,
+        }
     }
 }

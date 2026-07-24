@@ -8,6 +8,8 @@ use std::{any::Any, fmt::Debug, future::Future, hash::Hash, path::Path};
 //
 
 pub type DynAsset = Box<dyn Asset>;
+impl Asset for DynAsset {}
+
 pub type DynAssetHandle = AssetHandle<DynAsset>;
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
