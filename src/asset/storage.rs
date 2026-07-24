@@ -1,10 +1,8 @@
-use std::{any::Any, convert, sync::Arc};
-
-use rustc_hash::FxHashMap;
-
 use crate::asset::{
     Asset, AssetCacheDerived, AssetHandle, AssetHandleContext, DynAssetHandle, LoadAssetResult,
 };
+use rustc_hash::FxHashMap;
+use std::{any::Any, sync::Arc};
 
 pub enum GetAssetResult<'a, T: Asset> {
     Loading,

@@ -1,3 +1,4 @@
+use crate::asset::{AssetHandle, AssetLoader, LoadContext};
 use crate::asset::{DynAssetHandle, DynAssetLoadFn};
 use crate::filesystem::FileSystemContext;
 use rustc_hash::FxHashMap;
@@ -13,7 +14,6 @@ pub struct AssetCacheReload {
     reload_functions: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
 
     // channel for requesting reloads
-    pub(crate) reload_sender: async_channel::Sender<ReloadHandleRequest>,
     reload_receiver: async_channel::Receiver<ReloadHandleRequest>,
     // watch
     pub(crate) watch_sender: async_channel::Sender<WatchHandleRequest>,
@@ -66,7 +66,6 @@ impl AssetCacheReload {
         Self {
             reload_watcher,
 
-            reload_sender,
             reload_receiver,
 
             watch_sender,
@@ -126,5 +125,86 @@ impl AssetCacheReload {
         };
 
         reload_fn();
+    }
+}
+
+/// Reload function wrappers available in tasks
+#[derive(Clone)]
+pub struct ReloadContext {
+    /// channel for registering handle for reload watching
+    pub(crate) watch_handle_sender: async_channel::Sender<WatchHandleRequest>,
+
+    // channel for registering reload fns
+    pub(crate) reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
+
+    pub(crate) watch: bool,
+}
+
+impl ReloadContext {
+    pub fn new(reloader: &AssetCacheReload) -> Self {
+        let watch_handle_sender = reloader.watch_sender.clone();
+        let reload_fn_sender = reloader.reload_fn_sender.clone();
+        let watch = false;
+
+        Self {
+            watch_handle_sender,
+            reload_fn_sender,
+            watch,
+        }
+    }
+
+    pub fn enable_watch<T: AssetLoader + 'static>(
+        &mut self,
+        load_ctx: LoadContext,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) {
+        self.watch = true;
+        self.register_reload_fns::<T>(load_ctx, handle, settings);
+    }
+
+    pub async fn register_watch(&self, handle: DynAssetHandle, path: impl Into<PathBuf>) {
+        if !self.watch {
+            return;
+        }
+
+        let path = path.into();
+        self.watch_handle_sender
+            .send(WatchHandleRequest {
+                handle: handle.clone(),
+                path: path.clone(),
+            })
+            .await
+            .expect("could not send");
+    }
+
+    pub(crate) fn register_reload_fns<T: AssetLoader + 'static>(
+        &self,
+        load_ctx: LoadContext,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) {
+        if !self.watch {
+            return;
+        }
+
+        // async
+        let handle_clone = handle.clone();
+        let settings_clone = settings.clone();
+        let load_ctx_clone = load_ctx.clone();
+        let load_fn = Box::new(move || {
+            let load_ctx_clone = load_ctx_clone.clone();
+            let handle_clone = handle_clone.clone();
+            let settings_clone = settings_clone.clone();
+            load_ctx_clone.load_asset_func::<T>(handle_clone, settings_clone);
+        });
+
+        // send over channel
+        self.reload_fn_sender
+            .try_send(ReloadFnHandleRequest {
+                handle: handle.as_any(),
+                load_fn,
+            })
+            .expect("could not send register reload handle request");
     }
 }

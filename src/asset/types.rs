@@ -1,13 +1,7 @@
 use super::{AssetHandle, LoadContext};
 use crate::{asset::ConvertContext, render::ArcHandle, Context};
 use core::error;
-use std::{
-    any::{Any, TypeId},
-    fmt::Debug,
-    future::Future,
-    hash::Hash,
-    path::Path,
-};
+use std::{any::Any, fmt::Debug, future::Future, hash::Hash, path::Path};
 
 //
 // Types

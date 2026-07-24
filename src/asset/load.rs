@@ -1,8 +1,5 @@
-use futures::{FutureExt, StreamExt};
-use rustc_hash::{FxHashMap, FxHashSet};
-
 #[cfg(not(target_arch = "wasm32"))]
-use crate::asset::{AssetCacheReload, ReloadFnHandleRequest, WatchHandleRequest};
+use crate::asset::{AssetCacheReload, ReloadContext};
 use crate::{
     asset::{
         derive::AssetCacheDerived, Asset, AssetHandle, AssetHandleContext, AssetLoader, DynAsset,
@@ -10,12 +7,8 @@ use crate::{
     },
     filesystem, task,
 };
-
-use std::{
-    any::type_name,
-    path::{Path, PathBuf},
-};
-use std::{future::Future, pin::Pin};
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::path::Path;
 
 pub enum LoadAssetResult {
     Loading,
@@ -26,12 +19,6 @@ pub enum LoadAssetResult {
 //
 // Load
 //
-
-#[cfg(target_arch = "wasm32")]
-pub type LoadRequest = Pin<Box<dyn Future<Output = ()> + 'static>>;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub type LoadRequest = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
 pub struct LoadResponse {
     pub(crate) handle: DynAssetHandle,
@@ -104,16 +91,8 @@ pub struct LoadContext {
     /// channel for sending load result
     pub(crate) load_response_sender: async_channel::Sender<LoadResponse>,
 
-    /// channel for registering handle for reload watching
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) watch_handle_sender: async_channel::Sender<WatchHandleRequest>,
-
-    // channel for registering reload fns
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) reload_handle_sender: async_channel::Sender<ReloadFnHandleRequest>,
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) watch: bool,
+    pub(crate) reload_ctx: ReloadContext,
 }
 
 impl LoadContext {
@@ -128,6 +107,11 @@ impl LoadContext {
 
         #[cfg(not(target_arch = "wasm32"))] reloader: &AssetCacheReload,
     ) -> Self {
+        let load_response_sender = loader.response_sender.clone();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        let reload_ctx = ReloadContext::new(reloader);
+
         Self {
             handle,
 
@@ -135,14 +119,10 @@ impl LoadContext {
             filesystem_ctx,
             task_ctx,
 
-            load_response_sender: loader.response_sender.clone(),
+            load_response_sender,
 
             #[cfg(not(target_arch = "wasm32"))]
-            watch_handle_sender: reloader.watch_sender.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_handle_sender: reloader.reload_fn_sender.clone(),
-            #[cfg(not(target_arch = "wasm32"))]
-            watch: false,
+            reload_ctx,
         }
     }
 
@@ -178,12 +158,13 @@ impl LoadContext {
         settings: T::Settings,
     ) {
         #[cfg(not(target_arch = "wasm32"))]
-        self.register_reload_fns::<T>(handle.clone(), settings.clone());
+        self.reload_ctx
+            .register_reload_fns::<T>(self.clone(), handle.clone(), settings.clone());
 
         self.load_asset_func::<T>(handle.clone(), settings);
     }
 
-    fn load_asset_func<T: AssetLoader + 'static>(
+    pub fn load_asset_func<T: AssetLoader + 'static>(
         &self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
@@ -226,9 +207,9 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
         #[cfg(not(target_arch = "wasm32"))]
-        if self.watch {
-            self.register_watch(path.as_ref().to_path_buf()).await;
-        }
+        self.reload_ctx
+            .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+            .await;
 
         self.filesystem_ctx.load_asset_bytes(&path).await
     }
@@ -238,53 +219,10 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
         #[cfg(not(target_arch = "wasm32"))]
-        if self.watch {
-            self.register_watch(path.as_ref().to_path_buf()).await;
-        }
+        self.reload_ctx
+            .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+            .await;
 
         self.filesystem_ctx.load_asset_string(path).await
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn watch(&mut self, enable: bool) {
-        self.watch = enable;
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    async fn register_watch(&self, path: impl Into<PathBuf>) {
-        let path = path.into();
-        self.watch_handle_sender
-            .send(WatchHandleRequest {
-                handle: self.handle.clone(),
-                path: path.clone(),
-            })
-            .await
-            .expect("could not send");
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn register_reload_fns<T: AssetLoader + 'static>(
-        &self,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // async
-        let handle_clone = handle.clone();
-        let settings_clone = settings.clone();
-        let load_ctx_clone = self.clone();
-        let load_fn = Box::new(move || {
-            let load_ctx_clone = load_ctx_clone.clone();
-            let handle_clone = handle_clone.clone();
-            let settings_clone = settings_clone.clone();
-            load_ctx_clone.load_asset_func::<T>(handle_clone, settings_clone);
-        });
-
-        // send over channel
-        self.reload_handle_sender
-            .try_send(ReloadFnHandleRequest {
-                handle: handle.as_any(),
-                load_fn,
-            })
-            .expect("could not send register reload handle request");
     }
 }

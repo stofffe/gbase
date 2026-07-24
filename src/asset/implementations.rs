@@ -1,15 +1,14 @@
-use std::path::PathBuf;
-
-use super::{Asset, AssetCache, AssetHandle, AssetLoader};
+use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
     asset::{
-        derive, AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
-        GetAssetResult, NoSettings,
+        AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
+        GetAssetResult,
     },
     filesystem,
     render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
 };
+use std::path::PathBuf;
 
 //
 // Mesh

@@ -1,22 +1,16 @@
 use super::{Asset, AssetLoader};
-#[cfg(not(target_arch = "wasm32"))]
-use crate::asset::{ReloadFnHandleRequest, WatchHandleRequest};
 use crate::{
     asset::{
         self,
         derive::{AssetCacheDerived, ConvertAssetResult},
         AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, GetAssetResult,
-        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext, LoadRequest,
-        LoadResponse,
+        InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext,
     },
     filesystem::FileSystemContext,
-    task::{TaskContext, TaskExecutor},
+    task::TaskContext,
     Context,
 };
-use std::{
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex},
-};
+use std::sync::{Arc, Mutex};
 
 // TODO: maybe move this to load context
 #[derive(Debug, Clone)]
@@ -45,7 +39,7 @@ pub struct AssetCache {
 
     storage: AssetCacheStorage,
 
-    loader: AssetCacheLoad,
+    pub(crate) loader: AssetCacheLoad,
 
     derived: AssetCacheDerived,
 
@@ -123,13 +117,15 @@ impl AssetCache {
             .insert(handle.as_any(), LoadAssetResult::Loading);
 
         #[cfg(not(target_arch = "wasm32"))]
-        load_ctx.watch(watch);
+        if watch {
+            load_ctx.reload_ctx.enable_watch::<T>(
+                load_ctx.clone(),
+                handle.clone(),
+                settings.clone(),
+            );
+        }
 
-        // register reload fns
-        #[cfg(not(target_arch = "wasm32"))]
-        load_ctx.register_reload_fns::<T>(handle.clone(), settings.clone());
-
-        load_ctx.load_asset_with_handle::<T>(handle.clone(), settings.clone());
+        load_ctx.load_asset_with_handle::<T>(handle, settings);
     }
 
     pub fn new_empty_handle<T>(&self) -> AssetHandle<T> {
