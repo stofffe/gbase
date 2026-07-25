@@ -1,4 +1,5 @@
 next up
+    [] return errors to user
     [] all assets are being watched, make it a context builder option
         [] remove watch from builder and 
     [] remove watch from builder and 
@@ -6,7 +7,7 @@ next up
     [] implement traversable dependency graph
         [] asset_loaded() must track deps
         [] reload on sub assets changed
-    [] when loading sub dependecy its not inserted into the currently loading
+    [] when loading sub dependecy its not inserted into the currently loading, maybe bring back sending load response but handle derived assets better when loading is received
     [] investigate if asset cache can be put in ctx
     [] cache path -> assethandle to reuse now that its immutable
     [] put image crate behind feature flag

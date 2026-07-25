@@ -36,7 +36,7 @@ pub fn reload_asset<T: AssetLoader + 'static>(
 }
 
 /// Check if a specific asset is loaded
-pub fn handle_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
+pub fn handle_loaded<T: Asset>(cache: &mut AssetCache, handle: AssetHandle<T>) -> bool {
     cache.handle_successfully_loaded(handle.clone())
 }
 
@@ -46,7 +46,7 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
 }
 
 pub fn get<'a, T: Asset + 'static>(
-    cache: &'a AssetCache,
+    cache: &'a mut AssetCache,
     handle: AssetHandle<T>,
 ) -> GetAssetResult<'a, T> {
     cache.get(handle)

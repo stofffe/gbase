@@ -130,7 +130,7 @@ impl AssetCacheDerived {
     pub fn convert<G: AssetConverter + 'static>(
         &mut self,
         ctx: &mut Context,
-        storage: &AssetCacheStorage,
+        storage: &mut AssetCacheStorage,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
         if let Some(render_asset_handle) = self.get_typed_cache::<G>().get(settings) {
@@ -175,16 +175,19 @@ impl AssetCacheDerived {
     }
 }
 
-pub struct ConvertContext<'a> {
-    pub(crate) storage: &'a AssetCacheStorage,
-    pub(crate) derived: &'a mut AssetCacheDerived,
+pub struct ConvertContext<'storage, 'derived> {
+    pub(crate) storage: &'storage mut AssetCacheStorage,
+    pub(crate) derived: &'derived mut AssetCacheDerived,
 
     // track handles used during conversion
     dependencies: FxHashSet<DynAssetHandle>,
 }
 
-impl<'a> ConvertContext<'a> {
-    pub fn new(storage: &'a AssetCacheStorage, derived: &'a mut AssetCacheDerived) -> Self {
+impl<'storage, 'derived> ConvertContext<'storage, 'derived> {
+    pub fn new(
+        storage: &'storage mut AssetCacheStorage,
+        derived: &'derived mut AssetCacheDerived,
+    ) -> Self {
         Self {
             storage,
             derived,
@@ -192,7 +195,7 @@ impl<'a> ConvertContext<'a> {
         }
     }
 
-    pub fn get<T: Asset>(&mut self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
+    pub fn get<'a, T: Asset>(&'a mut self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
         self.dependencies.insert(handle.as_any());
         self.storage.get(handle)
     }

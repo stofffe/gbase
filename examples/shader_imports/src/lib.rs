@@ -112,7 +112,7 @@ impl AssetConverter for ShaderWithImportsConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>,
+        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.shader.clone()) {

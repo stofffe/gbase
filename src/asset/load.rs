@@ -10,7 +10,13 @@ use crate::{
 use rustc_hash::FxHashSet;
 use std::path::Path;
 
-pub enum LoadAssetResult {
+pub enum LoadAssetResult<T: Asset> {
+    Loading,
+    Success(T),
+    Error,
+}
+
+pub enum DynLoadAssetResult {
     Loading,
     Success(DynAsset),
     Error,
@@ -20,14 +26,63 @@ pub enum LoadAssetResult {
 // Load
 //
 
-pub struct LoadResponse {
-    pub(crate) handle: DynAssetHandle,
-    pub(crate) result: LoadAssetResult,
+pub struct LoadResponse<T: Asset> {
+    pub(crate) handle: AssetHandle<T>,
+    pub(crate) result: LoadAssetResult<T>,
 }
 
+pub trait DynLoadResponse: Send {
+    fn insert_into_storage(self: Box<Self>, storage: &mut AssetCacheStorage);
+    fn handle(&self) -> DynAssetHandle;
+    fn success(&self) -> bool;
+}
+
+impl<T: Asset> DynLoadResponse for LoadResponse<T> {
+    fn insert_into_storage(self: Box<Self>, storage: &mut AssetCacheStorage) {
+        storage.insert(self.handle, self.result);
+    }
+
+    fn handle(&self) -> DynAssetHandle {
+        self.handle.as_any()
+    }
+
+    fn success(&self) -> bool {
+        matches!(self.result, LoadAssetResult::Success(_))
+    }
+}
+
+// impl<T: AssetLoader> TypedAssetLoader<T> {
+//     pub fn new() -> Self {
+//         Self {}
+//     }
+//
+//     pub fn handle_just_loaded(&self, handle: AssetHandle<T>) -> bool {
+//         self.just_loaded.contains(&handle.as_any())
+//     }
+//
+//     // check if any files completed loading and update cache and invalidate render cache
+//     pub fn poll_loaded(
+//         &mut self,
+//         storage: &mut AssetCacheStorage,
+//         derived: &mut AssetCacheDerived,
+//     ) {
+//         self.just_loaded.clear();
+//
+//         while let Ok(response) = self.response_receiver.try_recv() {
+//             if let LoadAssetResult::Success(_) = response.result {
+//                 self.just_loaded.insert(response.handle.clone());
+//             }
+//
+//             storage.insert(response.handle.clone(), response.result);
+//
+//             derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
+//         }
+//     }
+// }
+
 pub struct AssetCacheLoad {
-    pub(crate) response_sender: async_channel::Sender<LoadResponse>,
-    pub(crate) response_receiver: async_channel::Receiver<LoadResponse>,
+    pub(crate) response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
+    pub(crate) response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
 
     // TODO: maybe these should be derived from cache every frame? O(n)
     // TODO: should failed loads be put here?
@@ -64,13 +119,13 @@ impl AssetCacheLoad {
         self.just_loaded.clear();
 
         while let Ok(response) = self.response_receiver.try_recv() {
-            if let LoadAssetResult::Success(_) = response.result {
-                self.just_loaded.insert(response.handle.clone());
+            if response.success() {
+                self.just_loaded.insert(response.handle());
             }
 
-            storage.insert(response.handle.clone(), response.result);
+            derived.invalidate_derived_assets_depending_on_handle(response.handle());
 
-            derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
+            response.insert_into_storage(storage);
         }
     }
 }
@@ -87,7 +142,7 @@ pub struct LoadContext {
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
     pub(crate) task_ctx: task::TaskContext,
 
-    pub(crate) load_response_sender: async_channel::Sender<LoadResponse>,
+    pub(crate) load_response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) reload_ctx: ReloadContext,
@@ -136,13 +191,14 @@ impl LoadContext {
             reload_ctx: self.reload_ctx.clone(),
         }
     }
+
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         self.load_response_sender
-            .try_send(LoadResponse {
-                handle: handle.as_any(),
-                result: LoadAssetResult::Success(Box::new(value)),
-            })
+            .try_send(Box::new(LoadResponse {
+                handle: handle.clone(),
+                result: LoadAssetResult::Success(value),
+            }))
             .expect("could not send asset handle");
         handle
     }
@@ -186,22 +242,21 @@ impl LoadContext {
 
             match data {
                 Ok(asset) => {
-                    let boxed_asset = Box::new(asset);
                     load_response_sender
-                        .send(LoadResponse {
-                            handle: handle.as_any(),
-                            result: LoadAssetResult::Success(boxed_asset),
-                        })
+                        .send(Box::new(LoadResponse {
+                            handle: handle.clone(),
+                            result: LoadAssetResult::Success(asset),
+                        }))
                         .await
                         .expect("could not send load success response");
                 }
                 Err(err) => {
                     tracing::warn!("could not load asset {}", err);
                     load_response_sender
-                        .send(LoadResponse {
-                            handle: handle.as_any(),
+                        .send(Box::new(LoadResponse {
+                            handle: handle.clone(),
                             result: LoadAssetResult::Error,
-                        })
+                        }))
                         .await
                         .expect("could not send load error response");
                 }
