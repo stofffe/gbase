@@ -191,7 +191,7 @@ impl CloudRenderer {
             &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success();
-        let mesh = self.mesh_handle.get(cache).unwrap_loaded();
+        let mesh = self.mesh_handle.get(cache).unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
             .buffers(mesh.buffer_layout())

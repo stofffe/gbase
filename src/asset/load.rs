@@ -3,12 +3,43 @@ use crate::asset::{AssetCacheReload, ReloadContext};
 use crate::{
     asset::{
         derive::AssetCacheDerived, Asset, AssetCacheStorage, AssetHandle, AssetHandleContext,
-        AssetLoader, DynAsset, DynAssetHandle,
+        DynAsset, DynAssetHandle,
     },
     filesystem, task,
 };
 use rustc_hash::FxHashSet;
-use std::path::Path;
+use std::future::Future;
+use std::{error, path::Path};
+
+//
+// Types
+//
+
+pub trait AssetSettings: Send + Clone {}
+impl<T: Send + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+
+pub trait AssetError: error::Error + Send {}
+impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
+
+pub trait AssetLoader: Send {
+    type Asset: Asset;
+    type Settings: AssetSettings;
+    type Error: AssetError;
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn load(
+        load_ctx: LoadContext,
+        settings: Self::Settings,
+    ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + Send;
+
+    #[cfg(target_arch = "wasm32")]
+    fn load(
+        load_ctx: LoadContext,
+        settings: Self::Settings,
+    ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
+}
+
+pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
 pub enum LoadAssetResult<T: Asset> {
     Loading,
@@ -21,10 +52,6 @@ pub enum DynLoadAssetResult {
     Success(DynAsset),
     Error,
 }
-
-//
-// Load
-//
 
 pub struct LoadResponse<T: Asset> {
     pub(crate) handle: AssetHandle<T>,
@@ -50,6 +77,10 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
         matches!(self.result, LoadAssetResult::Success(_))
     }
 }
+
+//
+// Load
+//
 
 // impl<T: AssetLoader> TypedAssetLoader<T> {
 //     pub fn new() -> Self {
@@ -88,9 +119,6 @@ pub struct AssetCacheLoad {
     // TODO: should failed loads be put here?
     pub(crate) just_loaded: FxHashSet<DynAssetHandle>,
 }
-
-// pbr needs math.h
-//
 
 impl AssetCacheLoad {
     pub(crate) fn new() -> Self {

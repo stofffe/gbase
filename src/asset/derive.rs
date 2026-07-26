@@ -1,18 +1,128 @@
-use rustc_hash::{FxHashMap, FxHashSet};
-use std::any::{type_name, Any, TypeId};
-
 use crate::{
-    asset::{
-        Asset, AssetCacheStorage, AssetConverter, AssetHandle, ConvertAssetStatus, DerivedAsset,
-        DynAssetHandle, GetAssetResult,
-    },
+    asset::{Asset, AssetCacheStorage, AssetHandle, DynAssetHandle, GetAssetResult},
     render::ArcHandle,
     Context,
 };
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::{
+    any::{type_name, Any, TypeId},
+    error,
+    hash::Hash,
+};
+
+//
+// Types
+//
+
+pub trait DerivedAsset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
+
+pub trait DerivedAssetSettings: Send + Hash + Eq + Clone {}
+impl<T: Send + Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+                                                                //
+pub type DynDerivedAsset = ArcHandle<dyn Any + Send + Sync>;
+
+pub trait AssetConverter {
+    type TargetAsset: DerivedAsset;
+    type Settings: DerivedAssetSettings;
+    // TODO: is this even being used?
+    type Error: error::Error;
+
+    fn convert(
+        ctx: &mut Context,
+        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        settings: &Self::Settings,
+    ) -> ConvertAssetStatus<Self::TargetAsset>;
+}
+
+pub enum ConvertAssetStatus<T: DerivedAsset> {
+    SourceLoading,
+    Success(T),
+    Failed,
+}
+
+//
+// Derived
+//
 
 pub struct AssetCacheDerived {
     pub(crate) typed_caches: FxHashMap<TypeId, Box<dyn DynDerivedCache>>,
 }
+
+impl AssetCacheDerived {
+    pub fn new() -> Self {
+        Self {
+            typed_caches: FxHashMap::default(),
+        }
+    }
+
+    pub fn get_typed_cache<G: AssetConverter + 'static>(&mut self) -> &mut TypedDerivedCache<G> {
+        let entry = self
+            .typed_caches
+            .entry(TypeId::of::<G>())
+            .or_insert(Box::new(TypedDerivedCache::<G>::new()));
+        entry
+            .as_any()
+            .downcast_mut::<TypedDerivedCache<G>>()
+            .expect("could not downcast typed derived cache")
+    }
+
+    pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: DynAssetHandle) {
+        for (_, dyn_cache) in self.typed_caches.iter_mut() {
+            dyn_cache.invalidate(handle.clone());
+        }
+    }
+
+    pub fn convert<G: AssetConverter + 'static>(
+        &mut self,
+        ctx: &mut Context,
+        storage: &mut AssetCacheStorage,
+        settings: &G::Settings,
+    ) -> ConvertAssetResult<G::TargetAsset> {
+        if let Some(render_asset_handle) = self.get_typed_cache::<G>().get(settings) {
+            return ConvertAssetResult::Success(render_asset_handle);
+        }
+
+        let mut convert_ctx = ConvertContext::new(storage, self);
+        match G::convert(ctx, &mut convert_ctx, settings) {
+            ConvertAssetStatus::SourceLoading => ConvertAssetResult::Loading,
+            ConvertAssetStatus::Failed => {
+                match self.get_typed_cache::<G>().get_last_valid(settings) {
+                    Some(asset_handle) => {
+                        tracing::warn!(
+                            "assert conversion failed, using last valid version instead"
+                        );
+                        self.get_typed_cache::<G>()
+                            .insert(settings.clone(), asset_handle.clone());
+                        ConvertAssetResult::Success(asset_handle.clone())
+                    }
+                    None => {
+                        tracing::error!("asset conversion failed, no last valid version was found");
+                        ConvertAssetResult::Failed
+                    }
+                }
+            }
+            ConvertAssetStatus::Success(render_asset_handle) => {
+                let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
+
+                let deps = convert_ctx.dependencies.clone();
+
+                let typed_cache = self.get_typed_cache::<G>();
+                // actual cache
+                typed_cache.insert(settings.clone(), render_asset_handle.clone());
+                // last valid cache
+                typed_cache.insert_last_valid(settings.clone(), render_asset_handle.clone());
+                // register dependencies
+                typed_cache.register_dependencies(settings.clone(), &deps);
+
+                ConvertAssetResult::Success(render_asset_handle)
+            }
+        }
+    }
+}
+
+//
+// Typed/Dyn derive
+//
 
 pub trait DynDerivedCache {
     fn as_any(&mut self) -> &mut dyn Any;
@@ -87,94 +197,11 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
     }
 }
 
-impl AssetCacheDerived {
-    pub fn new() -> Self {
-        Self {
-            typed_caches: FxHashMap::default(),
-        }
-    }
+//
+// Conversion context
+//
 
-    // pub fn clear_handle(&mut self, handle: DynAssetHandle) {
-    //     if let Some(render_types) = self.render_cache_invalidate_lookup.get(&handle) {
-    //         for render_type in render_types {
-    //             self.render_cache.remove(&(handle.clone(), *render_type));
-    //             self.render_cache_last_valid
-    //                 .remove(&(handle.clone(), *render_type));
-    //         }
-    //     }
-    // }
-
-    // pub fn clear_unused_handles(&mut self) {
-    //     // TODO: clear all other stuff related to this handle
-    //     self.render_cache
-    //         .retain(|(handle, _), _| Arc::strong_count(&handle.id) > 1);
-    // }
-
-    pub fn get_typed_cache<G: AssetConverter + 'static>(&mut self) -> &mut TypedDerivedCache<G> {
-        let entry = self
-            .typed_caches
-            .entry(TypeId::of::<G>())
-            .or_insert(Box::new(TypedDerivedCache::<G>::new()));
-        entry
-            .as_any()
-            .downcast_mut::<TypedDerivedCache<G>>()
-            .expect("could not downcast typed derived cache")
-    }
-
-    pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: DynAssetHandle) {
-        for (_, dyn_cache) in self.typed_caches.iter_mut() {
-            dyn_cache.invalidate(handle.clone());
-        }
-    }
-
-    pub fn convert<G: AssetConverter + 'static>(
-        &mut self,
-        ctx: &mut Context,
-        storage: &mut AssetCacheStorage,
-        settings: &G::Settings,
-    ) -> ConvertAssetResult<G::TargetAsset> {
-        if let Some(render_asset_handle) = self.get_typed_cache::<G>().get(settings) {
-            return ConvertAssetResult::Success(render_asset_handle);
-        }
-
-        let mut convert_ctx = ConvertContext::new(storage, self);
-        match G::convert(ctx, &mut convert_ctx, settings) {
-            ConvertAssetStatus::SourceLoading => ConvertAssetResult::Loading,
-            ConvertAssetStatus::Failed => {
-                match self.get_typed_cache::<G>().get_last_valid(settings) {
-                    Some(asset_handle) => {
-                        tracing::warn!(
-                            "assert conversion failed, using last valid version instead"
-                        );
-                        self.get_typed_cache::<G>()
-                            .insert(settings.clone(), asset_handle.clone());
-                        ConvertAssetResult::Success(asset_handle.clone())
-                    }
-                    None => {
-                        tracing::error!("asset conversion failed, no last valid version was found");
-                        ConvertAssetResult::Failed
-                    }
-                }
-            }
-            ConvertAssetStatus::Success(render_asset_handle) => {
-                let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
-
-                let deps = convert_ctx.dependencies.clone();
-
-                let typed_cache = self.get_typed_cache::<G>();
-                // actual cache
-                typed_cache.insert(settings.clone(), render_asset_handle.clone());
-                // last valid cache
-                typed_cache.insert_last_valid(settings.clone(), render_asset_handle.clone());
-                // register dependencies
-                typed_cache.register_dependencies(settings.clone(), &deps);
-
-                ConvertAssetResult::Success(render_asset_handle)
-            }
-        }
-    }
-}
-
+/// Convertsion context related to a specific conversion
 pub struct ConvertContext<'storage, 'derived> {
     pub(crate) storage: &'storage mut AssetCacheStorage,
     pub(crate) derived: &'derived mut AssetCacheDerived,

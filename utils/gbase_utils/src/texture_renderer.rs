@@ -1,9 +1,9 @@
 use gbase::{
     asset::{
-        self, MeshGpuConverter, MeshGpuConverterSettings, NoSettings, ShaderGpuConverter,
+        self, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
         ShaderGpuConverterOptions,
     },
-    render::{self, ArcTextureView, Shader, ShaderBuilder},
+    render::{self, ArcTextureView, Shader},
     wgpu, Context,
 };
 
@@ -117,7 +117,7 @@ impl TextureRenderer {
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap_loaded().buffer_layout())
+            .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
@@ -194,7 +194,7 @@ impl TextureRenderer {
         .unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap_loaded().buffer_layout())
+            .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
             .build(ctx);
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);

@@ -1,12 +1,12 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, AssetWriter,
-        ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError, LoadContext, NoSettings,
+        self, Asset, AssetConverter, AssetHandle, AssetLoader, ConvertAssetStatus, ConvertContext,
+        DerivedAsset, EmptyError, LoadContext,
     },
     filesystem,
     render::{self, BoundingBox, VertexAttributeId},
-    tracing::{self, subscriber::NoSubscriber},
+    tracing::{self},
 };
 use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 
@@ -122,12 +122,6 @@ impl AssetLoader for MeshLodLoader {
     }
 }
 
-impl AssetWriter for MeshLodLoader {
-    fn write(asset: &Self::Asset, path: &std::path::Path) {
-        tracing::info!("write {:?} lod to {:?}", asset, path);
-    }
-}
-
 #[derive(Clone, Default)]
 pub struct GltfLoader {}
 
@@ -204,13 +198,13 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
         convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = convert_ctx.get(settings.mesh_lod.clone()).unwrap_loaded();
+        let source = convert_ctx.get(settings.mesh_lod.clone()).unwrap_success();
         let handle = source.meshes[0].0.clone();
 
         let bounding_box = BoundingBoxWrapper(
             convert_ctx
                 .get(handle)
-                .unwrap_loaded()
+                .unwrap_success()
                 .calculate_bounding_box(),
         );
         ConvertAssetStatus::Success(bounding_box)

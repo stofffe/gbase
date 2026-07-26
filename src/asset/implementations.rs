@@ -1,14 +1,14 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
-    asset::{
-        AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
-        GetAssetResult,
-    },
+    asset::{AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, GetAssetResult},
     filesystem,
     render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
 };
 use std::path::PathBuf;
+
+#[derive(thiserror::Error, Debug)]
+pub enum EmptyError {}
 
 //
 // Mesh
@@ -42,7 +42,7 @@ impl AssetConverter for MeshGpuConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.mesh.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
         let gpu_mesh = render::GpuMesh::new(ctx, source);
@@ -70,7 +70,7 @@ impl AssetConverter for BoundingBoxConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.mesh.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
 
@@ -146,7 +146,7 @@ impl AssetConverter for ShaderGpuConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.shader.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
 
@@ -265,7 +265,7 @@ impl AssetConverter for ImageGpuConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.image.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
 

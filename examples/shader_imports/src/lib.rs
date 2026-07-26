@@ -5,7 +5,7 @@ use gbase::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
         ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter,
         ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings, NoSettings, ShaderGpuConverter,
+        MeshGpuConverterSettings,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -117,7 +117,7 @@ impl AssetConverter for ShaderWithImportsConverter {
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.shader.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         }
         .clone();
@@ -299,7 +299,7 @@ impl Callbacks for App {
 
         // TODO: place this on gpumesh instead?
         let buffer_layout = asset::get(cache, self.mesh_handle.clone())
-            .unwrap_loaded()
+            .unwrap_success()
             .buffer_layout();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::from_current_screen(ctx))

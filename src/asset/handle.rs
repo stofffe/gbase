@@ -5,6 +5,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+//
+// Asset handle
+//
+
 #[derive(Debug)]
 pub struct AssetHandle<T: Asset + 'static> {
     pub(crate) id: Arc<u64>, // TODO: use strong and weak outside/inside cache
@@ -79,6 +83,10 @@ impl<T: Asset + 'static> Clone for AssetHandle<T> {
         }
     }
 }
+
+//
+// Asset handle context
+//
 
 /// Thread safe context for creating new handles
 #[derive(Debug, Clone)]

@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, NoSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        self, AssetHandle, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
         ShaderLoaderSettings,
     },
     filesystem,
@@ -11,7 +11,6 @@ use gbase::{
         self, ArcBindGroupLayout, ArcPipelineLayout, BindGroupBindable, ColorTargetState, GpuImage,
         RenderPassColorAttachment, TextureBuilder,
     },
-    tracing::subscriber::NoSubscriber,
     wgpu, Context,
 };
 use gbase_utils::{CameraFrustum, CameraUniform, DeferredBuffers};

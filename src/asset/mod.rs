@@ -1,3 +1,7 @@
+//
+// Modules
+//
+
 mod builders;
 mod cache;
 mod derive;
@@ -5,7 +9,6 @@ mod handle;
 mod implementations;
 mod load;
 mod storage;
-mod types;
 
 #[cfg(not(target_arch = "wasm32"))]
 mod reload;
@@ -17,7 +20,6 @@ pub use handle::*;
 pub use implementations::*;
 pub use load::*;
 pub use storage::*;
-pub use types::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use reload::*;

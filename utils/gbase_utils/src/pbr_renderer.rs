@@ -275,7 +275,7 @@ impl PbrRenderer {
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
-            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap_loaded();
+            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap_success();
             let material = mesh_lod.material.clone();
             let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
@@ -290,7 +290,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = material.get(cache).unwrap_loaded().clone();
+            } = material.get(cache).unwrap_success().clone();
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),

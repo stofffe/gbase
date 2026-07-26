@@ -116,7 +116,7 @@ impl Callbacks for App {
 
         // TODO: place this on gpumesh instead?
         let buffer_layout = asset::get(cache, self.mesh_handle.clone())
-            .unwrap_loaded()
+            .unwrap_success()
             .buffer_layout();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .single_target(render::ColorTargetState::from_current_screen(ctx))

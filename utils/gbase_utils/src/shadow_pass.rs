@@ -4,8 +4,8 @@ use crate::{
 };
 use gbase::{
     asset::{
-        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, NoSettings,
-        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
+        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
@@ -182,7 +182,7 @@ impl ShadowPass {
             for (mesh_lod, transform) in meshes.iter() {
                 // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
                 sorted_meshes.push((
-                    mesh_lod.get(cache).unwrap_loaded().get_lod_closest(i),
+                    mesh_lod.get(cache).unwrap_success().get_lod_closest(i),
                     transform,
                 ));
             }

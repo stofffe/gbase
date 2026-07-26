@@ -1,9 +1,8 @@
 use gbase::{
     asset::{
-        self, NoSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
-        ShaderLoaderSettings,
+        self, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
-    render::{self, FrameBuffer, FrameBufferBuilder, Shader},
+    render::{self, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
 };
 

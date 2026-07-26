@@ -726,7 +726,7 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
     ) -> gbase::asset::ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(settings.font.clone()) {
             GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
         let (lookup, texture) = create_font_atlas(

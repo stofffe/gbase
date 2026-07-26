@@ -173,11 +173,11 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         if self.sponza_gltf.just_loaded(cache) {
-            for node in &self.sponza_gltf.get(cache).unwrap_loaded().clone().nodes {
-                let node = node.get(cache).unwrap_loaded();
+            for node in &self.sponza_gltf.get(cache).unwrap_success().clone().nodes {
+                let node = node.get(cache).unwrap_success();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
-                    let mesh = mesh.get(cache).unwrap_loaded();
+                    let mesh = mesh.get(cache).unwrap_success();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
                     self.sponza_lod_meshes.push((cache.insert(lod), transform));

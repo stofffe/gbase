@@ -1,5 +1,9 @@
 use crate::asset::{Asset, AssetCache, AssetHandle, AssetLoader};
 
+//
+// Generic builder
+//
+
 pub struct AssetBuilder {}
 
 impl AssetBuilder {
@@ -44,7 +48,7 @@ impl<T: Asset> InsertAssetBuilder<T> {
 }
 
 //
-// Loaded
+// Loader
 //
 
 pub struct LoadAssetBuilder<T: AssetLoader> {
