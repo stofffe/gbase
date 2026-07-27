@@ -1,5 +1,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use crate::asset::{AssetCacheReload, ReloadContext};
+
 use crate::{
     asset::{
         derive::AssetCacheDerived, Asset, AssetCacheStorage, AssetHandle, AssetHandleContext,
@@ -7,7 +8,7 @@ use crate::{
     },
     filesystem, task,
 };
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::future::Future;
 use std::{error, path::Path};
 
@@ -42,7 +43,6 @@ pub trait AssetLoader: Send {
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
 pub enum LoadAssetResult<T: Asset> {
-    Loading,
     Success(T),
     Error,
 }
@@ -59,14 +59,34 @@ pub struct LoadResponse<T: Asset> {
 }
 
 pub trait DynLoadResponse: Send {
-    fn insert_into_storage(self: Box<Self>, storage: &mut AssetCacheStorage);
+    fn insert_into_storage(
+        self: Box<Self>,
+        storage: &mut AssetCacheStorage,
+        loader: &mut AssetCacheLoad,
+        derived: &mut AssetCacheDerived,
+    );
     fn handle(&self) -> DynAssetHandle;
     fn success(&self) -> bool;
 }
 
 impl<T: Asset> DynLoadResponse for LoadResponse<T> {
-    fn insert_into_storage(self: Box<Self>, storage: &mut AssetCacheStorage) {
-        storage.insert(self.handle, self.result);
+    fn insert_into_storage(
+        self: Box<Self>,
+        storage: &mut AssetCacheStorage,
+        loader: &mut AssetCacheLoad,
+        derived: &mut AssetCacheDerived,
+    ) {
+        match self.result {
+            LoadAssetResult::Success(asset) => {
+                loader.status.remove(&self.handle.as_any());
+                loader.just_loaded.insert(self.handle.as_any());
+
+                derived.invalidate_derived_assets_depending_on_handle(self.handle.as_any());
+
+                storage.insert(self.handle, asset);
+            }
+            LoadAssetResult::Error => loader.set_status(&self.handle, LoadStatus::Failed),
+        }
     }
 
     fn handle(&self) -> DynAssetHandle {
@@ -111,6 +131,12 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
 //     }
 // }
 
+#[derive(Clone)]
+pub enum LoadStatus {
+    Loading,
+    Failed,
+}
+
 pub struct AssetCacheLoad {
     pub(crate) response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     pub(crate) response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
@@ -118,6 +144,7 @@ pub struct AssetCacheLoad {
     // TODO: maybe these should be derived from cache every frame? O(n)
     // TODO: should failed loads be put here?
     pub(crate) just_loaded: FxHashSet<DynAssetHandle>,
+    pub(crate) status: FxHashMap<DynAssetHandle, LoadStatus>,
 }
 
 impl AssetCacheLoad {
@@ -125,12 +152,26 @@ impl AssetCacheLoad {
         let (response_sender, response_receiver) = async_channel::unbounded();
 
         let just_loaded = FxHashSet::default();
+        let status = FxHashMap::default();
 
         Self {
             just_loaded,
+            status,
 
             response_sender,
             response_receiver,
+        }
+    }
+
+    pub fn set_status<T: Asset>(&mut self, handle: &AssetHandle<T>, status: LoadStatus) {
+        self.status.insert(handle.as_any(), status);
+    }
+
+    pub fn get_status<T: Asset>(&mut self, handle: &AssetHandle<T>) -> LoadStatus {
+        if let Some(status) = self.status.get(&handle.as_any()) {
+            status.clone()
+        } else {
+            LoadStatus::Failed
         }
     }
 
@@ -147,13 +188,7 @@ impl AssetCacheLoad {
         self.just_loaded.clear();
 
         while let Ok(response) = self.response_receiver.try_recv() {
-            if response.success() {
-                self.just_loaded.insert(response.handle());
-            }
-
-            derived.invalidate_derived_assets_depending_on_handle(response.handle());
-
-            response.insert_into_storage(storage);
+            response.insert_into_storage(storage, self, derived);
         }
     }
 }

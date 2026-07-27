@@ -45,7 +45,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
     }
 
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
-        cache.get(self.clone())
+        cache.get(self)
     }
 }
 

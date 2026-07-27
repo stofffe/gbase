@@ -55,10 +55,12 @@ impl AssetCacheStorage {
             .expect("could not downcast typed storage cache")
     }
 
-    pub fn get<'a, T: Asset>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
-        self.get_typed_cache_ref::<T>()
-            .expect("could not get typed cache")
-            .get(handle)
+    pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&T> {
+        if let Some(typd_cache) = self.get_typed_cache_ref::<T>() {
+            typd_cache.get(handle)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn clear_handle<T: Asset>(
@@ -81,17 +83,13 @@ impl AssetCacheStorage {
             .handle_successfully_loaded(handle)
     }
 
-    pub fn insert<T: Asset>(
-        &mut self,
-        handle: AssetHandle<T>,
-        data: LoadAssetResult<T>,
-    ) -> AssetHandle<T> {
+    pub fn insert<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
         self.get_typed_cache_mut::<T>().insert(handle, data)
     }
 
     pub fn insert_successful_new_handle<T: Asset>(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.insert(handle.clone(), LoadAssetResult::Success(data));
+        self.insert(handle.clone(), data);
         handle
     }
 
@@ -101,7 +99,7 @@ impl AssetCacheStorage {
         handle: AssetHandle<T>,
         data: T,
     ) -> AssetHandle<T> {
-        self.insert(handle.clone(), LoadAssetResult::Success(data));
+        self.insert(handle.clone(), data);
         derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
         handle
     }
@@ -129,7 +127,7 @@ impl<'a, T: Asset> GetAssetResult<'a, T> {
 
 pub struct TypedAssetStorage<T: Asset> {
     asset_handle_ctx: AssetHandleContext,
-    cache: FxHashMap<AssetHandle<T>, LoadAssetResult<T>>,
+    cache: FxHashMap<AssetHandle<T>, T>,
 }
 
 impl<T: Asset> TypedAssetStorage<T> {
@@ -148,34 +146,16 @@ impl<T: Asset> TypedAssetStorage<T> {
     }
 
     pub fn handle_successfully_loaded(&self, handle: AssetHandle<T>) -> bool {
-        let Some(load_result) = self.cache.get(&handle) else {
-            tracing::warn!("trying to use invalid handle");
-            return false;
-        };
-        match load_result {
-            LoadAssetResult::Success(_) => true,
-            LoadAssetResult::Loading => false,
-            LoadAssetResult::Error => false,
-        }
+        self.cache.get(&handle).is_some()
     }
 
-    pub fn get<'a>(&'a self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
-        let Some(load_result) = self.cache.get(&handle) else {
-            tracing::warn!("trying to use invalid handle");
-            return GetAssetResult::Error;
-        };
-
-        match load_result {
-            LoadAssetResult::Success(asset) => GetAssetResult::Success(asset),
-            LoadAssetResult::Loading => GetAssetResult::Loading,
-            LoadAssetResult::Error => GetAssetResult::Error,
-        }
+    pub fn get(&self, handle: &AssetHandle<T>) -> Option<&T> {
+        self.cache.get(handle)
     }
 
     pub fn insert_successful_new_handle(&mut self, data: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.cache
-            .insert(handle.clone(), LoadAssetResult::Success(data));
+        self.cache.insert(handle.clone(), data);
         handle
     }
 
@@ -185,15 +165,13 @@ impl<T: Asset> TypedAssetStorage<T> {
         handle: AssetHandle<T>,
         data: T,
     ) -> AssetHandle<T> {
-        self.cache
-            .insert(handle.clone(), LoadAssetResult::Success(data));
+        self.cache.insert(handle.clone(), data);
         derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
         handle
     }
 
-    pub fn insert(&mut self, handle: AssetHandle<T>, data: LoadAssetResult<T>) -> AssetHandle<T> {
+    pub fn insert(&mut self, handle: AssetHandle<T>, data: T) {
         self.cache.insert(handle.clone(), data);
-        handle
     }
 }
 

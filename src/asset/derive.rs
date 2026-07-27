@@ -1,5 +1,7 @@
 use crate::{
-    asset::{Asset, AssetCacheStorage, AssetHandle, DynAssetHandle, GetAssetResult},
+    asset::{
+        Asset, AssetCacheLoad, AssetCacheStorage, AssetHandle, DynAssetHandle, GetAssetResult,
+    },
     render::ArcHandle,
     Context,
 };
@@ -76,13 +78,14 @@ impl AssetCacheDerived {
         &mut self,
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
+        loader: &mut AssetCacheLoad,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
         if let Some(render_asset_handle) = self.get_typed_cache::<G>().get(settings) {
             return ConvertAssetResult::Success(render_asset_handle);
         }
 
-        let mut convert_ctx = ConvertContext::new(storage, self);
+        let mut convert_ctx = ConvertContext::new(storage, loader, self);
         match G::convert(ctx, &mut convert_ctx, settings) {
             ConvertAssetStatus::SourceLoading => ConvertAssetResult::Loading,
             ConvertAssetStatus::Failed => {
@@ -204,6 +207,7 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
 /// Convertsion context related to a specific conversion
 pub struct ConvertContext<'storage, 'derived> {
     pub(crate) storage: &'storage mut AssetCacheStorage,
+    pub(crate) loader: &'storage mut AssetCacheLoad,
     pub(crate) derived: &'derived mut AssetCacheDerived,
 
     // track handles used during conversion
@@ -213,18 +217,28 @@ pub struct ConvertContext<'storage, 'derived> {
 impl<'storage, 'derived> ConvertContext<'storage, 'derived> {
     pub fn new(
         storage: &'storage mut AssetCacheStorage,
+        loader: &'storage mut AssetCacheLoad,
         derived: &'derived mut AssetCacheDerived,
     ) -> Self {
         Self {
             storage,
             derived,
+            loader,
             dependencies: FxHashSet::default(),
         }
     }
 
-    pub fn get<'a, T: Asset>(&'a mut self, handle: AssetHandle<T>) -> GetAssetResult<'a, T> {
+    pub fn get<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         self.dependencies.insert(handle.as_any());
-        self.storage.get(handle)
+
+        if let Some(asset) = self.storage.get(handle) {
+            return GetAssetResult::Success(asset);
+        }
+
+        match self.loader.get_status::<T>(handle) {
+            super::LoadStatus::Loading => GetAssetResult::Loading,
+            super::LoadStatus::Failed => GetAssetResult::Error,
+        }
     }
 
     // TODO: track dependencies when this is called (maybe with depenency enum)
@@ -233,7 +247,8 @@ impl<'storage, 'derived> ConvertContext<'storage, 'derived> {
         ctx: &mut Context,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        self.derived.convert::<G>(ctx, self.storage, settings)
+        self.derived
+            .convert::<G>(ctx, self.storage, self.loader, settings)
     }
 }
 

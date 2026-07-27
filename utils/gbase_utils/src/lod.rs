@@ -198,12 +198,12 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
         convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = convert_ctx.get(settings.mesh_lod.clone()).unwrap_success();
+        let source = convert_ctx.get(&settings.mesh_lod).unwrap_success();
         let handle = source.meshes[0].0.clone();
 
         let bounding_box = BoundingBoxWrapper(
             convert_ctx
-                .get(handle)
+                .get(&handle)
                 .unwrap_success()
                 .calculate_bounding_box(),
         );

@@ -90,8 +90,7 @@ impl AssetCache {
         let mut load_ctx = self.load_ctx(handle.clone());
 
         // TODO: not done when loading sub assets through load ctx
-        self.storage
-            .insert::<T::Asset>(handle.clone(), LoadAssetResult::Loading);
+        self.loader.set_status(&handle, asset::LoadStatus::Loading);
 
         #[cfg(not(target_arch = "wasm32"))]
         if watch {
@@ -138,11 +137,15 @@ impl AssetCache {
             .insert_successful_existing_handle(&mut self.derived, handle, data)
     }
 
-    pub fn get<'a, T: Asset + 'static>(
-        &'a mut self,
-        handle: AssetHandle<T>,
-    ) -> GetAssetResult<'a, T> {
-        self.storage.get(handle)
+    pub fn get<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
+        if let Some(success) = self.storage.get(handle) {
+            return GetAssetResult::Success(success);
+        }
+
+        match self.loader.get_status(handle) {
+            asset::LoadStatus::Loading => GetAssetResult::Loading,
+            asset::LoadStatus::Failed => GetAssetResult::Error,
+        }
     }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
@@ -180,7 +183,8 @@ impl AssetCache {
         ctx: &mut Context,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        self.derived.convert::<G>(ctx, &mut self.storage, settings)
+        self.derived
+            .convert::<G>(ctx, &mut self.storage, &mut self.loader, settings)
     }
 
     //

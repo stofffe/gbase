@@ -47,11 +47,11 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
     cache.handle_just_loaded(handle.clone())
 }
 
-pub fn get<'a, T: Asset + 'static>(
-    cache: &'a mut AssetCache,
+pub fn get<T: Asset + 'static>(
+    cache: &mut AssetCache,
     handle: AssetHandle<T>,
-) -> GetAssetResult<'a, T> {
-    cache.get(handle)
+) -> GetAssetResult<'_, T> {
+    cache.get(&handle)
 }
 
 pub fn convert_asset<G: AssetConverter + 'static>(
