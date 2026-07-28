@@ -102,7 +102,14 @@ impl AssetCacheReload {
         while let Ok(watch_request) = self.watch_receiver.try_recv() {
             let path = filesystem_ctx.format_asset_path(watch_request.path);
             // path must be canoicalized since watcher will do it internally
-            let path = std::fs::canonicalize(path).unwrap();
+            let path = match std::fs::canonicalize(&path) {
+                Ok(path) => path,
+                Err(err) => {
+                    tracing::warn!("could not canoicalize path: {:?}: {}", &path, err);
+                    tracing::warn!("skipping watching");
+                    continue;
+                }
+            };
 
             // start watching path
             self.reload_watcher
@@ -138,20 +145,16 @@ pub struct ReloadContext {
 
     // channel for registering reload fns
     pub(crate) reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
-
-    pub(crate) watch: bool,
 }
 
 impl ReloadContext {
     pub fn new(reloader: &AssetCacheReload) -> Self {
         let watch_handle_sender = reloader.watch_sender.clone();
         let reload_fn_sender = reloader.reload_fn_sender.clone();
-        let watch = false;
 
         Self {
             watch_handle_sender,
             reload_fn_sender,
-            watch,
         }
     }
 
@@ -161,15 +164,10 @@ impl ReloadContext {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        self.watch = true;
         self.register_reload_fns::<T>(load_ctx, handle, settings);
     }
 
     pub async fn register_watch(&self, handle: DynAssetHandle, path: impl Into<PathBuf>) {
-        if !self.watch {
-            return;
-        }
-
         let path = path.into();
         self.watch_handle_sender
             .send(WatchHandleRequest {
@@ -186,10 +184,6 @@ impl ReloadContext {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        if !self.watch {
-            return;
-        }
-
         // async
         let handle_clone = handle.clone();
         let settings_clone = settings.clone();

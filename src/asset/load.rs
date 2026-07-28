@@ -109,35 +109,6 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
 // Load
 //
 
-// impl<T: AssetLoader> TypedAssetLoader<T> {
-//     pub fn new() -> Self {
-//         Self {}
-//     }
-//
-//     pub fn handle_just_loaded(&self, handle: AssetHandle<T>) -> bool {
-//         self.just_loaded.contains(&handle.as_any())
-//     }
-//
-//     // check if any files completed loading and update cache and invalidate render cache
-//     pub fn poll_loaded(
-//         &mut self,
-//         storage: &mut AssetCacheStorage,
-//         derived: &mut AssetCacheDerived,
-//     ) {
-//         self.just_loaded.clear();
-//
-//         while let Ok(response) = self.response_receiver.try_recv() {
-//             if let LoadAssetResult::Success(_) = response.result {
-//                 self.just_loaded.insert(response.handle.clone());
-//             }
-//
-//             storage.insert(response.handle.clone(), response.result);
-//
-//             derived.invalidate_derived_assets_depending_on_handle(response.handle.clone());
-//         }
-//     }
-// }
-
 #[derive(Clone)]
 pub enum LoadStatus {
     Loading,
@@ -345,23 +316,31 @@ impl LoadContext {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
-        #[cfg(not(target_arch = "wasm32"))]
-        self.reload_ctx
-            .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
-            .await;
+        let result = self.filesystem_ctx.load_asset_bytes(&path).await;
 
-        self.filesystem_ctx.load_asset_bytes(&path).await
+        if result.is_ok() {
+            #[cfg(not(target_arch = "wasm32"))]
+            self.reload_ctx
+                .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+                .await;
+        }
+
+        result
     }
 
     pub async fn load_string(
         &self,
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
-        #[cfg(not(target_arch = "wasm32"))]
-        self.reload_ctx
-            .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
-            .await;
+        let result = self.filesystem_ctx.load_asset_string(&path).await;
 
-        self.filesystem_ctx.load_asset_string(path).await
+        if result.is_ok() {
+            #[cfg(not(target_arch = "wasm32"))]
+            self.reload_ctx
+                .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+                .await;
+        }
+
+        result
     }
 }

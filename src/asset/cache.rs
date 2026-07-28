@@ -86,16 +86,10 @@ impl AssetCache {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        let mut load_ctx = self.load_ctx(handle.clone());
+        let load_ctx = self.load_ctx(handle.clone());
 
         // TODO: this is needed for conversion calls made the same frame
         self.loader.set_status(&handle, asset::LoadStatus::Loading);
-
-        // TODO: add this functionality to load ctx
-        #[cfg(not(target_arch = "wasm32"))]
-        load_ctx
-            .reload_ctx
-            .enable_watch::<T>(load_ctx.clone(), handle.clone(), settings.clone());
 
         load_ctx.load_asset_with_handle::<T>(handle, settings);
     }
