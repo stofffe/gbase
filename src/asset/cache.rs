@@ -4,7 +4,7 @@ use crate::{
         self,
         derive::{AssetCacheDerived, ConvertAssetResult},
         AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
-        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadAssetResult, LoadContext,
+        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadContext,
     },
     filesystem::FileSystemContext,
     task::TaskContext,
@@ -85,21 +85,17 @@ impl AssetCache {
         &mut self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
-        #[cfg(not(target_arch = "wasm32"))] watch: bool,
     ) {
         let mut load_ctx = self.load_ctx(handle.clone());
 
-        // TODO: not done when loading sub assets through load ctx
+        // TODO: this is needed for conversion calls made the same frame
         self.loader.set_status(&handle, asset::LoadStatus::Loading);
 
+        // TODO: add this functionality to load ctx
         #[cfg(not(target_arch = "wasm32"))]
-        if watch {
-            load_ctx.reload_ctx.enable_watch::<T>(
-                load_ctx.clone(),
-                handle.clone(),
-                settings.clone(),
-            );
-        }
+        load_ctx
+            .reload_ctx
+            .enable_watch::<T>(load_ctx.clone(), handle.clone(), settings.clone());
 
         load_ctx.load_asset_with_handle::<T>(handle, settings);
     }

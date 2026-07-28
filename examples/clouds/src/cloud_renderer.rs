@@ -32,24 +32,18 @@ impl CloudRenderer {
         cache: &mut gbase::asset::AssetCache,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map_texture = AssetBuilder::load::<ImageLoader>().watch(true).build(
+        let weather_map_texture = AssetBuilder::load::<ImageLoader>().build(
             cache,
             ImageLoaderSettings::new("assets/textures/clouds_weather_map.png")
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         );
-        let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ImageLoaderSettings::new("assets/textures/blue_noise.png")
-                    .texture_config(
-                        TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm),
-                    )
-                    .sampler_config(
-                        SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat),
-                    ),
-            );
+        let blue_noise_texture = asset::AssetBuilder::load::<ImageLoader>().build(
+            cache,
+            ImageLoaderSettings::new("assets/textures/blue_noise.png")
+                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
+                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
+        );
 
         let app_info = gbase_utils::AppInfo::new(ctx);
         let mesh = render::MeshBuilder::fullscreen_quad()
@@ -60,12 +54,10 @@ impl CloudRenderer {
             ]));
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
-        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/clouds.wgsl"),
-            );
+        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/clouds.wgsl"),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

@@ -50,7 +50,6 @@ impl UIRenderer {
 
         let shader_handle = cache
             .load_builder::<ShaderLoader>()
-            .watch(true)
             .build(cache, ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()

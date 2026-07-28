@@ -49,10 +49,8 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
             .build(cache, ShaderLoaderSettings::new("shaders/texture.wgsl"));
         let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
-            .watch(true)
             .build(cache, ImageLoaderSettings::new("textures/texture.jpeg"));
 
         let mesh = render::MeshBuilder::quad()

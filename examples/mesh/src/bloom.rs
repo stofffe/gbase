@@ -29,12 +29,10 @@ impl Tonemap {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/tonemap.wgsl"),
-            );
+        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/tonemap.wgsl"),
+        );
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -165,12 +163,10 @@ impl Bloom {
         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![extract_bindgroup_layout.clone()])
             .build(ctx);
-        let extract_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/bloom_extract.wgsl"),
-            );
+        let extract_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/bloom_extract.wgsl"),
+        );
 
         //
         // Downsample
@@ -191,12 +187,10 @@ impl Bloom {
         let downsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
-        let downsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/bloom_downsample.wgsl"),
-            );
+        let downsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/bloom_downsample.wgsl"),
+        );
 
         //
         // Upsample
@@ -221,12 +215,10 @@ impl Bloom {
         let upsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![upsample_bindgroup_layout.clone()])
             .build(ctx);
-        let upsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/bloom_upsample.wgsl"),
-            );
+        let upsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/bloom_upsample.wgsl"),
+        );
 
         //
         // Combine
@@ -267,12 +259,10 @@ impl Bloom {
         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![combine_bindgroup_layout.clone()])
             .build(ctx);
-        let combine_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/bloom_combine.wgsl"),
-            );
+        let combine_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/bloom_combine.wgsl"),
+        );
 
         let downsampling_buffer = FrameBufferBuilder::new()
             .label("downsampling")

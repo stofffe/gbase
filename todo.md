@@ -1,4 +1,5 @@
 next up
+    [] 
     [] return errors to user
     [] all assets are being watched, make it a context builder option
         [] remove watch from builder and 

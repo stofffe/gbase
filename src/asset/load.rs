@@ -43,6 +43,7 @@ pub trait AssetLoader: Send {
 pub type DynAssetLoadFn = Box<dyn Fn() + Send>;
 
 pub enum LoadAssetResult<T: Asset> {
+    Loading,
     Success(T),
     Error,
 }
@@ -78,14 +79,20 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
     ) {
         match self.result {
             LoadAssetResult::Success(asset) => {
+                storage.insert(self.handle.clone(), asset);
+
                 loader.status.remove(&self.handle.as_any());
                 loader.just_loaded.insert(self.handle.as_any());
 
                 derived.invalidate_derived_assets_depending_on_handle(self.handle.as_any());
-
-                storage.insert(self.handle, asset);
             }
-            LoadAssetResult::Error => loader.set_status(&self.handle, LoadStatus::Failed),
+            LoadAssetResult::Error => {
+                loader.set_status(&self.handle, LoadStatus::Failed);
+            }
+            LoadAssetResult::Loading => {
+                tracing::error!("RECEIVED LOAD");
+                loader.set_status(&self.handle.as_any(), LoadStatus::Loading);
+            }
         }
     }
 
@@ -299,6 +306,13 @@ impl LoadContext {
     ) {
         let load_ctx = self.clone_with_new_handle(handle.as_any());
         let load_response_sender = self.load_response_sender.clone();
+
+        load_response_sender
+            .try_send(Box::new(LoadResponse {
+                handle: handle.clone(),
+                result: LoadAssetResult::Loading,
+            }))
+            .expect("could not send asset loading response");
 
         self.task_ctx.spawn_task(Box::pin(async move {
             let data = T::load(load_ctx, settings).await;

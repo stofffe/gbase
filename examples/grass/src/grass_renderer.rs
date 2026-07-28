@@ -142,12 +142,10 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let instance_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/grass_compute_instance.wgsl"),
-            );
+        let instance_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/grass_compute_instance.wgsl"),
+        );
 
         let instance_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![instance_bindgroup_layout.clone()])
@@ -170,12 +168,10 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .watch(true)
-            .build(
-                cache,
-                ShaderLoaderSettings::new("assets/shaders/grass_compute_draw.wgsl"),
-            );
+        let draw_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+            cache,
+            ShaderLoaderSettings::new("assets/shaders/grass_compute_draw.wgsl"),
+        );
 
         let draw_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![draw_bindgroup_layout.clone()])
@@ -203,12 +199,12 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_deferred_shader_handle = cache.load_builder::<ShaderLoader>().watch(true).build(
+        let render_deferred_shader_handle = cache.load_builder::<ShaderLoader>().build(
             cache,
             ShaderLoaderSettings::new("assets/shaders/grass_deferred.wgsl"),
         );
 
-        let render_forward_shader_handle = cache.load_builder::<ShaderLoader>().watch(true).build(
+        let render_forward_shader_handle = cache.load_builder::<ShaderLoader>().build(
             cache,
             ShaderLoaderSettings::new("assets/shaders/grass.wgsl"),
         );

@@ -1,7 +1,9 @@
-use crate::asset::{AssetCacheDerived, AssetHandle, AssetHandleContext, LoadAssetResult};
-use egui::util::id_type_map::TypeId;
+use crate::asset::{AssetCacheDerived, AssetHandle, AssetHandleContext};
 use rustc_hash::FxHashMap;
-use std::{any::Any, sync::Arc};
+use std::{
+    any::{Any, TypeId},
+    sync::Arc,
+};
 
 //
 // Types
