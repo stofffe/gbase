@@ -1,6 +1,9 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
-    asset::{AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, GetAssetResult},
+    asset::{
+        AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, GetAssetResult,
+        LoadContext,
+    },
     filesystem,
     render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
@@ -104,7 +107,7 @@ impl AssetLoader for ShaderLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        _load_ctx: super::LoadContext,
+        _load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let source = _load_ctx.load_string(&settings.path).await?;
@@ -213,7 +216,7 @@ impl AssetLoader for ImageLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        load_ctx: super::LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;

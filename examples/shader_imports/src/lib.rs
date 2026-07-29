@@ -4,7 +4,7 @@ use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
         ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter,
-        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, LoadContext, MeshGpuConverter,
         MeshGpuConverterSettings,
     },
     filesystem,
@@ -47,7 +47,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        load_ctx: asset::LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let mut source = String::new();
@@ -81,6 +81,8 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
 
         tracing::info!("LOADED ASSET SOURCE\n {}", source);
         tracing::info!("LOADED ASSET IMPORTS\n {:?}", imports);
+
+        tracing::info!("DEPS LEN {:?}", load_ctx.dependencies().len());
 
         Ok(ShaderWithImports { source, imports })
     }

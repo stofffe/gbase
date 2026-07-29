@@ -1,10 +1,11 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self,
+        self, dependency,
         derive::{AssetCacheDerived, ConvertAssetResult},
-        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
-        GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadContext,
+        AssetCacheDependency, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
+        AssetHandleContext, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadContext,
+        LoadRuntime, LoadState,
     },
     filesystem::FileSystemContext,
     task::TaskContext,
@@ -22,6 +23,8 @@ pub struct AssetCache {
 
     derived: AssetCacheDerived,
 
+    dependency: AssetCacheDependency,
+
     #[cfg(not(target_arch = "wasm32"))]
     reloader: asset::reload::AssetCacheReload,
 }
@@ -38,6 +41,8 @@ impl AssetCache {
 
         let derived = AssetCacheDerived::new();
 
+        let dependency = AssetCacheDependency::new();
+
         #[cfg(not(target_arch = "wasm32"))]
         let reloader = asset::AssetCacheReload::new();
 
@@ -50,6 +55,7 @@ impl AssetCache {
 
             loader,
             derived,
+            dependency,
 
             #[cfg(not(target_arch = "wasm32"))]
             reloader,
@@ -57,15 +63,17 @@ impl AssetCache {
     }
 
     pub fn load_ctx<T: Asset>(&self, handle: AssetHandle<T>) -> LoadContext {
-        LoadContext::new(
-            handle.as_any(),
+        let state = LoadState::new(handle.as_any());
+        let runtime = LoadRuntime::new(
             self.asset_handle_ctx.clone(),
             self.filesystem_ctx.clone(),
             self.task_executor.clone(),
             &self.loader,
             #[cfg(not(target_arch = "wasm32"))]
             &self.reloader,
-        )
+        );
+
+        LoadContext::new(state, runtime)
     }
 
     pub fn poll(&mut self, ctx: &Context) {
@@ -78,7 +86,7 @@ impl AssetCache {
         }
 
         self.loader
-            .poll_loaded(&mut self.storage, &mut self.derived);
+            .poll_loaded(&mut self.storage, &mut self.derived, &mut self.dependency);
     }
 
     pub(crate) fn load<T: AssetLoader + 'static>(
@@ -86,12 +94,8 @@ impl AssetCache {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        let load_ctx = self.load_ctx(handle.clone());
-
-        // TODO: this is needed for conversion calls made the same frame
-        self.loader.set_status(&handle, asset::LoadStatus::Loading);
-
-        load_ctx.load_asset_with_handle::<T>(handle, settings);
+        self.load_ctx(handle.clone())
+            .load_asset_with_handle::<T>(handle, settings);
     }
 
     pub fn new_empty_handle<T: Asset>(&self) -> AssetHandle<T> {

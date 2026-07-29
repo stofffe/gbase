@@ -4,7 +4,7 @@ use gbase::{
     asset::{
         self, AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader,
         ConvertAssetResult, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
-        GetAssetResult, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        GetAssetResult, LoadContext, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
         ShaderLoaderSettings,
     },
     bytemuck, filesystem,
@@ -683,7 +683,7 @@ impl AssetLoader for FontLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        load_ctx: gbase::asset::LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;

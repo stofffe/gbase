@@ -78,12 +78,12 @@ impl AssetLoader for MeshLodLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        load_ctx: LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;
         let primitives =
-            parse_gltf_primitives(&load_ctx, &bytes, settings.required_attributes.as_ref());
+            parse_gltf_primitives(load_ctx, &bytes, settings.required_attributes.as_ref());
 
         // extract material from LOD0
         let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
@@ -151,12 +151,12 @@ impl AssetLoader for GltfLoader {
     type Error = filesystem::LoadFileError;
 
     async fn load(
-        load_ctx: LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;
         Ok(parse_gltf_file(
-            &load_ctx,
+            load_ctx,
             &bytes,
             settings.required_attributes.as_ref(),
         ))

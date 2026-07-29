@@ -1,3 +1,5 @@
+track deps and invalidate handles
+
 next up
     [] 
     [] return errors to user

@@ -4,9 +4,10 @@
 
 mod builders;
 mod cache;
+mod dependency;
 mod derive;
 mod handle;
-mod implementations;
+mod implementation;
 mod load;
 mod storage;
 
@@ -15,9 +16,10 @@ mod reload;
 
 pub use builders::*;
 pub use cache::*;
+pub use dependency::*;
 pub use derive::*;
 pub use handle::*;
-pub use implementations::*;
+pub use implementation::*;
 pub use load::*;
 pub use storage::*;
 

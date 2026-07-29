@@ -158,15 +158,7 @@ impl ReloadContext {
         }
     }
 
-    pub fn enable_watch<T: AssetLoader + 'static>(
-        &mut self,
-        load_ctx: LoadContext,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        self.register_reload_fns::<T>(load_ctx, handle, settings);
-    }
-
+    /// Register a handle to be watched
     pub async fn register_watch(&self, handle: DynAssetHandle, path: impl Into<PathBuf>) {
         let path = path.into();
         self.watch_handle_sender
@@ -178,6 +170,7 @@ impl ReloadContext {
             .expect("could not send");
     }
 
+    /// Register the reload function for a loader
     pub(crate) fn register_reload_fns<T: AssetLoader + 'static>(
         &self,
         load_ctx: LoadContext,
@@ -189,10 +182,11 @@ impl ReloadContext {
         let settings_clone = settings.clone();
         let load_ctx_clone = load_ctx.clone();
         let load_fn = Box::new(move || {
-            let load_ctx_clone = load_ctx_clone.clone();
             let handle_clone = handle_clone.clone();
             let settings_clone = settings_clone.clone();
-            load_ctx_clone.load_asset_func::<T>(handle_clone, settings_clone);
+            load_ctx_clone
+                .clone()
+                .load_asset_func::<T>(handle_clone, settings_clone);
         });
 
         // send over channel

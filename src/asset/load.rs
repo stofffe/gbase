@@ -3,8 +3,8 @@ use crate::asset::{AssetCacheReload, ReloadContext};
 
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetCacheStorage, AssetHandle, AssetHandleContext,
-        DynAsset, DynAssetHandle,
+        dependency, derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheStorage,
+        AssetHandle, AssetHandleContext, DynAsset, DynAssetHandle,
     },
     filesystem, task,
 };
@@ -29,13 +29,13 @@ pub trait AssetLoader: Send {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn load(
-        load_ctx: LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + Send;
 
     #[cfg(target_arch = "wasm32")]
     fn load(
-        load_ctx: LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
 }
@@ -57,6 +57,7 @@ pub enum DynLoadAssetResult {
 pub struct LoadResponse<T: Asset> {
     pub(crate) handle: AssetHandle<T>,
     pub(crate) result: LoadAssetResult<T>,
+    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
 }
 
 pub trait DynLoadResponse: Send {
@@ -65,6 +66,7 @@ pub trait DynLoadResponse: Send {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
+        dependency: &mut AssetCacheDependency,
     );
     fn handle(&self) -> DynAssetHandle;
     fn success(&self) -> bool;
@@ -76,15 +78,26 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
+        dependency: &mut AssetCacheDependency,
     ) {
         match self.result {
             LoadAssetResult::Success(asset) => {
+                let handle = self.handle.as_any();
+
                 storage.insert(self.handle.clone(), asset);
 
-                loader.status.remove(&self.handle.as_any());
-                loader.just_loaded.insert(self.handle.as_any());
+                loader.remove_status(&handle);
+                loader.just_loaded.insert(handle.clone());
 
-                derived.invalidate_derived_assets_depending_on_handle(self.handle.as_any());
+                derived.invalidate_derived_assets_depending_on_handle(handle.clone());
+
+                dependency.add_dependencies(&handle, &self.dependencies);
+
+                tracing::info!(
+                    "ASSET {} had {} deps",
+                    self.handle.id(),
+                    self.dependencies.len()
+                );
             }
             LoadAssetResult::Error => {
                 loader.set_status(&self.handle, LoadStatus::Failed);
@@ -153,6 +166,10 @@ impl AssetCacheLoad {
         }
     }
 
+    pub fn remove_status(&mut self, handle: &DynAssetHandle) {
+        self.status.remove(handle);
+    }
+
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
         self.just_loaded.contains(&handle.as_any())
     }
@@ -162,11 +179,12 @@ impl AssetCacheLoad {
         &mut self,
         storage: &mut AssetCacheStorage,
         derived: &mut AssetCacheDerived,
+        dependency: &mut AssetCacheDependency,
     ) {
         self.just_loaded.clear();
 
         while let Ok(response) = self.response_receiver.try_recv() {
-            response.insert_into_storage(storage, self, derived);
+            response.insert_into_storage(storage, self, derived, dependency);
         }
     }
 }
@@ -176,9 +194,22 @@ impl AssetCacheLoad {
 //
 
 #[derive(Clone)]
-pub struct LoadContext {
+pub struct LoadState {
     pub(crate) handle: DynAssetHandle,
+    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
+}
 
+impl LoadState {
+    pub fn new(handle: DynAssetHandle) -> Self {
+        Self {
+            handle,
+            dependencies: FxHashSet::default(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct LoadRuntime {
     pub(crate) asset_handle_ctx: AssetHandleContext,
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
     pub(crate) task_ctx: task::TaskContext,
@@ -189,56 +220,60 @@ pub struct LoadContext {
     pub(crate) reload_ctx: ReloadContext,
 }
 
-impl LoadContext {
+impl LoadRuntime {
     pub fn new(
-        handle: DynAssetHandle,
-
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
         task_ctx: task::TaskContext,
-
         loader: &AssetCacheLoad,
-
         #[cfg(not(target_arch = "wasm32"))] reloader: &AssetCacheReload,
     ) -> Self {
         let load_response_sender = loader.response_sender.clone();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        let reload_ctx = ReloadContext::new(reloader);
-
         Self {
-            handle,
-
             asset_handle_ctx,
             filesystem_ctx,
             task_ctx,
-
             load_response_sender,
 
             #[cfg(not(target_arch = "wasm32"))]
-            reload_ctx,
+            reload_ctx: ReloadContext::new(reloader),
         }
     }
+}
 
-    pub fn clone_with_new_handle(&self, handle: DynAssetHandle) -> Self {
-        Self {
-            handle,
-            asset_handle_ctx: self.asset_handle_ctx.clone(),
-            filesystem_ctx: self.filesystem_ctx.clone(),
-            task_ctx: self.task_ctx.clone(),
-            load_response_sender: self.load_response_sender.clone(),
+#[derive(Clone)]
+pub struct LoadContext {
+    state: LoadState,
+    runtime: LoadRuntime,
+}
 
-            #[cfg(not(target_arch = "wasm32"))]
-            reload_ctx: self.reload_ctx.clone(),
-        }
+impl LoadContext {
+    pub fn new(state: LoadState, runtime: LoadRuntime) -> Self {
+        Self { runtime, state }
     }
+
+    pub fn dependencies(&self) -> &FxHashSet<DynAssetHandle> {
+        &self.state.dependencies
+    }
+
+    // // TODO: kinda unclear name
+    // pub fn new_from_existing(&self, handle: DynAssetHandle) -> Self {
+    //     let state = LoadState {
+    //         handle,
+    //         dependencies: FxHashSet::default(),
+    //     };
+    //     let runtime = self.runtime.clone();
+    //     Self { runtime, state }
+    // }
 
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.load_response_sender
+        let handle = AssetHandle::<T>::new(&self.runtime.asset_handle_ctx);
+        self.runtime
+            .load_response_sender
             .try_send(Box::new(LoadResponse {
                 handle: handle.clone(),
                 result: LoadAssetResult::Success(value),
+                dependencies: FxHashSet::default(),
             }))
             .expect("could not send asset handle");
         handle
@@ -246,10 +281,10 @@ impl LoadContext {
 
     /// Request load with new handle
     pub fn load_asset<T: AssetLoader + 'static>(
-        &self,
+        &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = AssetHandle::new(&self.asset_handle_ctx);
+        let handle = AssetHandle::new(&self.runtime.asset_handle_ctx);
 
         self.load_asset_with_handle::<T>(handle.clone(), settings);
 
@@ -257,53 +292,70 @@ impl LoadContext {
     }
 
     /// Request load with existing handle
-    // TODO: does not set status to loading (maybe fine?)
     pub fn load_asset_with_handle<T: AssetLoader + 'static>(
-        &self,
+        &mut self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        #[cfg(not(target_arch = "wasm32"))]
-        self.reload_ctx
-            .register_reload_fns::<T>(self.clone(), handle.clone(), settings.clone());
-
         self.load_asset_func::<T>(handle.clone(), settings);
     }
 
     pub fn load_asset_func<T: AssetLoader + 'static>(
-        &self,
+        &mut self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        let load_ctx = self.clone_with_new_handle(handle.as_any());
-        let load_response_sender = self.load_response_sender.clone();
+        let new_asset_state = LoadState::new(handle.as_any());
+        let mut new_load_ctx = LoadContext::new(new_asset_state, self.runtime.clone());
 
-        load_response_sender
+        // register for reloading
+        #[cfg(not(target_arch = "wasm32"))]
+        self.runtime.reload_ctx.register_reload_fns::<T>(
+            new_load_ctx.clone(),
+            handle.clone(),
+            settings.clone(),
+        );
+
+        // set asset to loading
+        new_load_ctx
+            .runtime
+            .load_response_sender
             .try_send(Box::new(LoadResponse {
                 handle: handle.clone(),
                 result: LoadAssetResult::Loading,
+                dependencies: FxHashSet::default(),
             }))
             .expect("could not send asset loading response");
 
-        self.task_ctx.spawn_task(Box::pin(async move {
-            let data = T::load(load_ctx, settings).await;
+        // add dependency to parent
+        self.state.dependencies.insert(handle.as_any());
+
+        // spawn load
+        self.runtime.task_ctx.spawn_task(Box::pin(async move {
+            let data = T::load(&mut new_load_ctx, settings).await;
 
             match data {
                 Ok(asset) => {
-                    load_response_sender
+                    new_load_ctx
+                        .runtime
+                        .load_response_sender
                         .send(Box::new(LoadResponse {
                             handle: handle.clone(),
                             result: LoadAssetResult::Success(asset),
+                            dependencies: new_load_ctx.state.dependencies,
                         }))
                         .await
                         .expect("could not send load success response");
                 }
                 Err(err) => {
                     tracing::warn!("could not load asset {}", err);
-                    load_response_sender
+                    new_load_ctx
+                        .runtime
+                        .load_response_sender
                         .send(Box::new(LoadResponse {
                             handle: handle.clone(),
                             result: LoadAssetResult::Error,
+                            dependencies: new_load_ctx.state.dependencies,
                         }))
                         .await
                         .expect("could not send load error response");
@@ -316,12 +368,13 @@ impl LoadContext {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
-        let result = self.filesystem_ctx.load_asset_bytes(&path).await;
+        let result = self.runtime.filesystem_ctx.load_asset_bytes(&path).await;
 
         if result.is_ok() {
             #[cfg(not(target_arch = "wasm32"))]
-            self.reload_ctx
-                .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+            self.runtime
+                .reload_ctx
+                .register_watch(self.state.handle.clone(), path.as_ref().to_path_buf())
                 .await;
         }
 
@@ -332,12 +385,13 @@ impl LoadContext {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
-        let result = self.filesystem_ctx.load_asset_string(&path).await;
+        let result = self.runtime.filesystem_ctx.load_asset_string(&path).await;
 
         if result.is_ok() {
             #[cfg(not(target_arch = "wasm32"))]
-            self.reload_ctx
-                .register_watch(self.handle.clone(), path.as_ref().to_path_buf())
+            self.runtime
+                .reload_ctx
+                .register_watch(self.state.handle.clone(), path.as_ref().to_path_buf())
                 .await;
         }
 
