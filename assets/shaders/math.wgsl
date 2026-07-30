@@ -1,3 +1,3 @@
 fn add(a: f32, b: f32) -> f32 {
-    return a + b;
+    return a + b + 1.0;
 }

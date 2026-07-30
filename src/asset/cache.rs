@@ -80,13 +80,18 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         {
             // TODO: does order matter?
-            self.reloader.poll_reload();
+            self.reloader
+                .poll_reload(&mut self.dependency, &mut self.derived, &mut self.loader);
             self.reloader.poll_reload_fns();
             self.reloader.poll_watch(ctx.filesystem.clone());
         }
 
-        self.loader
-            .poll_loaded(&mut self.storage, &mut self.derived, &mut self.dependency);
+        self.loader.poll_loaded(
+            &mut self.storage,
+            &mut self.derived,
+            &mut self.dependency,
+            &mut self.reloader,
+        );
     }
 
     pub(crate) fn load<T: AssetLoader + 'static>(
@@ -188,6 +193,11 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.reloader.reload(handle.as_any());
+        self.reloader.reload(
+            handle.as_any(),
+            &mut self.dependency,
+            &mut self.derived,
+            &mut self.loader,
+        );
     }
 }

@@ -1,4 +1,7 @@
 track deps and invalidate handles
+remove reload closures and use typed loader with settings cache isntead for reloading
+reload queue to avoid same dep being reloaded many times
+cache sub deps 
 
 next up
     [] 

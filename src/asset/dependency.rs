@@ -1,9 +1,11 @@
-use crate::asset::DynAssetHandle;
+use crate::asset::{AssetCacheDerived, AssetCacheLoad, AssetCacheReload, DynAssetHandle};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub struct AssetCacheDependency {
     dependencies: FxHashMap<DynAssetHandle, FxHashSet<DynAssetHandle>>,
     dependents: FxHashMap<DynAssetHandle, FxHashSet<DynAssetHandle>>,
+
+    currently_reloading: FxHashSet<DynAssetHandle>,
 }
 
 impl AssetCacheDependency {
@@ -11,7 +13,40 @@ impl AssetCacheDependency {
         Self {
             dependencies: FxHashMap::default(),
             dependents: FxHashMap::default(),
+
+            currently_reloading: FxHashSet::default(),
         }
+    }
+
+    pub fn handle_asset_changed(
+        &mut self,
+        handle: &DynAssetHandle,
+        derived: &mut AssetCacheDerived,
+        loader: &mut AssetCacheLoad,
+        reloader: &mut AssetCacheReload,
+    ) {
+        tracing::error!("PROPAGATE {}", handle.id());
+
+        derived.invalidate_derived_assets_depending_on_handle(handle.clone());
+
+        for dependent in self.dependents(handle).clone().iter() {
+            reloader.reload(dependent.clone(), self, derived, loader);
+        }
+    }
+
+    pub fn set_currently_reloading(&mut self, handle: DynAssetHandle) {
+        self.currently_reloading.insert(handle);
+    }
+    pub fn is_currently_reloading(&mut self, handle: &DynAssetHandle) -> bool {
+        self.currently_reloading.remove(handle)
+    }
+
+    pub fn dependencies(&mut self, handle: &DynAssetHandle) -> &mut FxHashSet<DynAssetHandle> {
+        self.dependencies.entry(handle.clone()).or_default()
+    }
+
+    pub fn dependents(&mut self, handle: &DynAssetHandle) -> &mut FxHashSet<DynAssetHandle> {
+        self.dependents.entry(handle.clone()).or_default()
     }
 
     pub fn add_dependencies(
@@ -19,24 +54,9 @@ impl AssetCacheDependency {
         handle: &DynAssetHandle,
         dependencies: &FxHashSet<DynAssetHandle>,
     ) {
-        let handle_dependencies = self.dependencies.entry(handle.clone()).or_default();
-
         for dependency in dependencies {
-            handle_dependencies.insert(dependency.clone());
-
-            let dependency_dependents = self.dependents.entry(dependency.clone()).or_default();
-            dependency_dependents.insert(handle.clone());
+            self.dependencies(handle).insert(dependency.clone());
+            self.dependents(dependency).insert(handle.clone());
         }
-    }
-
-    pub fn get_dependencies(
-        &mut self,
-        handle: &DynAssetHandle,
-    ) -> Option<FxHashSet<DynAssetHandle>> {
-        self.dependencies.get(handle).cloned()
-    }
-
-    pub fn get_dependents(&mut self, handle: &DynAssetHandle) -> Option<FxHashSet<DynAssetHandle>> {
-        self.dependents.get(handle).cloned()
     }
 }

@@ -67,6 +67,7 @@ pub trait DynLoadResponse: Send {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
+        reloader: &mut AssetCacheReload,
     );
     fn handle(&self) -> DynAssetHandle;
     fn success(&self) -> bool;
@@ -79,9 +80,12 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
+        reloader: &mut AssetCacheReload,
     ) {
         match self.result {
             LoadAssetResult::Success(asset) => {
+                tracing::error!("LOAD SUCCESS {}", self.handle.id());
+
                 let handle = self.handle.as_any();
 
                 storage.insert(self.handle.clone(), asset);
@@ -89,21 +93,15 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
                 loader.remove_status(&handle);
                 loader.just_loaded.insert(handle.clone());
 
-                derived.invalidate_derived_assets_depending_on_handle(handle.clone());
-
                 dependency.add_dependencies(&handle, &self.dependencies);
-
-                tracing::info!(
-                    "ASSET {} had {} deps",
-                    self.handle.id(),
-                    self.dependencies.len()
-                );
+                if dependency.is_currently_reloading(&handle) {
+                    dependency.handle_asset_changed(&handle, derived, loader, reloader);
+                }
             }
             LoadAssetResult::Error => {
                 loader.set_status(&self.handle, LoadStatus::Failed);
             }
             LoadAssetResult::Loading => {
-                tracing::error!("RECEIVED LOAD");
                 loader.set_status(&self.handle.as_any(), LoadStatus::Loading);
             }
         }
@@ -180,11 +178,12 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
+        reloader: &mut AssetCacheReload,
     ) {
         self.just_loaded.clear();
 
         while let Ok(response) = self.response_receiver.try_recv() {
-            response.insert_into_storage(storage, self, derived, dependency);
+            response.insert_into_storage(storage, self, derived, dependency, reloader);
         }
     }
 }
@@ -254,6 +253,10 @@ impl LoadContext {
 
     pub fn dependencies(&self) -> &FxHashSet<DynAssetHandle> {
         &self.state.dependencies
+    }
+
+    pub fn handle(&self) -> DynAssetHandle {
+        self.state.handle.clone()
     }
 
     // // TODO: kinda unclear name

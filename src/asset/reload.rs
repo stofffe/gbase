@@ -1,4 +1,7 @@
-use crate::asset::{AssetHandle, AssetLoader, LoadContext};
+use crate::asset::{
+    dependency, AssetCacheDependency, AssetCacheDerived, AssetCacheLoad, AssetHandle, AssetLoader,
+    LoadContext,
+};
 use crate::asset::{DynAssetHandle, DynAssetLoadFn};
 use crate::filesystem::FileSystemContext;
 use rustc_hash::FxHashMap;
@@ -81,11 +84,17 @@ impl AssetCacheReload {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload(&mut self) {
+    pub fn poll_reload(
+        &mut self,
+        dependency: &mut AssetCacheDependency,
+        derived: &mut AssetCacheDerived,
+        loader: &mut AssetCacheLoad,
+    ) {
         while let Ok(reload_request) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
-                    self.reload(handle.as_any());
+                    tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
+                    self.reload(handle.as_any(), dependency, derived, loader);
                 }
             }
         }
@@ -111,28 +120,46 @@ impl AssetCacheReload {
                 }
             };
 
-            // start watching path
-            self.reload_watcher
-                .watcher()
-                .watch(
-                    &path,
-                    notify_debouncer_mini::notify::RecursiveMode::NonRecursive, // recursive mode does not matter for files
-                )
-                .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
+            let handles = self.reload_handles.entry(path.clone()).or_default();
 
-            // map path to handle
-            let handles = self.reload_handles.entry(path).or_default();
+            // start watching file path if its not done already
+            if handles.is_empty() {
+                tracing::info!("start watching {:?}", &path);
+                self.reload_watcher
+                    .watcher()
+                    .watch(
+                        &path,
+                        notify_debouncer_mini::notify::RecursiveMode::NonRecursive, // recursive mode does not matter for files
+                    )
+                    .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
+            }
+
+            // register handle to path changes
             handles.insert(watch_request.handle);
         }
     }
 
     /// Queue a reload just like file watcher would
-    pub fn reload(&mut self, handle: DynAssetHandle) {
+    pub fn reload(
+        &mut self,
+        handle: DynAssetHandle,
+        dependency: &mut AssetCacheDependency,
+        _derived: &mut AssetCacheDerived,
+        _loader: &mut AssetCacheLoad,
+    ) {
         let Some(reload_fn) = self.reload_functions.get(&handle.as_any()) else {
             tracing::warn!("could not get asset handle {}", handle.id());
             return;
         };
 
+        // ignore if already reloading
+        if dependency.is_currently_reloading(&handle) {
+            tracing::info!("handle {} already reloading", handle.id());
+            return;
+        }
+
+        tracing::error!("REQUEST RELOAD {}", handle.id());
+        dependency.set_currently_reloading(handle);
         reload_fn();
     }
 }

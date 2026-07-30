@@ -1,5 +1,11 @@
 import "math"
 
 fn custom_color() -> vec4f {
-    return vec4f(1.0, 0.0, add(0.1, 0.2), 1.0);
+    // if true {
+    // return vec4f(1.0, 1.0, 1.0, 1.0);
+    // }
+
+    let w = add(0.1, 0.1);
+
+    return vec4f(w, w, w, 1.0);
 }

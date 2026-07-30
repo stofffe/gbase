@@ -69,6 +69,7 @@ impl AssetCacheDerived {
     }
 
     pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: DynAssetHandle) {
+        tracing::error!("INVALIDATE DERIVED {}", handle.id());
         for (_, dyn_cache) in self.typed_caches.iter_mut() {
             dyn_cache.invalidate(handle.clone());
         }
@@ -105,6 +106,7 @@ impl AssetCacheDerived {
                 }
             }
             ConvertAssetStatus::Success(render_asset_handle) => {
+                // tracing::info!("CONVERSION SUCCESS {:?}", render_asset_handle.type_id());
                 let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
 
                 let deps = convert_ctx.dependencies.clone();
@@ -192,7 +194,6 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
 
     fn invalidate(&mut self, handle: DynAssetHandle) {
         if let Some(settings) = self.handle_to_settings.get(&handle) {
-            tracing::info!("INVALIDATE TYPED CACHE {}", type_name::<G>());
             for setting in settings {
                 self.render_cache.remove(setting);
             }

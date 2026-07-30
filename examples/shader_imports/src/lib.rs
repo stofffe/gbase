@@ -79,10 +79,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
-        tracing::info!("LOADED ASSET SOURCE\n {}", source);
-        tracing::info!("LOADED ASSET IMPORTS\n {:?}", imports);
-
-        tracing::info!("DEPS LEN {:?}", load_ctx.dependencies().len());
+        // tracing::info!("LOADED ASSET {}\n{}", load_ctx.handle().id(), source);
 
         Ok(ShaderWithImports { source, imports })
     }
@@ -147,8 +144,6 @@ impl AssetConverter for ShaderWithImportsConverter {
         }
         resoved_source.push_str(&source.source);
 
-        tracing::info!("CONVERTED ASSET {}", resoved_source);
-
         ConvertAssetStatus::Success(ShaderWithImportsFinal {
             source: resoved_source,
         })
@@ -178,22 +173,83 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let result = convert_ctx.convert::<ShaderWithImportsConverter>(
-            ctx,
-            &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
-        );
+        let source = match convert_ctx.get(&settings.shader) {
+            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
+            GetAssetResult::Success(source) => source,
+        }
+        .clone();
 
-        let shader = match result {
-            asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            asset::ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
-            asset::ConvertAssetResult::Success(arc_handle) => arc_handle,
-        };
+        let mut import_sources = Vec::new();
+        for import in source.imports.iter() {
+            let conversion_result = convert_ctx.convert::<ShaderWithImportsConverter>(
+                ctx,
+                &ShaderWithImportsConverterOptions::new(import.clone()),
+            );
+            match conversion_result {
+                asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+                // TODO: add source failed?
+                asset::ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
+                asset::ConvertAssetResult::Success(result) => {
+                    import_sources.push(result.source.clone())
+                }
+            }
+        }
 
-        let shader = render::ShaderBuilder::new().build_non_arc(ctx, shader.source.clone());
+        let mut resoved_source = String::new();
+        for import in import_sources {
+            // TODO: maybe insert on line it was included?
+            resoved_source.push_str(&import);
+        }
+        resoved_source.push_str(&source.source);
+
+        tracing::info!("CONVERTED GPU SHADER\n{}", &resoved_source);
+
+        let shader = render::ShaderBuilder::new().build_non_arc(ctx, resoved_source);
 
         ConvertAssetStatus::Success(shader)
     }
 }
+
+// #[derive(Clone, Hash, PartialEq, Eq)]
+// pub struct ShaderWithImportsGpuConverterSettings {
+//     shader: AssetHandle<ShaderWithImports>,
+// }
+//
+// impl ShaderWithImportsGpuConverterSettings {
+//     pub fn new(shader: AssetHandle<ShaderWithImports>) -> Self {
+//         Self { shader }
+//     }
+// }
+//
+// struct ShaderWithImportsGpuConverter;
+//
+// impl AssetConverter for ShaderWithImportsGpuConverter {
+//     type TargetAsset = wgpu::ShaderModule;
+//     type Settings = ShaderWithImportsGpuConverterSettings;
+//     type Error = EmptyError;
+//
+//     fn convert(
+//         ctx: &mut Context,
+//         convert_ctx: &mut asset::ConvertContext,
+//         settings: &Self::Settings,
+//     ) -> ConvertAssetStatus<Self::TargetAsset> {
+//         let result = convert_ctx.convert::<ShaderWithImportsConverter>(
+//             ctx,
+//             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
+//         );
+//
+//         let shader = match result {
+//             asset::ConvertAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+//             asset::ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
+//             asset::ConvertAssetResult::Success(arc_handle) => arc_handle,
+//         };
+//
+//         let shader = render::ShaderBuilder::new().build_non_arc(ctx, shader.source.clone());
+//
+//         ConvertAssetStatus::Success(shader)
+//     }
+// }
 
 struct App {
     pipeline_layout: ArcPipelineLayout,
