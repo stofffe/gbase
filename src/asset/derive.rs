@@ -7,7 +7,7 @@ use crate::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
-    any::{type_name, Any, TypeId},
+    any::{Any, TypeId},
     error,
     hash::Hash,
 };
@@ -16,12 +16,10 @@ use std::{
 // Types
 //
 
-pub trait DerivedAsset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
+pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
 
-pub trait DerivedAssetSettings: Send + Hash + Eq + Clone {}
-impl<T: Send + Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
-                                                                //
-pub type DynDerivedAsset = ArcHandle<dyn Any + Send + Sync>;
+pub trait DerivedAssetSettings: Hash + Eq + Clone {}
+impl<T: Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
     type TargetAsset: DerivedAsset;

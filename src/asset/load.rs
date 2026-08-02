@@ -3,8 +3,8 @@ use crate::asset::{AssetCacheReload, ReloadContext};
 
 use crate::{
     asset::{
-        dependency, derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheStorage,
-        AssetHandle, AssetHandleContext, DynAsset, DynAssetHandle,
+        derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheStorage, AssetHandle,
+        AssetHandleContext, DynAsset, DynAssetHandle,
     },
     filesystem, task,
 };
@@ -67,7 +67,7 @@ pub trait DynLoadResponse: Send {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
-        reloader: &mut AssetCacheReload,
+        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
     fn handle(&self) -> DynAssetHandle;
     fn success(&self) -> bool;
@@ -80,7 +80,7 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
-        reloader: &mut AssetCacheReload,
+        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
         match self.result {
             LoadAssetResult::Success(asset) => {
@@ -95,7 +95,13 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
 
                 dependency.add_dependencies(&handle, &self.dependencies);
                 if dependency.is_currently_reloading(&handle) {
-                    dependency.handle_asset_changed(&handle, derived, loader, reloader);
+                    dependency.handle_asset_changed(
+                        &handle,
+                        derived,
+                        loader,
+                        #[cfg(not(target_arch = "wasm32"))]
+                        reloader,
+                    );
                 }
             }
             LoadAssetResult::Error => {
@@ -178,12 +184,19 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         derived: &mut AssetCacheDerived,
         dependency: &mut AssetCacheDependency,
-        reloader: &mut AssetCacheReload,
+        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
         self.just_loaded.clear();
 
         while let Ok(response) = self.response_receiver.try_recv() {
-            response.insert_into_storage(storage, self, derived, dependency, reloader);
+            response.insert_into_storage(
+                storage,
+                self,
+                derived,
+                dependency,
+                #[cfg(not(target_arch = "wasm32"))]
+                reloader,
+            );
         }
     }
 }

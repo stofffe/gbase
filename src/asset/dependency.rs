@@ -1,4 +1,6 @@
-use crate::asset::{AssetCacheDerived, AssetCacheLoad, AssetCacheReload, DynAssetHandle};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::asset::AssetCacheReload;
+use crate::asset::{AssetCacheDerived, AssetCacheLoad, DynAssetHandle};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub struct AssetCacheDependency {
@@ -23,12 +25,13 @@ impl AssetCacheDependency {
         handle: &DynAssetHandle,
         derived: &mut AssetCacheDerived,
         loader: &mut AssetCacheLoad,
-        reloader: &mut AssetCacheReload,
+        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
         tracing::error!("PROPAGATE {}", handle.id());
 
         derived.invalidate_derived_assets_depending_on_handle(handle.clone());
 
+        #[cfg(not(target_arch = "wasm32"))]
         for dependent in self.dependents(handle).clone().iter() {
             reloader.reload(dependent.clone(), self, derived, loader);
         }

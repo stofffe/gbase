@@ -22,6 +22,7 @@ pub type DynAssetHandle = AssetHandle<DynAsset>;
 
 pub struct AssetCacheStorage {
     typed_caches: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
+
     asset_handle_ctx: AssetHandleContext,
 }
 

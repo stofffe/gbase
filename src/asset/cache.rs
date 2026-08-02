@@ -4,8 +4,8 @@ use crate::{
         self, dependency,
         derive::{AssetCacheDerived, ConvertAssetResult},
         AssetCacheDependency, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
-        AssetHandleContext, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadContext,
-        LoadRuntime, LoadState,
+        AssetHandleContext, DynAsset, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder,
+        LoadContext, LoadRuntime, LoadState,
     },
     filesystem::FileSystemContext,
     task::TaskContext,
@@ -90,6 +90,7 @@ impl AssetCache {
             &mut self.storage,
             &mut self.derived,
             &mut self.dependency,
+            #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
         );
     }

@@ -1,8 +1,8 @@
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        ImageLoaderSettings, LoadAssetResult, MeshGpuConverter, MeshGpuConverterSettings,
+        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -84,6 +84,7 @@ impl Callbacks for App {
         {
             return CallbackResult::Continue;
         }
+
         let mesh = asset::convert_asset::<MeshGpuConverter>(
             ctx,
             cache,

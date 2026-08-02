@@ -8,12 +8,12 @@ use std::{any::Any, sync::Arc};
 /// Beyond allowing for Clone, they also allow different GPU resources to be
 /// unique identified via `id` - primarily used when caching (see the other `gpu` modules).
 #[derive(Debug)]
-pub struct ArcHandle<T: ?Sized + Send + Sync + 'static> {
+pub struct ArcHandle<T: ?Sized + 'static> {
     pub handle: Arc<T>,
     id: u64,
 }
 
-impl<T: Send + Sync + 'static> ArcHandle<T> {
+impl<T: 'static> ArcHandle<T> {
     pub fn new(ctx: &mut Context, handle: T) -> Self {
         ArcHandle {
             handle: Arc::new(handle),
@@ -27,7 +27,7 @@ impl<T: Send + Sync + 'static> ArcHandle<T> {
     }
 }
 
-impl<T: Send + Sync + ?Sized + 'static> Clone for ArcHandle<T> {
+impl<T: ?Sized + 'static> Clone for ArcHandle<T> {
     fn clone(&self) -> Self {
         ArcHandle {
             handle: Arc::clone(&self.handle),
@@ -36,21 +36,21 @@ impl<T: Send + Sync + ?Sized + 'static> Clone for ArcHandle<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> PartialEq for ArcHandle<T> {
+impl<T: 'static> PartialEq for ArcHandle<T> {
     fn eq(&self, other: &Self) -> bool {
         self.id == other.id
     }
 }
 
-impl<T: Send + Sync + 'static> Eq for ArcHandle<T> {}
+impl<T: 'static> Eq for ArcHandle<T> {}
 
-impl<T: Send + Sync + 'static> std::hash::Hash for ArcHandle<T> {
+impl<T: 'static> std::hash::Hash for ArcHandle<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.id.hash(state);
     }
 }
 
-impl<T: Send + Sync + 'static> std::ops::Deref for ArcHandle<T> {
+impl<T: 'static> std::ops::Deref for ArcHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
@@ -58,7 +58,7 @@ impl<T: Send + Sync + 'static> std::ops::Deref for ArcHandle<T> {
     }
 }
 
-impl<T: Send + Sync + 'static> AsRef<T> for ArcHandle<T> {
+impl<T: 'static> AsRef<T> for ArcHandle<T> {
     fn as_ref(&self) -> &T {
         self.handle.as_ref()
     }
