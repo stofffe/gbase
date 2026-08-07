@@ -1,4 +1,5 @@
 import "texture_helper"
+import "test"
 
 struct VertexInput {
     @location(0) position: vec3<f32>,
@@ -28,7 +29,6 @@ struct VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if true {
-        //lll
         // return vec4f(1.0, 0.0, 0.0, 1.0);
         return custom_color();
     }

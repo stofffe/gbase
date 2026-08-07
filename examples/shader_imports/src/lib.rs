@@ -27,7 +27,7 @@ pub struct ShaderWithImports {
 
 impl Asset for ShaderWithImports {}
 
-#[derive(Clone)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct ShaderWithImportsLoaderSettings {
     path: PathBuf,
 }
@@ -66,8 +66,9 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
 
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path;
-                    let import =
-                        load_ctx.load_asset::<ShaderWithImportsLoader>(settings_with_new_path);
+                    let import = load_ctx
+                        .load_asset::<ShaderWithImportsLoader>(settings_with_new_path)
+                        .await;
 
                     imports.push(import);
 

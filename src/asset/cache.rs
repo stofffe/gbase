@@ -37,7 +37,7 @@ impl AssetCache {
 
         let storage = AssetCacheStorage::new(asset_handle_ctx.clone());
 
-        let loader = AssetCacheLoad::new();
+        let loader = AssetCacheLoad::new(asset_handle_ctx.clone());
 
         let derived = AssetCacheDerived::new();
 
@@ -76,16 +76,17 @@ impl AssetCache {
         LoadContext::new(state, runtime)
     }
 
+    // TODO: does order matter?
     pub fn poll(&mut self, ctx: &Context) {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            // TODO: does order matter?
             self.reloader
                 .poll_reload(&mut self.dependency, &mut self.derived, &mut self.loader);
             self.reloader.poll_reload_fns();
             self.reloader.poll_watch(ctx.filesystem.clone());
         }
 
+        self.loader.poll_handle_request();
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.derived,

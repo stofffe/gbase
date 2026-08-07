@@ -88,7 +88,7 @@ impl AssetConverter for BoundingBoxConverter {
 
 impl Asset for Shader {}
 
-#[derive(Clone)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct ShaderLoaderSettings {
     path: PathBuf,
 }
@@ -183,7 +183,7 @@ impl Asset for render::Image {}
 
 pub struct ImageLoader {}
 
-#[derive(Clone, Default)]
+#[derive(Hash, PartialEq, Eq, Clone, Default)]
 pub struct ImageLoaderSettings {
     pub path: PathBuf,
     pub texture_config: Option<TextureBuilder>,

@@ -1,10 +1,13 @@
 track deps and invalidate handles
-remove reload closures and use typed loader with settings cache isntead for reloading
+cache deps by settigns to avoid creating new ones for each sub dependecy
+
 reload queue to avoid same dep being reloaded many times
-cache sub deps 
+remove reload closures and use typed loader with settings cache isntead for reloading
+
+depenecies between derivced assets
+reuse handles for inserted assets by using some (parent + id (id could be string?) ) 
 
 next up
-    [] 
     [] return errors to user
     [] all assets are being watched, make it a context builder option
         [] remove watch from builder and 

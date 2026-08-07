@@ -3,26 +3,30 @@ use crate::asset::{AssetCacheReload, ReloadContext};
 
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheStorage, AssetHandle,
-        AssetHandleContext, DynAsset, DynAssetHandle,
+        derive::AssetCacheDerived, handle_just_loaded, Asset, AssetCacheDependency,
+        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAsset, DynAssetHandle,
     },
     filesystem, task,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::future::Future;
+use std::{
+    any::{Any, TypeId},
+    future::Future,
+    hash::Hash,
+};
 use std::{error, path::Path};
 
 //
 // Types
 //
 
-pub trait AssetSettings: Send + Clone {}
-impl<T: Send + Clone> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait AssetSettings: Hash + Eq + Clone + Send {}
+impl<T: Hash + Eq + Clone + Send> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetError: error::Error + Send {}
 impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
 
-pub trait AssetLoader: Send {
+pub trait AssetLoader: Any + Send {
     type Asset: Asset;
     type Settings: AssetSettings;
     type Error: AssetError;
@@ -123,8 +127,80 @@ impl<T: Asset> DynLoadResponse for LoadResponse<T> {
 }
 
 //
+
+pub trait DynHandleRequest: Send {
+    fn get_or_create_handle(&self, loader: &mut AssetCacheLoad);
+}
+
+pub struct GetHandleRequest<T: AssetLoader> {
+    settings: T::Settings,
+    sender: async_channel::Sender<AssetHandle<T::Asset>>,
+}
+
+impl<T: AssetLoader> GetHandleRequest<T> {
+    pub fn new(
+        settings: T::Settings,
+        sender: async_channel::Sender<AssetHandle<T::Asset>>,
+    ) -> Self {
+        Self { settings, sender }
+    }
+}
+
+impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
+    fn get_or_create_handle(&self, loader: &mut AssetCacheLoad) {
+        // get the handle
+        let handle = loader.get_typed_cache_mut::<T>().get_handle(&self.settings);
+
+        // send the handle back
+        self.sender
+            .try_send(handle)
+            .expect("could not send get asset handle response");
+    }
+}
+
+//
 // Load
 //
+pub trait DynAssetLoad {
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self as &mut dyn Any
+    }
+}
+
+pub struct TypedAssetLoad<T: AssetLoader> {
+    settings_to_handle: FxHashMap<T::Settings, AssetHandle<T::Asset>>,
+    asset_handle_ctx: AssetHandleContext,
+}
+
+impl<T: AssetLoader> TypedAssetLoad<T> {
+    pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+        Self {
+            settings_to_handle: FxHashMap::default(),
+            asset_handle_ctx,
+        }
+    }
+
+    /// Gets existing or creates new handle
+    pub fn get_handle(&mut self, settings: &T::Settings) -> AssetHandle<T::Asset> {
+        if let Some(handle) = self.settings_to_handle.get(settings) {
+            return handle.clone();
+        }
+
+        let new_handle = AssetHandle::new(&self.asset_handle_ctx);
+        self.settings_to_handle
+            .insert(settings.clone(), new_handle.clone());
+        new_handle
+    }
+}
 
 #[derive(Clone)]
 pub enum LoadStatus {
@@ -133,6 +209,14 @@ pub enum LoadStatus {
 }
 
 pub struct AssetCacheLoad {
+    typed_caches: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
+    asset_handle_ctx: AssetHandleContext,
+
+    // Handle request
+    pub(crate) handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
+    pub(crate) handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
+
+    // Load response
     pub(crate) response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     pub(crate) response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
 
@@ -143,19 +227,50 @@ pub struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+        let typed_caches = FxHashMap::default();
+
         let (response_sender, response_receiver) = async_channel::unbounded();
+        let (handle_request_sender, handle_request_receiver) = async_channel::unbounded();
 
         let just_loaded = FxHashSet::default();
         let status = FxHashMap::default();
 
         Self {
+            asset_handle_ctx,
+            typed_caches,
+
             just_loaded,
             status,
 
             response_sender,
             response_receiver,
+
+            handle_request_sender,
+            handle_request_receiver,
         }
+    }
+
+    pub fn get_typed_cache_ref<T: AssetLoader + 'static>(&self) -> Option<&TypedAssetLoad<T>> {
+        self.typed_caches.get(&TypeId::of::<T>()).map(|a| {
+            a.as_any()
+                .downcast_ref::<TypedAssetLoad<T>>()
+                .expect("could not downcast typed storage cache")
+        })
+    }
+
+    /// Get mutable typed cache or create if it doesnt exist
+    pub fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetLoad<T> {
+        let entry = self
+            .typed_caches
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(TypedAssetLoad::<T>::new(
+                self.asset_handle_ctx.clone(),
+            )));
+        entry
+            .as_any_mut()
+            .downcast_mut::<TypedAssetLoad<T>>()
+            .expect("could not downcast typed storage cache")
     }
 
     pub fn set_status<T: Asset>(&mut self, handle: &AssetHandle<T>, status: LoadStatus) {
@@ -199,6 +314,13 @@ impl AssetCacheLoad {
             );
         }
     }
+
+    // check for request of new handles
+    pub fn poll_handle_request(&mut self) {
+        while let Ok(request) = self.handle_request_receiver.try_recv() {
+            request.get_or_create_handle(self);
+        }
+    }
 }
 
 //
@@ -226,6 +348,7 @@ pub struct LoadRuntime {
     pub(crate) filesystem_ctx: filesystem::FileSystemContext,
     pub(crate) task_ctx: task::TaskContext,
 
+    pub(crate) handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
     pub(crate) load_response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -241,11 +364,13 @@ impl LoadRuntime {
         #[cfg(not(target_arch = "wasm32"))] reloader: &AssetCacheReload,
     ) -> Self {
         let load_response_sender = loader.response_sender.clone();
+        let handle_request_sender = loader.handle_request_sender.clone();
         Self {
             asset_handle_ctx,
             filesystem_ctx,
             task_ctx,
             load_response_sender,
+            handle_request_sender,
 
             #[cfg(not(target_arch = "wasm32"))]
             reload_ctx: ReloadContext::new(reloader),
@@ -272,16 +397,6 @@ impl LoadContext {
         self.state.handle.clone()
     }
 
-    // // TODO: kinda unclear name
-    // pub fn new_from_existing(&self, handle: DynAssetHandle) -> Self {
-    //     let state = LoadState {
-    //         handle,
-    //         dependencies: FxHashSet::default(),
-    //     };
-    //     let runtime = self.runtime.clone();
-    //     Self { runtime, state }
-    // }
-
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
         let handle = AssetHandle::<T>::new(&self.runtime.asset_handle_ctx);
         self.runtime
@@ -295,12 +410,31 @@ impl LoadContext {
         handle
     }
 
+    async fn request_handle<T: AssetLoader + 'static>(
+        &self,
+        settings: T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        let (sender, receiver) = async_channel::bounded(1);
+
+        self.runtime
+            .handle_request_sender
+            .send(Box::new(GetHandleRequest::<T>::new(settings, sender)))
+            .await
+            .expect("could not send handle request");
+
+        let handle = receiver
+            .recv()
+            .await
+            .expect("could not receive handle request");
+        handle
+    }
+
     /// Request load with new handle
-    pub fn load_asset<T: AssetLoader + 'static>(
+    pub async fn load_asset<T: AssetLoader + 'static>(
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = AssetHandle::new(&self.runtime.asset_handle_ctx);
+        let handle = self.request_handle::<T>(settings.clone()).await;
 
         self.load_asset_with_handle::<T>(handle.clone(), settings);
 

@@ -45,7 +45,7 @@ impl Asset for MeshLod {}
 #[derive(Clone)]
 pub struct MeshLodLoader {}
 
-#[derive(Clone)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct MeshLodLoaderSettings {
     path: PathBuf,
     node_name: Option<String>,
@@ -125,7 +125,7 @@ impl AssetLoader for MeshLodLoader {
 #[derive(Clone, Default)]
 pub struct GltfLoader {}
 
-#[derive(Clone)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct GltfLoaderSettings {
     path: PathBuf,
     required_attributes: Option<BTreeSet<VertexAttributeId>>,

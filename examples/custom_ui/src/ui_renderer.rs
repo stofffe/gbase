@@ -12,7 +12,7 @@ use gbase::{
     render::{self, BindGroupBindable},
     wgpu, Context,
 };
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, hash::Hash, path::PathBuf};
 
 pub struct UIRenderer {
     shader_handle: AssetHandle<render::Shader>,
@@ -36,13 +36,8 @@ impl UIRenderer {
         font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
-        let font = AssetBuilder::load::<FontLoader>().build(
-            cache,
-            FontLoaderSettings {
-                path: font_path.into(),
-                settings: fontdue::FontSettings::default(),
-            },
-        );
+        let font =
+            AssetBuilder::load::<FontLoader>().build(cache, FontLoaderSettings::new(font_path));
 
         //
         // gpu resources
@@ -240,13 +235,7 @@ impl UIRenderer {
         cache.clear_asset_handle(self.font.clone());
         self.font = AssetBuilder::load::<FontLoader>()
             .handle(self.font.clone())
-            .build(
-                cache,
-                FontLoaderSettings {
-                    path: font_path.into(),
-                    settings: fontdue::FontSettings::default(),
-                },
-            );
+            .build(cache, FontLoaderSettings::new(font_path));
     }
 }
 
@@ -671,10 +660,24 @@ impl gbase::asset::Asset for Font {}
 
 pub struct FontLoader {}
 
-#[derive(Clone)]
+#[derive(Hash, PartialEq, Eq, Clone)]
 pub struct FontLoaderSettings {
     path: PathBuf,
-    settings: fontdue::FontSettings,
+
+    pub font_collection_index: u32,
+    pub font_scale: u32,
+    pub font_load_substitutions: bool,
+}
+
+impl FontLoaderSettings {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            font_collection_index: 0,
+            font_scale: 40,
+            font_load_substitutions: true,
+        }
+    }
 }
 
 impl AssetLoader for FontLoader {
@@ -687,8 +690,15 @@ impl AssetLoader for FontLoader {
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;
-        let font = fontdue::Font::from_bytes(bytes, settings.settings)
-            .expect("could not create font from bytes");
+        let font = fontdue::Font::from_bytes(
+            bytes,
+            fontdue::FontSettings {
+                collection_index: settings.font_collection_index,
+                scale: settings.font_scale as f32,
+                load_substitutions: settings.font_load_substitutions,
+            },
+        )
+        .expect("could not create font from bytes");
 
         Ok(Font { font })
     }
