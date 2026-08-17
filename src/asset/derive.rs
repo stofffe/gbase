@@ -67,7 +67,7 @@ impl AssetCacheDerived {
     }
 
     pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: DynAssetHandle) {
-        tracing::error!("INVALIDATE DERIVED {}", handle.id());
+        tracing::info!("invalidate derived {}", handle.id());
         for (_, dyn_cache) in self.typed_caches.iter_mut() {
             dyn_cache.invalidate(handle.clone());
         }
@@ -228,7 +228,7 @@ impl<'storage, 'derived> ConvertContext<'storage, 'derived> {
     }
 
     pub fn get<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
-        self.dependencies.insert(handle.as_any());
+        self.dependencies.insert(handle.to_dyn());
 
         if let Some(asset) = self.storage.get(handle) {
             return GetAssetResult::Success(asset);

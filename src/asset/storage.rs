@@ -11,10 +11,10 @@ use std::{
 
 pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
                                       //
-pub type DynAsset = Box<dyn Asset>;
-impl Asset for DynAsset {}
-
-pub type DynAssetHandle = AssetHandle<DynAsset>;
+                                      // pub type DynAsset = Box<dyn Asset>;
+                                      // impl Asset for DynAsset {}
+                                      //
+                                      // pub type DynAssetHandle = AssetHandle<DynAsset>;
 
 //
 // Storage
@@ -103,7 +103,7 @@ impl AssetCacheStorage {
         data: T,
     ) -> AssetHandle<T> {
         self.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
+        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
         handle
     }
 }
@@ -145,7 +145,7 @@ impl<T: Asset> TypedAssetStorage<T> {
         self.cache.remove(&handle);
 
         // clean other uses of handle
-        derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
+        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
     }
 
     pub fn handle_successfully_loaded(&self, handle: AssetHandle<T>) -> bool {
@@ -169,7 +169,7 @@ impl<T: Asset> TypedAssetStorage<T> {
         data: T,
     ) -> AssetHandle<T> {
         self.cache.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(handle.as_any());
+        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
         handle
     }
 

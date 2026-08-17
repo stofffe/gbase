@@ -67,7 +67,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path;
                     let import = load_ctx
-                        .load_asset::<ShaderWithImportsLoader>(settings_with_new_path)
+                        .request_load::<ShaderWithImportsLoader>(settings_with_new_path)
                         .await;
 
                     imports.push(import);
@@ -204,11 +204,22 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         }
         resoved_source.push_str(&source.source);
 
-        tracing::info!("CONVERTED GPU SHADER\n{}", &resoved_source);
+        // tracing::info!("CONVERTED GPU SHADER\n{}", &resoved_source);
 
-        let shader = render::ShaderBuilder::new().build_non_arc(ctx, resoved_source);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let shader = render::ShaderBuilder::new().build_err_non_arc(ctx, resoved_source);
 
-        ConvertAssetStatus::Success(shader)
+            match shader {
+                Ok(shader) => ConvertAssetStatus::Success(shader),
+                Err(_) => ConvertAssetStatus::Failed,
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            let shader = render::ShaderBuilder::new().build_non_arc(ctx, resoved_source);
+            ConvertAssetStatus::Success(shader)
+        }
     }
 }
 
@@ -266,6 +277,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .vsync(true)
+            .log_level(tracing::Level::INFO)
             .assets_path("assets")
     }
     #[no_mangle]

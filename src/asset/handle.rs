@@ -1,9 +1,39 @@
-use super::DynAsset;
 use crate::asset::{self, Asset, AssetCache, GetAssetResult};
 use std::{
+    any::TypeId,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
+
+#[derive(Clone, Hash, PartialEq, Eq)]
+pub struct DynAssetHandle {
+    id: Arc<u64>,
+    type_id: TypeId,
+}
+
+impl DynAssetHandle {
+    pub fn new<T: Asset>(handle: &AssetHandle<T>) -> Self {
+        Self {
+            id: handle.id.clone(),
+            type_id: TypeId::of::<T>(),
+        }
+    }
+
+    pub fn id(&self) -> u64 {
+        *self.id
+    }
+
+    pub fn to_typed<T: Asset + 'static>(&self) -> Option<AssetHandle<T>> {
+        if self.type_id != TypeId::of::<T>() {
+            return None;
+        }
+
+        Some(AssetHandle {
+            id: self.id.clone(),
+            ty: PhantomData,
+        })
+    }
+}
 
 //
 // Asset handle
@@ -29,11 +59,8 @@ impl<T: Asset + 'static> AssetHandle<T> {
         *self.id
     }
 
-    pub(crate) fn as_any(&self) -> AssetHandle<DynAsset> {
-        AssetHandle::<DynAsset> {
-            id: self.id.clone(),
-            ty: PhantomData,
-        }
+    pub(crate) fn to_dyn(&self) -> DynAssetHandle {
+        DynAssetHandle::new(self)
     }
 
     pub fn loaded(&self, cache: &mut AssetCache) -> bool {

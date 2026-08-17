@@ -27,13 +27,12 @@ impl AssetCacheDependency {
         loader: &mut AssetCacheLoad,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
-        tracing::error!("PROPAGATE {}", handle.id());
-
         derived.invalidate_derived_assets_depending_on_handle(handle.clone());
 
         #[cfg(not(target_arch = "wasm32"))]
         for dependent in self.dependents(handle).clone().iter() {
-            reloader.reload(dependent.clone(), self, derived, loader);
+            tracing::info!("{} invalidated {}", handle.id(), dependent.id());
+            reloader.reload(dependent.clone(), loader);
         }
     }
 

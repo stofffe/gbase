@@ -1,31 +1,79 @@
-use crate::asset::{
-    dependency, AssetCacheDependency, AssetCacheDerived, AssetCacheLoad, AssetHandle, AssetLoader,
-    LoadContext,
-};
-use crate::asset::{DynAssetHandle, DynAssetLoadFn};
+use crate::asset::DynAssetHandle;
+use crate::asset::{AssetCacheLoad, AssetLoader};
 use crate::filesystem::FileSystemContext;
 use rustc_hash::FxHashMap;
+use std::any::{Any, TypeId};
 use std::collections::HashSet;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
+pub trait DynAssetReload {
+    fn reload_handle(&self, loader: &mut AssetCacheLoad, dyn_handle: DynAssetHandle);
+
+    fn as_any(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+pub struct TypedAssetReload<T: AssetLoader> {
+    ty: PhantomData<T>,
+}
+
+impl<T: AssetLoader + 'static> TypedAssetReload<T> {
+    pub fn new() -> Self {
+        Self { ty: PhantomData }
+    }
+}
+
+impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
+    fn reload_handle(&self, loader: &mut AssetCacheLoad, dyn_handle: DynAssetHandle) {
+        let Some(handle) = dyn_handle.to_typed::<T::Asset>() else {
+            tracing::warn!(
+                "trying to convert DynAssetHandle with type {:?} to a AssetHandle with type {:?}",
+                dyn_handle.type_id(),
+                TypeId::of::<T::Asset>()
+            );
+            return;
+        };
+
+        let Some(typed_loader) = loader.get_typed_cache_ref::<T>() else {
+            tracing::warn!(
+                "trying to reload handle {:?} but no typed loader exists",
+                handle.id
+            );
+            return;
+        };
+
+        let Some(settings) = typed_loader.handle_to_settings.get(&handle) else {
+            tracing::warn!(
+                "trying to get settings for {:?} but none were found",
+                handle.id
+            );
+            return;
+        };
+
+        loader.load_asset_with_handle::<T>(handle, settings.clone());
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self as &mut dyn Any
+    }
+}
+
 pub struct AssetCacheReload {
+    filesystem_ctx: FileSystemContext,
+
+    handle_to_loader_type: FxHashMap<DynAssetHandle, TypeId>,
+    typed_reloaders: FxHashMap<TypeId, Box<dyn DynAssetReload>>,
+
     /// which handles depend to a certain path
     reload_handles: FxHashMap<PathBuf, HashSet<DynAssetHandle>>,
 
-    // functions for reloading handles sync
-    // use same settings as when it was initially loaded
-    reload_functions: FxHashMap<DynAssetHandle, DynAssetLoadFn>,
-
     // channel for requesting reloads
     reload_receiver: async_channel::Receiver<ReloadHandleRequest>,
-
-    // watch
-    watch_sender: async_channel::Sender<WatchHandleRequest>,
-    watch_receiver: async_channel::Receiver<WatchHandleRequest>,
-
-    // register
-    reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
-    reload_fn_receiver: async_channel::Receiver<ReloadFnHandleRequest>,
 
     // keep watcher handle alive
     reload_watcher:
@@ -36,21 +84,9 @@ pub struct ReloadHandleRequest {
     path: PathBuf,
 }
 
-pub struct WatchHandleRequest {
-    pub handle: DynAssetHandle,
-    pub path: PathBuf,
-}
-
-pub struct ReloadFnHandleRequest {
-    pub handle: DynAssetHandle,
-    pub load_fn: DynAssetLoadFn,
-}
-
 impl AssetCacheReload {
-    pub fn new() -> Self {
+    pub fn new(filesystem_ctx: FileSystemContext) -> Self {
         let (reload_sender, reload_receiver) = async_channel::unbounded();
-        let (watch_sender, watch_receiver) = async_channel::unbounded();
-        let (reload_fn_sender, reload_fn_receiver) = async_channel::unbounded();
 
         let reload_sender_clone = reload_sender.clone();
         let reload_watcher = notify_debouncer_mini::new_debouncer(
@@ -69,159 +105,101 @@ impl AssetCacheReload {
         .expect("could not create watcher");
 
         Self {
+            filesystem_ctx,
+            handle_to_loader_type: FxHashMap::default(),
+            typed_reloaders: FxHashMap::default(),
             reload_watcher,
 
             reload_receiver,
 
-            watch_sender,
-            watch_receiver,
-            reload_fn_sender,
-            reload_fn_receiver,
-
             reload_handles: FxHashMap::default(),
-            reload_functions: FxHashMap::default(),
         }
     }
 
+    pub fn get_typed_cache_ref<T: AssetLoader + 'static>(&self) -> Option<&TypedAssetReload<T>> {
+        self.typed_reloaders
+            .get(&TypeId::of::<T>())
+            .map(|dyn_reloader| {
+                dyn_reloader
+                    .as_any()
+                    .downcast_ref::<TypedAssetReload<T>>()
+                    .expect("could not downcast typed storage cache")
+            })
+    }
+
+    /// Get mutable typed cache or create if it doesnt exist
+    pub fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetReload<T> {
+        let entry = self
+            .typed_reloaders
+            .entry(TypeId::of::<T>())
+            .or_insert(Box::new(TypedAssetReload::<T>::new()));
+        entry
+            .as_any_mut()
+            .downcast_mut::<TypedAssetReload<T>>()
+            .expect("could not downcast typed storage cache")
+    }
+
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload(
-        &mut self,
-        dependency: &mut AssetCacheDependency,
-        derived: &mut AssetCacheDerived,
-        loader: &mut AssetCacheLoad,
-    ) {
+    pub fn poll_reload(&mut self, loader: &mut AssetCacheLoad) {
         while let Ok(reload_request) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
                     tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle.as_any(), dependency, derived, loader);
+                    self.reload(handle, loader);
                 }
             }
-        }
-    }
-
-    pub fn poll_reload_fns(&mut self) {
-        while let Ok(reload_fn_request) = self.reload_fn_receiver.try_recv() {
-            self.reload_functions
-                .insert(reload_fn_request.handle.clone(), reload_fn_request.load_fn);
-        }
-    }
-
-    pub fn poll_watch(&mut self, filesystem_ctx: FileSystemContext) {
-        while let Ok(watch_request) = self.watch_receiver.try_recv() {
-            let path = filesystem_ctx.format_asset_path(watch_request.path);
-            // path must be canoicalized since watcher will do it internally
-            let path = match std::fs::canonicalize(&path) {
-                Ok(path) => path,
-                Err(err) => {
-                    tracing::warn!("could not canoicalize path: {:?}: {}", &path, err);
-                    tracing::warn!("skipping watching");
-                    continue;
-                }
-            };
-
-            let handles = self.reload_handles.entry(path.clone()).or_default();
-
-            // start watching file path if its not done already
-            if handles.is_empty() {
-                tracing::info!("start watching {:?}", &path);
-                self.reload_watcher
-                    .watcher()
-                    .watch(
-                        &path,
-                        notify_debouncer_mini::notify::RecursiveMode::NonRecursive, // recursive mode does not matter for files
-                    )
-                    .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
-            }
-
-            // register handle to path changes
-            handles.insert(watch_request.handle);
         }
     }
 
     /// Queue a reload just like file watcher would
-    pub fn reload(
-        &mut self,
-        handle: DynAssetHandle,
-        dependency: &mut AssetCacheDependency,
-        _derived: &mut AssetCacheDerived,
-        _loader: &mut AssetCacheLoad,
-    ) {
-        let Some(reload_fn) = self.reload_functions.get(&handle.as_any()) else {
-            tracing::warn!("could not get asset handle {}", handle.id());
+    pub fn reload(&mut self, handle: DynAssetHandle, loader: &mut AssetCacheLoad) {
+        let Some(loader_type_id) = self.handle_to_loader_type.get(&handle) else {
+            tracing::warn!("could not get loader type id for {}", handle.id());
             return;
         };
 
-        // ignore if already reloading
-        if dependency.is_currently_reloading(&handle) {
-            tracing::info!("handle {} already reloading", handle.id());
+        let Some(dyn_reloader) = self.typed_reloaders.get(loader_type_id) else {
+            tracing::warn!("could not get typed reloader for {:?}", loader_type_id);
             return;
+        };
+
+        dyn_reloader.reload_handle(loader, handle);
+    }
+
+    /// register last loader type used to load handle
+    pub fn register_loader_type<T: AssetLoader + 'static>(&mut self, handle: DynAssetHandle) {
+        self.handle_to_loader_type.insert(handle, TypeId::of::<T>());
+
+        self.get_typed_cache_mut::<T>();
+    }
+
+    /// start watching path and notify handle when path changes
+    pub fn add_watch(&mut self, path: PathBuf, handle: DynAssetHandle) {
+        let path = self.filesystem_ctx.format_asset_path(path);
+        // path must be canoicalized since watcher will do it internally
+        let path = match std::fs::canonicalize(&path) {
+            Ok(path) => path,
+            Err(err) => {
+                tracing::warn!("could not canoicalize path: {:?}: {}", &path, err);
+                tracing::warn!("skipping watching");
+                return;
+            }
+        };
+
+        let handles = self.reload_handles.entry(path.clone()).or_default();
+
+        // start watching file path if its not done already
+        if handles.is_empty() {
+            tracing::info!("start watching {:?}", &path);
+            self.reload_watcher
+                .watcher()
+                .watch(
+                    &path,
+                    notify_debouncer_mini::notify::RecursiveMode::NonRecursive, // recursive mode does not matter for files
+                )
+                .unwrap_or_else(|err| panic!("could not watch {}: {:?}", path.display(), err));
         }
 
-        tracing::error!("REQUEST RELOAD {}", handle.id());
-        dependency.set_currently_reloading(handle);
-        reload_fn();
-    }
-}
-
-/// Reload function wrappers available in tasks
-#[derive(Clone)]
-pub struct ReloadContext {
-    /// channel for registering handle for reload watching
-    pub(crate) watch_handle_sender: async_channel::Sender<WatchHandleRequest>,
-
-    // channel for registering reload fns
-    pub(crate) reload_fn_sender: async_channel::Sender<ReloadFnHandleRequest>,
-}
-
-impl ReloadContext {
-    pub fn new(reloader: &AssetCacheReload) -> Self {
-        let watch_handle_sender = reloader.watch_sender.clone();
-        let reload_fn_sender = reloader.reload_fn_sender.clone();
-
-        Self {
-            watch_handle_sender,
-            reload_fn_sender,
-        }
-    }
-
-    /// Register a handle to be watched
-    pub async fn register_watch(&self, handle: DynAssetHandle, path: impl Into<PathBuf>) {
-        let path = path.into();
-        self.watch_handle_sender
-            .send(WatchHandleRequest {
-                handle: handle.clone(),
-                path: path.clone(),
-            })
-            .await
-            .expect("could not send");
-    }
-
-    /// Register the reload function for a loader
-    pub(crate) fn register_reload_fns<T: AssetLoader + 'static>(
-        &self,
-        load_ctx: LoadContext,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // async
-        let handle_clone = handle.clone();
-        let settings_clone = settings.clone();
-        let load_ctx_clone = load_ctx.clone();
-        let load_fn = Box::new(move || {
-            let handle_clone = handle_clone.clone();
-            let settings_clone = settings_clone.clone();
-            load_ctx_clone
-                .clone()
-                .load_asset_func::<T>(handle_clone, settings_clone);
-        });
-
-        // send over channel
-        self.reload_fn_sender
-            .try_send(ReloadFnHandleRequest {
-                handle: handle.as_any(),
-                load_fn,
-            })
-            .expect("could not send register reload handle request");
+        handles.insert(handle);
     }
 }

@@ -1,11 +1,11 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, dependency,
+        self,
         derive::{AssetCacheDerived, ConvertAssetResult},
         AssetCacheDependency, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
-        AssetHandleContext, DynAsset, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder,
-        LoadContext, LoadRuntime, LoadState,
+        AssetHandleContext, GetAssetResult, InsertAssetBuilder, LoadAssetBuilder, LoadContext,
+        LoadRuntime, LoadState,
     },
     filesystem::FileSystemContext,
     task::TaskContext,
@@ -37,14 +37,18 @@ impl AssetCache {
 
         let storage = AssetCacheStorage::new(asset_handle_ctx.clone());
 
-        let loader = AssetCacheLoad::new(asset_handle_ctx.clone());
+        let loader = AssetCacheLoad::new(
+            task_executor.clone(),
+            filesystem_ctx.clone(),
+            asset_handle_ctx.clone(),
+        );
 
         let derived = AssetCacheDerived::new();
 
         let dependency = AssetCacheDependency::new();
 
         #[cfg(not(target_arch = "wasm32"))]
-        let reloader = asset::AssetCacheReload::new();
+        let reloader = asset::AssetCacheReload::new(filesystem_ctx.clone());
 
         Self {
             asset_handle_ctx,
@@ -63,14 +67,11 @@ impl AssetCache {
     }
 
     pub fn load_ctx<T: Asset>(&self, handle: AssetHandle<T>) -> LoadContext {
-        let state = LoadState::new(handle.as_any());
+        let state = LoadState::new(handle.to_dyn());
         let runtime = LoadRuntime::new(
             self.asset_handle_ctx.clone(),
             self.filesystem_ctx.clone(),
-            self.task_executor.clone(),
             &self.loader,
-            #[cfg(not(target_arch = "wasm32"))]
-            &self.reloader,
         );
 
         LoadContext::new(state, runtime)
@@ -79,12 +80,7 @@ impl AssetCache {
     // TODO: does order matter?
     pub fn poll(&mut self, ctx: &Context) {
         #[cfg(not(target_arch = "wasm32"))]
-        {
-            self.reloader
-                .poll_reload(&mut self.dependency, &mut self.derived, &mut self.loader);
-            self.reloader.poll_reload_fns();
-            self.reloader.poll_watch(ctx.filesystem.clone());
-        }
+        self.reloader.poll_reload(&mut self.loader);
 
         self.loader.poll_handle_request();
         self.loader.poll_loaded(
@@ -101,8 +97,7 @@ impl AssetCache {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        self.load_ctx(handle.clone())
-            .load_asset_with_handle::<T>(handle, settings);
+        self.loader.load_asset_with_handle::<T>(handle, settings);
     }
 
     pub fn new_empty_handle<T: Asset>(&self) -> AssetHandle<T> {
@@ -154,8 +149,7 @@ impl AssetCache {
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
-        self.storage
-            .clear_handle(&mut self.derived, handle.as_any());
+        self.storage.clear_handle(&mut self.derived, handle);
     }
 
     pub fn clear_asset_handles(&mut self) {
@@ -195,11 +189,6 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.reloader.reload(
-            handle.as_any(),
-            &mut self.dependency,
-            &mut self.derived,
-            &mut self.loader,
-        );
+        self.reloader.reload(handle.to_dyn(), &mut self.loader);
     }
 }
