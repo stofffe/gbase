@@ -73,8 +73,6 @@ pub trait DynLoadResponse: Send {
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
-    fn handle(&self) -> DynAssetHandle;
-    fn success(&self) -> bool;
 }
 
 impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
@@ -99,31 +97,19 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 loader.just_loaded.insert(dyn_handle.clone());
 
                 // Dependency
-                dependency.add_dependencies(&dyn_handle, &self.dependencies);
-                if dependency.is_currently_reloading(&dyn_handle) {
-                    dependency.handle_asset_changed(
-                        &dyn_handle,
-                        derived,
-                        loader,
-                        #[cfg(not(target_arch = "wasm32"))]
-                        reloader,
-                    );
-                }
-                dependency.handle_asset_changed(
-                    &dyn_handle,
-                    derived,
-                    loader,
-                    #[cfg(not(target_arch = "wasm32"))]
-                    reloader,
-                );
+                dependency.register_dependencies(&dyn_handle, &self.dependencies);
+
+                // Derived
+                derived.invalidate_derived_assets_depending_on_handle(&dyn_handle);
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     reloader.register_loader_type::<T>(dyn_handle.clone());
-
-                    for watch in self.watches.iter() {
-                        reloader.add_watch(watch.to_path_buf(), self.handle.to_dyn());
+                    reloader.register_watches(dyn_handle.clone(), &self.watches);
+                    // TODO: maybe this should apply to everything related to reloading?
+                    if reloader.is_currently_reloading(&dyn_handle) {
+                        reloader.reload_dependents(dependency, loader, &dyn_handle);
                     }
                 }
             }
@@ -134,14 +120,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 loader.set_status(&self.handle, LoadStatus::Loading);
             }
         }
-    }
-
-    fn handle(&self) -> DynAssetHandle {
-        self.handle.to_dyn()
-    }
-
-    fn success(&self) -> bool {
-        matches!(self.result, LoadAssetResult::Success(_))
     }
 }
 
@@ -433,11 +411,10 @@ impl AssetCacheLoad {
     }
 
     pub fn get_status<T: Asset>(&mut self, handle: &AssetHandle<T>) -> LoadStatus {
-        if let Some(status) = self.status.get(&handle.to_dyn()) {
-            status.clone()
-        } else {
-            LoadStatus::Failed
-        }
+        self.status
+            .get(&handle.to_dyn())
+            .expect("could not get load status")
+            .clone()
     }
 
     pub fn remove_status(&mut self, handle: &DynAssetHandle) {

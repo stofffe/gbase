@@ -80,6 +80,8 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
+        tracing::info!("Loaded {} {:?}", source, imports);
+
         Ok(ShaderWithImports { source, imports })
     }
 }
@@ -114,9 +116,18 @@ impl AssetConverter for ShaderWithImportsConverter {
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.shader) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
-            GetAssetResult::Error => return ConvertAssetStatus::Failed,
-            GetAssetResult::Success(source) => source,
+            GetAssetResult::Loading => {
+                tracing::warn!("source loading");
+                return ConvertAssetStatus::SourceLoading;
+            }
+            GetAssetResult::Error => {
+                tracing::warn!("source failed");
+                return ConvertAssetStatus::Failed;
+            }
+            GetAssetResult::Success(source) => {
+                tracing::warn!("source success");
+                source
+            }
         }
         .clone();
 

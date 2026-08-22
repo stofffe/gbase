@@ -103,7 +103,7 @@ impl AssetCacheStorage {
         data: T,
     ) -> AssetHandle<T> {
         self.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
+        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
         handle
     }
 }
@@ -145,11 +145,11 @@ impl<T: Asset> TypedAssetStorage<T> {
         self.cache.remove(&handle);
 
         // clean other uses of handle
-        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
+        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
     }
 
     pub fn handle_successfully_loaded(&self, handle: AssetHandle<T>) -> bool {
-        self.cache.get(&handle).is_some()
+        self.cache.contains_key(&handle)
     }
 
     pub fn get(&self, handle: &AssetHandle<T>) -> Option<&T> {
@@ -169,7 +169,7 @@ impl<T: Asset> TypedAssetStorage<T> {
         data: T,
     ) -> AssetHandle<T> {
         self.cache.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(handle.to_dyn());
+        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
         handle
     }
 

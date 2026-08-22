@@ -1,7 +1,7 @@
-use crate::asset::DynAssetHandle;
+use crate::asset::{dependency, AssetCacheDependency, DynAssetHandle};
 use crate::asset::{AssetCacheLoad, AssetLoader};
 use crate::filesystem::FileSystemContext;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::{Any, TypeId};
 use std::collections::HashSet;
 use std::marker::PhantomData;
@@ -69,6 +69,8 @@ pub struct AssetCacheReload {
     handle_to_loader_type: FxHashMap<DynAssetHandle, TypeId>,
     typed_reloaders: FxHashMap<TypeId, Box<dyn DynAssetReload>>,
 
+    currently_reloading: FxHashSet<DynAssetHandle>,
+
     /// which handles depend to a certain path
     reload_handles: FxHashMap<PathBuf, HashSet<DynAssetHandle>>,
 
@@ -108,6 +110,7 @@ impl AssetCacheReload {
             filesystem_ctx,
             handle_to_loader_type: FxHashMap::default(),
             typed_reloaders: FxHashMap::default(),
+            currently_reloading: FxHashSet::default(),
             reload_watcher,
 
             reload_receiver,
@@ -163,6 +166,9 @@ impl AssetCacheReload {
             return;
         };
 
+        // mark as curretnly reloading
+        self.currently_reloading.insert(handle.clone());
+
         dyn_reloader.reload_handle(loader, handle);
     }
 
@@ -173,8 +179,14 @@ impl AssetCacheReload {
         self.get_typed_cache_mut::<T>();
     }
 
+    pub fn register_watches(&mut self, handle: DynAssetHandle, watches: &FxHashSet<PathBuf>) {
+        for watch in watches.iter() {
+            self.register_watch(watch.to_path_buf(), handle.clone());
+        }
+    }
+
     /// start watching path and notify handle when path changes
-    pub fn add_watch(&mut self, path: PathBuf, handle: DynAssetHandle) {
+    pub fn register_watch(&mut self, path: PathBuf, handle: DynAssetHandle) {
         let path = self.filesystem_ctx.format_asset_path(path);
         // path must be canoicalized since watcher will do it internally
         let path = match std::fs::canonicalize(&path) {
@@ -201,5 +213,27 @@ impl AssetCacheReload {
         }
 
         handles.insert(handle);
+    }
+
+    pub fn reload_dependents(
+        &mut self,
+        dependency: &mut AssetCacheDependency,
+        loader: &mut AssetCacheLoad,
+        handle: &DynAssetHandle,
+    ) {
+        if let Some(dependents) = dependency.dependents(handle) {
+            for dependent in dependents.iter() {
+                tracing::info!("{} invalidated {}", handle.id(), dependent.id());
+                self.reload(dependent.clone(), loader);
+            }
+        }
+    }
+
+    pub fn set_currently_reloading(&mut self, handle: DynAssetHandle) {
+        self.currently_reloading.insert(handle);
+    }
+
+    pub fn is_currently_reloading(&mut self, handle: &DynAssetHandle) -> bool {
+        self.currently_reloading.remove(handle)
     }
 }

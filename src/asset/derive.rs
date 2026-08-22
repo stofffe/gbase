@@ -1,7 +1,6 @@
 use crate::{
     asset::{
-        derive, Asset, AssetCacheLoad, AssetCacheStorage, AssetHandle, DynAssetHandle,
-        GetAssetResult,
+        Asset, AssetCacheLoad, AssetCacheStorage, AssetHandle, DynAssetHandle, GetAssetResult,
     },
     render::ArcHandle,
     Context,
@@ -67,10 +66,10 @@ impl AssetCacheDerived {
             .expect("could not downcast typed derived cache")
     }
 
-    pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: DynAssetHandle) {
+    pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: &DynAssetHandle) {
         tracing::info!("invalidate derived {}", handle.id());
         for (_, dyn_cache) in self.typed_caches.iter_mut() {
-            dyn_cache.invalidate(handle.clone());
+            dyn_cache.invalidate(handle);
         }
     }
 
@@ -105,7 +104,7 @@ impl AssetCacheDerived {
             };
         }
 
-        tracing::error!("try conversion for {}", type_name::<G>());
+        tracing::info!("try conversion for {}", type_name::<G>());
         let mut runtime = ConvertRuntime::new(storage, loader, self);
         let mut convert_ctx = ConvertContext::new(&mut runtime);
 
@@ -114,13 +113,13 @@ impl AssetCacheDerived {
 
         let result = match result {
             ConvertAssetStatus::SourceLoading => {
-                tracing::warn!("LOADING");
+                tracing::error!("conversion loading");
                 self.get_typed_cache::<G>()
                     .set_status(settings.clone(), DerivedAssetStatus::Loading);
                 ConvertAssetResult::Loading
             }
             ConvertAssetStatus::Failed => {
-                tracing::warn!("FAILED");
+                tracing::error!("conversion failed");
                 match self.get_typed_cache::<G>().get_last_valid(settings) {
                     Some(asset_handle) => {
                         tracing::warn!(
@@ -140,7 +139,7 @@ impl AssetCacheDerived {
                 }
             }
             ConvertAssetStatus::Success(render_asset_handle) => {
-                tracing::warn!("SUCCESS");
+                tracing::warn!("conversion success");
                 let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
 
                 let typed_cache = self.get_typed_cache::<G>();
@@ -175,7 +174,7 @@ pub enum DerivedAssetStatus {
 
 pub trait DynDerivedCache {
     fn as_any(&mut self) -> &mut dyn Any;
-    fn invalidate(&mut self, handle: DynAssetHandle);
+    fn invalidate(&mut self, handle: &DynAssetHandle);
 }
 
 pub struct TypedDerivedCache<G: AssetConverter> {
@@ -239,7 +238,7 @@ impl<G: AssetConverter> TypedDerivedCache<G> {
 
     // TODO: should this clear?
     pub fn register_dependencies(&mut self, settings: G::Settings, state: &ConvertState) {
-        tracing::error!(
+        tracing::info!(
             "register {} dependencies for {}",
             state.dependencies.len(),
             type_name::<G>()
@@ -258,8 +257,8 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
         self as &mut dyn Any
     }
 
-    fn invalidate(&mut self, handle: DynAssetHandle) {
-        if let Some(settings) = self.handle_to_settings.get(&handle) {
+    fn invalidate(&mut self, handle: &DynAssetHandle) {
+        if let Some(settings) = self.handle_to_settings.get(handle) {
             for setting in settings {
                 self.render_cache.remove(setting);
                 self.render_cache_status.remove(setting);
