@@ -40,7 +40,7 @@ impl AssetConverter for MeshGpuConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.mesh) {
@@ -68,7 +68,7 @@ impl AssetConverter for BoundingBoxConverter {
 
     fn convert(
         _ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.mesh) {
@@ -144,7 +144,7 @@ impl AssetConverter for ShaderGpuConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.shader) {
@@ -263,7 +263,7 @@ impl AssetConverter for ImageGpuConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.image) {

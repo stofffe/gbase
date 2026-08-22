@@ -1,3 +1,11 @@
+cache failed conversion to avoid polling it in beginning of program
+a lot of invalidation on start load
+dependency graph for derivde assets
+cycles?
+
+register reload (first with fn, then with settings)
+trac watched paths instead of sending messages
+
 track deps and invalidate handles
 cache deps by settigns to avoid creating new ones for each sub dependecy
 

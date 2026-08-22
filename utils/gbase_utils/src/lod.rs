@@ -195,7 +195,7 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
 
     fn convert(
         _ctx: &mut gbase::Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = convert_ctx.get(&settings.mesh_lod).unwrap_success();

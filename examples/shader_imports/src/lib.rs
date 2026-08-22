@@ -80,8 +80,6 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
-        // tracing::info!("LOADED ASSET {}\n{}", load_ctx.handle().id(), source);
-
         Ok(ShaderWithImports { source, imports })
     }
 }
@@ -112,7 +110,7 @@ impl AssetConverter for ShaderWithImportsConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_, '_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.shader) {
