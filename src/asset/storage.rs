@@ -1,4 +1,4 @@
-use crate::asset::{AssetCacheDerived, AssetHandle, AssetHandleContext};
+use crate::asset::{AssetCacheDerived, AssetHandle, AssetHandleContext, DerivedAsset};
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -9,12 +9,7 @@ use std::{
 // Types
 //
 
-pub trait Asset: Any + Send + Sync {} // TODO: is this even needed? or maybe rename
-                                      //
-                                      // pub type DynAsset = Box<dyn Asset>;
-                                      // impl Asset for DynAsset {}
-                                      //
-                                      // pub type DynAssetHandle = AssetHandle<DynAsset>;
+pub trait Asset: Any + Send + Sync {}
 
 //
 // Storage

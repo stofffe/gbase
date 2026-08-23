@@ -2,6 +2,7 @@ cache failed conversion to avoid polling it in beginning of program
 a lot of invalidation on start load
 dependency graph for derivde assets
 cycles?
+real async runtime with async file loads
 
 register reload (first with fn, then with settings)
 trac watched paths instead of sending messages

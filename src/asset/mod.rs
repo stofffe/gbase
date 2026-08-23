@@ -6,6 +6,8 @@ mod builders;
 mod cache;
 mod dependency;
 mod derive;
+mod derive_convert;
+mod derive_storage;
 mod handle;
 mod implementation;
 mod load;
@@ -18,6 +20,8 @@ pub use builders::*;
 pub use cache::*;
 pub use dependency::*;
 pub use derive::*;
+pub use derive_convert::*;
+pub use derive_storage::*;
 pub use handle::*;
 pub use implementation::*;
 pub use load::*;
@@ -25,6 +29,8 @@ pub use storage::*;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use reload::*;
+
+use crate::{render::ArcHandle, Context};
 
 //
 // Commands
@@ -57,9 +63,23 @@ pub fn get<T: Asset + 'static>(
 }
 
 pub fn convert_asset<G: AssetConverter + 'static>(
-    ctx: &mut crate::Context,
+    ctx: &mut Context,
     cache: &mut AssetCache,
     settings: &G::Settings,
 ) -> ConvertAssetResult<G::TargetAsset> {
     cache.convert::<G>(ctx, settings)
+}
+
+pub fn convert_derived_asset<T: AssetConverter + 'static>(
+    cache: &mut AssetCache,
+    settings: T::Settings,
+) -> DerivedHandle<T::TargetAsset> {
+    cache.convert_derived::<T>(settings)
+}
+
+pub fn get_derived_asset<T: DerivedAsset + 'static>(
+    cache: &mut AssetCache,
+    handle: DerivedHandle<T>,
+) -> GetDerivedResult<T> {
+    cache.get_derived::<T>(&handle)
 }

@@ -1,8 +1,9 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
-        ImageLoaderSettings, LoadAssetResult, MeshGpuConverter, MeshGpuConverterSettings,
-        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, ConvertAssetResult, DerivedHandle, ImageGpuConverter,
+        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
+        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        ShaderLoaderSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -21,6 +22,8 @@ struct App {
     texture_handle: AssetHandle<Image>,
     shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
+
+    shader_derived: DerivedHandle<wgpu::ShaderModule>,
 }
 
 impl Callbacks for App {
@@ -48,6 +51,7 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
+
         let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
             .build(cache, ShaderLoaderSettings::new("shaders/texture.wgsl"));
         let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
@@ -61,6 +65,11 @@ impl Callbacks for App {
             ]);
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
+        let shader_derived = asset::convert_derived_asset::<ShaderGpuConverter>(
+            cache,
+            ShaderGpuConverterOptions::new(shader_handle.clone()),
+        );
+
         Self {
             pipeline_layout,
             bindgroup_layout,
@@ -68,6 +77,8 @@ impl Callbacks for App {
             texture_handle,
             shader_handle,
             mesh_handle,
+
+            shader_derived,
         }
     }
 
@@ -78,31 +89,40 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        if !asset::handle_loaded(cache, self.mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.shader_handle.clone())
-            || !asset::handle_loaded(cache, self.texture_handle.clone())
-        {
-            return CallbackResult::Continue;
-        }
-
-        let mesh = asset::convert_asset::<MeshGpuConverter>(
+        let ConvertAssetResult::Success(mesh) = asset::convert_asset::<MeshGpuConverter>(
             ctx,
             cache,
             &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-        )
-        .unwrap_success();
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
+        ) else {
+            return CallbackResult::Continue;
+        };
+
+        // let ConvertAssetResult::Success(shader) = asset::convert_asset::<ShaderGpuConverter>(
+        //     ctx,
+        //     cache,
+        //     &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        // ) else {
+        //     return CallbackResult::Continue;
+        // };
+
+        let shader_derived = asset::convert_derived_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        )
-        .unwrap_success();
-        let texture = asset::convert_asset::<ImageGpuConverter>(
+            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        );
+
+        let asset::GetDerivedResult::Success(shader) =
+            asset::get_derived_asset(cache, shader_derived.clone())
+        else {
+            return CallbackResult::Continue;
+        };
+
+        let ConvertAssetResult::Success(texture) = asset::convert_asset::<ImageGpuConverter>(
             ctx,
             cache,
             &ImageGpuConverterOptions::new(self.texture_handle.clone()),
-        )
-        .unwrap_success();
+        ) else {
+            return CallbackResult::Continue;
+        };
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
