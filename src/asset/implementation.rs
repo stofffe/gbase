@@ -44,7 +44,7 @@ impl AssetConverter for MeshGpuConverter {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.mesh) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -72,7 +72,7 @@ impl AssetConverter for BoundingBoxConverter {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.mesh) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -148,7 +148,7 @@ impl AssetConverter for ShaderGpuConverter {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.shader) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };
@@ -267,7 +267,7 @@ impl AssetConverter for ImageGpuConverter {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.image) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };

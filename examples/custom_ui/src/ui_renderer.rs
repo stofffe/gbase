@@ -732,9 +732,9 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> gbase::asset::ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::TargetAsset> {
         let source = match convert_ctx.get(&settings.font) {
-            GetAssetResult::Loading => return ConvertAssetStatus::SourceLoading,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
         };

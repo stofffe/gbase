@@ -7,6 +7,7 @@ mod cache;
 mod dependency;
 mod derive;
 mod derive_convert;
+mod derive_registry;
 mod derive_storage;
 mod handle;
 mod implementation;
@@ -21,6 +22,7 @@ pub use cache::*;
 pub use dependency::*;
 pub use derive::*;
 pub use derive_convert::*;
+pub use derive_registry::*;
 pub use derive_storage::*;
 pub use handle::*;
 pub use implementation::*;
@@ -62,12 +64,14 @@ pub fn get<T: Asset + 'static>(
     cache.get(&handle)
 }
 
+#[deprecated(since = "1.0.0", note = "use `new_function` instead")]
 pub fn convert_asset<G: AssetConverter + 'static>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     settings: &G::Settings,
 ) -> ConvertAssetResult<G::TargetAsset> {
-    cache.convert::<G>(ctx, settings)
+    todo!()
+    // cache.convert::<G>(ctx, settings)
 }
 
 pub fn convert_derived_asset<T: AssetConverter + 'static>(
@@ -82,4 +86,12 @@ pub fn get_derived_asset<T: DerivedAsset + 'static>(
     handle: DerivedHandle<T>,
 ) -> GetDerivedResult<T> {
     cache.get_derived::<T>(&handle)
+}
+
+pub fn get_or_convert_derived_asset<T: AssetConverter + 'static>(
+    cache: &mut AssetCache,
+    settings: T::Settings,
+) -> GetDerivedResult<T::TargetAsset> {
+    let handle = cache.convert_derived::<T>(settings);
+    cache.get_derived(&handle)
 }

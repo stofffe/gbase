@@ -1,7 +1,8 @@
 use crate::{
     asset::{
-        Asset, AssetCacheLoad, AssetCacheStorage, AssetHandle, DerivedAsset, DynAssetHandle,
-        GetAssetResult, LoadStatus,
+        derive, Asset, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
+        AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage, AssetHandle, DerivedAsset,
+        DynAssetHandle, DynDerivedHandle, GetAssetResult, LoadStatus,
     },
     render::ArcHandle,
     Context,
@@ -10,6 +11,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{type_name, Any, TypeId},
     error,
+    fmt::Display,
     hash::Hash,
 };
 
@@ -33,8 +35,27 @@ pub trait AssetConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset>;
 }
 
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum DynDependency {
+    Asset(DynAssetHandle),
+    Derived(DynDerivedHandle),
+}
+
+impl Display for DynDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DynDependency::Asset(dyn_asset_handle) => {
+                write!(f, "[{}: dyn dependency]", dyn_asset_handle)
+            }
+            DynDependency::Derived(dyn_derived_handle) => {
+                write!(f, "[{}: dyn dependency]", dyn_derived_handle)
+            }
+        }
+    }
+}
+
 pub enum ConvertAssetStatus<T: DerivedAsset> {
-    SourceLoading,
+    Loading,
     Success(T),
     Failed,
 }
@@ -66,7 +87,7 @@ impl AssetCacheDerived {
     }
 
     pub fn waiting_dependency_available(&mut self, handle: &DynAssetHandle) {
-        tracing::info!("dependency available {}", handle.id());
+        tracing::info!("dependency available {}", handle);
 
         for (_, dyn_derived) in self.typed_caches.iter_mut() {
             dyn_derived.dependency_available(handle);
@@ -75,7 +96,7 @@ impl AssetCacheDerived {
 
     // TODO: remove pub
     pub fn invalidate_derived_assets_depending_on_handle(&mut self, handle: &DynAssetHandle) {
-        tracing::info!("invalidate derived {}", handle.id());
+        tracing::info!("invalidate derived {}", handle);
         for (_, dyn_cache) in self.typed_caches.iter_mut() {
             dyn_cache.invalidate(handle);
         }
@@ -86,100 +107,104 @@ impl AssetCacheDerived {
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        derive_storage: &mut AssetCacheDerivedStorage,
+        derive_convert: &mut AssetCacheDerivedConvert,
+        derive_registry: &mut AssetCacheDerivedRegistry,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        // check for cached result
-        if let Some(render_asset_handle) = self
-            .get_typed_cache::<G>()
-            .render_cache
-            .get(settings)
-            .cloned()
-        {
-            // tracing::info!("get cached conversion");
-            return ConvertAssetResult::Success(render_asset_handle);
-        }
-
-        // cached status
-        if let Some(render_asset_status) = self
-            .get_typed_cache::<G>()
-            .render_cache_status
-            .get(settings)
-        {
-            // tracing::info!("get cached conversion status");
-            return match render_asset_status {
-                DerivedAssetStatus::Loading => ConvertAssetResult::Loading,
-                DerivedAssetStatus::Failed => ConvertAssetResult::Failed,
-            };
-        }
-
-        tracing::info!("try conversion for {}", type_name::<G>());
-        let mut runtime = ConvertRuntime::new(storage, loader, self);
-        let mut convert_ctx = ConvertContext::new(&mut runtime);
-
-        let result = G::convert(ctx, &mut convert_ctx, settings);
-        let state = convert_ctx.state.clone();
-
-        let result = match result {
-            // Loading
-            ConvertAssetStatus::SourceLoading => {
-                tracing::error!("conversion loading");
-
-                let typed = self.get_typed_cache::<G>();
-                typed.set_status(settings.clone(), DerivedAssetStatus::Loading);
-                typed.register_waiting(settings, &state.dependencies);
-
-                ConvertAssetResult::Loading
-            }
-            // Failed
-            ConvertAssetStatus::Failed => {
-                tracing::error!("conversion failed");
-                let typed = self.get_typed_cache::<G>();
-
-                typed.unregister_waiting(settings);
-
-                match typed.get_last_valid(settings) {
-                    Some(asset_handle) => {
-                        tracing::warn!(
-                            "assert conversion failed, using last valid version instead"
-                        );
-                        // TODO: maybe clear status here?
-                        self.get_typed_cache::<G>()
-                            .insert(settings.clone(), asset_handle.clone());
-                        ConvertAssetResult::Success(asset_handle.clone())
-                    }
-                    None => {
-                        tracing::error!("asset conversion failed, no last valid version was found");
-                        self.get_typed_cache::<G>()
-                            .set_status(settings.clone(), DerivedAssetStatus::Loading);
-                        ConvertAssetResult::Failed
-                    }
-                }
-            }
-            // Success
-            ConvertAssetStatus::Success(render_asset_handle) => {
-                tracing::warn!("conversion success");
-                let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
-
-                let typed = self.get_typed_cache::<G>();
-
-                typed.unregister_waiting(settings);
-
-                // actual cache
-                typed.insert(settings.clone(), render_asset_handle.clone());
-                // last valid cache
-                typed.insert_last_valid(settings.clone(), render_asset_handle.clone());
-                // clear status
-                typed.clear_status(settings);
-
-                ConvertAssetResult::Success(render_asset_handle)
-            }
-        };
-
-        // TODO: should this be called every time? Should it be cleared?
-        // self.get_typed_cache::<G>()
-        //     .register_dependencies(settings.clone(), &state);
-
-        result
+        todo!()
+        // // check for cached result
+        // if let Some(render_asset_handle) = self
+        //     .get_typed_cache::<G>()
+        //     .render_cache
+        //     .get(settings)
+        //     .cloned()
+        // {
+        //     // tracing::info!("get cached conversion");
+        //     return ConvertAssetResult::Success(render_asset_handle);
+        // }
+        //
+        // // cached status
+        // if let Some(render_asset_status) = self
+        //     .get_typed_cache::<G>()
+        //     .render_cache_status
+        //     .get(settings)
+        // {
+        //     // tracing::info!("get cached conversion status");
+        //     return match render_asset_status {
+        //         DerivedAssetStatus::Loading => ConvertAssetResult::Loading,
+        //         DerivedAssetStatus::Failed => ConvertAssetResult::Failed,
+        //     };
+        // }
+        //
+        // tracing::info!("try conversion for {}", type_name::<G>());
+        // let mut runtime = ConvertRuntime::new(storage, loader, derive_storage, derive_registry);
+        // let mut convert_ctx = ConvertContext::new(&mut runtime);
+        //
+        // let result = G::convert(ctx, &mut convert_ctx, settings);
+        // let state = convert_ctx.state.clone();
+        //
+        // let result = match result {
+        //     // Loading
+        //     ConvertAssetStatus::Loading => {
+        //         tracing::error!("conversion loading");
+        //
+        //         let typed = self.get_typed_cache::<G>();
+        //         typed.set_status(settings.clone(), DerivedAssetStatus::Loading);
+        //         // typed.register_waiting(settings, &state.blocking_dependencies);
+        //
+        //         ConvertAssetResult::Loading
+        //     }
+        //     // Failed
+        //     ConvertAssetStatus::Failed => {
+        //         tracing::error!("conversion failed");
+        //         let typed = self.get_typed_cache::<G>();
+        //
+        //         typed.unregister_waiting(settings);
+        //
+        //         match typed.get_last_valid(settings) {
+        //             Some(asset_handle) => {
+        //                 tracing::warn!(
+        //                     "assert conversion failed, using last valid version instead"
+        //                 );
+        //                 // TODO: maybe clear status here?
+        //                 self.get_typed_cache::<G>()
+        //                     .insert(settings.clone(), asset_handle.clone());
+        //                 ConvertAssetResult::Success(asset_handle.clone())
+        //             }
+        //             None => {
+        //                 tracing::error!("asset conversion failed, no last valid version was found");
+        //                 self.get_typed_cache::<G>()
+        //                     .set_status(settings.clone(), DerivedAssetStatus::Loading);
+        //                 ConvertAssetResult::Failed
+        //             }
+        //         }
+        //     }
+        //     // Success
+        //     ConvertAssetStatus::Success(render_asset_handle) => {
+        //         tracing::warn!("conversion success");
+        //         let render_asset_handle = ArcHandle::new(ctx, render_asset_handle);
+        //
+        //         let typed = self.get_typed_cache::<G>();
+        //
+        //         typed.unregister_waiting(settings);
+        //
+        //         // actual cache
+        //         typed.insert(settings.clone(), render_asset_handle.clone());
+        //         // last valid cache
+        //         typed.insert_last_valid(settings.clone(), render_asset_handle.clone());
+        //         // clear status
+        //         typed.clear_status(settings);
+        //
+        //         ConvertAssetResult::Success(render_asset_handle)
+        //     }
+        // };
+        //
+        // // TODO: should this be called every time? Should it be cleared?
+        // // self.get_typed_cache::<G>()
+        // //     .register_dependencies(settings.clone(), &state);
+        //
+        // result
     }
 }
 
@@ -262,53 +287,52 @@ impl<G: AssetConverter> TypedDerivedCache<G> {
         }
     }
 
-    // TODO: unused
-    // between derived assets
-    pub fn register_dependencies(&mut self, settings: G::Settings, state: &ConvertState) {
-        tracing::info!(
-            "register {} dependencies for {}",
-            state.dependencies.len(),
-            type_name::<G>()
-        );
-        for handle in state.dependencies.iter() {
-            self.handle_to_settings
-                .entry(handle.clone())
-                .or_default()
-                .insert(settings.clone());
-        }
-    }
+    // // between derived assets
+    // pub fn register_dependencies(&mut self, settings: G::Settings, state: &ConvertState) {
+    //     tracing::info!(
+    //         "register {} dependencies for {}",
+    //         state.dependencies.len(),
+    //         type_name::<G>()
+    //     );
+    //     for handle in state.dependencies.iter() {
+    //         self.handle_to_settings
+    //             .entry(handle.clone())
+    //             .or_default()
+    //             .insert(settings.clone());
+    //     }
+    // }
+    //
+    // pub fn register_waiting(
+    //     &mut self,
+    //     settings: &G::Settings,
+    //     dependencies: &FxHashSet<DynAssetHandle>,
+    // ) {
+    //     for dependency in dependencies.iter() {
+    //         tracing::info!("register waiting on {}", dependency);
+    //         self.waiting_for
+    //             .entry(dependency.clone())
+    //             .or_default()
+    //             .insert(settings.clone());
+    //     }
+    // }
 
-    pub fn register_waiting(
-        &mut self,
-        settings: &G::Settings,
-        dependencies: &FxHashSet<DynAssetHandle>,
-    ) {
-        tracing::info!("register waiting: len {}", dependencies.len());
-        for dependency in dependencies.iter() {
-            self.waiting_for
-                .entry(dependency.clone())
-                .or_default()
-                .insert(settings.clone());
-        }
-    }
-
-    pub fn unregister_waiting(&mut self, settings: &G::Settings) {
-        if self.waiting_for.is_empty() {
-            return;
-        }
-
-        let len_before = self.waiting_for.len();
-
-        self.waiting_for.retain(|_, dependents| {
-            dependents.remove(settings);
-            !dependents.is_empty()
-        });
-
-        let removed_elems = len_before - self.waiting_for.len();
-        if removed_elems > 0 {
-            tracing::info!("unregister waiting {}", removed_elems);
-        }
-    }
+    // pub fn unregister_waiting(&mut self, settings: &G::Settings) {
+    //     if self.waiting_for.is_empty() {
+    //         return;
+    //     }
+    //
+    //     let len_before = self.waiting_for.len();
+    //
+    //     self.waiting_for.retain(|_, dependents| {
+    //         dependents.remove(settings);
+    //         !dependents.is_empty()
+    //     });
+    //
+    //     let removed_elems = len_before - self.waiting_for.len();
+    //     if removed_elems > 0 {
+    //         tracing::info!("unregister waiting {}", removed_elems);
+    //     }
+    // }
 }
 
 impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
@@ -334,7 +358,7 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
             "{}: {}# waiting for handle({})",
             type_name::<G>(),
             waiting_dependents.len(),
-            handle.id(),
+            handle,
         );
 
         // invalidate setting
@@ -349,35 +373,42 @@ impl<G: AssetConverter + 'static> DynDerivedCache for TypedDerivedCache<G> {
 //
 
 pub struct ConvertRuntime<'a> {
+    // to get assets
     pub(crate) storage: &'a mut AssetCacheStorage,
+    // to get asset status
     pub(crate) loader: &'a mut AssetCacheLoad,
-    pub(crate) derived: &'a mut AssetCacheDerived,
+    // to get derived assets
+    pub(crate) derived_storage: &'a mut AssetCacheDerivedStorage,
+    // to get setting -> derived handle mapping
+    pub(crate) derived_registry: &'a mut AssetCacheDerivedRegistry,
 }
 
 impl<'a> ConvertRuntime<'a> {
     pub fn new(
         storage: &'a mut AssetCacheStorage,
         loader: &'a mut AssetCacheLoad,
-        derived: &'a mut AssetCacheDerived,
+        derived_storage: &'a mut AssetCacheDerivedStorage,
+        derived_registry: &'a mut AssetCacheDerivedRegistry,
     ) -> Self {
         Self {
             storage,
-            derived,
             loader,
+            derived_storage,
+            derived_registry,
         }
     }
 }
 
 #[derive(Clone)]
 pub struct ConvertState {
-    // track handles used during conversion
-    pub dependencies: FxHashSet<DynAssetHandle>,
+    pub blocking_dependency: Option<DynDependency>,
+    // TODO: requested conversions
 }
 
 impl ConvertState {
     pub fn new() -> Self {
         Self {
-            dependencies: FxHashSet::default(),
+            blocking_dependency: None,
         }
     }
 }
@@ -395,14 +426,18 @@ impl<'runtime> ConvertContext<'runtime> {
     }
 
     pub fn get<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
-        self.state.dependencies.insert(handle.to_dyn());
+        // TODO: track deps here
 
         if let Some(asset) = self.runtime.storage.get(handle) {
             return GetAssetResult::Success(asset);
         }
 
         match self.runtime.loader.get_status(&handle.to_dyn()) {
-            LoadStatus::Loading => GetAssetResult::Loading,
+            LoadStatus::Loading => {
+                tracing::info!("{} is not ready, set blocking", handle);
+                self.state.blocking_dependency = Some(DynDependency::Asset(handle.to_dyn()));
+                GetAssetResult::Loading
+            }
             LoadStatus::Failed => GetAssetResult::Error,
             LoadStatus::Loaded => {
                 panic!("could not get asset from storage but its marked as loaded")
@@ -411,17 +446,51 @@ impl<'runtime> ConvertContext<'runtime> {
     }
 
     // TODO: track dependencies when this is called (maybe with depenency enum)
-    pub fn convert<G: AssetConverter + 'static>(
+    // rename to convert later
+    pub fn nested_convert<G: AssetConverter + 'static>(
         &mut self,
         ctx: &mut Context,
         settings: &G::Settings,
     ) -> ConvertAssetResult<G::TargetAsset> {
-        self.runtime
-            .derived
-            .convert::<G>(ctx, self.runtime.storage, self.runtime.loader, settings)
+        // get handle from registry
+        let handle = self
+            .runtime
+            .derived_registry
+            .get_or_create_handle::<G>(settings.clone());
+
+        // TODO: queue handle if needed
+
+        match self.runtime.derived_storage.get(&handle) {
+            Some(asset) => ConvertAssetResult::Success(asset),
+            None => {
+                self.state.blocking_dependency = Some(DynDependency::Derived(handle.to_dyn()));
+                ConvertAssetResult::Loading
+            }
+        }
+
+        // TODO: add to queue?
+
+        // TODO: track depenencies
+
+        // let handle = self.runtime.derived_storage.
+
+        // let handle = self
+        //     .runtime
+        //     .derived_convert
+        //     .register_conversion::<G>(settings.clone());
+        //
+        // if let Some(success) = self.runtime.derived_storage.get(&handle) {
+        //     ConvertAssetResult::Success(success)
+        // } else {
+        //     ConvertAssetResult::Failed
+        // }
+        // self.runtime
+        //     .derived
+        //     .convert::<G>(ctx, self.runtime.storage, self.runtime.loader, settings)
     }
 }
 
+// NOTE: user facing
 pub enum ConvertAssetResult<T: DerivedAsset> {
     Loading,
     Success(ArcHandle<T>),

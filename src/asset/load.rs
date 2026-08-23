@@ -2,7 +2,7 @@
 use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetCacheConvert, AssetCacheDependency,
+        derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheDerivedConvert,
         AssetCacheDerivedStorage, AssetCacheStorage, AssetHandle, AssetHandleContext,
         DynAssetHandle,
     },
@@ -69,7 +69,7 @@ pub trait DynLoadResponse: Send {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
-        derived_convert: &mut AssetCacheConvert,
+        derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
@@ -82,13 +82,13 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         loader: &mut AssetCacheLoad,
         derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
-        derived_convert: &mut AssetCacheConvert,
+        derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
         match self.result {
             LoadAssetResult::Success(asset) => {
-                tracing::info!("load success {}", self.handle.id());
+                tracing::info!("load success {}", self.handle);
                 let dyn_handle = self.handle.to_dyn();
 
                 // Storage
@@ -156,11 +156,11 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
             .settings_to_handle
             .get(&self.settings)
         {
-            tracing::info!("use cached handle {}", handle.id());
+            tracing::info!("use cached handle {}", handle);
             handle.clone()
         } else {
             let handle = loader.load_asset::<T>(self.settings.clone());
-            tracing::info!("create new handle {}", handle.id());
+            tracing::info!("create new handle {}", handle);
             handle
         };
 
@@ -302,7 +302,7 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
-        derived_convert: &mut AssetCacheConvert,
+        derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -379,7 +379,7 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
     }
 
     fn load_asset_with_handle(&mut self, handle: AssetHandle<T::Asset>, settings: T::Settings) {
-        tracing::info!("start loading {}", handle.id());
+        tracing::info!("start loading {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
         let new_asset_runtime = LoadRuntime {

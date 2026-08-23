@@ -3,10 +3,10 @@ use crate::{
     asset::{
         self,
         derive::{AssetCacheDerived, ConvertAssetResult},
-        AssetCacheConvert, AssetCacheDependency, AssetCacheDerivedStorage, AssetCacheLoad,
-        AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, DerivedAsset,
-        DerivedHandle, GetAssetResult, GetDerivedResult, InsertAssetBuilder, LoadAssetBuilder,
-        LoadContext, LoadRuntime, LoadState, LoadStatus,
+        AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
+        AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
+        AssetHandleContext, DerivedAsset, DerivedHandle, GetAssetResult, GetDerivedResult,
+        InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -23,7 +23,8 @@ pub struct AssetCache {
     derived: AssetCacheDerived,
 
     pub derived_storage: AssetCacheDerivedStorage,
-    pub derived_convert: AssetCacheConvert,
+    pub derived_convert: AssetCacheDerivedConvert,
+    pub derived_registry: AssetCacheDerivedRegistry,
 
     dependency: AssetCacheDependency,
     #[cfg(not(target_arch = "wasm32"))]
@@ -46,7 +47,8 @@ impl AssetCache {
 
         let derived = AssetCacheDerived::new();
         let derived_storage = AssetCacheDerivedStorage::new(asset_handle_ctx.clone());
-        let derived_convert = AssetCacheConvert::new(asset_handle_ctx.clone());
+        let derived_convert = AssetCacheDerivedConvert::new(asset_handle_ctx.clone());
+        let derived_registry = AssetCacheDerivedRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
 
@@ -65,6 +67,7 @@ impl AssetCache {
 
             derived_storage,
             derived_convert,
+            derived_registry,
 
             #[cfg(not(target_arch = "wasm32"))]
             reloader,
@@ -106,8 +109,11 @@ impl AssetCache {
             &mut self.storage,
             &mut self.loader,
             &mut self.derived_storage,
-            &mut self.derived,
+            &mut self.derived_registry,
         );
+
+        // NOTE: temp
+        self.dependency.debug_graph();
     }
 
     pub(crate) fn load<T: AssetLoader + 'static>(
@@ -194,20 +200,28 @@ impl AssetCache {
         // self.derived.clear_unused_handles();
     }
 
-    pub fn convert<G: AssetConverter + 'static>(
-        &mut self,
-        ctx: &mut Context,
-        settings: &G::Settings,
-    ) -> ConvertAssetResult<G::TargetAsset> {
-        self.derived
-            .convert::<G>(ctx, &mut self.storage, &mut self.loader, settings)
-    }
+    // pub fn convert<G: AssetConverter + 'static>(
+    //     &mut self,
+    //     ctx: &mut Context,
+    //     settings: &G::Settings,
+    // ) -> ConvertAssetResult<G::TargetAsset> {
+    //     self.derived.convert::<G>(
+    //         ctx,
+    //         &mut self.storage,
+    //         &mut self.loader,
+    //         &mut self.derived_storage,
+    //         &mut self.derived_convert,
+    //         &mut self.derived_registry,
+    //         settings,
+    //     )
+    // }
 
     pub fn convert_derived<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
     ) -> DerivedHandle<T::TargetAsset> {
-        self.derived_convert.register_conversion::<T>(settings)
+        self.derived_convert
+            .register_conversion::<T>(&mut self.derived_registry, settings)
     }
 
     pub fn get_derived<T: DerivedAsset + 'static>(

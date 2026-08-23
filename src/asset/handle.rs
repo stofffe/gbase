@@ -1,11 +1,12 @@
-use crate::asset::{self, Asset, AssetCache, DerivedAsset, GetAssetResult};
+use crate::asset::{self, Asset, AssetCache, DerivedAsset, DynAssetStorage, GetAssetResult};
 use std::{
-    any::TypeId,
+    any::{type_name, TypeId},
+    fmt::Display,
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DynAssetHandle {
     id: Arc<u64>,
     type_id: TypeId,
@@ -32,6 +33,12 @@ impl DynAssetHandle {
             id: self.id.clone(),
             ty: PhantomData,
         })
+    }
+}
+
+impl Display for DynAssetHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}: dyn asset handle]", self.id())
     }
 }
 
@@ -111,11 +118,17 @@ impl<T: Asset + 'static> Clone for AssetHandle<T> {
     }
 }
 
+impl<T: Asset + 'static> Display for AssetHandle<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}: {}]", self.id(), type_name::<T>())
+    }
+}
+
 //
 // Derived
 //
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct DynDerivedHandle {
     id: Arc<u64>,
     type_id: TypeId,
@@ -142,6 +155,12 @@ impl DynDerivedHandle {
             id: self.id.clone(),
             ty: PhantomData,
         })
+    }
+}
+
+impl Display for DynDerivedHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}: derived handle]", self.id())
     }
 }
 
@@ -201,6 +220,12 @@ impl<T: DerivedAsset + 'static> Clone for DerivedHandle<T> {
             id: self.id.clone(),
             ty: PhantomData,
         }
+    }
+}
+
+impl<T: DerivedAsset + 'static> Display for DerivedHandle<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}: {}]", self.id(), type_name::<T>(),)
     }
 }
 

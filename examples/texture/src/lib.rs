@@ -89,38 +89,30 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let ConvertAssetResult::Success(mesh) = asset::convert_asset::<MeshGpuConverter>(
-            ctx,
-            cache,
-            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-        ) else {
-            return CallbackResult::Continue;
-        };
-
-        // let ConvertAssetResult::Success(shader) = asset::convert_asset::<ShaderGpuConverter>(
-        //     ctx,
-        //     cache,
-        //     &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        // ) else {
-        //     return CallbackResult::Continue;
-        // };
-
-        let shader_derived = asset::convert_derived_asset::<ShaderGpuConverter>(
-            cache,
-            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        );
-
-        let asset::GetDerivedResult::Success(shader) =
-            asset::get_derived_asset(cache, shader_derived.clone())
+        let asset::GetDerivedResult::Success(mesh) =
+            asset::get_or_convert_derived_asset::<MeshGpuConverter>(
+                cache,
+                MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+            )
         else {
             return CallbackResult::Continue;
         };
 
-        let ConvertAssetResult::Success(texture) = asset::convert_asset::<ImageGpuConverter>(
-            ctx,
-            cache,
-            &ImageGpuConverterOptions::new(self.texture_handle.clone()),
-        ) else {
+        let asset::GetDerivedResult::Success(shader) =
+            asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+                cache,
+                ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            )
+        else {
+            return CallbackResult::Continue;
+        };
+
+        let asset::GetDerivedResult::Success(texture) =
+            asset::get_or_convert_derived_asset::<ImageGpuConverter>(
+                cache,
+                ImageGpuConverterOptions::new(self.texture_handle.clone()),
+            )
+        else {
             return CallbackResult::Continue;
         };
 

@@ -1,16 +1,14 @@
-//
-// Types
-//
-
-use std::any::{Any, TypeId};
-
-use rustc_hash::FxHashMap;
-
 use crate::{
     asset::{AssetHandleContext, DerivedHandle},
     render::ArcHandle,
     Context,
 };
+use rustc_hash::FxHashMap;
+use std::any::{Any, TypeId};
+
+//
+// Types
+//
 
 pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
 
