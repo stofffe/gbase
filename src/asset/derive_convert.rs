@@ -1,8 +1,9 @@
 use crate::{
     asset::{
-        AssetCacheDerivedRegistry, AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage,
-        AssetConverter, AssetHandleContext, ConvertAssetStatus, ConvertContext, ConvertRuntime,
-        DerivedHandle, DynAssetHandle, DynDependency, DynDerivedHandle,
+        dependency, AssetCacheDependency, AssetCacheDerivedRegistry, AssetCacheDerivedStorage,
+        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandleContext, ConvertAssetStatus,
+        ConvertContext, ConvertRuntime, DerivedHandle, DynAssetHandle, DynDependency,
+        DynDerivedHandle,
     },
     Context,
 };
@@ -126,6 +127,7 @@ impl AssetCacheDerivedConvert {
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        dependency: &mut AssetCacheDependency,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_registry: &mut AssetCacheDerivedRegistry,
     ) {
@@ -153,6 +155,7 @@ impl AssetCacheDerivedConvert {
                 ctx,
                 storage,
                 loader,
+                dependency,
                 derived_storage,
                 derived_registry,
                 dyn_derived_handle.clone(),
@@ -201,7 +204,8 @@ impl AssetCacheDerivedConvert {
                     });
                     // tracing::info!("conversion success {}", dyn_derived_handle);
                     // TODO: make available
-                    self.wakeup_waiting_on_handle(&DynDependency::Derived(dyn_derived_handle));
+                    self.wakeup_waiting_on_handle(&dyn_derived_handle.to_dyn_dependency());
+                    self.requeu_dependents(dependency, &dyn_derived_handle.to_dyn_dependency());
                 }
             }
         }
@@ -266,6 +270,31 @@ impl AssetCacheDerivedConvert {
             self.queue_conversion(derived_handle);
         }
     }
+
+    pub fn requeu_dependents(
+        &mut self,
+        dependency: &mut AssetCacheDependency,
+        handle: &DynDependency,
+    ) {
+        if let Some(dependents) = dependency.dependents(handle) {
+            tracing::info!(
+                "requeue dependents due to {}, len {}",
+                handle,
+                dependents.len()
+            );
+            for dependent in dependents.iter() {
+                match dependent {
+                    DynDependency::Asset(dyn_asset_handle) => {
+                        tracing::info!("skip {} because its asset", dyn_asset_handle);
+                    }
+                    DynDependency::Derived(dyn_derived_handle) => {
+                        tracing::info!("requeue {}", dyn_derived_handle);
+                        self.queue_conversion(dyn_derived_handle.clone());
+                    }
+                }
+            }
+        }
+    }
 }
 
 //
@@ -298,6 +327,7 @@ pub trait DynDerivedConvert {
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        dependency: &mut AssetCacheDependency,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_registry: &mut AssetCacheDerivedRegistry,
         dyn_handle: DynDerivedHandle,
@@ -312,19 +342,20 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        dependency: &mut AssetCacheDependency,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_registry: &mut AssetCacheDerivedRegistry,
         dyn_handle: DynDerivedHandle,
     ) -> (ConversionPollResult, Option<Box<dyn DynConvertRequest>>) {
         // TODO: maybe just store the dyn directly?
-        let handle = dyn_handle
+        let derived_handle = dyn_handle
             .to_typed::<T::TargetAsset>()
             .expect("could not convert dyn handle to typed");
 
         let Some(settings) = derived_registry
             .get_typed_cache_mut::<T>()
             .handle_to_settings
-            .get(&handle)
+            .get(&derived_handle)
             .cloned()
         else {
             panic!("could not get settings from handle");
@@ -336,25 +367,26 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
 
         let wait_for = convert_ctx.state.wait_for.clone();
+        let dependencies = convert_ctx.state.dependencies.clone();
 
         match conversion {
-            ConvertAssetStatus::Loading => {
-                let wait_for =
-                    wait_for.expect("should have blocking dependency if in loading status");
-                // tracing::error!("{} waiting for {}", handle, wait_for);
-
-                if let Some(request) = &convert_ctx.state.conversion_request {
-                    tracing::info!("request new conversion {}", request.handle());
-                }
-
-                (
-                    ConversionPollResult::Waiting(wait_for.clone()),
-                    convert_ctx.state.conversion_request,
-                )
-            }
+            ConvertAssetStatus::Loading => (
+                ConversionPollResult::Waiting(
+                    wait_for.expect("should have blocking dependency if in loading status"),
+                ),
+                convert_ctx.state.conversion_request,
+            ),
             ConvertAssetStatus::Success(derived_asset) => {
                 // insert into typed storage
-                derived_storage.insert::<T::TargetAsset>(ctx, handle, derived_asset);
+                derived_storage.insert::<T::TargetAsset>(
+                    ctx,
+                    derived_handle.clone(),
+                    derived_asset,
+                );
+
+                // register deps
+                dependency
+                    .register_dependencies(&derived_handle.to_dyn_dependency(), &dependencies);
 
                 (ConversionPollResult::Success, None)
             }

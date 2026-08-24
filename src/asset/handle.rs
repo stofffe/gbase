@@ -1,4 +1,6 @@
-use crate::asset::{self, Asset, AssetCache, DerivedAsset, DynAssetStorage, GetAssetResult};
+use crate::asset::{
+    self, Asset, AssetCache, DerivedAsset, DynAssetStorage, DynDependency, GetAssetResult,
+};
 use std::{
     any::{type_name, TypeId},
     fmt::Display,
@@ -34,6 +36,10 @@ impl DynAssetHandle {
             ty: PhantomData,
         })
     }
+
+    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
+        DynDependency::Asset(self.clone())
+    }
 }
 
 impl Display for DynAssetHandle {
@@ -68,6 +74,10 @@ impl<T: Asset + 'static> AssetHandle<T> {
 
     pub(crate) fn to_dyn(&self) -> DynAssetHandle {
         DynAssetHandle::new(self)
+    }
+
+    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
+        DynDependency::Asset(self.to_dyn())
     }
 
     pub fn loaded(&self, cache: &mut AssetCache) -> bool {
@@ -156,6 +166,10 @@ impl DynDerivedHandle {
             ty: PhantomData,
         })
     }
+
+    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
+        DynDependency::Derived(self.clone())
+    }
 }
 
 impl Display for DynDerivedHandle {
@@ -185,6 +199,10 @@ impl<T: DerivedAsset + 'static> DerivedHandle<T> {
 
     pub(crate) fn to_dyn(&self) -> DynDerivedHandle {
         DynDerivedHandle::new(self)
+    }
+
+    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
+        DynDependency::Derived(self.to_dyn())
     }
 }
 

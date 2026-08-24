@@ -100,6 +100,7 @@ impl AssetCache {
             ctx,
             &mut self.storage,
             &mut self.loader,
+            &mut self.dependency,
             &mut self.derived_storage,
             &mut self.derived_registry,
         );

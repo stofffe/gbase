@@ -1,3 +1,4 @@
+use rustc_hash::FxHashSet;
 use winit::keyboard::NamedKey::New;
 
 use crate::{
@@ -88,8 +89,14 @@ impl<'a> ConvertRuntime<'a> {
 }
 
 pub struct ConvertState {
+    // The dependency that caused the conversion to return waiting
     pub wait_for: Option<DynDependency>,
+
+    // If wait_for was a nested conversion that resulted in a new handle, store the request here
     pub conversion_request: Option<Box<dyn DynConvertRequest>>,
+
+    // All dependencies accessed during the conversion
+    pub dependencies: FxHashSet<DynDependency>,
 }
 
 impl ConvertState {
@@ -97,6 +104,7 @@ impl ConvertState {
         Self {
             wait_for: None,
             conversion_request: None,
+            dependencies: FxHashSet::default(),
         }
     }
 }
@@ -114,7 +122,8 @@ impl<'runtime> ConvertContext<'runtime> {
     }
 
     pub fn get_load_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
-        // TODO: track deps here
+        // register deps
+        self.state.dependencies.insert(handle.to_dyn_dependency());
 
         if let Some(asset) = self.runtime.storage.get(handle) {
             return GetAssetResult::Success(asset);
@@ -145,6 +154,9 @@ impl<'runtime> ConvertContext<'runtime> {
             .runtime
             .derived_registry
             .get_or_create_handle::<G>(settings.clone());
+
+        // register deps
+        self.state.dependencies.insert(handle.to_dyn_dependency());
 
         self.state.wait_for = Some(DynDependency::Derived(handle.to_dyn()));
         if created_new {

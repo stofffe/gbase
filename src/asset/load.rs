@@ -57,7 +57,7 @@ pub enum LoadAssetResult<T: AssetLoader> {
 pub struct LoadResponse<T: AssetLoader> {
     pub(crate) handle: AssetHandle<T::Asset>,
     pub(crate) result: LoadAssetResult<T>,
-    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
+    pub(crate) dependencies: FxHashSet<DynDependency>,
     pub(crate) watches: FxHashSet<PathBuf>,
 }
 
@@ -96,10 +96,14 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 loader.just_loaded.insert(dyn_handle.clone());
 
                 // Dependency
-                dependency.register_dependencies(&dyn_handle, &self.dependencies);
+                dependency.register_dependencies(
+                    &DynDependency::Asset(dyn_handle.clone()),
+                    &self.dependencies,
+                );
 
                 // Derived
                 derived_convert.wakeup_waiting_on_handle(&DynDependency::Asset(dyn_handle.clone()));
+                derived_convert.requeu_dependents(dependency, &dyn_handle.to_dyn_dependency());
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
@@ -465,7 +469,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
 pub struct LoadState {
     pub(crate) handle: DynAssetHandle,
     // TODO: not being used rn
-    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
+    pub(crate) dependencies: FxHashSet<DynDependency>,
     pub(crate) watches: FxHashSet<PathBuf>,
 }
 
@@ -516,7 +520,7 @@ impl LoadContext {
         Self { runtime, state }
     }
 
-    pub fn dependencies(&self) -> &FxHashSet<DynAssetHandle> {
+    pub fn dependencies(&self) -> &FxHashSet<DynDependency> {
         &self.state.dependencies
     }
 
@@ -557,7 +561,9 @@ impl LoadContext {
             .await
             .expect("could not receive handle request");
 
-        self.state.dependencies.insert(handle.to_dyn());
+        self.state
+            .dependencies
+            .insert(DynDependency::Asset(handle.to_dyn()));
 
         handle
     }
