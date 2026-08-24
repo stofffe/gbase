@@ -43,7 +43,7 @@ impl AssetConverter for MeshGpuConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(&settings.mesh) {
+        let source = match convert_ctx.get_load_asset(&settings.mesh) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -71,7 +71,7 @@ impl AssetConverter for BoundingBoxConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(&settings.mesh) {
+        let source = match convert_ctx.get_load_asset(&settings.mesh) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -147,7 +147,7 @@ impl AssetConverter for ShaderGpuConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(&settings.shader) {
+        let source = match convert_ctx.get_load_asset(&settings.shader) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -266,7 +266,7 @@ impl AssetConverter for ImageGpuConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(&settings.image) {
+        let source = match convert_ctx.get_load_asset(&settings.image) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,

@@ -1,4 +1,4 @@
-use crate::asset::{AssetCacheDerived, AssetHandle, AssetHandleContext, DerivedAsset};
+use crate::asset::{AssetHandle, AssetHandleContext};
 use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
@@ -61,20 +61,20 @@ impl AssetCacheStorage {
         }
     }
 
-    pub(crate) fn clear_handle<T: Asset>(
-        &mut self,
-        derived: &mut AssetCacheDerived,
-        handle: AssetHandle<T>,
-    ) {
-        self.get_typed_cache_mut::<T>()
-            .clear_handle(derived, handle)
-    }
+    // pub(crate) fn clear_handle<T: Asset>(
+    //     &mut self,
+    //     derived: &mut AssetCacheDerived,
+    //     handle: AssetHandle<T>,
+    // ) {
+    //     self.get_typed_cache_mut::<T>()
+    //         .clear_handle(derived, handle)
+    // }
 
-    pub(crate) fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived) {
-        for (_, dyn_cache) in self.typed_caches.iter_mut() {
-            dyn_cache.clear_unused_handles(derived);
-        }
-    }
+    // pub(crate) fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived) {
+    //     for (_, dyn_cache) in self.typed_caches.iter_mut() {
+    //         dyn_cache.clear_unused_handles(derived);
+    //     }
+    // }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
         self.get_typed_cache_mut::<T>()
@@ -93,12 +93,12 @@ impl AssetCacheStorage {
 
     pub fn insert_successful_existing_handle<T: Asset>(
         &mut self,
-        derived: &mut AssetCacheDerived,
+        // derived: &mut AssetCacheDerived,
         handle: AssetHandle<T>,
         data: T,
     ) -> AssetHandle<T> {
         self.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
+        // derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
         handle
     }
 }
@@ -136,12 +136,12 @@ impl<T: Asset> TypedAssetStorage<T> {
         }
     }
 
-    pub(crate) fn clear_handle(&mut self, derived: &mut AssetCacheDerived, handle: AssetHandle<T>) {
-        self.cache.remove(&handle);
-
-        // clean other uses of handle
-        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
-    }
+    // pub(crate) fn clear_handle(&mut self, derived: &mut AssetCacheDerived, handle: AssetHandle<T>) {
+    //     self.cache.remove(&handle);
+    //
+    //     // clean other uses of handle
+    //     derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
+    // }
 
     pub fn handle_successfully_loaded(&self, handle: AssetHandle<T>) -> bool {
         self.cache.contains_key(&handle)
@@ -159,12 +159,12 @@ impl<T: Asset> TypedAssetStorage<T> {
 
     pub fn insert_successful_existing_handle(
         &mut self,
-        derived: &mut AssetCacheDerived,
+        // derived: &mut AssetCacheDerived,
         handle: AssetHandle<T>,
         data: T,
     ) -> AssetHandle<T> {
         self.cache.insert(handle.clone(), data);
-        derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
+        // derived.invalidate_derived_assets_depending_on_handle(&handle.to_dyn());
         handle
     }
 
@@ -176,7 +176,7 @@ impl<T: Asset> TypedAssetStorage<T> {
 pub trait DynAssetStorage {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived);
+    // fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived);
 }
 
 impl<T: Asset> DynAssetStorage for TypedAssetStorage<T> {
@@ -188,16 +188,16 @@ impl<T: Asset> DynAssetStorage for TypedAssetStorage<T> {
         self as &mut dyn Any
     }
 
-    fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived) {
-        let mut handles_to_remove = Vec::new();
-        for (handle, _) in self.cache.iter() {
-            if Arc::strong_count(&handle.id) <= 1 {
-                handles_to_remove.push(handle.clone());
-            }
-        }
-
-        for handle in handles_to_remove {
-            self.clear_handle(derived, handle);
-        }
-    }
+    //     fn clear_unused_handles(&mut self, derived: &mut AssetCacheDerived) {
+    //         let mut handles_to_remove = Vec::new();
+    //         for (handle, _) in self.cache.iter() {
+    //             if Arc::strong_count(&handle.id) <= 1 {
+    //                 handles_to_remove.push(handle.clone());
+    //             }
+    //         }
+    //
+    //         for handle in handles_to_remove {
+    //             self.clear_handle(derived, handle);
+    //         }
+    //     }
 }

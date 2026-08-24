@@ -123,7 +123,7 @@ impl AssetConverter for ShaderWithImportsConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
-        let source = match convert_ctx.get(&settings.shader) {
+        let source = match convert_ctx.get_load_asset(&settings.shader) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -132,7 +132,7 @@ impl AssetConverter for ShaderWithImportsConverter {
 
         let mut import_sources = Vec::new();
         for import in source.imports.iter() {
-            let conversion_result = convert_ctx.nested_convert::<ShaderWithImportsConverter>(
+            let conversion_result = convert_ctx.get_nested_convert::<ShaderWithImportsConverter>(
                 ctx,
                 &ShaderWithImportsConverterOptions::new(import.clone()),
             );
@@ -180,7 +180,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::TargetAsset> {
-        let shader_source = match convert_ctx.nested_convert::<ShaderWithImportsConverter>(
+        let shader_source = match convert_ctx.get_nested_convert::<ShaderWithImportsConverter>(
             ctx,
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
@@ -201,7 +201,8 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         }
         #[cfg(target_arch = "wasm32")]
         {
-            let shader = render::ShaderBuilder::new().build_non_arc(ctx, resoved_source);
+            let shader =
+                render::ShaderBuilder::new().build_non_arc(ctx, shader_source.source.clone());
             ConvertAssetStatus::Success(shader)
         }
     }

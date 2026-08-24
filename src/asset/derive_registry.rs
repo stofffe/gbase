@@ -63,17 +63,17 @@ impl AssetCacheDerivedRegistry {
     pub fn get_or_create_handle<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
-    ) -> DerivedHandle<T::TargetAsset> {
+    ) -> (DerivedHandle<T::TargetAsset>, bool) {
         let typed = self.get_typed_cache_mut::<T>();
         if let Some(handle) = typed.settings_to_handle.get(&settings) {
-            return handle.clone();
+            return (handle.clone(), false);
         }
 
         let new_handle = DerivedHandle::<T::TargetAsset>::new(&self.asset_handle_ctx);
 
         self.add_handle_setting_mapping::<T>(new_handle.clone(), settings.clone());
 
-        new_handle
+        (new_handle, true)
     }
 }
 

@@ -32,7 +32,9 @@ pub struct InsertAssetBuilder<T: Asset> {
 impl<T: Asset> InsertAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache) -> AssetHandle<T> {
         if let Some(handle) = self.handle {
-            cache.overwrite_handle(self.value, handle)
+            // cache.overwrite_handle(self.value, handle)
+            // TODO: overwrite
+            cache.insert(self.value)
         } else {
             cache.insert(self.value)
         }

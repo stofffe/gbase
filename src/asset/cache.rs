@@ -1,9 +1,7 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self,
-        derive::{AssetCacheDerived, ConvertAssetResult},
-        AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
+        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
         AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
         AssetHandleContext, DerivedAsset, DerivedHandle, GetAssetResult, GetDerivedResult,
         InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
@@ -18,9 +16,6 @@ pub struct AssetCache {
 
     storage: AssetCacheStorage,
     loader: AssetCacheLoad,
-
-    // TODO: old
-    derived: AssetCacheDerived,
 
     pub derived_storage: AssetCacheDerivedStorage,
     pub derived_convert: AssetCacheDerivedConvert,
@@ -45,7 +40,6 @@ impl AssetCache {
             asset_handle_ctx.clone(),
         );
 
-        let derived = AssetCacheDerived::new();
         let derived_storage = AssetCacheDerivedStorage::new(asset_handle_ctx.clone());
         let derived_convert = AssetCacheDerivedConvert::new(asset_handle_ctx.clone());
         let derived_registry = AssetCacheDerivedRegistry::new(asset_handle_ctx.clone());
@@ -62,7 +56,6 @@ impl AssetCache {
             storage,
 
             loader,
-            derived,
             dependency,
 
             derived_storage,
@@ -95,7 +88,6 @@ impl AssetCache {
 
         self.loader.poll_loaded(
             &mut self.storage,
-            &mut self.derived,
             &mut self.derived_storage,
             &mut self.derived_convert,
             &mut self.dependency,
@@ -148,14 +140,14 @@ impl AssetCache {
         self.storage.insert_successful_new_handle(data)
     }
 
-    pub fn overwrite_handle<T: Asset + 'static>(
-        &mut self,
-        data: T,
-        handle: AssetHandle<T>,
-    ) -> AssetHandle<T> {
-        self.storage
-            .insert_successful_existing_handle(&mut self.derived, handle, data)
-    }
+    // pub fn overwrite_handle<T: Asset + 'static>(
+    //     &mut self,
+    //     data: T,
+    //     handle: AssetHandle<T>,
+    // ) -> AssetHandle<T> {
+    //     self.storage
+    //         .insert_successful_existing_handle(&mut self.derived, handle, data)
+    // }
 
     pub fn get<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         if let Some(success) = self.storage.get(handle) {
@@ -176,11 +168,13 @@ impl AssetCache {
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
-        self.storage.clear_handle(&mut self.derived, handle);
+        todo!()
+        // self.storage.clear_handle(&mut self.derived, handle);
     }
 
     pub fn clear_asset_handles(&mut self) {
-        self.storage.clear_unused_handles(&mut self.derived);
+        todo!()
+        // self.storage.clear_unused_handles(&mut self.derived);
     }
 
     //
@@ -220,6 +214,7 @@ impl AssetCache {
         &mut self,
         settings: T::Settings,
     ) -> DerivedHandle<T::TargetAsset> {
+        // tracing::info!("spawn conversion");
         self.derived_convert
             .register_conversion::<T>(&mut self.derived_registry, settings)
     }

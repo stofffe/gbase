@@ -472,7 +472,7 @@ fn update_and_render(
 
     cache.poll(ctx);
     // TODO: dont do this every frame?
-    cache.clear_asset_handles();
+    // cache.clear_asset_handles();
     cache.clear_derived_handles();
 
     CallbackResult::Continue

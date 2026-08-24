@@ -2,9 +2,8 @@
 use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
-        derive::AssetCacheDerived, Asset, AssetCacheDependency, AssetCacheDerivedConvert,
-        AssetCacheDerivedStorage, AssetCacheStorage, AssetHandle, AssetHandleContext,
-        DynAssetHandle,
+        Asset, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedStorage,
+        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle, DynDependency,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -67,7 +66,6 @@ pub trait DynLoadResponse: Send {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
-        derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -80,7 +78,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
-        derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -102,8 +99,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 dependency.register_dependencies(&dyn_handle, &self.dependencies);
 
                 // Derived
-                derived.waiting_dependency_available(&dyn_handle);
-                derived_convert.wakeup_waiting_on_handle(&dyn_handle);
+                derived_convert.wakeup_waiting_on_handle(&DynDependency::Asset(dyn_handle.clone()));
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
@@ -156,11 +152,11 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
             .settings_to_handle
             .get(&self.settings)
         {
-            tracing::info!("use cached handle {}", handle);
+            tracing::info!("use cached asset handle {}", handle);
             handle.clone()
         } else {
             let handle = loader.load_asset::<T>(self.settings.clone());
-            tracing::info!("create new handle {}", handle);
+            tracing::info!("create new asset handle {}", handle);
             handle
         };
 
@@ -300,7 +296,6 @@ impl AssetCacheLoad {
     pub fn poll_loaded(
         &mut self,
         storage: &mut AssetCacheStorage,
-        derived: &mut AssetCacheDerived,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -312,7 +307,6 @@ impl AssetCacheLoad {
             response.handle_asset_load_response(
                 storage,
                 self,
-                derived,
                 derived_storage,
                 derived_convert,
                 dependency,
@@ -379,7 +373,7 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
     }
 
     fn load_asset_with_handle(&mut self, handle: AssetHandle<T::Asset>, settings: T::Settings) {
-        tracing::info!("start loading {}", handle);
+        tracing::info!("spawn load {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
         let new_asset_runtime = LoadRuntime {
