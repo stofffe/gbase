@@ -6,11 +6,11 @@ mod builders;
 mod cache;
 mod dependency;
 mod derive_convert;
-mod derive_registry;
 mod derive_storage;
 mod handle;
 mod implementation;
 mod load;
+mod registry;
 mod storage;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -20,11 +20,11 @@ pub use builders::*;
 pub use cache::*;
 pub use dependency::*;
 pub use derive_convert::*;
-pub use derive_registry::*;
 pub use derive_storage::*;
 pub use handle::*;
 pub use implementation::*;
 pub use load::*;
+pub use registry::*;
 pub use storage::*;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -67,7 +67,7 @@ pub fn convert_asset<G: AssetConverter + 'static>(
     ctx: &mut Context,
     cache: &mut AssetCache,
     settings: &G::Settings,
-) -> ConvertAssetResult<G::TargetAsset> {
+) -> ConvertAssetResult<G::Asset> {
     todo!()
     // cache.convert::<G>(ctx, settings)
 }
@@ -75,7 +75,7 @@ pub fn convert_asset<G: AssetConverter + 'static>(
 pub fn convert_derived_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
-) -> AssetHandle<T::TargetAsset> {
+) -> AssetHandle<T::Asset> {
     cache.convert_derived::<T>(settings)
 }
 
@@ -89,7 +89,7 @@ pub fn get_derived_asset<T: Asset + 'static>(
 pub fn get_or_convert_derived_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
-) -> GetDerivedResult<T::TargetAsset> {
+) -> GetDerivedResult<T::Asset> {
     let handle = cache.convert_derived::<T>(settings);
     cache.get_derived(&handle)
 }

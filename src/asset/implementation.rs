@@ -29,7 +29,7 @@ impl MeshGpuConverterSettings {
 
 pub struct MeshGpuConverter;
 impl AssetConverter for MeshGpuConverter {
-    type TargetAsset = render::GpuMesh;
+    type Asset = render::GpuMesh;
     type Error = EmptyError;
     type Settings = MeshGpuConverterSettings;
 
@@ -37,7 +37,7 @@ impl AssetConverter for MeshGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.mesh) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
@@ -55,7 +55,7 @@ pub struct BoundingBoxConverterOptions {
 
 pub struct BoundingBoxConverter;
 impl AssetConverter for BoundingBoxConverter {
-    type TargetAsset = render::BoundingBox;
+    type Asset = render::BoundingBox;
     type Error = EmptyError;
     type Settings = BoundingBoxConverterOptions;
 
@@ -63,7 +63,7 @@ impl AssetConverter for BoundingBoxConverter {
         _ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.mesh) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
@@ -130,7 +130,7 @@ impl ShaderGpuConverterOptions {
 impl Asset for wgpu::ShaderModule {}
 
 impl AssetConverter for ShaderGpuConverter {
-    type TargetAsset = wgpu::ShaderModule;
+    type Asset = wgpu::ShaderModule;
     type Error = wgpu::Error;
     type Settings = ShaderGpuConverterOptions;
 
@@ -138,7 +138,7 @@ impl AssetConverter for ShaderGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.shader) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
@@ -249,7 +249,7 @@ impl Asset for GpuImage {}
 
 pub struct ImageGpuConverter;
 impl AssetConverter for ImageGpuConverter {
-    type TargetAsset = render::GpuImage;
+    type Asset = render::GpuImage;
     type Error = EmptyError;
     type Settings = ImageGpuConverterOptions;
 
@@ -257,7 +257,7 @@ impl AssetConverter for ImageGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.image) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,

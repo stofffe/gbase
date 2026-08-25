@@ -725,7 +725,7 @@ pub struct FontAtlasConverterSettings {
 }
 
 impl<'a> AssetConverter for FontAtlasConverter<'a> {
-    type TargetAsset = FontAtlas;
+    type Asset = FontAtlas;
     type Error = EmptyError;
     type Settings = FontAtlasConverterSettings;
 
@@ -733,7 +733,7 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.font) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,

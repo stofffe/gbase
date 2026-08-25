@@ -3,7 +3,7 @@ use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
         Asset, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedStorage,
-        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle,
+        AssetCacheRegistry, AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -13,6 +13,7 @@ use std::{
     any::{Any, TypeId},
     future::Future,
     hash::Hash,
+    marker::PhantomData,
     path::PathBuf,
 };
 use std::{error, path::Path};
@@ -67,6 +68,7 @@ pub trait DynLoadResponse: Send {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -80,6 +82,7 @@ pub trait DynLoadResponse {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -92,6 +95,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -123,7 +127,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                     reloader.register_watches(dyn_handle.clone(), &self.watches);
                     // TODO: maybe this should apply to everything related to reloading?
                     if reloader.is_currently_reloading(&dyn_handle) {
-                        reloader.reload_dependents(dependency, loader, &dyn_handle);
+                        reloader.reload_dependents(dependency, loader, registry, &dyn_handle);
                     }
                 }
             }
@@ -144,12 +148,12 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub trait DynHandleRequest: Send {
-    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad);
+    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
 #[cfg(target_arch = "wasm32")]
 pub trait DynHandleRequest {
-    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad);
+    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
 pub struct GetHandleRequest<T: AssetLoader> {
@@ -167,19 +171,16 @@ impl<T: AssetLoader> GetHandleRequest<T> {
 }
 
 impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
-    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad) {
-        let handle = if let Some(handle) = loader
-            .get_typed_cache_mut::<T>()
-            .settings_to_handle
-            .get(&self.settings)
-        {
-            tracing::info!("use cached asset handle {}", handle);
-            handle.clone()
-        } else {
-            let handle = loader.load_asset::<T>(self.settings.clone());
-            tracing::info!("create new asset handle {}", handle);
-            handle
-        };
+    fn get_or_load_new_asset(
+        &self,
+        loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
+    ) {
+        let (handle, created_new) = registry.get_or_create_load_handle::<T>(self.settings.clone());
+
+        if created_new {
+            loader.load_asset_with_handle::<T>(handle.clone(), self.settings.clone());
+        }
 
         // send the handle back
         self.sender
@@ -315,6 +316,7 @@ impl AssetCacheLoad {
     pub fn poll_loaded(
         &mut self,
         storage: &mut AssetCacheStorage,
+        registry: &mut AssetCacheRegistry,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_convert: &mut AssetCacheDerivedConvert,
         dependency: &mut AssetCacheDependency,
@@ -326,6 +328,7 @@ impl AssetCacheLoad {
             response.handle_asset_load_response(
                 storage,
                 self,
+                registry,
                 derived_storage,
                 derived_convert,
                 dependency,
@@ -336,9 +339,9 @@ impl AssetCacheLoad {
     }
 
     // check for request of new handles
-    pub fn poll_handle_requests(&mut self) {
+    pub fn poll_handle_requests(&mut self, registry: &mut AssetCacheRegistry) {
         while let Ok(request) = self.handle_request_receiver.try_recv() {
-            request.get_or_load_new_asset(self);
+            request.get_or_load_new_asset(self, registry);
         }
     }
 }
@@ -348,9 +351,6 @@ impl AssetCacheLoad {
 //
 
 pub struct TypedAssetLoad<T: AssetLoader> {
-    settings_to_handle: FxHashMap<T::Settings, AssetHandle<T::Asset>>,
-    pub(crate) handle_to_settings: FxHashMap<AssetHandle<T::Asset>, T::Settings>,
-
     asset_handle_ctx: AssetHandleContext,
     task_ctx: TaskContext,
     filesystem_ctx: FileSystemContext,
@@ -360,6 +360,9 @@ pub struct TypedAssetLoad<T: AssetLoader> {
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
+
+    // TODO: shouldnt be needed?
+    ty: PhantomData<T>,
 }
 
 impl<T: AssetLoader> TypedAssetLoad<T> {
@@ -373,15 +376,13 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
-            settings_to_handle: FxHashMap::default(),
-            handle_to_settings: FxHashMap::default(),
-
             asset_handle_ctx,
             task_ctx,
             filesystem_ctx,
             handle_request_sender,
 
             response_sender,
+            ty: PhantomData,
         }
     }
 
@@ -400,10 +401,12 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
         // TODO: move this to generic load fn?
         // settings -> handle
         // handle -> setting
-        self.handle_to_settings
-            .insert(handle.clone(), settings.clone());
-        self.settings_to_handle
-            .insert(settings.clone(), handle.clone());
+        // registry
+        //     .self
+        //     .handle_to_settings
+        //     .insert(handle.clone(), settings.clone());
+        // self.settings_to_handle
+        //     .insert(settings.clone(), handle.clone());
 
         // TODO:
         // set status? already done in generic
@@ -537,6 +540,7 @@ impl LoadContext {
         self.state.handle.clone()
     }
 
+    // TODO: should probably just get from registy and then send succes response
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
         // TODO: should probably request handle with async
         let handle = AssetHandle::<T>::new(&self.runtime.asset_handle_ctx);

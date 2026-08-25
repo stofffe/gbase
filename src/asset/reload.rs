@@ -1,4 +1,4 @@
-use crate::asset::{AssetCacheDependency, DynAssetHandle};
+use crate::asset::{AssetCacheDependency, AssetCacheRegistry, DynAssetHandle};
 use crate::asset::{AssetCacheLoad, AssetLoader};
 use crate::filesystem::FileSystemContext;
 use core::panic;
@@ -9,7 +9,12 @@ use std::marker::PhantomData;
 use std::path::PathBuf;
 
 pub trait DynAssetReload {
-    fn reload_handle(&self, loader: &mut AssetCacheLoad, dyn_handle: DynAssetHandle);
+    fn reload_handle(
+        &self,
+        loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
+        dyn_handle: DynAssetHandle,
+    );
 
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -26,7 +31,12 @@ impl<T: AssetLoader + 'static> TypedAssetReload<T> {
 }
 
 impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
-    fn reload_handle(&self, loader: &mut AssetCacheLoad, dyn_handle: DynAssetHandle) {
+    fn reload_handle(
+        &self,
+        loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
+        dyn_handle: DynAssetHandle,
+    ) {
         let Some(handle) = dyn_handle.to_typed::<T::Asset>() else {
             tracing::warn!(
                 "trying to convert DynAssetHandle with type {:?} to a AssetHandle with type {:?}",
@@ -36,7 +46,7 @@ impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
             return;
         };
 
-        let Some(typed_loader) = loader.get_typed_cache_ref::<T>() else {
+        let Some(typed_load_registry) = registry.get_typed_load_registry_ref::<T>() else {
             tracing::warn!(
                 "trying to reload handle {:?} but no typed loader exists",
                 handle.id
@@ -44,7 +54,7 @@ impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
             return;
         };
 
-        let Some(settings) = typed_loader.handle_to_settings.get(&handle) else {
+        let Some(settings) = typed_load_registry.handle_to_settings.get(&handle) else {
             tracing::warn!(
                 "trying to get settings for {:?} but none were found",
                 handle.id
@@ -144,19 +154,24 @@ impl AssetCacheReload {
     }
 
     // checks if any files changed and spawns a thread which reloads the data
-    pub fn poll_reload(&mut self, loader: &mut AssetCacheLoad) {
+    pub fn poll_reload(&mut self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry) {
         while let Ok(reload_request) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
                     tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle, loader);
+                    self.reload(handle, loader, registry);
                 }
             }
         }
     }
 
     /// Queue a reload just like file watcher would
-    pub fn reload(&mut self, handle: DynAssetHandle, loader: &mut AssetCacheLoad) {
+    pub fn reload(
+        &mut self,
+        handle: DynAssetHandle,
+        loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
+    ) {
         let Some(loader_type_id) = self.handle_to_loader_type.get(&handle) else {
             tracing::warn!("could not get loader type id for {}", handle.id());
             return;
@@ -170,7 +185,7 @@ impl AssetCacheReload {
         // mark as curretnly reloading
         self.currently_reloading.insert(handle.clone());
 
-        dyn_reloader.reload_handle(loader, handle);
+        dyn_reloader.reload_handle(loader, registry, handle);
     }
 
     /// register last loader type used to load handle
@@ -220,6 +235,7 @@ impl AssetCacheReload {
         &mut self,
         dependency: &mut AssetCacheDependency,
         loader: &mut AssetCacheLoad,
+        registry: &mut AssetCacheRegistry,
         handle: &DynAssetHandle,
     ) {
         if let Some(dependents) = dependency.dependents(&handle) {
@@ -227,7 +243,7 @@ impl AssetCacheReload {
 
             for dependent in dependents.iter() {
                 tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), loader);
+                self.reload(dependent.clone(), loader, registry);
             }
         }
     }

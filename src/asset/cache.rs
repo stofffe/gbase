@@ -1,8 +1,8 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
-        AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
+        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedStorage,
+        AssetCacheLoad, AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle,
         AssetHandleContext, GetAssetResult, GetDerivedResult, InsertAssetBuilder, LoadAssetBuilder,
         LoadContext, LoadRuntime, LoadState, LoadStatus,
     },
@@ -19,7 +19,7 @@ pub struct AssetCache {
 
     pub derived_storage: AssetCacheDerivedStorage,
     pub derived_convert: AssetCacheDerivedConvert,
-    pub derived_registry: AssetCacheDerivedRegistry,
+    pub registry: AssetCacheRegistry,
 
     dependency: AssetCacheDependency,
     #[cfg(not(target_arch = "wasm32"))]
@@ -42,7 +42,7 @@ impl AssetCache {
 
         let derived_storage = AssetCacheDerivedStorage::new(asset_handle_ctx.clone());
         let derived_convert = AssetCacheDerivedConvert::new(asset_handle_ctx.clone());
-        let derived_registry = AssetCacheDerivedRegistry::new(asset_handle_ctx.clone());
+        let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
 
@@ -60,7 +60,7 @@ impl AssetCache {
 
             derived_storage,
             derived_convert,
-            derived_registry,
+            registry,
 
             #[cfg(not(target_arch = "wasm32"))]
             reloader,
@@ -81,13 +81,15 @@ impl AssetCache {
     // TODO: does order matter?
     pub fn poll(&mut self, ctx: &mut Context) {
         #[cfg(not(target_arch = "wasm32"))]
-        self.reloader.poll_reload(&mut self.loader);
+        self.reloader
+            .poll_reload(&mut self.loader, &mut self.registry);
 
         // loading
-        self.loader.poll_handle_requests();
+        self.loader.poll_handle_requests(&mut self.registry);
 
         self.loader.poll_loaded(
             &mut self.storage,
+            &mut self.registry,
             &mut self.derived_storage,
             &mut self.derived_convert,
             &mut self.dependency,
@@ -102,7 +104,7 @@ impl AssetCache {
             &mut self.loader,
             &mut self.dependency,
             &mut self.derived_storage,
-            &mut self.derived_registry,
+            &mut self.registry,
         );
     }
 
@@ -186,10 +188,9 @@ impl AssetCache {
     pub fn convert_derived<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
-    ) -> AssetHandle<T::TargetAsset> {
-        // tracing::info!("spawn conversion");
+    ) -> AssetHandle<T::Asset> {
         self.derived_convert
-            .register_conversion::<T>(&mut self.derived_registry, settings)
+            .register_conversion::<T>(&mut self.registry, settings)
     }
 
     pub fn get_derived<T: Asset + 'static>(&self, handle: &AssetHandle<T>) -> GetDerivedResult<T> {
@@ -209,6 +210,7 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.reloader.reload(handle.to_dyn(), &mut self.loader);
+        self.reloader
+            .reload(handle.to_dyn(), &mut self.loader, &mut self.registry);
     }
 }

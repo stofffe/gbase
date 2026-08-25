@@ -190,14 +190,14 @@ pub struct LodMeshToBoundingBoxConverter;
 
 impl AssetConverter for LodMeshToBoundingBoxConverter {
     type Error = EmptyError;
-    type TargetAsset = BoundingBoxWrapper;
+    type Asset = BoundingBoxWrapper;
     type Settings = LodMeshToBoundingBoxConverterOptions;
 
     fn convert(
         _ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let source = convert_ctx
             .get_load_asset(&settings.mesh_lod)
             .unwrap_success();

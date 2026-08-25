@@ -113,7 +113,7 @@ impl ShaderWithImportsConverterOptions {
 struct ShaderWithImportsConverter {}
 
 impl AssetConverter for ShaderWithImportsConverter {
-    type TargetAsset = ShaderWithImportsFinal;
+    type Asset = ShaderWithImportsFinal;
     type Settings = ShaderWithImportsConverterOptions;
     type Error = EmptyError;
 
@@ -121,7 +121,7 @@ impl AssetConverter for ShaderWithImportsConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> asset::ConvertAssetStatus<Self::TargetAsset> {
+    ) -> asset::ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_load_asset(&settings.shader) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
@@ -170,7 +170,7 @@ impl ShaderWithImportsGpuConverterSettings {
 struct ShaderWithImportsGpuConverter;
 
 impl AssetConverter for ShaderWithImportsGpuConverter {
-    type TargetAsset = wgpu::ShaderModule;
+    type Asset = wgpu::ShaderModule;
     type Settings = ShaderWithImportsGpuConverterSettings;
     type Error = EmptyError;
 
@@ -178,7 +178,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::TargetAsset> {
+    ) -> ConvertAssetStatus<Self::Asset> {
         let shader_source = match convert_ctx.get_nested_convert::<ShaderWithImportsConverter>(
             ctx,
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
