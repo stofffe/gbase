@@ -274,18 +274,16 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let asset::GetAssetResult::Success(mesh) =
-            asset::get_or_convert_derived_asset::<MeshGpuConverter>(
-                cache,
-                MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-            )
-        else {
+        let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
+            cache,
+            MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+        ) else {
             return CallbackResult::Continue;
         };
         let mesh = mesh.clone();
 
         let asset::GetAssetResult::Success(shader) =
-            asset::get_or_convert_derived_asset::<ShaderWithImportsGpuConverter>(
+            asset::get_or_convert_asset::<ShaderWithImportsGpuConverter>(
                 cache,
                 ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
             )
@@ -295,7 +293,7 @@ impl Callbacks for App {
         let shader = shader.clone();
 
         let asset::GetAssetResult::Success(texture) =
-            asset::get_or_convert_derived_asset::<ImageGpuConverter>(
+            asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 ImageGpuConverterOptions::new(self.texture_handle.clone()),
             )

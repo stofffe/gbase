@@ -350,7 +350,7 @@ impl GrassRenderer {
                     ])
                     .build(ctx),
             ];
-            let instance_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+            let instance_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
                 cache,
                 ShaderGpuConverterOptions::new(self.instance_shader_handle.clone()),
             )
@@ -393,7 +393,7 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let draw_compute_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+            let draw_compute_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
                 cache,
                 ShaderGpuConverterOptions::new(self.draw_shader_handle.clone()),
             )
@@ -436,7 +436,7 @@ impl GrassRenderer {
                     view_format,
                     depth_buffer,
                 } => {
-                    let render_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+                    let render_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
                         cache,
                         ShaderGpuConverterOptions::new(self.render_forward_shader_handle.clone()),
                     )
@@ -465,7 +465,7 @@ impl GrassRenderer {
                         });
                 }
                 RenderMode::Deferred { buffers } => {
-                    let render_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+                    let render_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
                         cache,
                         ShaderGpuConverterOptions::new(self.render_deferred_shader_handle.clone()),
                     )

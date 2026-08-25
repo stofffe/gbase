@@ -2,8 +2,8 @@
 use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
-        Asset, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheRegistry,
-        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle, LoadStatus,
+        Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheRegistry, AssetCacheStorage,
+        AssetHandle, AssetHandleContext, DynAssetHandle, LoadStatus,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -69,7 +69,7 @@ pub trait DynLoadResponse: Send {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
-        derived_convert: &mut AssetCacheDerivedConvert,
+        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
@@ -82,7 +82,7 @@ pub trait DynLoadResponse {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
-        derived_convert: &mut AssetCacheDerivedConvert,
+        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
@@ -94,7 +94,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
-        derived_convert: &mut AssetCacheDerivedConvert,
+        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -116,8 +116,8 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 // Derived
-                derived_convert.wakeup_waiting_on_handle(registry, &dyn_handle.clone());
-                derived_convert.requeu_dependents(dependency, registry, &dyn_handle);
+                convert.wakeup_waiting_on_handle(registry, &dyn_handle.clone());
+                convert.requeu_dependents(dependency, registry, &dyn_handle);
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
@@ -301,7 +301,7 @@ impl AssetCacheLoad {
         &mut self,
         storage: &mut AssetCacheStorage,
         registry: &mut AssetCacheRegistry,
-        derived_convert: &mut AssetCacheDerivedConvert,
+        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -312,7 +312,7 @@ impl AssetCacheLoad {
                 storage,
                 self,
                 registry,
-                derived_convert,
+                convert,
                 dependency,
                 #[cfg(not(target_arch = "wasm32"))]
                 reloader,

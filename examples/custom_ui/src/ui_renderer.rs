@@ -107,26 +107,22 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let GetAssetResult::Success(shader) =
-            asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
-                cache,
-                ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-            )
-        else {
+        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+            cache,
+            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        ) else {
             return;
         };
         let shader = shader.clone();
 
-        let GetAssetResult::Success(font_atlas) =
-            asset::get_or_convert_derived_asset::<FontAtlasConverter>(
-                cache,
-                FontAtlasConverterSettings {
-                    font: self.font.clone(),
-                    supported_chars: self.font_atlas_supported_chars.to_vec(),
-                    font_raster_size: self.font_atlas_raster_size as u32,
-                },
-            )
-        else {
+        let GetAssetResult::Success(font_atlas) = asset::get_or_convert_asset::<FontAtlasConverter>(
+            cache,
+            FontAtlasConverterSettings {
+                font: self.font.clone(),
+                supported_chars: self.font_atlas_supported_chars.to_vec(),
+                font_raster_size: self.font_atlas_raster_size as u32,
+            },
+        ) else {
             return;
         };
 

@@ -60,7 +60,7 @@ impl Tonemap {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
@@ -360,7 +360,7 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let extract_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let extract_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.extract_shader_handle.clone()),
         )
@@ -399,7 +399,7 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let downsample_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let downsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.downsample_shader_handle.clone()),
         )
@@ -448,7 +448,7 @@ impl Bloom {
             .mip_map_filer(wgpu::FilterMode::Linear)
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
-        let upsample_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let upsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.upsample_shader_handle.clone()),
         )
@@ -524,7 +524,7 @@ impl Bloom {
                 ])
                 .build(ctx);
 
-        let combine_shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let combine_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.combine_shader_handle.clone()),
         )

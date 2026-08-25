@@ -109,7 +109,7 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
@@ -186,7 +186,7 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.shader_depth_handle.clone()),
         )

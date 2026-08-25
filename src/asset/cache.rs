@@ -1,7 +1,7 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheLoad, AssetCacheRegistry,
+        self, AssetCacheConvert, AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry,
         AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, GetAssetResult,
         InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
     },
@@ -16,7 +16,7 @@ pub struct AssetCache {
     storage: AssetCacheStorage,
     loader: AssetCacheLoad,
 
-    pub derived_convert: AssetCacheDerivedConvert,
+    pub convert: AssetCacheConvert,
     pub registry: AssetCacheRegistry,
 
     dependency: AssetCacheDependency,
@@ -38,7 +38,7 @@ impl AssetCache {
             asset_handle_ctx.clone(),
         );
 
-        let derived_convert = AssetCacheDerivedConvert::new(asset_handle_ctx.clone());
+        let convert = AssetCacheConvert::new(asset_handle_ctx.clone());
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
@@ -55,7 +55,7 @@ impl AssetCache {
             loader,
             dependency,
 
-            derived_convert,
+            convert,
             registry,
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -86,14 +86,14 @@ impl AssetCache {
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
-            &mut self.derived_convert,
+            &mut self.convert,
             &mut self.dependency,
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
         );
 
         // derived
-        self.derived_convert.poll_conversions(
+        self.convert.poll_conversions(
             ctx,
             &mut self.storage,
             &mut self.loader,
@@ -172,7 +172,7 @@ impl AssetCache {
     // Derive re-exports
     //
 
-    pub fn clear_derived_handles(&mut self) {
+    pub fn clear_handles(&mut self) {
         // TODO:
         // self.derived.clear_unused_handles();
     }
@@ -181,7 +181,7 @@ impl AssetCache {
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        self.derived_convert
+        self.convert
             .register_conversion::<T>(&mut self.registry, settings)
     }
 

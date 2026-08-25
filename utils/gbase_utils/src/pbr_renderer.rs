@@ -193,7 +193,7 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
         )

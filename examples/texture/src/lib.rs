@@ -19,10 +19,10 @@ struct App {
     bindgroup_layout: render::ArcBindGroupLayout,
 
     texture_handle: AssetHandle<Image>,
-    shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
 
-    shader_derived: AssetHandle<ArcHandle<wgpu::ShaderModule>>,
+    shader_handle: AssetHandle<render::Shader>,
+    shader_gpu: AssetHandle<ArcHandle<wgpu::ShaderModule>>,
 }
 
 impl Callbacks for App {
@@ -64,7 +64,7 @@ impl Callbacks for App {
             ]);
         let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
 
-        let shader_derived = asset::convert_derived_asset::<ShaderGpuConverter>(
+        let shader_gpu = asset::convert_asset_new::<ShaderGpuConverter>(
             cache,
             ShaderGpuConverterOptions::new(shader_handle.clone()),
         );
@@ -77,7 +77,7 @@ impl Callbacks for App {
             shader_handle,
             mesh_handle,
 
-            shader_derived,
+            shader_gpu,
         }
     }
 
@@ -88,28 +88,32 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let asset::GetAssetResult::Success(mesh) =
-            asset::get_or_convert_derived_asset::<MeshGpuConverter>(
-                cache,
-                MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-            )
-        else {
+        let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
+            cache,
+            MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+        ) else {
             return CallbackResult::Continue;
         };
         let mesh = mesh.clone();
 
-        let asset::GetAssetResult::Success(shader) =
-            asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
-                cache,
-                ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-            )
+        let asset::GetAssetResult::Success(shader) = asset::get(cache, self.shader_gpu.clone())
         else {
             return CallbackResult::Continue;
         };
         let shader = shader.clone();
 
+        // NOTE: alternative way of loading shader
+        // let asset::GetAssetResult::Success(shader) =
+        // asset::get_or_convert_asset::<ShaderGpuConverter>(
+        //     cache,
+        //     ShaderGpuConverterSettings::new(self.shader_handle.clone()),
+        // ) else {
+        //     return CallbackResult::Continue;
+        // };
+        // let shader = mesh.clone();
+
         let asset::GetAssetResult::Success(texture) =
-            asset::get_or_convert_derived_asset::<ImageGpuConverter>(
+            asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 ImageGpuConverterOptions::new(self.texture_handle.clone()),
             )

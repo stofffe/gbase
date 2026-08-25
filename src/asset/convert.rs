@@ -54,31 +54,27 @@ impl<T: AssetConverter> ConvertRequest<T> {
 
 pub trait DynConvertRequest {
     fn handle(&self) -> DynAssetHandle;
-    fn request(
-        self: Box<Self>,
-        derived_convert: &mut AssetCacheDerivedConvert,
-        derived_registry: &mut AssetCacheRegistry,
-    );
+    fn request(self: Box<Self>, convert: &mut AssetCacheConvert, registry: &mut AssetCacheRegistry);
 }
 
 impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
     fn request(
         self: Box<Self>,
-        derived_convert: &mut AssetCacheDerivedConvert,
+        convert: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
     ) {
         // register converter
         // TODO: kinda weird since it does nothing
-        derived_convert.get_typed_cache_mut::<T>();
+        convert.get_typed_cache_mut::<T>();
 
         // registry
         registry.register_convert_handle::<T>(self.handle.clone(), self.settings.clone());
 
-        derived_convert
+        convert
             .handle_to_converter_type
             .insert(self.handle.to_dyn(), TypeId::of::<T>());
 
-        derived_convert.queue_conversion(registry, self.handle.to_dyn());
+        convert.queue_conversion(registry, self.handle.to_dyn());
     }
 
     fn handle(&self) -> DynAssetHandle {
@@ -90,10 +86,10 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
 // Generic
 //
 
-pub struct AssetCacheDerivedConvert {
+pub struct AssetCacheConvert {
     asset_handle_ctx: AssetHandleContext,
 
-    typed: FxHashMap<TypeId, Box<dyn DynDerivedConvert>>,
+    typed: FxHashMap<TypeId, Box<dyn DynAssetConvert>>,
 
     // queue
     queue: VecDeque<DynAssetHandle>,
@@ -105,7 +101,7 @@ pub struct AssetCacheDerivedConvert {
     handle_to_converter_type: FxHashMap<DynAssetHandle, TypeId>,
 }
 
-impl AssetCacheDerivedConvert {
+impl AssetCacheConvert {
     pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
         Self {
             asset_handle_ctx,
@@ -123,11 +119,11 @@ impl AssetCacheDerivedConvert {
     /// Get typed cache assuming it exists
     pub fn get_typed_cache_ref<T: AssetConverter + 'static>(
         &self,
-    ) -> Option<&TypedDerivedConvert<T>> {
+    ) -> Option<&TypedAssetConvert<T>> {
         self.typed.get(&TypeId::of::<T>()).map(|dyn_convert| {
             dyn_convert
                 .as_any()
-                .downcast_ref::<TypedDerivedConvert<T>>()
+                .downcast_ref::<TypedAssetConvert<T>>()
                 .expect("could not downcast typed storage cache")
         })
     }
@@ -135,14 +131,14 @@ impl AssetCacheDerivedConvert {
     /// Get mutable typed cache or create if it doesnt exist
     pub fn get_typed_cache_mut<T: AssetConverter + 'static>(
         &mut self,
-    ) -> &mut TypedDerivedConvert<T> {
+    ) -> &mut TypedAssetConvert<T> {
         let entry = self
             .typed
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedDerivedConvert::<T>::new()));
+            .or_insert(Box::new(TypedAssetConvert::<T>::new()));
         entry
             .as_any_mut()
-            .downcast_mut::<TypedDerivedConvert<T>>()
+            .downcast_mut::<TypedAssetConvert<T>>()
             .expect("could not downcast typed storage cache")
     }
 
@@ -312,11 +308,11 @@ impl AssetCacheDerivedConvert {
 // Typed
 //
 
-pub struct TypedDerivedConvert<T: AssetConverter> {
+pub struct TypedAssetConvert<T: AssetConverter> {
     ty: PhantomData<T>,
 }
 
-impl<T: AssetConverter + 'static> TypedDerivedConvert<T> {
+impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
     pub fn new() -> Self {
         Self { ty: PhantomData }
     }
@@ -332,28 +328,28 @@ pub enum ConversionPollResult {
 // Dyn
 //
 
-pub trait DynDerivedConvert {
+pub trait DynAssetConvert {
     fn convert(
         &mut self,
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-        derived_registry: &mut AssetCacheRegistry,
+        registry: &mut AssetCacheRegistry,
         dyn_handle: DynAssetHandle,
     ) -> (ConversionPollResult, Option<Box<dyn DynConvertRequest>>);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
+impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
     fn convert(
         &mut self,
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-        derived_registry: &mut AssetCacheRegistry,
+        registry: &mut AssetCacheRegistry,
         dyn_handle: DynAssetHandle,
     ) -> (ConversionPollResult, Option<Box<dyn DynConvertRequest>>) {
         // TODO: maybe just store the dyn directly?
@@ -361,7 +357,7 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");
 
-        let Some(settings) = derived_registry
+        let Some(settings) = registry
             .get_typed_convert_registry_mut::<T>()
             .handle_to_settings
             .get(&handle)
@@ -370,7 +366,7 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
             panic!("could not get settings from handle");
         };
 
-        let mut runtime = ConvertRuntime::new(storage, loader, derived_registry);
+        let mut runtime = ConvertRuntime::new(storage, loader, registry);
         let mut convert_ctx = ConvertContext::new(&mut runtime);
 
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
@@ -387,7 +383,6 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
             ),
             ConvertAssetStatus::Success(asset) => {
                 // insert into typed storage
-                // derived_storage.insert::<T::Asset>(ctx, derived_handle.clone(), derived_asset);
                 storage.insert::<T::Asset>(handle.clone(), asset);
 
                 // register deps
