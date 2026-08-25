@@ -1,10 +1,9 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedStorage,
-        AssetCacheLoad, AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle,
-        AssetHandleContext, GetAssetResult, GetDerivedResult, InsertAssetBuilder, LoadAssetBuilder,
-        LoadContext, LoadRuntime, LoadState, LoadStatus,
+        self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheLoad, AssetCacheRegistry,
+        AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, GetAssetResult,
+        InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -17,7 +16,6 @@ pub struct AssetCache {
     storage: AssetCacheStorage,
     loader: AssetCacheLoad,
 
-    pub derived_storage: AssetCacheDerivedStorage,
     pub derived_convert: AssetCacheDerivedConvert,
     pub registry: AssetCacheRegistry,
 
@@ -40,7 +38,6 @@ impl AssetCache {
             asset_handle_ctx.clone(),
         );
 
-        let derived_storage = AssetCacheDerivedStorage::new(asset_handle_ctx.clone());
         let derived_convert = AssetCacheDerivedConvert::new(asset_handle_ctx.clone());
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
@@ -58,7 +55,6 @@ impl AssetCache {
             loader,
             dependency,
 
-            derived_storage,
             derived_convert,
             registry,
 
@@ -90,7 +86,6 @@ impl AssetCache {
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
-            &mut self.derived_storage,
             &mut self.derived_convert,
             &mut self.dependency,
             #[cfg(not(target_arch = "wasm32"))]
@@ -103,7 +98,6 @@ impl AssetCache {
             &mut self.storage,
             &mut self.loader,
             &mut self.dependency,
-            &mut self.derived_storage,
             &mut self.registry,
         );
     }
@@ -113,7 +107,8 @@ impl AssetCache {
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
     ) {
-        self.loader.load_asset_with_handle::<T>(handle, settings);
+        self.loader
+            .load_asset_with_handle::<T>(&mut self.registry, handle, settings);
     }
 
     pub fn new_empty_handle<T: Asset>(&self) -> AssetHandle<T> {
@@ -145,12 +140,9 @@ impl AssetCache {
             return GetAssetResult::Success(success);
         }
 
-        match self.loader.get_status(&handle.to_dyn()) {
+        match self.registry.get_status(&handle.to_dyn()) {
             LoadStatus::Loading => GetAssetResult::Loading,
             LoadStatus::Failed => GetAssetResult::Error,
-            LoadStatus::Loaded => {
-                panic!("could not get asset from storage but its marked as loaded")
-            }
         }
     }
 
@@ -185,22 +177,12 @@ impl AssetCache {
         // self.derived.clear_unused_handles();
     }
 
-    pub fn convert_derived<T: AssetConverter + 'static>(
+    pub fn convert<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
         self.derived_convert
             .register_conversion::<T>(&mut self.registry, settings)
-    }
-
-    pub fn get_derived<T: Asset + 'static>(&self, handle: &AssetHandle<T>) -> GetDerivedResult<T> {
-        if let Some(success) = self.derived_storage.get(handle) {
-            GetDerivedResult::Success(success)
-        } else {
-            GetDerivedResult::Error
-        }
-
-        // TODO: return status?
     }
 
     //

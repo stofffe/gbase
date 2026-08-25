@@ -6,7 +6,6 @@ mod builders;
 mod cache;
 mod dependency;
 mod derive_convert;
-mod derive_storage;
 mod handle;
 mod implementation;
 mod load;
@@ -20,7 +19,6 @@ pub use builders::*;
 pub use cache::*;
 pub use dependency::*;
 pub use derive_convert::*;
-pub use derive_storage::*;
 pub use handle::*;
 pub use implementation::*;
 pub use load::*;
@@ -76,20 +74,24 @@ pub fn convert_derived_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
 ) -> AssetHandle<T::Asset> {
-    cache.convert_derived::<T>(settings)
-}
-
-pub fn get_derived_asset<T: Asset + 'static>(
-    cache: &AssetCache,
-    handle: AssetHandle<T>,
-) -> GetDerivedResult<T> {
-    cache.get_derived::<T>(&handle)
+    cache.convert::<T>(settings)
 }
 
 pub fn get_or_convert_derived_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
-) -> GetDerivedResult<T::Asset> {
-    let handle = cache.convert_derived::<T>(settings);
-    cache.get_derived(&handle)
+) -> GetAssetResult<'_, T::Asset> {
+    let handle = cache.convert::<T>(settings);
+    cache.get(&handle)
+}
+
+pub fn get_or_convert_derived_asset_cloned<T: AssetConverter + 'static>(
+    cache: &mut AssetCache,
+    settings: T::Settings,
+) -> GetAssetResult<'_, T::Asset>
+where
+    T::Asset: Clone,
+{
+    let handle = cache.convert::<T>(settings);
+    cache.get(&handle)
 }

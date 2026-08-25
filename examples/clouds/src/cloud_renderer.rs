@@ -177,12 +177,12 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
+        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
-        .unwrap_success();
+        .unwrap_success()
+        .clone();
         let mesh = self.mesh_handle.get(cache).unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")

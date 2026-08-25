@@ -62,7 +62,7 @@ impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
             return;
         };
 
-        loader.load_asset_with_handle::<T>(handle, settings.clone());
+        loader.load_asset_with_handle::<T>(registry, handle, settings.clone());
     }
 
     fn as_any(&self) -> &dyn Any {

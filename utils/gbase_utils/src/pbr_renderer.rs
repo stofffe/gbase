@@ -6,12 +6,12 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+        self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
+        MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
     },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
-    tracing, wgpu, Context,
+    tracing, wgpu, CallbackResult, Context,
 };
 use std::collections::BTreeSet;
 
@@ -193,12 +193,13 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
+        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
+            ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
         )
-        .unwrap_success();
+        .unwrap_success()
+        .clone();
+
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
             buffers.push(render::VertexBufferLayout::from_vertex_formats(

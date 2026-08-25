@@ -17,23 +17,23 @@ pub trait Asset: Any {}
 //
 
 pub struct AssetCacheStorage {
-    typed_caches: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
+    typed_storage: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
 
     asset_handle_ctx: AssetHandleContext,
 }
 
 impl AssetCacheStorage {
     pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
-        let typed_caches = FxHashMap::default();
+        let typed_storage = FxHashMap::default();
         Self {
             asset_handle_ctx,
-            typed_caches,
+            typed_storage,
         }
     }
 
     /// Get typed cache assuming it exists
     pub fn get_typed_cache_ref<T: Asset + 'static>(&self) -> Option<&TypedAssetStorage<T>> {
-        self.typed_caches.get(&TypeId::of::<T>()).map(|a| {
+        self.typed_storage.get(&TypeId::of::<T>()).map(|a| {
             a.as_any()
                 .downcast_ref::<TypedAssetStorage<T>>()
                 .expect("could not downcast typed storage cache")
@@ -43,7 +43,7 @@ impl AssetCacheStorage {
     /// Get mutable typed cache or create if it doesnt exist
     pub fn get_typed_cache_mut<T: Asset + 'static>(&mut self) -> &mut TypedAssetStorage<T> {
         let entry = self
-            .typed_caches
+            .typed_storage
             .entry(TypeId::of::<T>())
             .or_insert(Box::new(TypedAssetStorage::<T>::new(
                 self.asset_handle_ctx.clone(),

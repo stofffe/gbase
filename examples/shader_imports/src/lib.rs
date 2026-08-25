@@ -1,17 +1,17 @@
-use std::path::PathBuf;
-
+use gbase::render::ArcHandle;
 use gbase::{
     asset::{
-        self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
-        ConvertContext, EmptyError, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
-        ImageLoader, ImageLoaderSettings, LoadContext, MeshGpuConverter, MeshGpuConverterSettings,
+        self, Asset, AssetConverter, AssetHandle, ConvertAssetStatus, ConvertContext, EmptyError,
+        GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
+        ImageLoaderSettings, LoadContext, MeshGpuConverter, MeshGpuConverterSettings,
     },
     filesystem,
-    render::{self, ArcPipelineLayout, Image},
+    render::{self, ArcPipelineLayout, ArcShaderModule, Image, Mesh},
     tracing,
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
+use std::path::PathBuf;
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
 pub fn run() {
@@ -136,10 +136,10 @@ impl AssetConverter for ShaderWithImportsConverter {
                 &ShaderWithImportsConverterOptions::new(import.clone()),
             );
             match conversion_result {
-                ConvertAssetResult::Loading => return ConvertAssetStatus::Loading,
+                GetAssetResult::Loading => return ConvertAssetStatus::Loading,
                 // TODO: add source failed?
-                ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
-                ConvertAssetResult::Success(result) => import_sources.push(result.source.clone()),
+                GetAssetResult::Error => return ConvertAssetStatus::Failed,
+                GetAssetResult::Success(result) => import_sources.push(result.source.clone()),
             }
         }
 
@@ -170,7 +170,7 @@ impl ShaderWithImportsGpuConverterSettings {
 struct ShaderWithImportsGpuConverter;
 
 impl AssetConverter for ShaderWithImportsGpuConverter {
-    type Asset = wgpu::ShaderModule;
+    type Asset = ArcShaderModule;
     type Settings = ShaderWithImportsGpuConverterSettings;
     type Error = EmptyError;
 
@@ -183,9 +183,9 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
             ctx,
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
-            ConvertAssetResult::Success(arc_handle) => arc_handle,
-            ConvertAssetResult::Loading => return ConvertAssetStatus::Loading,
-            ConvertAssetResult::Failed => return ConvertAssetStatus::Failed,
+            GetAssetResult::Success(arc_handle) => arc_handle,
+            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            GetAssetResult::Error => return ConvertAssetStatus::Failed,
         };
 
         #[cfg(not(target_arch = "wasm32"))]
@@ -194,7 +194,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
                 render::ShaderBuilder::new().build_err_non_arc(ctx, shader_source.source.clone());
 
             match shader {
-                Ok(shader) => ConvertAssetStatus::Success(shader),
+                Ok(shader) => ConvertAssetStatus::Success(ArcHandle::new(ctx, shader)),
                 Err(_) => ConvertAssetStatus::Failed,
             }
         }
@@ -202,7 +202,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         {
             let shader =
                 render::ShaderBuilder::new().build_non_arc(ctx, shader_source.source.clone());
-            ConvertAssetStatus::Success(shader)
+            ConvertAssetStatus::Success(ArcHandle::new(ctx, shader))
         }
     }
 }
@@ -274,7 +274,7 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let asset::GetDerivedResult::Success(mesh) =
+        let asset::GetAssetResult::Success(mesh) =
             asset::get_or_convert_derived_asset::<MeshGpuConverter>(
                 cache,
                 MeshGpuConverterSettings::new(self.mesh_handle.clone()),
@@ -282,8 +282,9 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let mesh = mesh.clone();
 
-        let asset::GetDerivedResult::Success(shader) =
+        let asset::GetAssetResult::Success(shader) =
             asset::get_or_convert_derived_asset::<ShaderWithImportsGpuConverter>(
                 cache,
                 ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
@@ -291,8 +292,9 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let shader = shader.clone();
 
-        let asset::GetDerivedResult::Success(texture) =
+        let asset::GetAssetResult::Success(texture) =
             asset::get_or_convert_derived_asset::<ImageGpuConverter>(
                 cache,
                 ImageGpuConverterOptions::new(self.texture_handle.clone()),
@@ -300,6 +302,7 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let texture = texture.clone();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -311,13 +314,17 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let buffer_layout = asset::get(cache, self.mesh_handle.clone())
-            .unwrap_success()
-            .buffer_layout();
-        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
-            .buffers(buffer_layout)
-            .build(ctx);
+        let GetAssetResult::Success(buffer) = asset::get::<Mesh>(cache, self.mesh_handle.clone())
+        else {
+            return CallbackResult::Continue;
+        };
+        let buffer_layout = buffer.buffer_layout();
+
+        let pipeline =
+            render::RenderPipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())
+                .single_target(render::ColorTargetState::from_current_screen(ctx))
+                .buffers(buffer_layout)
+                .build(ctx);
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(

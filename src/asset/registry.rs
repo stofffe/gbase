@@ -1,4 +1,4 @@
-use crate::asset::{AssetConverter, AssetHandle, AssetHandleContext, AssetLoader};
+use crate::asset::{AssetConverter, AssetHandle, AssetHandleContext, AssetLoader, DynAssetHandle};
 use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
 
@@ -6,9 +6,17 @@ use std::any::{Any, TypeId};
 // Genereic
 //
 
+#[derive(Clone)]
+pub enum LoadStatus {
+    Loading,
+    Failed,
+}
+
 pub struct AssetCacheRegistry {
     typed_convert_registries: FxHashMap<TypeId, Box<dyn DynConvertRegistry>>,
     typed_load_registries: FxHashMap<TypeId, Box<dyn DynLoadRegistry>>,
+
+    status: FxHashMap<DynAssetHandle, LoadStatus>,
 
     asset_handle_ctx: AssetHandleContext,
 }
@@ -18,6 +26,7 @@ impl AssetCacheRegistry {
         Self {
             typed_convert_registries: FxHashMap::default(),
             typed_load_registries: FxHashMap::default(),
+            status: FxHashMap::default(),
             asset_handle_ctx,
         }
     }
@@ -138,6 +147,35 @@ impl AssetCacheRegistry {
         self.register_load_handle::<T>(new_handle.clone(), settings.clone());
 
         (new_handle, true)
+    }
+
+    //
+    // Status
+    //
+
+    pub fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
+        self.status.insert(handle, status);
+    }
+
+    pub fn get_status(&mut self, handle: &DynAssetHandle) -> LoadStatus {
+        self.status
+            .get(handle)
+            .expect("could not get asset status")
+            .clone()
+        // match self.status.get(handle) {
+        //     Some(result) => result.clone(),
+        //     None => {
+        //         tracing::error!(
+        //             "temp solution for non existen status for {}: return failed",
+        //             handle
+        //         );
+        //         LoadStatus::Failed
+        //     }
+        // }
+    }
+
+    pub fn remove_status(&mut self, handle: &DynAssetHandle) {
+        self.status.remove(handle);
     }
 }
 

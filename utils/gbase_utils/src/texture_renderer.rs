@@ -109,12 +109,12 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
+        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
-        .unwrap_success();
+        .unwrap_success()
+        .clone();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
@@ -186,12 +186,12 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
+        let shader = asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_depth_handle.clone()),
+            ShaderGpuConverterOptions::new(self.shader_depth_handle.clone()),
         )
-        .unwrap_success();
+        .unwrap_success()
+        .clone();
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())

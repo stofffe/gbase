@@ -4,7 +4,7 @@ use gbase::{
         ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
         ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
-    render::{self, ArcPipelineLayout, Image},
+    render::{self, ArcHandle, ArcPipelineLayout, Image},
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
@@ -22,7 +22,7 @@ struct App {
     shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
 
-    shader_derived: AssetHandle<wgpu::ShaderModule>,
+    shader_derived: AssetHandle<ArcHandle<wgpu::ShaderModule>>,
 }
 
 impl Callbacks for App {
@@ -88,7 +88,7 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let asset::GetDerivedResult::Success(mesh) =
+        let asset::GetAssetResult::Success(mesh) =
             asset::get_or_convert_derived_asset::<MeshGpuConverter>(
                 cache,
                 MeshGpuConverterSettings::new(self.mesh_handle.clone()),
@@ -96,8 +96,9 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let mesh = mesh.clone();
 
-        let asset::GetDerivedResult::Success(shader) =
+        let asset::GetAssetResult::Success(shader) =
             asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
                 cache,
                 ShaderGpuConverterOptions::new(self.shader_handle.clone()),
@@ -105,8 +106,9 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let shader = shader.clone();
 
-        let asset::GetDerivedResult::Success(texture) =
+        let asset::GetAssetResult::Success(texture) =
             asset::get_or_convert_derived_asset::<ImageGpuConverter>(
                 cache,
                 ImageGpuConverterOptions::new(self.texture_handle.clone()),
@@ -114,6 +116,7 @@ impl Callbacks for App {
         else {
             return CallbackResult::Continue;
         };
+        let texture = texture.clone();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -128,10 +131,11 @@ impl Callbacks for App {
         let buffer_layout = asset::get(cache, self.mesh_handle.clone())
             .unwrap_success()
             .buffer_layout();
-        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
-            .single_target(render::ColorTargetState::from_current_screen(ctx))
-            .buffers(buffer_layout)
-            .build(ctx);
+        let pipeline =
+            render::RenderPipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())
+                .single_target(render::ColorTargetState::from_current_screen(ctx))
+                .buffers(buffer_layout)
+                .build(ctx);
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(

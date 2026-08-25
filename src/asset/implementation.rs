@@ -2,7 +2,10 @@ use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
     asset::{AssetConverter, ConvertAssetStatus, ConvertContext, GetAssetResult, LoadContext},
     filesystem,
-    render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
+    render::{
+        self, ArcHandle, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder,
+        TextureBuilder,
+    },
     Context,
 };
 use std::path::PathBuf;
@@ -79,6 +82,8 @@ impl AssetConverter for BoundingBoxConverter {
 // Shader
 //
 
+impl Asset for ArcHandle<wgpu::ShaderModule> {}
+
 impl Asset for Shader {}
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -130,7 +135,7 @@ impl ShaderGpuConverterOptions {
 impl Asset for wgpu::ShaderModule {}
 
 impl AssetConverter for ShaderGpuConverter {
-    type Asset = wgpu::ShaderModule;
+    type Asset = ArcHandle<wgpu::ShaderModule>;
     type Error = wgpu::Error;
     type Settings = ShaderGpuConverterOptions;
 
@@ -150,13 +155,15 @@ impl AssetConverter for ShaderGpuConverter {
         #[cfg(target_arch = "wasm32")]
         {
             let shader_module = source.config.build_non_arc(ctx, shader_source);
-            crate::asset::ConvertAssetStatus::Success(shader_module)
+            crate::asset::ConvertAssetStatus::Success(ArcHandle::new(ctx, shader_module))
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             match source.config.build_err_non_arc(ctx, shader_source) {
-                Ok(shader_module) => ConvertAssetStatus::Success(shader_module),
+                Ok(shader_module) => {
+                    ConvertAssetStatus::Success(ArcHandle::new(ctx, shader_module))
+                }
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);
                     ConvertAssetStatus::Failed

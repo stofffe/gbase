@@ -1,10 +1,13 @@
+auto implement shadermodule
+use status for  
+converters allowed to request loads?
+
+remove arc from storage
 give better debug names
-clean up a lot
 if it initally fails it does reload correctly
 fix inserting?
-remove status from load or add status to derived?
 
-cache failed conversion to avoid polling it in beginning of program
+eache failed conversion to avoid polling it in beginning of program
 a lot of invalidation on start load
 dependency graph for derivde assets
 cycles?

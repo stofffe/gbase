@@ -107,22 +107,26 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let ConvertAssetResult::Success(shader) = asset::convert_asset::<ShaderGpuConverter>(
-            ctx,
-            cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        ) else {
+        let GetAssetResult::Success(shader) =
+            asset::get_or_convert_derived_asset::<ShaderGpuConverter>(
+                cache,
+                ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            )
+        else {
             return;
         };
-        let ConvertAssetResult::Success(font_atlas) = asset::convert_asset::<FontAtlasConverter>(
-            ctx,
-            cache,
-            &FontAtlasConverterSettings {
-                font: self.font.clone(),
-                supported_chars: self.font_atlas_supported_chars.to_vec(),
-                font_raster_size: self.font_atlas_raster_size as u32,
-            },
-        ) else {
+        let shader = shader.clone();
+
+        let GetAssetResult::Success(font_atlas) =
+            asset::get_or_convert_derived_asset::<FontAtlasConverter>(
+                cache,
+                FontAtlasConverterSettings {
+                    font: self.font.clone(),
+                    supported_chars: self.font_atlas_supported_chars.to_vec(),
+                    font_raster_size: self.font_atlas_raster_size as u32,
+                },
+            )
+        else {
             return;
         };
 
@@ -203,15 +207,16 @@ impl UIRenderer {
             ])
             .build(ctx);
 
-        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
-            .buffers(vec![UIElementInstace::desc()])
-            .topology(wgpu::PrimitiveTopology::TriangleStrip)
-            .single_target(
-                render::ColorTargetState::new()
-                    .format(view_format)
-                    .blend(wgpu::BlendState::ALPHA_BLENDING),
-            )
-            .build(ctx);
+        let pipeline =
+            render::RenderPipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())
+                .buffers(vec![UIElementInstace::desc()])
+                .topology(wgpu::PrimitiveTopology::TriangleStrip)
+                .single_target(
+                    render::ColorTargetState::new()
+                        .format(view_format)
+                        .blend(wgpu::BlendState::ALPHA_BLENDING),
+                )
+                .build(ctx);
 
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])
