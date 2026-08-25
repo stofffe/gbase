@@ -1,11 +1,10 @@
 auto implement shadermodule
-use status for  
 converters allowed to request loads?
 
-remove arc from storage
 give better debug names
 if it initally fails it does reload correctly
 fix inserting?
+need to clean up dep graph when reload changes stuff
 
 eache failed conversion to avoid polling it in beginning of program
 a lot of invalidation on start load

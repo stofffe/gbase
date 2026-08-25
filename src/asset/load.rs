@@ -132,8 +132,12 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 tracing::info!("load error");
                 let dyn_handle = self.handle.to_dyn();
 
-                // Loader
+                // Registry
                 registry.set_status(dyn_handle.clone(), LoadStatus::Failed);
+
+                // TODO: do we want this?
+                // Dependency
+                dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
             }
         }
     }
@@ -489,9 +493,7 @@ impl LoadContext {
 
     // TODO: should probably just get from registy and then send succes response
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
-        // TODO: should probably request handle with async
-        let handle = AssetHandle::<T>::new(&self.runtime.asset_handle_ctx);
-        // TODO:
+        todo!()
         // self.runtime
         //     .load_response_sender
         //     .try_send(Box::new(LoadResponse {
@@ -501,7 +503,7 @@ impl LoadContext {
         //         watches: self.state.watches.clone(),
         //     }))
         //     .expect("could not send asset handle");
-        handle
+        // handle
     }
 
     pub async fn request_load<T: AssetLoader + 'static>(

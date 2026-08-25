@@ -179,11 +179,11 @@ impl AssetCacheConvert {
             }
 
             match result {
-                ConversionPollResult::Waiting(dyn_dependency) => {
+                ConversionPollResult::Waiting(loading_handle) => {
                     tracing::info!(
                         "conversion {} waiting for asset handle {}",
                         dyn_handle,
-                        dyn_dependency
+                        loading_handle
                     );
 
                     // TODO: feel like i need to
@@ -195,17 +195,24 @@ impl AssetCacheConvert {
 
                     // add waiting handle
                     self.waiting_for
-                        .entry(dyn_dependency)
+                        .entry(loading_handle)
                         .or_default()
                         .insert(dyn_handle);
                 }
-                ConversionPollResult::Failed => {
+                ConversionPollResult::Failed(failing_handle) => {
+                    tracing::info!("conversion failed {}", dyn_handle);
+
+                    // TODO: feel like i need to
                     // remove any pending handles
                     self.waiting_for.retain(|_, handles| {
                         handles.remove(&dyn_handle);
                         !handles.is_empty()
                     });
-                    tracing::info!("conversion failed {}", dyn_handle.id());
+
+                    self.waiting_for
+                        .entry(failing_handle)
+                        .or_default()
+                        .insert(dyn_handle);
                 }
                 ConversionPollResult::Success => {
                     // remove any pending handles
@@ -320,7 +327,7 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
 
 pub enum ConversionPollResult {
     Waiting(DynAssetHandle),
-    Failed,
+    Failed(DynAssetHandle),
     Success,
 }
 
@@ -371,7 +378,7 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
 
-        let wait_for = convert_ctx.state.wait_for.clone();
+        let wait_for = convert_ctx.state.blocking_handle.clone();
         let dependencies = convert_ctx.state.dependencies.clone();
 
         match conversion {
@@ -393,7 +400,13 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 
                 (ConversionPollResult::Success, None)
             }
-            ConvertAssetStatus::Failed => (ConversionPollResult::Failed, None),
+            ConvertAssetStatus::Failed => (
+                ConversionPollResult::Failed(
+                    // TODO: temp
+                    wait_for.expect("should have blocking dependency if in loading status"),
+                ),
+                None,
+            ),
         }
     }
 
@@ -435,7 +448,7 @@ impl<'a> ConvertRuntime<'a> {
 
 pub struct ConvertState {
     // The dependency that caused the conversion to return waiting
-    pub wait_for: Option<DynAssetHandle>,
+    pub blocking_handle: Option<DynAssetHandle>,
 
     // If wait_for was a nested conversion that resulted in a new handle, store the request here
     pub conversion_request: Option<Box<dyn DynConvertRequest>>,
@@ -447,7 +460,7 @@ pub struct ConvertState {
 impl ConvertState {
     pub fn new() -> Self {
         Self {
-            wait_for: None,
+            blocking_handle: None,
             conversion_request: None,
             dependencies: FxHashSet::default(),
         }
@@ -466,6 +479,7 @@ impl<'runtime> ConvertContext<'runtime> {
         Self { runtime, state }
     }
 
+    // TODO: mayne use internal enum return which can include the blocking instead
     pub fn get_load_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
@@ -476,11 +490,15 @@ impl<'runtime> ConvertContext<'runtime> {
 
         match self.runtime.registry.get_status(&handle.to_dyn()) {
             LoadStatus::Loading => {
-                self.state.wait_for = Some(handle.to_dyn());
+                self.state.blocking_handle = Some(handle.to_dyn());
                 tracing::info!("{} is not ready, set blocking", handle);
                 GetAssetResult::Loading
             }
-            LoadStatus::Failed => GetAssetResult::Error,
+            LoadStatus::Failed => {
+                self.state.blocking_handle = Some(handle.to_dyn());
+                tracing::info!("{} failed, set blocking", handle);
+                GetAssetResult::Error
+            }
         }
     }
 
@@ -498,7 +516,7 @@ impl<'runtime> ConvertContext<'runtime> {
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
-        self.state.wait_for = Some(handle.to_dyn());
+        self.state.blocking_handle = Some(handle.to_dyn());
         if created_new {
             self.state.conversion_request = Some(Box::new(ConvertRequest::<G>::new(
                 handle.clone(),
@@ -509,7 +527,7 @@ impl<'runtime> ConvertContext<'runtime> {
         match self.runtime.storage.get(&handle) {
             Some(asset) => GetAssetResult::Success(asset),
             None => {
-                self.state.wait_for = Some(handle.to_dyn());
+                self.state.blocking_handle = Some(handle.to_dyn());
                 GetAssetResult::Loading
             }
         }
