@@ -11,6 +11,7 @@ pub struct AssetCacheDerivedRegistry {
 
     asset_handle_ctx: AssetHandleContext,
 }
+
 impl AssetCacheDerivedRegistry {
     pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
         Self {

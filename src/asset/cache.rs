@@ -83,7 +83,7 @@ impl AssetCache {
         #[cfg(not(target_arch = "wasm32"))]
         self.reloader.poll_reload(&mut self.loader);
 
-        // assets
+        // loading
         self.loader.poll_handle_requests();
 
         self.loader.poll_loaded(
@@ -104,9 +104,6 @@ impl AssetCache {
             &mut self.derived_storage,
             &mut self.derived_registry,
         );
-
-        // NOTE: temp
-        self.dependency.debug_graph();
     }
 
     pub(crate) fn load<T: AssetLoader + 'static>(
@@ -140,15 +137,6 @@ impl AssetCache {
     pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         self.storage.insert_successful_new_handle(data)
     }
-
-    // pub fn overwrite_handle<T: Asset + 'static>(
-    //     &mut self,
-    //     data: T,
-    //     handle: AssetHandle<T>,
-    // ) -> AssetHandle<T> {
-    //     self.storage
-    //         .insert_successful_existing_handle(&mut self.derived, handle, data)
-    // }
 
     pub fn get<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         if let Some(success) = self.storage.get(handle) {
@@ -195,22 +183,6 @@ impl AssetCache {
         // self.derived.clear_unused_handles();
     }
 
-    // pub fn convert<G: AssetConverter + 'static>(
-    //     &mut self,
-    //     ctx: &mut Context,
-    //     settings: &G::Settings,
-    // ) -> ConvertAssetResult<G::TargetAsset> {
-    //     self.derived.convert::<G>(
-    //         ctx,
-    //         &mut self.storage,
-    //         &mut self.loader,
-    //         &mut self.derived_storage,
-    //         &mut self.derived_convert,
-    //         &mut self.derived_registry,
-    //         settings,
-    //     )
-    // }
-
     pub fn convert_derived<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
@@ -221,7 +193,7 @@ impl AssetCache {
     }
 
     pub fn get_derived<T: DerivedAsset + 'static>(
-        &mut self,
+        &self,
         handle: &DerivedHandle<T>,
     ) -> GetDerivedResult<T> {
         if let Some(success) = self.derived_storage.get(handle) {
@@ -230,13 +202,7 @@ impl AssetCache {
             GetDerivedResult::Error
         }
 
-        // match self..get_status(&handle.to_dyn()) {
-        //     LoadStatus::Loading => GetDerivedResult::Loading,
-        //     LoadStatus::Failed => GetDerivedResult::Error,
-        //     LoadStatus::Loaded => {
-        //         panic!("could not get asset from storage but its marked as loaded")
-        //     }
-        // }
+        // TODO: return status?
     }
 
     //

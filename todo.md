@@ -1,19 +1,16 @@
+give better debug names
+clean up a lot
+if it initally fails it does reload correctly
+fix inserting?
+
 cache failed conversion to avoid polling it in beginning of program
 a lot of invalidation on start load
 dependency graph for derivde assets
 cycles?
 real async runtime with async file loads
 
-register reload (first with fn, then with settings)
-trac watched paths instead of sending messages
-
-track deps and invalidate handles
-cache deps by settigns to avoid creating new ones for each sub dependecy
-
 reload queue to avoid same dep being reloaded many times
-remove reload closures and use typed loader with settings cache isntead for reloading
 
-depenecies between derivced assets
 reuse handles for inserted assets by using some (parent + id (id could be string?) ) 
 
 next up

@@ -1,18 +1,66 @@
 use crate::{
     asset::{
-        dependency, AssetCacheDependency, AssetCacheDerivedRegistry, AssetCacheDerivedStorage,
-        AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandleContext, ConvertAssetStatus,
-        ConvertContext, ConvertRuntime, DerivedHandle, DynAssetHandle, DynDependency,
-        DynDerivedHandle,
+        Asset, AssetCacheDependency, AssetCacheDerivedRegistry, AssetCacheDerivedStorage,
+        AssetCacheLoad, AssetCacheStorage, AssetHandle, AssetHandleContext, DerivedAsset,
+        DerivedHandle, DynAssetHandle, DynDerivedHandle, GetAssetResult, LoadStatus,
     },
+    render::ArcHandle,
     Context,
 };
+use core::error;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
     collections::VecDeque,
+    fmt::Display,
+    hash::Hash,
     marker::PhantomData,
 };
+
+//
+// Types
+//
+
+pub trait DerivedAssetSettings: Hash + Eq + Clone {}
+impl<T: Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+
+pub trait AssetConverter {
+    type TargetAsset: DerivedAsset;
+    type Settings: DerivedAssetSettings;
+    // TODO: is this even being used?
+    type Error: error::Error;
+
+    fn convert(
+        ctx: &mut Context,
+        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
+        settings: &Self::Settings,
+    ) -> ConvertAssetStatus<Self::TargetAsset>;
+}
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub enum DynDependency {
+    Asset(DynAssetHandle),
+    Derived(DynDerivedHandle),
+}
+
+impl Display for DynDependency {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DynDependency::Asset(dyn_asset_handle) => {
+                write!(f, "[{}: dyn dependency]", dyn_asset_handle)
+            }
+            DynDependency::Derived(dyn_derived_handle) => {
+                write!(f, "[{}: dyn dependency]", dyn_derived_handle)
+            }
+        }
+    }
+}
+
+pub enum ConvertAssetStatus<T: DerivedAsset> {
+    Loading,
+    Success(T),
+    Failed,
+}
 
 pub struct ConvertRequest<T: AssetConverter> {
     handle: DerivedHandle<T::TargetAsset>,
@@ -40,8 +88,6 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
         derived_convert: &mut AssetCacheDerivedConvert,
         derived_registry: &mut AssetCacheDerivedRegistry,
     ) {
-        // derived_convert.register_conversion::<T>(derived_registry, self.settings);
-
         // register converter
         // TODO: kinda weird since it does nothing
         derived_convert.get_typed_cache_mut::<T>();
@@ -400,5 +446,146 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
+    }
+}
+
+//
+// Conversion context
+//
+
+pub struct ConvertRuntime<'a> {
+    // to get assets
+    pub(crate) storage: &'a mut AssetCacheStorage,
+    // to get asset status
+    pub(crate) loader: &'a mut AssetCacheLoad,
+    // to get derived assets
+    pub(crate) derived_storage: &'a mut AssetCacheDerivedStorage,
+    // to get setting -> derived handle mapping
+    pub(crate) derived_registry: &'a mut AssetCacheDerivedRegistry,
+}
+
+impl<'a> ConvertRuntime<'a> {
+    pub fn new(
+        storage: &'a mut AssetCacheStorage,
+        loader: &'a mut AssetCacheLoad,
+        derived_storage: &'a mut AssetCacheDerivedStorage,
+        derived_registry: &'a mut AssetCacheDerivedRegistry,
+    ) -> Self {
+        Self {
+            storage,
+            loader,
+            derived_storage,
+            derived_registry,
+        }
+    }
+}
+
+pub struct ConvertState {
+    // The dependency that caused the conversion to return waiting
+    pub wait_for: Option<DynDependency>,
+
+    // If wait_for was a nested conversion that resulted in a new handle, store the request here
+    pub conversion_request: Option<Box<dyn DynConvertRequest>>,
+
+    // All dependencies accessed during the conversion
+    pub dependencies: FxHashSet<DynDependency>,
+}
+
+impl ConvertState {
+    pub fn new() -> Self {
+        Self {
+            wait_for: None,
+            conversion_request: None,
+            dependencies: FxHashSet::default(),
+        }
+    }
+}
+
+/// Convertsion context related to a specific conversion
+pub struct ConvertContext<'runtime> {
+    pub runtime: &'runtime mut ConvertRuntime<'runtime>,
+    pub state: ConvertState,
+}
+
+impl<'runtime> ConvertContext<'runtime> {
+    pub fn new(runtime: &'runtime mut ConvertRuntime<'runtime>) -> Self {
+        let state = ConvertState::new();
+        Self { runtime, state }
+    }
+
+    pub fn get_load_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
+        // register deps
+        self.state.dependencies.insert(handle.to_dyn_dependency());
+
+        if let Some(asset) = self.runtime.storage.get(handle) {
+            return GetAssetResult::Success(asset);
+        }
+
+        match self.runtime.loader.get_status(&handle.to_dyn()) {
+            LoadStatus::Loading => {
+                self.state.wait_for = Some(DynDependency::Asset(handle.to_dyn()));
+                tracing::info!("{} is not ready, set blocking", handle);
+                GetAssetResult::Loading
+            }
+            LoadStatus::Failed => GetAssetResult::Error,
+            LoadStatus::Loaded => {
+                panic!("could not get asset from storage but its marked as loaded")
+            }
+        }
+    }
+
+    // TODO: track dependencies when this is called (maybe with depenency enum)
+    // rename to convert later
+    pub fn get_nested_convert<G: AssetConverter + 'static>(
+        &mut self,
+        ctx: &mut Context,
+        settings: &G::Settings,
+    ) -> ConvertAssetResult<G::TargetAsset> {
+        // get handle from registry
+        let (handle, created_new) = self
+            .runtime
+            .derived_registry
+            .get_or_create_handle::<G>(settings.clone());
+
+        // register deps
+        self.state.dependencies.insert(handle.to_dyn_dependency());
+
+        self.state.wait_for = Some(DynDependency::Derived(handle.to_dyn()));
+        if created_new {
+            self.state.conversion_request = Some(Box::new(ConvertRequest::<G>::new(
+                handle.clone(),
+                settings.clone(),
+            )));
+        }
+
+        match self.runtime.derived_storage.get(&handle) {
+            Some(asset) => ConvertAssetResult::Success(asset),
+            None => {
+                self.state.wait_for = Some(DynDependency::Derived(handle.to_dyn()));
+                ConvertAssetResult::Loading
+            }
+        }
+    }
+}
+
+// NOTE: user facing
+pub enum ConvertAssetResult<T: DerivedAsset> {
+    Loading,
+    Success(ArcHandle<T>),
+    Failed,
+}
+
+impl<T: DerivedAsset> ConvertAssetResult<T> {
+    /// Unwrap the result as a success
+    ///
+    /// Panics for other values than
+    pub fn unwrap_success(self) -> ArcHandle<T> {
+        match self {
+            ConvertAssetResult::Loading => {
+                panic!("asset conversion loading: unwrap success failed")
+            }
+            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
+            ConvertAssetResult::Success(arc_handle) => arc_handle,
+        }
     }
 }

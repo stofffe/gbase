@@ -244,9 +244,7 @@ impl AssetCacheLoad {
                 self.filesystem_ctx.clone(),
                 self.asset_handle_ctx.clone(),
                 self.handle_request_sender.clone(),
-                self.handle_request_receiver.clone(),
                 self.response_sender.clone(),
-                self.response_receiver.clone(),
             )));
         entry
             .as_any_mut()
@@ -342,11 +340,9 @@ pub struct TypedAssetLoad<T: AssetLoader> {
 
     // Handle request
     handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-    handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
-    response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
 }
 
 impl<T: AssetLoader> TypedAssetLoad<T> {
@@ -356,10 +352,8 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
         asset_handle_ctx: AssetHandleContext,
 
         handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-        handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
 
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
-        response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
             settings_to_handle: FxHashMap::default(),
@@ -369,10 +363,8 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
             task_ctx,
             filesystem_ctx,
             handle_request_sender,
-            handle_request_receiver,
 
             response_sender,
-            response_receiver,
         }
     }
 
