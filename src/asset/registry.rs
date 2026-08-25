@@ -1,5 +1,7 @@
-use crate::asset::{AssetConverter, AssetHandle, AssetHandleContext, AssetLoader, DynAssetHandle};
-use rustc_hash::FxHashMap;
+use crate::asset::{
+    Asset, AssetConverter, AssetHandle, AssetHandleContext, AssetLoader, DynAssetHandle,
+};
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::{Any, TypeId};
 
 //
@@ -16,7 +18,11 @@ pub struct AssetCacheRegistry {
     typed_convert_registries: FxHashMap<TypeId, Box<dyn DynConvertRegistry>>,
     typed_load_registries: FxHashMap<TypeId, Box<dyn DynLoadRegistry>>,
 
+    // the status for handles
+    // successfully loaded handles are removed
     status: FxHashMap<DynAssetHandle, LoadStatus>,
+    // handles that became available this frame
+    just_available: FxHashSet<DynAssetHandle>,
 
     asset_handle_ctx: AssetHandleContext,
 }
@@ -26,6 +32,7 @@ impl AssetCacheRegistry {
         Self {
             typed_convert_registries: FxHashMap::default(),
             typed_load_registries: FxHashMap::default(),
+            just_available: FxHashSet::default(),
             status: FxHashMap::default(),
             asset_handle_ctx,
         }
@@ -162,20 +169,24 @@ impl AssetCacheRegistry {
             .get(handle)
             .expect("could not get asset status")
             .clone()
-        // match self.status.get(handle) {
-        //     Some(result) => result.clone(),
-        //     None => {
-        //         tracing::error!(
-        //             "temp solution for non existen status for {}: return failed",
-        //             handle
-        //         );
-        //         LoadStatus::Failed
-        //     }
-        // }
     }
 
     pub fn remove_status(&mut self, handle: &DynAssetHandle) {
         self.status.remove(handle);
+    }
+
+    // Just available
+
+    pub fn set_just_available(&mut self, handle: DynAssetHandle) {
+        self.just_available.insert(handle);
+    }
+
+    pub fn handle_just_loaded(&self, handle: &DynAssetHandle) -> bool {
+        self.just_available.contains(handle)
+    }
+
+    pub fn clear_just_available(&mut self) {
+        self.just_available.clear();
     }
 }
 

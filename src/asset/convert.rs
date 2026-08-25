@@ -385,6 +385,9 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
                 // insert into typed storage
                 storage.insert::<T::Asset>(handle.clone(), asset);
 
+                // set as just available
+                registry.set_just_available(handle.to_dyn());
+
                 // register deps
                 dependency.register_dependencies(&handle.to_dyn(), &dependencies);
 

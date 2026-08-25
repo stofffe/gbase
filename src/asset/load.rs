@@ -108,9 +108,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
                 // Registry
                 registry.remove_status(&dyn_handle);
-
-                // Loader
-                loader.just_loaded.insert(dyn_handle.clone());
+                registry.set_just_available(dyn_handle.clone());
 
                 // Dependency
                 dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
@@ -205,9 +203,6 @@ pub struct AssetCacheLoad {
     // Load response
     pub(crate) response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     pub(crate) response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
-
-    // TODO: maybe this should be moved to registry to support it for converted values
-    pub(crate) just_loaded: FxHashSet<DynAssetHandle>,
 }
 
 impl AssetCacheLoad {
@@ -221,15 +216,11 @@ impl AssetCacheLoad {
         let (response_sender, response_receiver) = async_channel::unbounded();
         let (handle_request_sender, handle_request_receiver) = async_channel::unbounded();
 
-        let just_loaded = FxHashSet::default();
-
         Self {
             task_ctx,
             filesystem_ctx,
             asset_handle_ctx,
             typed_caches,
-
-            just_loaded,
 
             response_sender,
             response_receiver,
@@ -292,10 +283,6 @@ impl AssetCacheLoad {
         handle
     }
 
-    pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
-        self.just_loaded.contains(&handle.to_dyn())
-    }
-
     // check if any files completed loading and update cache and invalidate render cache
     pub fn poll_loaded(
         &mut self,
@@ -305,8 +292,6 @@ impl AssetCacheLoad {
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
-        self.just_loaded.clear();
-
         while let Ok(response) = self.response_receiver.try_recv() {
             response.handle_asset_load_response(
                 storage,

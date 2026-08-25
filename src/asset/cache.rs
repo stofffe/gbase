@@ -83,6 +83,7 @@ impl AssetCache {
         // loading
         self.loader.poll_handle_requests(&mut self.registry);
 
+        self.registry.clear_just_available();
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
@@ -165,7 +166,7 @@ impl AssetCache {
     //
 
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
-        self.loader.handle_just_loaded(handle)
+        self.registry.handle_just_loaded(&handle.to_dyn())
     }
 
     //

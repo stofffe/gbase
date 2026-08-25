@@ -16,6 +16,7 @@ real async runtime with async file loads
 reload queue to avoid same dep being reloaded many times
 
 reuse handles for inserted assets by using some (parent + id (id could be string?) ) 
+handle shutdown of background thread?
 
 next up
     [] return errors to user
