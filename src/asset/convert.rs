@@ -479,8 +479,7 @@ impl<'runtime> ConvertContext<'runtime> {
         Self { runtime, state }
     }
 
-    // TODO: mayne use internal enum return which can include the blocking instead
-    pub fn get_load_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
+    pub fn get_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
@@ -502,9 +501,8 @@ impl<'runtime> ConvertContext<'runtime> {
         }
     }
 
-    pub fn get_nested_convert<G: AssetConverter + 'static>(
+    pub fn convert_asset<G: AssetConverter + 'static>(
         &mut self,
-        ctx: &mut Context,
         settings: &G::Settings,
     ) -> GetAssetResult<'_, G::Asset> {
         // get handle from registry

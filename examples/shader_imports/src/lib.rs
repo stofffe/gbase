@@ -122,7 +122,7 @@ impl AssetConverter for ShaderWithImportsConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::Asset> {
-        let source = match convert_ctx.get_load_asset(&settings.shader) {
+        let source = match convert_ctx.get_asset(&settings.shader) {
             GetAssetResult::Loading => return ConvertAssetStatus::Loading,
             GetAssetResult::Error => return ConvertAssetStatus::Failed,
             GetAssetResult::Success(source) => source,
@@ -131,8 +131,7 @@ impl AssetConverter for ShaderWithImportsConverter {
 
         let mut import_sources = Vec::new();
         for import in source.imports.iter() {
-            let conversion_result = convert_ctx.get_nested_convert::<ShaderWithImportsConverter>(
-                ctx,
+            let conversion_result = convert_ctx.convert_asset::<ShaderWithImportsConverter>(
                 &ShaderWithImportsConverterOptions::new(import.clone()),
             );
             match conversion_result {
@@ -179,8 +178,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
-        let shader_source = match convert_ctx.get_nested_convert::<ShaderWithImportsConverter>(
-            ctx,
+        let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
             GetAssetResult::Success(arc_handle) => arc_handle,
