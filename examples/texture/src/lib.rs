@@ -1,9 +1,8 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ConvertAssetResult, DerivedHandle, ImageGpuConverter,
-        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
-        ShaderLoaderSettings,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
+        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
+        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -23,7 +22,7 @@ struct App {
     shader_handle: AssetHandle<render::Shader>,
     mesh_handle: AssetHandle<render::Mesh>,
 
-    shader_derived: DerivedHandle<wgpu::ShaderModule>,
+    shader_derived: AssetHandle<wgpu::ShaderModule>,
 }
 
 impl Callbacks for App {

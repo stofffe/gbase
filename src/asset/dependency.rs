@@ -1,9 +1,9 @@
-use crate::asset::{DynAssetHandle, DynDependency};
+use crate::asset::DynAssetHandle;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub struct AssetCacheDependency {
-    dependencies: FxHashMap<DynDependency, FxHashSet<DynDependency>>,
-    dependents: FxHashMap<DynDependency, FxHashSet<DynDependency>>,
+    dependencies: FxHashMap<DynAssetHandle, FxHashSet<DynAssetHandle>>,
+    dependents: FxHashMap<DynAssetHandle, FxHashSet<DynAssetHandle>>,
 }
 
 impl AssetCacheDependency {
@@ -14,18 +14,18 @@ impl AssetCacheDependency {
         }
     }
 
-    pub fn dependencies(&self, handle: &DynDependency) -> Option<&FxHashSet<DynDependency>> {
+    pub fn dependencies(&self, handle: &DynAssetHandle) -> Option<&FxHashSet<DynAssetHandle>> {
         self.dependencies.get(handle)
     }
 
-    pub fn dependents(&self, handle: &DynDependency) -> Option<&FxHashSet<DynDependency>> {
+    pub fn dependents(&self, handle: &DynAssetHandle) -> Option<&FxHashSet<DynAssetHandle>> {
         self.dependents.get(handle)
     }
 
     pub fn register_dependencies(
         &mut self,
-        handle: &DynDependency,
-        dependencies: &FxHashSet<DynDependency>,
+        handle: &DynAssetHandle,
+        dependencies: &FxHashSet<DynAssetHandle>,
     ) {
         for dependency in dependencies {
             self.dependencies

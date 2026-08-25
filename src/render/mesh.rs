@@ -1,4 +1,5 @@
 use crate::{
+    asset::Asset,
     glam::Vec3,
     render::{self, VertexBufferLayout},
     wgpu, Context,
@@ -352,6 +353,8 @@ impl VertexAttributeValues {
     }
 }
 
+impl Asset for BoundingBox {}
+
 // TODO: temp
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -370,6 +373,8 @@ impl BoundingBox {
 //
 // GPU
 //
+
+impl Asset for GpuMesh {}
 
 #[derive(Clone, Debug)]
 pub struct GpuMesh {

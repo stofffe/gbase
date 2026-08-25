@@ -1,6 +1,4 @@
-use crate::asset::{
-    self, Asset, AssetCache, DerivedAsset, DynAssetStorage, DynDependency, GetAssetResult,
-};
+use crate::asset::{self, Asset, AssetCache, GetAssetResult};
 use std::{
     any::{type_name, TypeId},
     fmt::Display,
@@ -36,10 +34,6 @@ impl DynAssetHandle {
             ty: PhantomData,
         })
     }
-
-    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
-        DynDependency::Asset(self.clone())
-    }
 }
 
 impl Display for DynAssetHandle {
@@ -74,10 +68,6 @@ impl<T: Asset + 'static> AssetHandle<T> {
 
     pub(crate) fn to_dyn(&self) -> DynAssetHandle {
         DynAssetHandle::new(self)
-    }
-
-    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
-        DynDependency::Asset(self.to_dyn())
     }
 
     pub fn loaded(&self, cache: &mut AssetCache) -> bool {
@@ -131,119 +121,6 @@ impl<T: Asset + 'static> Clone for AssetHandle<T> {
 impl<T: Asset + 'static> Display for AssetHandle<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}: {}]", self.id(), type_name::<T>())
-    }
-}
-
-//
-// Derived
-//
-
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct DynDerivedHandle {
-    id: Arc<u64>,
-    type_id: TypeId,
-}
-
-impl DynDerivedHandle {
-    pub fn new<T: DerivedAsset>(handle: &DerivedHandle<T>) -> Self {
-        Self {
-            id: handle.id.clone(),
-            type_id: TypeId::of::<T>(),
-        }
-    }
-
-    pub fn id(&self) -> u64 {
-        *self.id
-    }
-
-    pub fn to_typed<T: DerivedAsset + 'static>(&self) -> Option<DerivedHandle<T>> {
-        if self.type_id != TypeId::of::<T>() {
-            return None;
-        }
-
-        Some(DerivedHandle {
-            id: self.id.clone(),
-            ty: PhantomData,
-        })
-    }
-
-    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
-        DynDependency::Derived(self.clone())
-    }
-}
-
-impl Display for DynDerivedHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}: derived handle]", self.id())
-    }
-}
-
-pub struct DerivedHandle<T: DerivedAsset> {
-    pub(crate) id: Arc<u64>,
-    ty: PhantomData<T>,
-}
-
-impl<T: DerivedAsset + 'static> DerivedHandle<T> {
-    pub fn new(asset_handle_ctx: &asset::AssetHandleContext) -> Self {
-        let id = asset_handle_ctx.next_id();
-        Self {
-            id: Arc::new(id),
-            ty: PhantomData,
-        }
-    }
-
-    #[inline]
-    pub fn id(&self) -> u64 {
-        *self.id
-    }
-
-    pub(crate) fn to_dyn(&self) -> DynDerivedHandle {
-        DynDerivedHandle::new(self)
-    }
-
-    pub(crate) fn to_dyn_dependency(&self) -> DynDependency {
-        DynDependency::Derived(self.to_dyn())
-    }
-}
-
-impl<T: DerivedAsset + 'static> PartialOrd for DerivedHandle<T> {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl<T: DerivedAsset + 'static> Ord for DerivedHandle<T> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.id.cmp(&other.id)
-    }
-}
-
-impl<T: DerivedAsset + 'static> PartialEq for DerivedHandle<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl<T: DerivedAsset + 'static> Eq for DerivedHandle<T> {}
-
-impl<T: DerivedAsset + 'static> std::hash::Hash for DerivedHandle<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.id.hash(state);
-    }
-}
-
-impl<T: DerivedAsset + 'static> Clone for DerivedHandle<T> {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            ty: PhantomData,
-        }
-    }
-}
-
-impl<T: DerivedAsset + 'static> Display for DerivedHandle<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}: {}]", self.id(), type_name::<T>(),)
     }
 }
 

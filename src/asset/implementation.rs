@@ -1,9 +1,6 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
-    asset::{
-        AssetConverter, ConvertAssetStatus, ConvertContext, DerivedAsset, GetAssetResult,
-        LoadContext,
-    },
+    asset::{AssetConverter, ConvertAssetStatus, ConvertContext, GetAssetResult, LoadContext},
     filesystem,
     render::{self, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder, TextureBuilder},
     Context,
@@ -18,8 +15,6 @@ pub enum EmptyError {}
 //
 
 impl Asset for render::Mesh {}
-
-impl DerivedAsset for render::GpuMesh {}
 
 #[derive(Clone, Hash, Eq, PartialEq)]
 pub struct MeshGpuConverterSettings {
@@ -52,8 +47,6 @@ impl AssetConverter for MeshGpuConverter {
         ConvertAssetStatus::Success(gpu_mesh)
     }
 }
-
-impl DerivedAsset for render::BoundingBox {}
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct BoundingBoxConverterOptions {
@@ -123,8 +116,6 @@ impl AssetLoader for ShaderLoader {
     }
 }
 
-impl DerivedAsset for wgpu::ShaderModule {}
-
 pub struct ShaderGpuConverter;
 
 #[derive(Clone, Hash, PartialEq, Eq)]
@@ -136,6 +127,7 @@ impl ShaderGpuConverterOptions {
         Self { shader }
     }
 }
+impl Asset for wgpu::ShaderModule {}
 
 impl AssetConverter for ShaderGpuConverter {
     type TargetAsset = wgpu::ShaderModule;
@@ -242,8 +234,6 @@ impl AssetLoader for ImageLoader {
     }
 }
 
-impl DerivedAsset for render::GpuImage {}
-
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ImageGpuConverterOptions {
     image: AssetHandle<Image>,
@@ -254,6 +244,8 @@ impl ImageGpuConverterOptions {
         Self { image }
     }
 }
+
+impl Asset for GpuImage {}
 
 pub struct ImageGpuConverter;
 impl AssetConverter for ImageGpuConverter {

@@ -1,15 +1,16 @@
 use crate::asset::{AssetHandle, AssetHandleContext};
 use rustc_hash::FxHashMap;
-use std::{
-    any::{Any, TypeId},
-    sync::Arc,
-};
+use std::any::{Any, TypeId};
 
 //
 // Types
 //
 
-pub trait Asset: Any + Send + Sync {}
+#[cfg(not(target_arch = "wasm32"))]
+pub trait Asset: Any + Send {}
+
+#[cfg(target_arch = "wasm32")]
+pub trait Asset: Any {}
 
 //
 // Storage

@@ -3,7 +3,7 @@ use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
         Asset, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedStorage,
-        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle, DynDependency,
+        AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -57,11 +57,25 @@ pub enum LoadAssetResult<T: AssetLoader> {
 pub struct LoadResponse<T: AssetLoader> {
     pub(crate) handle: AssetHandle<T::Asset>,
     pub(crate) result: LoadAssetResult<T>,
-    pub(crate) dependencies: FxHashSet<DynDependency>,
+    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
     pub(crate) watches: FxHashSet<PathBuf>,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 pub trait DynLoadResponse: Send {
+    fn handle_asset_load_response(
+        self: Box<Self>,
+        storage: &mut AssetCacheStorage,
+        loader: &mut AssetCacheLoad,
+        derived_storage: &mut AssetCacheDerivedStorage,
+        derived_convert: &mut AssetCacheDerivedConvert,
+        dependency: &mut AssetCacheDependency,
+        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
+    );
+}
+
+#[cfg(target_arch = "wasm32")]
+pub trait DynLoadResponse {
     fn handle_asset_load_response(
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
@@ -96,14 +110,11 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 loader.just_loaded.insert(dyn_handle.clone());
 
                 // Dependency
-                dependency.register_dependencies(
-                    &DynDependency::Asset(dyn_handle.clone()),
-                    &self.dependencies,
-                );
+                dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 // Derived
-                derived_convert.wakeup_waiting_on_handle(&DynDependency::Asset(dyn_handle.clone()));
-                derived_convert.requeu_dependents(dependency, &dyn_handle.to_dyn_dependency());
+                derived_convert.wakeup_waiting_on_handle(&dyn_handle.clone());
+                derived_convert.requeu_dependents(dependency, &dyn_handle);
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
@@ -131,7 +142,13 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 // Request
 //
 
+#[cfg(not(target_arch = "wasm32"))]
 pub trait DynHandleRequest: Send {
+    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub trait DynHandleRequest {
     fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad);
 }
 
@@ -461,7 +478,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
 pub struct LoadState {
     pub(crate) handle: DynAssetHandle,
     // TODO: not being used rn
-    pub(crate) dependencies: FxHashSet<DynDependency>,
+    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
     pub(crate) watches: FxHashSet<PathBuf>,
 }
 
@@ -512,7 +529,7 @@ impl LoadContext {
         Self { runtime, state }
     }
 
-    pub fn dependencies(&self) -> &FxHashSet<DynDependency> {
+    pub fn dependencies(&self) -> &FxHashSet<DynAssetHandle> {
         &self.state.dependencies
     }
 
@@ -553,9 +570,7 @@ impl LoadContext {
             .await
             .expect("could not receive handle request");
 
-        self.state
-            .dependencies
-            .insert(DynDependency::Asset(handle.to_dyn()));
+        self.state.dependencies.insert(handle.to_dyn());
 
         handle
     }

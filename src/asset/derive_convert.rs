@@ -1,8 +1,8 @@
 use crate::{
     asset::{
         Asset, AssetCacheDependency, AssetCacheDerivedRegistry, AssetCacheDerivedStorage,
-        AssetCacheLoad, AssetCacheStorage, AssetHandle, AssetHandleContext, DerivedAsset,
-        DerivedHandle, DynAssetHandle, DynDerivedHandle, GetAssetResult, LoadStatus,
+        AssetCacheLoad, AssetCacheStorage, AssetHandle, AssetHandleContext, DynAssetHandle,
+        GetAssetResult, LoadStatus,
     },
     render::ArcHandle,
     Context,
@@ -12,7 +12,6 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
     collections::VecDeque,
-    fmt::Display,
     hash::Hash,
     marker::PhantomData,
 };
@@ -25,7 +24,7 @@ pub trait DerivedAssetSettings: Hash + Eq + Clone {}
 impl<T: Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
-    type TargetAsset: DerivedAsset;
+    type TargetAsset: Asset;
     type Settings: DerivedAssetSettings;
     // TODO: is this even being used?
     type Error: error::Error;
@@ -37,44 +36,25 @@ pub trait AssetConverter {
     ) -> ConvertAssetStatus<Self::TargetAsset>;
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub enum DynDependency {
-    Asset(DynAssetHandle),
-    Derived(DynDerivedHandle),
-}
-
-impl Display for DynDependency {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            DynDependency::Asset(dyn_asset_handle) => {
-                write!(f, "[{}: dyn dependency]", dyn_asset_handle)
-            }
-            DynDependency::Derived(dyn_derived_handle) => {
-                write!(f, "[{}: dyn dependency]", dyn_derived_handle)
-            }
-        }
-    }
-}
-
-pub enum ConvertAssetStatus<T: DerivedAsset> {
+pub enum ConvertAssetStatus<T: Asset> {
     Loading,
     Success(T),
     Failed,
 }
 
 pub struct ConvertRequest<T: AssetConverter> {
-    handle: DerivedHandle<T::TargetAsset>,
+    handle: AssetHandle<T::TargetAsset>,
     settings: T::Settings,
 }
 
 impl<T: AssetConverter> ConvertRequest<T> {
-    pub fn new(handle: DerivedHandle<T::TargetAsset>, settings: T::Settings) -> Self {
+    pub fn new(handle: AssetHandle<T::TargetAsset>, settings: T::Settings) -> Self {
         Self { handle, settings }
     }
 }
 
 pub trait DynConvertRequest {
-    fn handle(&self) -> DynDerivedHandle;
+    fn handle(&self) -> DynAssetHandle;
     fn request(
         self: Box<Self>,
         derived_convert: &mut AssetCacheDerivedConvert,
@@ -103,7 +83,7 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
         derived_convert.queue_conversion(self.handle.to_dyn());
     }
 
-    fn handle(&self) -> DynDerivedHandle {
+    fn handle(&self) -> DynAssetHandle {
         self.handle.to_dyn()
     }
 }
@@ -118,13 +98,13 @@ pub struct AssetCacheDerivedConvert {
     typed: FxHashMap<TypeId, Box<dyn DynDerivedConvert>>,
 
     // queue
-    queue: VecDeque<DynDerivedHandle>,
-    queued: FxHashSet<DynDerivedHandle>,
+    queue: VecDeque<DynAssetHandle>,
+    queued: FxHashSet<DynAssetHandle>,
 
     // waiting
-    waiting_for: FxHashMap<DynDependency, FxHashSet<DynDerivedHandle>>,
+    waiting_for: FxHashMap<DynAssetHandle, FxHashSet<DynAssetHandle>>,
 
-    handle_to_converter_type: FxHashMap<DynDerivedHandle, TypeId>,
+    handle_to_converter_type: FxHashMap<DynAssetHandle, TypeId>,
 }
 
 impl AssetCacheDerivedConvert {
@@ -185,18 +165,19 @@ impl AssetCacheDerivedConvert {
         //     }
         // }
 
-        while let Some(dyn_derived_handle) = self.queue.pop_front() {
-            self.queued.remove(&dyn_derived_handle);
+        while let Some(dyn_handle) = self.queue.pop_front() {
+            self.queued.remove(&dyn_handle);
 
-            let Some(type_id) = self.handle_to_converter_type.get(&dyn_derived_handle) else {
-                panic!("no converter registered for {}", dyn_derived_handle);
+            let Some(type_id) = self.handle_to_converter_type.get(&dyn_handle) else {
+                tracing::warn!("no convertere registered for {}", dyn_handle);
+                continue;
             };
 
             let Some(typed_converter) = self.typed.get_mut(type_id) else {
                 panic!("could not get typed converter");
             };
 
-            tracing::info!("-- start polled conversion {}", dyn_derived_handle);
+            tracing::info!("-- start polled conversion {}", dyn_handle);
             let (result, request) = typed_converter.convert(
                 ctx,
                 storage,
@@ -204,9 +185,9 @@ impl AssetCacheDerivedConvert {
                 dependency,
                 derived_storage,
                 derived_registry,
-                dyn_derived_handle.clone(),
+                dyn_handle.clone(),
             );
-            tracing::info!("-- done polled conversion {}", dyn_derived_handle);
+            tracing::info!("-- done polled conversion {}", dyn_handle);
 
             // request conversions
             if let Some(request) = request {
@@ -217,14 +198,14 @@ impl AssetCacheDerivedConvert {
                 ConversionPollResult::Waiting(dyn_dependency) => {
                     tracing::info!(
                         "conversion {} waiting for asset handle {}",
-                        dyn_derived_handle,
+                        dyn_handle,
                         dyn_dependency
                     );
 
                     // TODO: feel like i need to
                     // remove any pending handles
                     self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_derived_handle);
+                        handles.remove(&dyn_handle);
                         !handles.is_empty()
                     });
 
@@ -232,26 +213,26 @@ impl AssetCacheDerivedConvert {
                     self.waiting_for
                         .entry(dyn_dependency)
                         .or_default()
-                        .insert(dyn_derived_handle);
+                        .insert(dyn_handle);
                 }
                 ConversionPollResult::Failed => {
                     // remove any pending handles
                     self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_derived_handle);
+                        handles.remove(&dyn_handle);
                         !handles.is_empty()
                     });
-                    tracing::info!("conversion failed {}", dyn_derived_handle.id());
+                    tracing::info!("conversion failed {}", dyn_handle.id());
                 }
                 ConversionPollResult::Success => {
                     // remove any pending handles
                     self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_derived_handle);
+                        handles.remove(&dyn_handle);
                         !handles.is_empty()
                     });
                     // tracing::info!("conversion success {}", dyn_derived_handle);
                     // TODO: make available
-                    self.wakeup_waiting_on_handle(&dyn_derived_handle.to_dyn_dependency());
-                    self.requeu_dependents(dependency, &dyn_derived_handle.to_dyn_dependency());
+                    self.wakeup_waiting_on_handle(&dyn_handle);
+                    self.requeu_dependents(dependency, &dyn_handle);
                 }
             }
         }
@@ -262,7 +243,7 @@ impl AssetCacheDerivedConvert {
         &mut self,
         derived_registry: &mut AssetCacheDerivedRegistry,
         settings: T::Settings,
-    ) -> DerivedHandle<T::TargetAsset> {
+    ) -> AssetHandle<T::TargetAsset> {
         // use cached value if it exists
         if let Some(handle) = derived_registry
             .get_typed_cache_mut::<T>()
@@ -273,7 +254,7 @@ impl AssetCacheDerivedConvert {
             return handle.clone();
         };
 
-        let derived_handle = DerivedHandle::new(&self.asset_handle_ctx);
+        let derived_handle = AssetHandle::new(&self.asset_handle_ctx);
         tracing::info!("create new derived handle {}", derived_handle);
 
         // register converter
@@ -294,14 +275,15 @@ impl AssetCacheDerivedConvert {
     // Queue a conversion of a derived handle
     //
     // Assumes all state is set up from queue_conversion function
-    pub fn queue_conversion(&mut self, handle: DynDerivedHandle) {
+    pub fn queue_conversion(&mut self, handle: DynAssetHandle) {
+        // TODO: this must check if its convertable?
         if self.queued.insert(handle.clone()) {
             self.queue.push_back(handle);
         }
     }
 
     /// Wake up all derived assets waiting for this handle to be ready
-    pub fn wakeup_waiting_on_handle(&mut self, dependency: &DynDependency) {
+    pub fn wakeup_waiting_on_handle(&mut self, dependency: &DynAssetHandle) {
         tracing::info!(
             "wake all waiting on {}: #{}",
             dependency,
@@ -320,7 +302,7 @@ impl AssetCacheDerivedConvert {
     pub fn requeu_dependents(
         &mut self,
         dependency: &mut AssetCacheDependency,
-        handle: &DynDependency,
+        handle: &DynAssetHandle,
     ) {
         if let Some(dependents) = dependency.dependents(handle) {
             tracing::info!(
@@ -329,15 +311,7 @@ impl AssetCacheDerivedConvert {
                 dependents.len()
             );
             for dependent in dependents.iter() {
-                match dependent {
-                    DynDependency::Asset(dyn_asset_handle) => {
-                        tracing::info!("skip {} because its asset", dyn_asset_handle);
-                    }
-                    DynDependency::Derived(dyn_derived_handle) => {
-                        tracing::info!("requeue {}", dyn_derived_handle);
-                        self.queue_conversion(dyn_derived_handle.clone());
-                    }
-                }
+                self.queue_conversion(dependent.clone());
             }
         }
     }
@@ -358,7 +332,7 @@ impl<T: AssetConverter + 'static> TypedDerivedConvert<T> {
 }
 
 pub enum ConversionPollResult {
-    Waiting(DynDependency),
+    Waiting(DynAssetHandle),
     Failed,
     Success,
 }
@@ -376,7 +350,7 @@ pub trait DynDerivedConvert {
         dependency: &mut AssetCacheDependency,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_registry: &mut AssetCacheDerivedRegistry,
-        dyn_handle: DynDerivedHandle,
+        dyn_handle: DynAssetHandle,
     ) -> (ConversionPollResult, Option<Box<dyn DynConvertRequest>>);
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
@@ -391,7 +365,7 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
         dependency: &mut AssetCacheDependency,
         derived_storage: &mut AssetCacheDerivedStorage,
         derived_registry: &mut AssetCacheDerivedRegistry,
-        dyn_handle: DynDerivedHandle,
+        dyn_handle: DynAssetHandle,
     ) -> (ConversionPollResult, Option<Box<dyn DynConvertRequest>>) {
         // TODO: maybe just store the dyn directly?
         let derived_handle = dyn_handle
@@ -431,8 +405,7 @@ impl<T: AssetConverter + 'static> DynDerivedConvert for TypedDerivedConvert<T> {
                 );
 
                 // register deps
-                dependency
-                    .register_dependencies(&derived_handle.to_dyn_dependency(), &dependencies);
+                dependency.register_dependencies(&derived_handle.to_dyn(), &dependencies);
 
                 (ConversionPollResult::Success, None)
             }
@@ -482,13 +455,13 @@ impl<'a> ConvertRuntime<'a> {
 
 pub struct ConvertState {
     // The dependency that caused the conversion to return waiting
-    pub wait_for: Option<DynDependency>,
+    pub wait_for: Option<DynAssetHandle>,
 
     // If wait_for was a nested conversion that resulted in a new handle, store the request here
     pub conversion_request: Option<Box<dyn DynConvertRequest>>,
 
     // All dependencies accessed during the conversion
-    pub dependencies: FxHashSet<DynDependency>,
+    pub dependencies: FxHashSet<DynAssetHandle>,
 }
 
 impl ConvertState {
@@ -515,7 +488,7 @@ impl<'runtime> ConvertContext<'runtime> {
 
     pub fn get_load_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
         // register deps
-        self.state.dependencies.insert(handle.to_dyn_dependency());
+        self.state.dependencies.insert(handle.to_dyn());
 
         if let Some(asset) = self.runtime.storage.get(handle) {
             return GetAssetResult::Success(asset);
@@ -523,7 +496,7 @@ impl<'runtime> ConvertContext<'runtime> {
 
         match self.runtime.loader.get_status(&handle.to_dyn()) {
             LoadStatus::Loading => {
-                self.state.wait_for = Some(DynDependency::Asset(handle.to_dyn()));
+                self.state.wait_for = Some(handle.to_dyn());
                 tracing::info!("{} is not ready, set blocking", handle);
                 GetAssetResult::Loading
             }
@@ -548,9 +521,9 @@ impl<'runtime> ConvertContext<'runtime> {
             .get_or_create_handle::<G>(settings.clone());
 
         // register deps
-        self.state.dependencies.insert(handle.to_dyn_dependency());
+        self.state.dependencies.insert(handle.to_dyn());
 
-        self.state.wait_for = Some(DynDependency::Derived(handle.to_dyn()));
+        self.state.wait_for = Some(handle.to_dyn());
         if created_new {
             self.state.conversion_request = Some(Box::new(ConvertRequest::<G>::new(
                 handle.clone(),
@@ -561,7 +534,7 @@ impl<'runtime> ConvertContext<'runtime> {
         match self.runtime.derived_storage.get(&handle) {
             Some(asset) => ConvertAssetResult::Success(asset),
             None => {
-                self.state.wait_for = Some(DynDependency::Derived(handle.to_dyn()));
+                self.state.wait_for = Some(handle.to_dyn());
                 ConvertAssetResult::Loading
             }
         }
@@ -569,13 +542,13 @@ impl<'runtime> ConvertContext<'runtime> {
 }
 
 // NOTE: user facing
-pub enum ConvertAssetResult<T: DerivedAsset> {
+pub enum ConvertAssetResult<T: Asset> {
     Loading,
     Success(ArcHandle<T>),
     Failed,
 }
 
-impl<T: DerivedAsset> ConvertAssetResult<T> {
+impl<T: Asset> ConvertAssetResult<T> {
     /// Unwrap the result as a success
     ///
     /// Panics for other values than

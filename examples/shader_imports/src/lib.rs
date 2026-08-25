@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetResult, ConvertAssetStatus,
-        ConvertContext, DerivedAsset, EmptyError, GetAssetResult, ImageGpuConverter,
-        ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings, LoadContext, MeshGpuConverter,
-        MeshGpuConverterSettings,
+        ConvertContext, EmptyError, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
+        ImageLoader, ImageLoaderSettings, LoadContext, MeshGpuConverter, MeshGpuConverterSettings,
     },
     filesystem,
     render::{self, ArcPipelineLayout, Image},
@@ -99,7 +98,7 @@ struct ShaderWithImportsFinal {
 // Shader conversion
 //
 
-impl DerivedAsset for ShaderWithImportsFinal {}
+impl Asset for ShaderWithImportsFinal {}
 
 #[derive(Clone, Hash, PartialEq, Eq)]
 pub struct ShaderWithImportsConverterOptions {

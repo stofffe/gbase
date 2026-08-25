@@ -1,5 +1,5 @@
 use crate::{
-    asset::{AssetHandleContext, DerivedHandle},
+    asset::{Asset, AssetHandle, AssetHandleContext},
     render::ArcHandle,
     Context,
 };
@@ -10,10 +10,10 @@ use std::any::{Any, TypeId};
 // Types
 //
 
-pub trait DerivedAsset: Any {} // TODO: is this even needed? or maybe rename
+// pub trait Asset: Any {} // TODO: is this even needed? or maybe rename
 
 //
-// Storage
+// Generic
 //
 
 pub struct AssetCacheDerivedStorage {
@@ -32,9 +32,7 @@ impl AssetCacheDerivedStorage {
     }
 
     /// Get typed cache assuming it exists
-    pub fn get_typed_cache_ref<T: DerivedAsset + 'static>(
-        &self,
-    ) -> Option<&TypedDerivedStorage<T>> {
+    pub fn get_typed_cache_ref<T: Asset + 'static>(&self) -> Option<&TypedDerivedStorage<T>> {
         self.typed_caches.get(&TypeId::of::<T>()).map(|a| {
             a.as_any()
                 .downcast_ref::<TypedDerivedStorage<T>>()
@@ -43,9 +41,7 @@ impl AssetCacheDerivedStorage {
     }
 
     /// Get mutable typed cache or create if it doesnt exist
-    pub fn get_typed_cache_mut<T: DerivedAsset + 'static>(
-        &mut self,
-    ) -> &mut TypedDerivedStorage<T> {
+    pub fn get_typed_cache_mut<T: Asset + 'static>(&mut self) -> &mut TypedDerivedStorage<T> {
         let entry = self
             .typed_caches
             .entry(TypeId::of::<T>())
@@ -58,7 +54,7 @@ impl AssetCacheDerivedStorage {
             .expect("could not downcast typed storage cache")
     }
 
-    pub fn get<T: DerivedAsset>(&self, handle: &DerivedHandle<T>) -> Option<ArcHandle<T>> {
+    pub fn get<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<ArcHandle<T>> {
         if let Some(typed) = self.get_typed_cache_ref::<T>() {
             typed.get(handle)
         } else {
@@ -66,17 +62,12 @@ impl AssetCacheDerivedStorage {
         }
     }
 
-    pub fn insert<T: DerivedAsset>(
-        &mut self,
-        ctx: &mut Context,
-        handle: DerivedHandle<T>,
-        data: T,
-    ) {
+    pub fn insert<T: Asset>(&mut self, ctx: &mut Context, handle: AssetHandle<T>, data: T) {
         self.get_typed_cache_mut::<T>().insert(ctx, handle, data)
     }
 }
 
-pub enum GetDerivedResult<T: DerivedAsset> {
+pub enum GetDerivedResult<T: Asset> {
     Loading,
     Success(ArcHandle<T>),
     Error,
@@ -86,14 +77,14 @@ pub enum GetDerivedResult<T: DerivedAsset> {
 // Typed/Dyn storage
 //
 
-pub struct TypedDerivedStorage<T: DerivedAsset> {
+pub struct TypedDerivedStorage<T: Asset> {
     asset_handle_ctx: AssetHandleContext,
 
     // TODO: this should not use archandle, replace with T and make converters create archandle
-    cache: FxHashMap<DerivedHandle<T>, ArcHandle<T>>,
+    cache: FxHashMap<AssetHandle<T>, ArcHandle<T>>,
 }
 
-impl<T: DerivedAsset> TypedDerivedStorage<T> {
+impl<T: Asset> TypedDerivedStorage<T> {
     pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
         Self {
             asset_handle_ctx,
@@ -101,11 +92,11 @@ impl<T: DerivedAsset> TypedDerivedStorage<T> {
         }
     }
 
-    pub fn get(&self, handle: &DerivedHandle<T>) -> Option<ArcHandle<T>> {
+    pub fn get(&self, handle: &AssetHandle<T>) -> Option<ArcHandle<T>> {
         self.cache.get(handle).cloned()
     }
 
-    pub fn insert(&mut self, ctx: &mut Context, handle: DerivedHandle<T>, data: T) {
+    pub fn insert(&mut self, ctx: &mut Context, handle: AssetHandle<T>, data: T) {
         self.cache.insert(handle.clone(), ArcHandle::new(ctx, data));
     }
 }
@@ -115,7 +106,7 @@ pub trait DynDerivedStorage {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl<T: DerivedAsset> DynDerivedStorage for TypedDerivedStorage<T> {
+impl<T: Asset> DynDerivedStorage for TypedDerivedStorage<T> {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }

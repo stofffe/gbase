@@ -1,4 +1,4 @@
-use crate::asset::{dependency, AssetCacheDependency, DynAssetHandle, DynDependency};
+use crate::asset::{AssetCacheDependency, DynAssetHandle};
 use crate::asset::{AssetCacheLoad, AssetLoader};
 use crate::filesystem::FileSystemContext;
 use core::panic;
@@ -222,20 +222,12 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         handle: &DynAssetHandle,
     ) {
-        if let Some(dependents) = dependency.dependents(&DynDependency::Asset(handle.clone())) {
+        if let Some(dependents) = dependency.dependents(&handle) {
             tracing::info!("reload dependents due to {}, {}", handle, dependents.len());
 
             for dependent in dependents.iter() {
-                // tracing::info!("{} invalidated {}", handle, dependent);
-                match dependent {
-                    DynDependency::Asset(dyn_asset_handle) => {
-                        tracing::info!("reload {}", dyn_asset_handle);
-                        self.reload(dyn_asset_handle.clone(), loader)
-                    }
-                    DynDependency::Derived(dyn_derived_handle) => {
-                        tracing::info!("skip {} because its derived", dyn_derived_handle);
-                    }
-                }
+                tracing::info!("reload {}", dependent);
+                self.reload(dependent.clone(), loader);
             }
         }
     }

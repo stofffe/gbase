@@ -1,4 +1,4 @@
-use crate::asset::{AssetConverter, AssetHandleContext, DerivedHandle};
+use crate::asset::{AssetConverter, AssetHandle, AssetHandleContext};
 use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
 
@@ -48,7 +48,7 @@ impl AssetCacheDerivedRegistry {
 
     pub fn add_handle_setting_mapping<T: AssetConverter + 'static>(
         &mut self,
-        handle: DerivedHandle<T::TargetAsset>,
+        handle: AssetHandle<T::TargetAsset>,
         settings: T::Settings,
     ) {
         let typed = self.get_typed_cache_mut::<T>();
@@ -64,13 +64,13 @@ impl AssetCacheDerivedRegistry {
     pub fn get_or_create_handle<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
-    ) -> (DerivedHandle<T::TargetAsset>, bool) {
+    ) -> (AssetHandle<T::TargetAsset>, bool) {
         let typed = self.get_typed_cache_mut::<T>();
         if let Some(handle) = typed.settings_to_handle.get(&settings) {
             return (handle.clone(), false);
         }
 
-        let new_handle = DerivedHandle::<T::TargetAsset>::new(&self.asset_handle_ctx);
+        let new_handle = AssetHandle::<T::TargetAsset>::new(&self.asset_handle_ctx);
 
         self.add_handle_setting_mapping::<T>(new_handle.clone(), settings.clone());
 
@@ -83,8 +83,8 @@ impl AssetCacheDerivedRegistry {
 //
 
 pub struct TypedDerivedRegistry<T: AssetConverter> {
-    pub handle_to_settings: FxHashMap<DerivedHandle<T::TargetAsset>, T::Settings>,
-    pub settings_to_handle: FxHashMap<T::Settings, DerivedHandle<T::TargetAsset>>,
+    pub handle_to_settings: FxHashMap<AssetHandle<T::TargetAsset>, T::Settings>,
+    pub settings_to_handle: FxHashMap<T::Settings, AssetHandle<T::TargetAsset>>,
 }
 
 impl<T: AssetConverter + 'static> TypedDerivedRegistry<T> {
@@ -95,7 +95,7 @@ impl<T: AssetConverter + 'static> TypedDerivedRegistry<T> {
         }
     }
 
-    pub fn add(&mut self, handle: DerivedHandle<T::TargetAsset>, settings: T::Settings) {}
+    pub fn add(&mut self, handle: AssetHandle<T::TargetAsset>, settings: T::Settings) {}
 }
 
 //

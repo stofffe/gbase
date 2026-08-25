@@ -2,9 +2,9 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        self, AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader,
-        ConvertAssetResult, ConvertAssetStatus, ConvertContext, DerivedAsset, EmptyError,
-        GetAssetResult, LoadContext, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        self, Asset, AssetBuilder, AssetCache, AssetConverter, AssetHandle, AssetLoader,
+        ConvertAssetResult, ConvertAssetStatus, ConvertContext, EmptyError, GetAssetResult,
+        LoadContext, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
         ShaderLoaderSettings,
     },
     bytemuck, filesystem,
@@ -704,13 +704,14 @@ impl AssetLoader for FontLoader {
     }
 }
 
+impl Asset for FontAtlas {}
+
 #[derive(Clone)]
 pub struct FontAtlas {
     lookup: HashMap<char, AtlasGlyphInfo>,
     texture: render::ArcTexture,
 }
 
-impl DerivedAsset for FontAtlas {}
 pub struct FontAtlasConverter<'a> {
     supported_chars: &'a [char],
     font_raster_size: f32,

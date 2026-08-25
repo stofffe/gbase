@@ -3,8 +3,8 @@ use crate::{
     asset::{
         self, AssetCacheDependency, AssetCacheDerivedConvert, AssetCacheDerivedRegistry,
         AssetCacheDerivedStorage, AssetCacheLoad, AssetCacheStorage, AssetConverter, AssetHandle,
-        AssetHandleContext, DerivedAsset, DerivedHandle, GetAssetResult, GetDerivedResult,
-        InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
+        AssetHandleContext, GetAssetResult, GetDerivedResult, InsertAssetBuilder, LoadAssetBuilder,
+        LoadContext, LoadRuntime, LoadState, LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -186,16 +186,13 @@ impl AssetCache {
     pub fn convert_derived<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
-    ) -> DerivedHandle<T::TargetAsset> {
+    ) -> AssetHandle<T::TargetAsset> {
         // tracing::info!("spawn conversion");
         self.derived_convert
             .register_conversion::<T>(&mut self.derived_registry, settings)
     }
 
-    pub fn get_derived<T: DerivedAsset + 'static>(
-        &self,
-        handle: &DerivedHandle<T>,
-    ) -> GetDerivedResult<T> {
+    pub fn get_derived<T: Asset + 'static>(&self, handle: &AssetHandle<T>) -> GetDerivedResult<T> {
         if let Some(success) = self.derived_storage.get(handle) {
             GetDerivedResult::Success(success)
         } else {

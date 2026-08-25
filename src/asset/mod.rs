@@ -75,13 +75,13 @@ pub fn convert_asset<G: AssetConverter + 'static>(
 pub fn convert_derived_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
-) -> DerivedHandle<T::TargetAsset> {
+) -> AssetHandle<T::TargetAsset> {
     cache.convert_derived::<T>(settings)
 }
 
-pub fn get_derived_asset<T: DerivedAsset + 'static>(
+pub fn get_derived_asset<T: Asset + 'static>(
     cache: &AssetCache,
-    handle: DerivedHandle<T>,
+    handle: AssetHandle<T>,
 ) -> GetDerivedResult<T> {
     cache.get_derived::<T>(&handle)
 }

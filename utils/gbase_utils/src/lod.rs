@@ -2,11 +2,10 @@ use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, AssetLoader, ConvertAssetStatus, ConvertContext,
-        DerivedAsset, EmptyError, LoadContext,
+        EmptyError, LoadContext,
     },
     filesystem,
     render::{self, BoundingBox, VertexAttributeId},
-    tracing::{self},
 };
 use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 
@@ -163,6 +162,8 @@ impl AssetLoader for GltfLoader {
     }
 }
 
+impl Asset for BoundingBoxWrapper {}
+
 #[derive(Clone)]
 pub struct BoundingBoxWrapper(BoundingBox);
 
@@ -185,7 +186,6 @@ impl LodMeshToBoundingBoxConverterOptions {
     }
 }
 
-impl DerivedAsset for BoundingBoxWrapper {}
 pub struct LodMeshToBoundingBoxConverter;
 
 impl AssetConverter for LodMeshToBoundingBoxConverter {
