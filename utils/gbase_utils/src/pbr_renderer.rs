@@ -6,12 +6,12 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
-        MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
+        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
     },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
-    tracing, wgpu, CallbackResult, Context,
+    tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
 
@@ -47,13 +47,14 @@ impl PbrRenderer {
         // .watch(cache)
         // .build(cache);
 
-        let forward_shader_handle =
-            asset::AssetBuilder::insert(Shader::new(include_str!("../assets/shaders/mesh.wgsl")))
-                .build(cache);
-        let deferred_shader_handle = asset::AssetBuilder::insert(render::Shader::new(
-            include_str!("../assets/shaders/deferred_mesh.wgsl"),
-        ))
-        .build(cache);
+        let forward_shader_handle = asset::insert_asset(
+            cache,
+            Shader::new(include_str!("../assets/shaders/mesh.wgsl")),
+        );
+        let deferred_shader_handle = asset::insert_asset(
+            cache,
+            render::Shader::new(include_str!("../assets/shaders/deferred_mesh.wgsl")),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -528,7 +529,7 @@ impl PbrMaterial {
             default: [u8; 4],
         ) -> asset::AssetHandle<Image> {
             if let Some(tex) = tex {
-                asset::AssetBuilder::insert(tex).build(cache)
+                asset::insert_asset(cache, tex)
             } else {
                 pixel_cache.allocate(cache, default)
             }

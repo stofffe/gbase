@@ -241,12 +241,14 @@ impl Callbacks for App {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
-        let shader_handle = asset::AssetBuilder::load::<ShaderWithImportsLoader>().build(
+        let shader_handle = asset::load_asset::<ShaderWithImportsLoader>(
             cache,
-            ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
+            &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
         );
-        let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
-            .build(cache, ImageLoaderSettings::new("textures/texture.jpeg"));
+        let texture_handle = asset::load_asset::<ImageLoader>(
+            cache,
+            &ImageLoaderSettings::new("textures/texture.jpeg"),
+        );
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -254,7 +256,7 @@ impl Callbacks for App {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]);
-        let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
+        let mesh_handle = asset::insert_asset(cache, mesh);
 
         Self {
             pipeline_layout,

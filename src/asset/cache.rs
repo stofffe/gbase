@@ -3,7 +3,7 @@ use crate::{
     asset::{
         self, AssetCacheConvert, AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry,
         AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, GetAssetResult,
-        InsertAssetBuilder, LoadAssetBuilder, LoadContext, LoadRuntime, LoadState, LoadStatus,
+        LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -94,36 +94,11 @@ impl AssetCache {
         );
     }
 
-    pub(crate) fn load<T: AssetLoader + 'static>(
-        &mut self,
-        settings: T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        let handle = self
-            .loader
-            .register_load::<T>(&mut self.registry, &settings);
-
-        self.loader.queue_load(&mut self.registry, handle.to_dyn());
-
-        handle
-    }
-
-    //
-    // Builders re-exports
-    //
-
-    pub fn insert_builder<T: Asset>(&mut self, value: T) -> InsertAssetBuilder<T> {
-        asset::AssetBuilder::insert(value)
-    }
-
-    pub fn load_builder<T: AssetLoader>(&mut self) -> LoadAssetBuilder<T> {
-        asset::AssetBuilder::load()
-    }
-
     //
     // Storage re-exports
     //
 
-    pub fn insert<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
+    pub fn insert_asset<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         self.storage.insert_successful_new_handle(data)
     }
 
@@ -173,12 +148,27 @@ impl AssetCache {
     // Load re-exports
     //
 
+    // TODO: does this keep re registering?
+    // can and should this overwrite?
+    pub fn load_asset<T: AssetLoader + 'static>(
+        &mut self,
+        settings: &T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        let handle = self
+            .loader
+            .register_load::<T>(&mut self.registry, &settings);
+
+        self.loader.queue_load(&mut self.registry, handle.to_dyn());
+
+        handle
+    }
+
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
         self.registry.handle_just_available(&handle.to_dyn())
     }
 
     //
-    // Derive re-exports
+    // Convert re-exports
     //
 
     pub fn clear_handles(&mut self) {
@@ -186,7 +176,7 @@ impl AssetCache {
         // self.derived.clear_unused_handles();
     }
 
-    pub fn convert<T: AssetConverter + 'static>(
+    pub fn convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {

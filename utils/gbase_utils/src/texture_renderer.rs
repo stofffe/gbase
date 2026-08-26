@@ -26,14 +26,14 @@ impl TextureRenderer {
         //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
         //         .watch(cache)
         //         .build(cache);
-        let shader_handle = asset::AssetBuilder::insert(render::Shader::new(include_str!(
-            "../assets/shaders/texture.wgsl"
-        )))
-        .build(cache);
-        let shader_depth_handle = asset::AssetBuilder::insert(render::Shader::new(include_str!(
-            "../assets/shaders/texture_depth.wgsl"
-        )))
-        .build(cache);
+        let shader_handle = asset::insert_asset(
+            cache,
+            render::Shader::new(include_str!("../assets/shaders/texture.wgsl")),
+        );
+        let shader_depth_handle = asset::insert_asset(
+            cache,
+            render::Shader::new(include_str!("../assets/shaders/texture_depth.wgsl")),
+        );
 
         let sampler = render::SamplerBuilder::new()
             .mip_map_filer(wgpu::FilterMode::Nearest)
@@ -65,7 +65,7 @@ impl TextureRenderer {
             );
 
         Self {
-            vertices: asset::AssetBuilder::insert(vertices).build(cache),
+            vertices: asset::insert_asset(cache, vertices),
             shader_handle,
             shader_depth_handle,
             sampler,

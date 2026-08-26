@@ -29,10 +29,8 @@ impl Tonemap {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
-            cache,
-            ShaderLoaderSettings::new("assets/shaders/tonemap.wgsl"),
-        );
+        let shader_handle = cache
+            .load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("assets/shaders/tonemap.wgsl"));
         Self {
             pipeline_layout,
             bindgroup_layout,
