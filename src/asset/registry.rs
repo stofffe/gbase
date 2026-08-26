@@ -28,7 +28,7 @@ pub struct AssetCacheRegistry {
 }
 
 impl AssetCacheRegistry {
-    pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+    pub(crate) fn new(asset_handle_ctx: AssetHandleContext) -> Self {
         Self {
             typed_convert_registries: FxHashMap::default(),
             typed_load_registries: FxHashMap::default(),
@@ -38,22 +38,7 @@ impl AssetCacheRegistry {
         }
     }
 
-    /// Get typed cache assuming it exists
-    pub fn get_typed_convert_registry_ref<T: AssetConverter + 'static>(
-        &self,
-    ) -> Option<&TypedConvertRegistry<T>> {
-        self.typed_convert_registries
-            .get(&TypeId::of::<T>())
-            .map(|dyn_registry| {
-                dyn_registry
-                    .as_any()
-                    .downcast_ref::<TypedConvertRegistry<T>>()
-                    .expect("could not downcast typed storage cache")
-            })
-    }
-
-    /// Get mutable typed cache or create if it doesnt exist
-    pub fn get_typed_convert_registry_mut<T: AssetConverter + 'static>(
+    fn get_or_create_typed_convert_registry_mut<T: AssetConverter + 'static>(
         &mut self,
     ) -> &mut TypedConvertRegistry<T> {
         let entry = self
@@ -66,22 +51,7 @@ impl AssetCacheRegistry {
             .expect("could not downcast typed storage cache")
     }
 
-    /// Get typed cache assuming it exists
-    pub fn get_typed_load_registry_ref<T: AssetLoader + 'static>(
-        &self,
-    ) -> Option<&TypedLoadRegistry<T>> {
-        self.typed_load_registries
-            .get(&TypeId::of::<T>())
-            .map(|dyn_registry| {
-                dyn_registry
-                    .as_any()
-                    .downcast_ref::<TypedLoadRegistry<T>>()
-                    .expect("could not downcast typed storage cache")
-            })
-    }
-
-    /// Get mutable typed cache or create if it doesnt exist
-    pub fn get_typed_load_registry_mut<T: AssetLoader + 'static>(
+    fn get_or_create_typed_load_registry_mut<T: AssetLoader + 'static>(
         &mut self,
     ) -> &mut TypedLoadRegistry<T> {
         let entry = self
@@ -94,46 +64,15 @@ impl AssetCacheRegistry {
             .expect("could not downcast typed storage cache")
     }
 
-    // TODO: gets called twice
-    pub fn register_convert_handle_settings_mapping<T: AssetConverter + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // tracing::info!("map convert settings -> handle {}", handle);
-        let typed = self.get_typed_convert_registry_mut::<T>();
-        typed
-            .handle_to_settings
-            .insert(handle.to_dyn(), settings.clone());
-        typed.settings_to_handle.insert(settings, handle.to_dyn());
-
-        // self.set_status(handle.to_dyn(), LoadStatus::Loading);
-    }
-
-    pub fn register_load_handle_settings_mapping<T: AssetLoader + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // tracing::info!("map load settings -> handle {}", handle);
-        let typed = self.get_typed_load_registry_mut::<T>();
-        typed
-            .handle_to_settings
-            .insert(handle.to_dyn(), settings.clone());
-        typed.settings_to_handle.insert(settings, handle.to_dyn());
-
-        // self.set_status(handle.to_dyn(), LoadStatus::Loading);
-    }
-
     /// Gets an existing or creates a new handle
     ///
     /// Does not queue any conversions
-    pub fn get_or_create_convert_handle<T: AssetConverter + 'static>(
+    pub(crate) fn get_or_create_convert_handle<T: AssetConverter + 'static>(
         &mut self,
-        settings: T::Settings,
+        settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let typed = self.get_typed_convert_registry_mut::<T>();
-        if let Some(handle) = typed.settings_to_handle.get(&settings) {
+        let typed = self.get_or_create_typed_convert_registry_mut::<T>();
+        if let Some(handle) = typed.settings_to_handle.get(settings) {
             let typed_handle = handle
                 .to_typed()
                 .expect("could not convert to typed handle");
@@ -151,12 +90,12 @@ impl AssetCacheRegistry {
     /// Gets an existing or creates a new handle
     ///
     /// Does not queue any conversions
-    pub fn get_or_create_load_handle<T: AssetLoader + 'static>(
+    pub(crate) fn get_or_create_load_handle<T: AssetLoader + 'static>(
         &mut self,
-        settings: T::Settings, // TODO: make ref since its not always cloned
+        settings: &T::Settings, // TODO: make ref since its not always cloned
     ) -> AssetHandle<T::Asset> {
-        let typed = self.get_typed_load_registry_mut::<T>();
-        if let Some(handle) = typed.settings_to_handle.get(&settings) {
+        let typed = self.get_or_create_typed_load_registry_mut::<T>();
+        if let Some(handle) = typed.settings_to_handle.get(settings) {
             let typed_handle = handle
                 .to_typed()
                 .expect("could not convert to typed handle");
@@ -171,23 +110,10 @@ impl AssetCacheRegistry {
         new_handle
     }
 
-    //
-    // Status
-    //
-
-    pub fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
-        // tracing::error!("set status {} to {:?}", handle, status);
-        self.status.insert(handle, status);
-    }
-
-    pub fn get_status(&mut self, handle: &DynAssetHandle) -> LoadStatus {
-        self.status
-            .entry(handle.clone())
-            .or_insert(LoadStatus::NotRegistered)
-            .clone()
-    }
-
-    pub fn is_converter(&mut self, dyn_handle: &DynAssetHandle) -> bool {
+    /// Checks if a handle was created using a converter
+    ///
+    /// O(n) where n is types of converters
+    pub(crate) fn created_by_converter(&mut self, dyn_handle: &DynAssetHandle) -> bool {
         for typed_convert in self.typed_convert_registries.values() {
             if typed_convert.contains_handle(dyn_handle) {
                 return true;
@@ -196,7 +122,10 @@ impl AssetCacheRegistry {
         false
     }
 
-    pub fn is_loader(&mut self, dyn_handle: &DynAssetHandle) -> bool {
+    /// Checks if a handle was created using a loader
+    ///
+    /// O(n) where n is types of loaders
+    pub(crate) fn created_by_loader(&mut self, dyn_handle: &DynAssetHandle) -> bool {
         for typed_load in self.typed_load_registries.values() {
             if typed_load.contains_handle(dyn_handle) {
                 return true;
@@ -205,33 +134,100 @@ impl AssetCacheRegistry {
         false
     }
 
-    // Just available
+    //
+    // Handle -> Settings
+    // Settings -> Handle
+    //
 
-    pub fn set_just_available(&mut self, handle: DynAssetHandle) {
+    pub(crate) fn register_convert_handle_settings_mapping<T: AssetConverter + 'static>(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) {
+        // tracing::info!("map convert settings -> handle {}", handle);
+        let typed = self.get_or_create_typed_convert_registry_mut::<T>();
+        typed
+            .handle_to_settings
+            .insert(handle.to_dyn(), settings.clone());
+        typed.settings_to_handle.insert(settings, handle.to_dyn());
+    }
+
+    pub(crate) fn register_load_handle_settings_mapping<T: AssetLoader + 'static>(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) {
+        // tracing::info!("map load settings -> handle {}", handle);
+        let typed = self.get_or_create_typed_load_registry_mut::<T>();
+        typed
+            .handle_to_settings
+            .insert(handle.to_dyn(), settings.clone());
+        typed.settings_to_handle.insert(settings, handle.to_dyn());
+    }
+
+    pub(crate) fn get_convert_settings_from_handle<T: AssetConverter + 'static>(
+        &mut self,
+        handle: &DynAssetHandle,
+    ) -> Option<T::Settings> {
+        self.get_or_create_typed_convert_registry_mut::<T>()
+            .handle_to_settings
+            .get(handle)
+            .cloned()
+    }
+
+    pub(crate) fn get_load_settings_from_handle<T: AssetLoader + 'static>(
+        &mut self,
+        handle: &DynAssetHandle,
+    ) -> Option<T::Settings> {
+        self.get_or_create_typed_load_registry_mut::<T>()
+            .handle_to_settings
+            .get(handle)
+            .cloned()
+    }
+
+    //
+    // Status
+    //
+
+    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
+        self.status.insert(handle, status);
+    }
+
+    pub(crate) fn get_status(&mut self, handle: &DynAssetHandle) -> LoadStatus {
+        self.status
+            .entry(handle.clone())
+            .or_insert(LoadStatus::NotRegistered)
+            .clone()
+    }
+
+    //
+    // Just available
+    //
+
+    pub(crate) fn set_just_available(&mut self, handle: DynAssetHandle) {
         self.just_available.insert(handle);
     }
 
-    pub fn handle_just_loaded(&self, handle: &DynAssetHandle) -> bool {
+    pub(crate) fn handle_just_available(&self, handle: &DynAssetHandle) -> bool {
         self.just_available.contains(handle)
     }
 
-    pub fn clear_just_available(&mut self) {
+    pub(crate) fn clear_just_available(&mut self) {
         self.just_available.clear();
     }
 }
 
 //
-// Typed
+// Typed/Dyn
 //
 
-pub struct TypedConvertRegistry<T: AssetConverter> {
-    // TODO: remove pub
-    pub handle_to_settings: FxHashMap<DynAssetHandle, T::Settings>,
+struct TypedConvertRegistry<T: AssetConverter> {
+    handle_to_settings: FxHashMap<DynAssetHandle, T::Settings>,
     settings_to_handle: FxHashMap<T::Settings, DynAssetHandle>,
 }
 
 impl<T: AssetConverter + 'static> TypedConvertRegistry<T> {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             handle_to_settings: FxHashMap::default(),
             settings_to_handle: FxHashMap::default(),
@@ -239,35 +235,12 @@ impl<T: AssetConverter + 'static> TypedConvertRegistry<T> {
     }
 }
 
-pub struct TypedLoadRegistry<T: AssetLoader> {
-    pub handle_to_settings: FxHashMap<DynAssetHandle, T::Settings>,
-    settings_to_handle: FxHashMap<T::Settings, DynAssetHandle>,
-}
-
-impl<T: AssetLoader + 'static> TypedLoadRegistry<T> {
-    pub fn new() -> Self {
-        Self {
-            handle_to_settings: FxHashMap::default(),
-            settings_to_handle: FxHashMap::default(),
-        }
-    }
-}
-
-//
-// Dyn
-//
-
-pub trait DynConvertRegistry {
-    fn as_any(&self) -> &dyn Any;
+trait DynConvertRegistry {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
 impl<T: AssetConverter + 'static> DynConvertRegistry for TypedConvertRegistry<T> {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
     }
@@ -277,17 +250,26 @@ impl<T: AssetConverter + 'static> DynConvertRegistry for TypedConvertRegistry<T>
     }
 }
 
-pub trait DynLoadRegistry {
-    fn as_any(&self) -> &dyn Any;
+struct TypedLoadRegistry<T: AssetLoader> {
+    handle_to_settings: FxHashMap<DynAssetHandle, T::Settings>,
+    settings_to_handle: FxHashMap<T::Settings, DynAssetHandle>,
+}
+
+impl<T: AssetLoader + 'static> TypedLoadRegistry<T> {
+    fn new() -> Self {
+        Self {
+            handle_to_settings: FxHashMap::default(),
+            settings_to_handle: FxHashMap::default(),
+        }
+    }
+}
+
+trait DynLoadRegistry {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
 impl<T: AssetLoader + 'static> DynLoadRegistry for TypedLoadRegistry<T> {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
     }

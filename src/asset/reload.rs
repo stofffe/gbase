@@ -94,9 +94,9 @@ impl AssetCacheReload {
         // mark as curretnly reloading
         self.set_currently_reloading(dyn_handle.clone());
 
-        let is_loader = registry.is_loader(&dyn_handle);
-        let is_converter = registry.is_converter(&dyn_handle);
-        match (is_loader, is_converter) {
+        let created_by_loader = registry.created_by_loader(&dyn_handle);
+        let created_by_converter = registry.created_by_converter(&dyn_handle);
+        match (created_by_loader, created_by_converter) {
             (true, false) => loader.queue_load(registry, dyn_handle.clone()),
             (false, true) => converter.queue_conversion(registry, dyn_handle),
             (true, true) => panic!("a handle cant be both a loader and a converter"),

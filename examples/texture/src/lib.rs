@@ -96,7 +96,8 @@ impl Callbacks for App {
         };
         let mesh = mesh.clone();
 
-        let asset::GetAssetResult::Success(shader) = asset::get(cache, self.shader_gpu.clone())
+        let asset::GetAssetResult::Success(shader) =
+            asset::get_asset(cache, self.shader_gpu.clone())
         else {
             return CallbackResult::Continue;
         };
@@ -132,7 +133,7 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let buffer_layout = asset::get(cache, self.mesh_handle.clone())
+        let buffer_layout = asset::get_asset(cache, self.mesh_handle.clone())
             .unwrap_success()
             .buffer_layout();
         let pipeline =

@@ -1,5 +1,6 @@
 auto implement shadermodule
 converters allowed to request loads?
+remove deprecated convert asset
 
 give better debug names
 if it initally fails it does reload correctly

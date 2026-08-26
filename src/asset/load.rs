@@ -183,7 +183,7 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
     ) {
-        let handle = registry.get_or_create_load_handle::<T>(self.settings.clone());
+        let handle = registry.get_or_create_load_handle::<T>(&self.settings);
 
         // TODO: this is wrong
         if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
@@ -191,7 +191,7 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
                 "nested load request {} has no status, register and load now",
                 handle
             );
-            loader.register_load::<T>(registry, self.settings.clone());
+            loader.register_load::<T>(registry, &self.settings);
             loader.queue_load(registry, handle.to_dyn());
         }
 
@@ -333,9 +333,9 @@ impl AssetCacheLoad {
     pub fn register_load<T: AssetLoader>(
         &mut self,
         registry: &mut AssetCacheRegistry,
-        settings: T::Settings,
+        settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = registry.get_or_create_load_handle::<T>(settings.clone());
+        let handle = registry.get_or_create_load_handle::<T>(settings);
 
         if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
             tracing::info!("register load {}", handle);
@@ -476,12 +476,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");
 
-        let Some(settings) = registry
-            .get_typed_load_registry_mut::<T>()
-            .handle_to_settings
-            .get(&handle.to_dyn())
-            .cloned()
-        else {
+        let Some(settings) = registry.get_load_settings_from_handle::<T>(&dyn_handle) else {
             panic!("could not get settings from handle");
         };
 

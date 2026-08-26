@@ -53,12 +53,12 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
     cache.handle_just_loaded(handle.clone())
 }
 
-pub fn get<T: Asset + 'static>(
+pub fn get_asset<T: Asset + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T>,
 ) -> GetAssetResult<'_, T> {
     // tracing::info!("get asset");
-    cache.get(&handle)
+    cache.get_asset(&handle)
 }
 
 #[deprecated(since = "1.0.0", note = "use `new_function` instead")]
@@ -84,9 +84,9 @@ pub fn get_or_convert_asset<T: AssetConverter + 'static>(
 ) -> GetAssetResult<'_, T::Asset> {
     // tracing::info!("get or convert asset");
     let handle = cache.convert::<T>(settings);
-    cache.get(&handle)
+    cache.get_asset(&handle)
 }
 
 pub fn debug_asset_dependency_graph(cache: &AssetCache) {
-    cache.dependency.debug_graph();
+    cache.debug_asset_dependency_graph();
 }

@@ -16,16 +16,16 @@ pub struct AssetCache {
     storage: AssetCacheStorage,
     loader: AssetCacheLoad,
 
-    pub converter: AssetCacheConvert,
-    pub registry: AssetCacheRegistry,
+    converter: AssetCacheConvert,
+    registry: AssetCacheRegistry,
 
-    pub dependency: AssetCacheDependency,
+    dependency: AssetCacheDependency,
     #[cfg(not(target_arch = "wasm32"))]
     reloader: asset::reload::AssetCacheReload,
 }
 
 impl AssetCache {
-    pub fn new(ctx: &Context) -> Self {
+    pub(crate) fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
         let filesystem_ctx = ctx.filesystem.clone();
         let task_executor = ctx.task.clone();
@@ -63,20 +63,7 @@ impl AssetCache {
         }
     }
 
-    pub fn load_ctx<T: Asset>(&self, handle: AssetHandle<T>) -> LoadContext {
-        let state = LoadState::new(handle.to_dyn());
-        let runtime = LoadRuntime::new(
-            self.asset_handle_ctx.clone(),
-            self.filesystem_ctx.clone(),
-            &self.loader,
-        );
-
-        LoadContext::new(state, runtime)
-    }
-
-    // TODO: does order matter?
-    pub fn poll(&mut self, ctx: &mut Context) {
-        // tracing::warn!("poll reload");
+    pub(crate) fn poll(&mut self, ctx: &mut Context) {
         // reload
         #[cfg(not(target_arch = "wasm32"))]
         self.reloader
@@ -86,9 +73,7 @@ impl AssetCache {
         self.registry.clear_just_available();
 
         // loading
-        // tracing::warn!("poll handle requests");
         self.loader.poll_handle_requests(&mut self.registry);
-        // tracing::warn!("poll loaded");
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
@@ -97,11 +82,9 @@ impl AssetCache {
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
         );
-        // tracing::warn!("poll queue loads");
         self.loader.poll_queue_loads(&mut self.registry);
 
-        // derived
-        // tracing::warn!("poll conversions");
+        // convert
         self.converter.poll_conversions(
             ctx,
             &mut self.storage,
@@ -115,7 +98,9 @@ impl AssetCache {
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
+        let handle = self
+            .loader
+            .register_load::<T>(&mut self.registry, &settings);
 
         self.loader.queue_load(&mut self.registry, handle.to_dyn());
 
@@ -142,8 +127,11 @@ impl AssetCache {
         self.storage.insert_successful_new_handle(data)
     }
 
-    pub fn get<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
-        if let Some(success) = self.storage.get(handle) {
+    pub fn get_asset<T: Asset + 'static>(
+        &mut self,
+        handle: &AssetHandle<T>,
+    ) -> GetAssetResult<'_, T> {
+        if let Some(success) = self.storage.get_asset(handle) {
             return GetAssetResult::Success(success);
         }
 
@@ -159,7 +147,8 @@ impl AssetCache {
     }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
-        self.storage.handle_successfully_loaded(handle)
+        let status = self.registry.get_status(&handle.to_dyn());
+        matches!(status, LoadStatus::Ready)
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
@@ -173,11 +162,19 @@ impl AssetCache {
     }
 
     //
+    // Dependency re-exports
+    //
+
+    pub fn debug_asset_dependency_graph(&self) {
+        self.dependency.debug_graph();
+    }
+
+    //
     // Load re-exports
     //
 
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
-        self.registry.handle_just_loaded(&handle.to_dyn())
+        self.registry.handle_just_available(&handle.to_dyn())
     }
 
     //
@@ -193,14 +190,8 @@ impl AssetCache {
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        // TODO: should check cache and status
-        let handle = self
-            .converter
-            .register_conversion::<T>(&mut self.registry, settings);
-
-        // self.convert
-        //     .queue_conversion(&mut self.registry, handle.to_dyn());
-        handle
+        self.converter
+            .register_conversion::<T>(&mut self.registry, &settings)
     }
 
     //

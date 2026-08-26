@@ -321,7 +321,7 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let GetAssetResult::Success(buffer) = asset::get::<Mesh>(cache, self.mesh_handle.clone())
+        let GetAssetResult::Success(buffer) = asset::get_asset(cache, self.mesh_handle.clone())
         else {
             return CallbackResult::Continue;
         };

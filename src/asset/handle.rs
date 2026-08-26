@@ -80,7 +80,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
 
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
         tracing::info!("get asset from handle");
-        cache.get(self)
+        cache.get_asset(self)
     }
 }
 

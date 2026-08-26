@@ -63,7 +63,7 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
         convert: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
     ) {
-        let handle = convert.register_conversion::<T>(registry, self.settings.clone());
+        let handle = convert.register_conversion::<T>(registry, &self.settings);
         convert.queue_conversion(registry, handle.to_dyn());
     }
 
@@ -232,9 +232,9 @@ impl AssetCacheConvert {
     pub fn register_conversion<T: AssetConverter + 'static>(
         &mut self,
         registry: &mut AssetCacheRegistry,
-        settings: T::Settings,
+        settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = registry.get_or_create_convert_handle::<T>(settings.clone());
+        let handle = registry.get_or_create_convert_handle::<T>(settings);
 
         if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
             tracing::info!("register conversion {}", handle);
@@ -351,12 +351,7 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");
 
-        let Some(settings) = registry
-            .get_typed_convert_registry_mut::<T>()
-            .handle_to_settings
-            .get(&handle.to_dyn())
-            .cloned()
-        else {
+        let Some(settings) = registry.get_convert_settings_from_handle::<T>(&dyn_handle) else {
             panic!("could not get settings from handle");
         };
 
@@ -453,7 +448,7 @@ impl<'runtime> ConvertContext<'runtime> {
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
-        if let Some(asset) = self.runtime.storage.get(handle) {
+        if let Some(asset) = self.runtime.storage.get_asset(handle) {
             return GetAssetResult::Success(asset);
         }
 
@@ -481,14 +476,14 @@ impl<'runtime> ConvertContext<'runtime> {
         let handle = self
             .runtime
             .registry
-            .get_or_create_convert_handle::<T>(settings.clone());
+            .get_or_create_convert_handle::<T>(settings);
 
         tracing::info!("conversion convert {}", handle);
 
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
-        match self.runtime.storage.get(&handle) {
+        match self.runtime.storage.get_asset(&handle) {
             Some(asset) => GetAssetResult::Success(asset),
             None => {
                 match self.runtime.registry.get_status(&handle.to_dyn()) {
