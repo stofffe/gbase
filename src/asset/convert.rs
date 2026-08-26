@@ -6,10 +6,10 @@ use crate::{
     render::ArcHandle,
     Context,
 };
-use core::error;
+use core::{error, panic};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
-    any::{Any, TypeId},
+    any::{type_name, Any, TypeId},
     collections::VecDeque,
     hash::Hash,
     marker::PhantomData,
@@ -63,18 +63,8 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
         convert: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
     ) {
-        // register converter
-        // TODO: kinda weird since it does nothing
-        convert.get_typed_cache_mut::<T>();
-
-        // registry
-        registry.register_convert_handle::<T>(self.handle.clone(), self.settings.clone());
-
-        convert
-            .handle_to_converter_type
-            .insert(self.handle.to_dyn(), TypeId::of::<T>());
-
-        convert.queue_conversion(registry, self.handle.to_dyn());
+        let handle = convert.register_conversion::<T>(registry, self.settings.clone());
+        convert.queue_conversion(registry, handle.to_dyn());
     }
 
     fn handle(&self) -> DynAssetHandle {
@@ -87,8 +77,6 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
 //
 
 pub struct AssetCacheConvert {
-    asset_handle_ctx: AssetHandleContext,
-
     typed: FxHashMap<TypeId, Box<dyn DynAssetConvert>>,
 
     // queue
@@ -102,9 +90,8 @@ pub struct AssetCacheConvert {
 }
 
 impl AssetCacheConvert {
-    pub fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+    pub fn new() -> Self {
         Self {
-            asset_handle_ctx,
             typed: FxHashMap::default(),
 
             queue: VecDeque::default(),
@@ -175,6 +162,11 @@ impl AssetCacheConvert {
 
             // request conversions
             if let Some(request) = request {
+                // panic!(
+                //     "request nested conversion through return {}",
+                //     request.handle()
+                // );
+                tracing::info!("send request for converison of {}", request.handle());
                 request.request(self, registry);
             }
 
@@ -221,7 +213,8 @@ impl AssetCacheConvert {
                         !handles.is_empty()
                     });
                     self.wakeup_waiting_on_handle(registry, &dyn_handle);
-                    self.requeu_dependents(dependency, registry, &dyn_handle);
+                    self.reload_depending_conversions(dependency, registry, &dyn_handle);
+                    registry.set_status(dyn_handle, LoadStatus::Ready);
                 }
             }
         }
@@ -233,29 +226,18 @@ impl AssetCacheConvert {
         registry: &mut AssetCacheRegistry,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        // use cached value if it exists
-        if let Some(handle) = registry
-            .get_typed_convert_registry_mut::<T>()
-            .settings_to_handle
-            .get(&settings)
-        {
-            return handle.clone();
-        };
+        let handle = registry.get_or_create_convert_handle::<T>(settings.clone());
 
-        let handle = AssetHandle::new(&self.asset_handle_ctx);
-        tracing::info!("create new derived handle {}", handle);
+        if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
+            tracing::info!("register conversion {}", handle);
 
-        // register converter
-        // TODO: kinda weird since it does nothing
-        self.get_typed_cache_mut::<T>();
+            self.handle_to_converter_type
+                .insert(handle.to_dyn(), TypeId::of::<T>());
 
-        // registry
-        registry.register_convert_handle::<T>(handle.clone(), settings.clone());
+            self.get_typed_cache_mut::<T>();
 
-        self.handle_to_converter_type
-            .insert(handle.to_dyn(), TypeId::of::<T>());
-
-        self.queue_conversion(registry, handle.to_dyn());
+            self.queue_conversion(registry, handle.to_dyn());
+        }
 
         handle
     }
@@ -264,7 +246,15 @@ impl AssetCacheConvert {
     //
     // Assumes all state is set up from queue_conversion function
     pub fn queue_conversion(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
-        // TODO: this must check if its convertable?
+        // // TODO: this must check if its convertable?
+        // match registry.get_status(&handle) {
+        //     LoadStatus::NotRegistered => {
+        //         panic!("{} has no status", handle)
+        //     }
+        //     _ => tracing::info!("{} has status", handle),
+        // }
+
+        tracing::info!("queue conversion of {}", handle);
         if self.queued.insert(handle.clone()) {
             registry.set_status(handle.clone(), LoadStatus::Loading);
             self.queue.push_back(handle);
@@ -278,10 +268,11 @@ impl AssetCacheConvert {
         dependency: &DynAssetHandle,
     ) {
         tracing::info!(
-            "wake all waiting on {}: #{}",
+            "wake all waiting on {}: {:?}",
             dependency,
-            self.waiting_for.get(dependency).map_or(0, |a| a.len())
+            self.waiting_for.get(dependency)
         );
+
         let Some(waiting_handles) = self.waiting_for.remove(dependency) else {
             return;
         };
@@ -292,18 +283,16 @@ impl AssetCacheConvert {
         }
     }
 
-    pub fn requeu_dependents(
+    // similar to reload
+    pub fn reload_depending_conversions(
         &mut self,
         dependency: &mut AssetCacheDependency,
         registry: &mut AssetCacheRegistry,
         handle: &DynAssetHandle,
     ) {
         if let Some(dependents) = dependency.dependents(handle) {
-            tracing::info!(
-                "requeue dependents due to {}, len {}",
-                handle,
-                dependents.len()
-            );
+            tracing::info!("requeue dependents due to {}, len {:?}", handle, dependents);
+
             for dependent in dependents.iter() {
                 self.queue_conversion(registry, dependent.clone());
             }
@@ -367,7 +356,7 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
         let Some(settings) = registry
             .get_typed_convert_registry_mut::<T>()
             .handle_to_settings
-            .get(&handle)
+            .get(&handle.to_dyn())
             .cloned()
         else {
             panic!("could not get settings from handle");
@@ -378,13 +367,13 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
 
-        let wait_for = convert_ctx.state.blocking_handle.clone();
+        let blocking_handle = convert_ctx.state.blocking_handle.clone();
         let dependencies = convert_ctx.state.dependencies.clone();
 
         match conversion {
             ConvertAssetStatus::Loading => (
                 ConversionPollResult::Waiting(
-                    wait_for.expect("should have blocking dependency if in loading status"),
+                    blocking_handle.expect("should have blocking dependency if in loading status"),
                 ),
                 convert_ctx.state.conversion_request,
             ),
@@ -393,6 +382,8 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
                 storage.insert::<T::Asset>(handle.clone(), asset);
 
                 // set as just available
+                // TODO: should this be set here?
+                registry.set_status(handle.to_dyn(), LoadStatus::Ready);
                 registry.set_just_available(handle.to_dyn());
 
                 // register deps
@@ -403,7 +394,7 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
             ConvertAssetStatus::Failed => (
                 ConversionPollResult::Failed(
                     // TODO: temp
-                    wait_for.expect("should have blocking dependency if in loading status"),
+                    blocking_handle.expect("should have blocking dependency if in loading status"),
                 ),
                 None,
             ),
@@ -426,7 +417,7 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 pub struct ConvertRuntime<'a> {
     // to get assets
     pub(crate) storage: &'a mut AssetCacheStorage,
-    // to get asset status
+    // to request new loads if no cached value exist in storage
     pub(crate) loader: &'a mut AssetCacheLoad,
     // to get setting -> derived handle mapping
     pub(crate) registry: &'a mut AssetCacheRegistry,
@@ -480,6 +471,8 @@ impl<'runtime> ConvertContext<'runtime> {
     }
 
     pub fn get_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
+        tracing::info!("conversion get {}", handle);
+
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
@@ -498,35 +491,65 @@ impl<'runtime> ConvertContext<'runtime> {
                 tracing::info!("{} failed, set blocking", handle);
                 GetAssetResult::Error
             }
+            LoadStatus::Ready => panic!("could not get asset from storage but status is ready"),
+            LoadStatus::NotRegistered => panic!("trying to get unregistered asset"),
         }
     }
 
-    pub fn convert_asset<G: AssetConverter + 'static>(
+    pub fn convert_asset<T: AssetConverter + 'static>(
         &mut self,
-        settings: &G::Settings,
-    ) -> GetAssetResult<'_, G::Asset> {
+        settings: &T::Settings,
+    ) -> GetAssetResult<'_, T::Asset> {
         // get handle from registry
-        let (handle, created_new) = self
+        let handle = self
             .runtime
             .registry
-            .get_or_create_convert_handle::<G>(settings.clone());
+            .get_or_create_convert_handle::<T>(settings.clone());
 
-        // register deps
-        self.state.dependencies.insert(handle.to_dyn());
-
-        self.state.blocking_handle = Some(handle.to_dyn());
-        if created_new {
-            self.state.conversion_request = Some(Box::new(ConvertRequest::<G>::new(
-                handle.clone(),
-                settings.clone(),
-            )));
-        }
+        tracing::info!("conversion convert {}", handle);
 
         match self.runtime.storage.get(&handle) {
             Some(asset) => GetAssetResult::Success(asset),
             None => {
-                self.state.blocking_handle = Some(handle.to_dyn());
-                GetAssetResult::Loading
+                match self.runtime.registry.get_status(&handle.to_dyn()) {
+                    LoadStatus::Ready => {
+                        panic!("could not get asset from storage but status is ready")
+                    }
+                    LoadStatus::Loading => {
+                        tracing::info!("{} is not ready, set blocking", handle);
+                        self.state.blocking_handle = Some(handle.to_dyn());
+                        GetAssetResult::Loading
+                    }
+                    LoadStatus::Failed => {
+                        tracing::info!("{} failed, set blocking", handle);
+                        self.state.blocking_handle = Some(handle.to_dyn());
+                        GetAssetResult::Error
+                    }
+                    // TODO: something is not being sent here
+                    LoadStatus::NotRegistered => {
+                        // register new converison
+                        tracing::info!(
+                            "{} is not registered, request new and set blocking",
+                            handle
+                        );
+                        self.state.conversion_request = Some(Box::new(ConvertRequest::<T>::new(
+                            handle.clone(),
+                            settings.clone(),
+                        )));
+                        self.state.blocking_handle = Some(handle.to_dyn());
+                        // TODO: we have to register the status
+                        // self.runtime
+                        //     .registry
+                        //     .register_convert_handle_settings_mapping::<T>(
+                        //         handle.clone(),
+                        //         settings.clone(),
+                        //     );
+                        // self.runtime
+                        //     .registry
+                        //     .set_status(handle.to_dyn(), LoadStatus::Loading);
+                        GetAssetResult::Loading
+                    }
+                }
             }
         }
     }

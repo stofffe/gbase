@@ -57,6 +57,7 @@ pub fn get<T: Asset + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T>,
 ) -> GetAssetResult<'_, T> {
+    // tracing::info!("get asset");
     cache.get(&handle)
 }
 
@@ -81,6 +82,7 @@ pub fn get_or_convert_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
     settings: T::Settings,
 ) -> GetAssetResult<'_, T::Asset> {
+    // tracing::info!("get or convert asset");
     let handle = cache.convert::<T>(settings);
     cache.get(&handle)
 }

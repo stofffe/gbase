@@ -38,7 +38,7 @@ impl AssetCache {
             asset_handle_ctx.clone(),
         );
 
-        let convert = AssetCacheConvert::new(asset_handle_ctx.clone());
+        let convert = AssetCacheConvert::new();
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
@@ -76,14 +76,19 @@ impl AssetCache {
 
     // TODO: does order matter?
     pub fn poll(&mut self, ctx: &mut Context) {
+        // tracing::warn!("poll reload");
+        // reload
         #[cfg(not(target_arch = "wasm32"))]
         self.reloader
             .poll_reload(&mut self.loader, &mut self.registry);
 
-        // loading
-        self.loader.poll_handle_requests(&mut self.registry);
-
+        // registry
         self.registry.clear_just_available();
+
+        // loading
+        // tracing::warn!("poll handle requests");
+        self.loader.poll_handle_requests(&mut self.registry);
+        // tracing::warn!("poll loaded");
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
@@ -92,8 +97,11 @@ impl AssetCache {
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
         );
+        // tracing::warn!("poll queue loads");
+        self.loader.poll_queue_loads(&mut self.registry);
 
         // derived
+        // tracing::warn!("poll conversions");
         self.convert.poll_conversions(
             ctx,
             &mut self.storage,
@@ -105,15 +113,14 @@ impl AssetCache {
 
     pub(crate) fn load<T: AssetLoader + 'static>(
         &mut self,
-        handle: AssetHandle<T::Asset>,
         settings: T::Settings,
-    ) {
-        self.loader
-            .load_asset_with_handle::<T>(&mut self.registry, handle, settings);
-    }
+    ) -> AssetHandle<T::Asset> {
+        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
 
-    pub fn new_empty_handle<T: Asset>(&self) -> AssetHandle<T> {
-        AssetHandle::new(&self.asset_handle_ctx)
+        self.loader
+            .queue_load::<T>(&mut self.registry, handle.to_dyn());
+
+        handle
     }
 
     //
@@ -144,6 +151,11 @@ impl AssetCache {
         match self.registry.get_status(&handle.to_dyn()) {
             LoadStatus::Loading => GetAssetResult::Loading,
             LoadStatus::Failed => GetAssetResult::Error,
+            LoadStatus::Ready => panic!(
+                "could not get asset from storage but status is ready {}",
+                handle
+            ),
+            LoadStatus::NotRegistered => panic!("trying to get unregistered asset {}", handle),
         }
     }
 
@@ -182,8 +194,14 @@ impl AssetCache {
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        self.convert
-            .register_conversion::<T>(&mut self.registry, settings)
+        // TODO: should check cache and status
+        let handle = self
+            .convert
+            .register_conversion::<T>(&mut self.registry, settings);
+
+        // self.convert
+        //     .queue_conversion(&mut self.registry, handle.to_dyn());
+        handle
     }
 
     //

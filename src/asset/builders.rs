@@ -56,11 +56,7 @@ pub struct LoadAssetBuilder<T: AssetLoader> {
 
 impl<T: AssetLoader + 'static> LoadAssetBuilder<T> {
     pub fn build(self, cache: &mut AssetCache, settings: T::Settings) -> AssetHandle<T::Asset> {
-        let handle = self.handle.unwrap_or(cache.new_empty_handle());
-
-        cache.load::<T>(handle.clone(), settings);
-
-        handle
+        cache.load::<T>(settings)
     }
 
     pub fn handle(mut self, handle: AssetHandle<T::Asset>) -> Self {

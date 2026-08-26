@@ -178,6 +178,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
+        // tracing::info!("CONVERT WITH SOURCE {}", settings.shader);
         let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
@@ -272,23 +273,29 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        // tracing::warn!("convert mesh");
         let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,
             MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         ) else {
+            tracing::warn!("convert mesh not ready");
             return CallbackResult::Continue;
         };
         let mesh = mesh.clone();
+        // tracing::warn!("convert mesh success");
 
+        // tracing::warn!("convert shader");
         let asset::GetAssetResult::Success(shader) =
             asset::get_or_convert_asset::<ShaderWithImportsGpuConverter>(
                 cache,
                 ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
             )
         else {
+            tracing::warn!("convert shader not ready");
             return CallbackResult::Continue;
         };
         let shader = shader.clone();
+        // tracing::warn!("convert mesh success");
 
         let asset::GetAssetResult::Success(texture) =
             asset::get_or_convert_asset::<ImageGpuConverter>(

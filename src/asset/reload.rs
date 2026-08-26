@@ -1,4 +1,4 @@
-use crate::asset::{AssetCacheDependency, AssetCacheRegistry, DynAssetHandle};
+use crate::asset::{AssetCacheDependency, AssetCacheRegistry, DynAssetHandle, LoadStatus};
 use crate::asset::{AssetCacheLoad, AssetLoader};
 use crate::filesystem::FileSystemContext;
 use core::panic;
@@ -37,32 +37,32 @@ impl<T: AssetLoader + 'static> DynAssetReload for TypedAssetReload<T> {
         registry: &mut AssetCacheRegistry,
         dyn_handle: DynAssetHandle,
     ) {
-        let Some(handle) = dyn_handle.to_typed::<T::Asset>() else {
-            tracing::warn!(
-                "trying to convert DynAssetHandle with type {:?} to a AssetHandle with type {:?}",
-                dyn_handle.type_id(),
-                TypeId::of::<T::Asset>()
-            );
-            return;
-        };
+        tracing::info!("reload handle {}", dyn_handle);
+        loader.queue_load::<T>(registry, dyn_handle);
+        // let Some(handle) = dyn_handle.to_typed::<T::Asset>() else {
+        //     tracing::warn!(
+        //         "trying to convert DynAssetHandle with type {:?} to a AssetHandle with type {:?}",
+        //         dyn_handle.type_id(),
+        //         TypeId::of::<T::Asset>()
+        //     );
+        //     return;
+        // };
 
-        let Some(typed_load_registry) = registry.get_typed_load_registry_ref::<T>() else {
-            tracing::warn!(
-                "trying to reload handle {:?} but no typed loader exists",
-                handle.id
-            );
-            return;
-        };
-
-        let Some(settings) = typed_load_registry.handle_to_settings.get(&handle) else {
-            tracing::warn!(
-                "trying to get settings for {:?} but none were found",
-                handle.id
-            );
-            return;
-        };
-
-        loader.load_asset_with_handle::<T>(registry, handle, settings.clone());
+        // let Some(typed_load_registry) = registry.get_typed_load_registry_ref::<T>() else {
+        //     tracing::warn!(
+        //         "trying to reload handle {:?} but no typed loader exists",
+        //         handle.id
+        //     );
+        //     return;
+        // };
+        //
+        // let Some(settings) = typed_load_registry.handle_to_settings.get(&handle.to_dyn()) else {
+        //     tracing::warn!(
+        //         "trying to get settings for {:?} but none were found",
+        //         handle.id
+        //     );
+        //     return;
+        // };
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -185,6 +185,7 @@ impl AssetCacheReload {
         // mark as curretnly reloading
         self.currently_reloading.insert(handle.clone());
 
+        // TODO: this doesnt even use the type anymore
         dyn_reloader.reload_handle(loader, registry, handle);
     }
 
