@@ -16,10 +16,10 @@ pub struct AssetCache {
     storage: AssetCacheStorage,
     loader: AssetCacheLoad,
 
-    pub convert: AssetCacheConvert,
+    pub converter: AssetCacheConvert,
     pub registry: AssetCacheRegistry,
 
-    dependency: AssetCacheDependency,
+    pub dependency: AssetCacheDependency,
     #[cfg(not(target_arch = "wasm32"))]
     reloader: asset::reload::AssetCacheReload,
 }
@@ -38,7 +38,7 @@ impl AssetCache {
             asset_handle_ctx.clone(),
         );
 
-        let convert = AssetCacheConvert::new();
+        let converter = AssetCacheConvert::new();
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
@@ -55,7 +55,7 @@ impl AssetCache {
             loader,
             dependency,
 
-            convert,
+            converter,
             registry,
 
             #[cfg(not(target_arch = "wasm32"))]
@@ -80,7 +80,7 @@ impl AssetCache {
         // reload
         #[cfg(not(target_arch = "wasm32"))]
         self.reloader
-            .poll_reload(&mut self.loader, &mut self.registry);
+            .poll_reload(&mut self.loader, &mut self.converter, &mut self.registry);
 
         // registry
         self.registry.clear_just_available();
@@ -92,7 +92,7 @@ impl AssetCache {
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
-            &mut self.convert,
+            &mut self.converter,
             &mut self.dependency,
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
@@ -102,7 +102,7 @@ impl AssetCache {
 
         // derived
         // tracing::warn!("poll conversions");
-        self.convert.poll_conversions(
+        self.converter.poll_conversions(
             ctx,
             &mut self.storage,
             &mut self.loader,
@@ -117,8 +117,7 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         let handle = self.loader.register_load::<T>(&mut self.registry, settings);
 
-        self.loader
-            .queue_load::<T>(&mut self.registry, handle.to_dyn());
+        self.loader.queue_load(&mut self.registry, handle.to_dyn());
 
         handle
     }
@@ -196,7 +195,7 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         // TODO: should check cache and status
         let handle = self
-            .convert
+            .converter
             .register_conversion::<T>(&mut self.registry, settings);
 
         // self.convert
@@ -211,7 +210,11 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
-        self.reloader
-            .reload(handle.to_dyn(), &mut self.loader, &mut self.registry);
+        self.reloader.reload(
+            handle.to_dyn(),
+            &mut self.loader,
+            &mut self.converter,
+            &mut self.registry,
+        );
     }
 }

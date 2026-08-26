@@ -86,3 +86,7 @@ pub fn get_or_convert_asset<T: AssetConverter + 'static>(
     let handle = cache.convert::<T>(settings);
     cache.get(&handle)
 }
+
+pub fn debug_asset_dependency_graph(cache: &AssetCache) {
+    cache.dependency.debug_graph();
+}

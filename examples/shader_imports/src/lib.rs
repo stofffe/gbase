@@ -1,3 +1,4 @@
+use gbase::input::{self, KeyCode};
 use gbase::render::ArcHandle;
 use gbase::{
     asset::{
@@ -118,8 +119,8 @@ impl AssetConverter for ShaderWithImportsConverter {
     type Error = EmptyError;
 
     fn convert(
-        ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
+        _ctx: &mut Context,
+        convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.shader) {
@@ -178,7 +179,6 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
-        // tracing::info!("CONVERT WITH SOURCE {}", settings.shader);
         let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
@@ -273,6 +273,10 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        if input::key_just_pressed(ctx, KeyCode::KeyD) {
+            asset::debug_asset_dependency_graph(cache);
+        }
+
         // tracing::warn!("convert mesh");
         let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,

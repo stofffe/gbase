@@ -41,12 +41,13 @@ impl AssetCacheDependency {
 
     pub fn debug_graph(&self) {
         // normal
-        tracing::info!("dependencies");
+        tracing::info!("--- dependencies ---");
         for (handle, deps) in self.dependencies.iter() {
             tracing::info!("{}:", handle);
             for dep in deps.iter() {
-                tracing::info!("->{}", dep);
+                tracing::info!("  ->{}", dep);
             }
         }
+        tracing::info!("--- ----------- ---");
     }
 }

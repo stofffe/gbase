@@ -187,9 +187,23 @@ impl AssetCacheRegistry {
             .clone()
     }
 
-    // pub fn remove_status(&mut self, handle: &DynAssetHandle) {
-    //     self.status.remove(handle);
-    // }
+    pub fn is_converter(&mut self, dyn_handle: &DynAssetHandle) -> bool {
+        for typed_convert in self.typed_convert_registries.values() {
+            if typed_convert.contains_handle(dyn_handle) {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn is_loader(&mut self, dyn_handle: &DynAssetHandle) -> bool {
+        for typed_load in self.typed_load_registries.values() {
+            if typed_load.contains_handle(dyn_handle) {
+                return true;
+            }
+        }
+        false
+    }
 
     // Just available
 
@@ -246,6 +260,7 @@ impl<T: AssetLoader + 'static> TypedLoadRegistry<T> {
 pub trait DynConvertRegistry {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
 impl<T: AssetConverter + 'static> DynConvertRegistry for TypedConvertRegistry<T> {
@@ -255,6 +270,10 @@ impl<T: AssetConverter + 'static> DynConvertRegistry for TypedConvertRegistry<T>
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
+    }
+
+    fn contains_handle(&self, handle: &DynAssetHandle) -> bool {
+        self.handle_to_settings.contains_key(handle)
     }
 }
 

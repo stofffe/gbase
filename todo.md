@@ -17,6 +17,9 @@ reload queue to avoid same dep being reloaded many times
 reuse handles for inserted assets by using some (parent + id (id could be string?) ) 
 handle shutdown of background thread?
 own handle cache for asset loading? how to sync? 
+remove arc from assethandle?
+look at clone vs & for handles
+pass asset handle ctx and stuff instead of arcing
 
 next up
     [] return errors to user

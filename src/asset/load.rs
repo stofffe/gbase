@@ -121,11 +121,16 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
                 {
-                    reloader.register_loader_type::<T>(dyn_handle.clone());
                     reloader.register_watches(dyn_handle.clone(), &self.watches);
-                    // TODO: maybe this should apply to everything related to reloading?
+
                     if reloader.is_currently_reloading(&dyn_handle) {
-                        reloader.reload_dependents(dependency, loader, registry, &dyn_handle);
+                        reloader.reload_dependents(
+                            dependency,
+                            loader,
+                            convert,
+                            registry,
+                            &dyn_handle,
+                        );
                     }
                 }
             }
@@ -187,9 +192,7 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
                 handle
             );
             loader.register_load::<T>(registry, self.settings.clone());
-            loader.queue_load::<T>(registry, handle.to_dyn());
-        } else {
-            tracing::info!("{} has status", handle);
+            loader.queue_load(registry, handle.to_dyn());
         }
 
         // send the handle back
@@ -311,7 +314,8 @@ impl AssetCacheLoad {
             self.queued.remove(&dyn_handle);
 
             let Some(type_id) = self.handle_to_loader_type.get(&dyn_handle) else {
-                panic!("no loader registered for {}", dyn_handle);
+                tracing::warn!("no loader registered for {}", dyn_handle);
+                continue;
             };
 
             let Some(typed_load) = self.typed_load.get_mut(type_id) else {
@@ -351,11 +355,7 @@ impl AssetCacheLoad {
     }
 
     // TODO: does this need to be generic?
-    pub fn queue_load<T: AssetLoader>(
-        &mut self,
-        registry: &mut AssetCacheRegistry,
-        handle: DynAssetHandle,
-    ) {
+    pub fn queue_load(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
         tracing::info!("queue load for {}", handle);
         if self.queued.insert(handle.clone()) {
             registry.set_status(handle.clone(), LoadStatus::Loading);
