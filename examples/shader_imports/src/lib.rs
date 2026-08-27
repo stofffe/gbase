@@ -194,7 +194,10 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
 
             match shader {
                 Ok(shader) => ConvertAssetStatus::Success(ArcHandle::new(ctx, shader)),
-                Err(_) => ConvertAssetStatus::Failed,
+                Err(err) => {
+                    tracing::warn!("could not compile shader:\n{}", err);
+                    ConvertAssetStatus::Failed
+                }
             }
         }
         #[cfg(target_arch = "wasm32")]
@@ -279,29 +282,23 @@ impl Callbacks for App {
             asset::debug_asset_dependency_graph(cache);
         }
 
-        // tracing::warn!("convert mesh");
         let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,
             MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         ) else {
-            tracing::warn!("convert mesh not ready");
             return CallbackResult::Continue;
         };
         let mesh = mesh.clone();
-        // tracing::warn!("convert mesh success");
 
-        // tracing::warn!("convert shader");
         let asset::GetAssetResult::Success(shader) =
             asset::get_or_convert_asset::<ShaderWithImportsGpuConverter>(
                 cache,
                 ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
             )
         else {
-            tracing::warn!("convert shader not ready");
             return CallbackResult::Continue;
         };
         let shader = shader.clone();
-        // tracing::warn!("convert mesh success");
 
         let asset::GetAssetResult::Success(texture) =
             asset::get_or_convert_asset::<ImageGpuConverter>(

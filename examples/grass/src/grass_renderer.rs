@@ -199,12 +199,12 @@ impl GrassRenderer {
             ])
             .build(ctx);
 
-        let render_deferred_shader_handle = cache.load::<ShaderLoader>(&ShaderLoaderSettings::new(
-            "assets/shaders/grass_deferred.wgsl",
-        ));
+        let render_deferred_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::new("assets/shaders/grass_deferred.wgsl"),
+        );
 
-        let render_forward_shader_handle =
-            cache.load::<ShaderLoader>(&ShaderLoaderSettings::new("assets/shaders/grass.wgsl"));
+        let render_forward_shader_handle = cache
+            .load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("assets/shaders/grass.wgsl"));
 
         let render_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![render_bindgroup_layout.clone()])

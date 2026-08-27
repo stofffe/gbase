@@ -14,6 +14,7 @@ use std::{
     hash::Hash,
     marker::PhantomData,
 };
+use tracing::span;
 
 //
 // Types
@@ -33,6 +34,28 @@ pub trait AssetConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset>;
+}
+
+// NOTE: user facing
+pub enum ConvertAssetResult<T: Asset> {
+    Loading,
+    Success(ArcHandle<T>),
+    Failed,
+}
+
+impl<T: Asset> ConvertAssetResult<T> {
+    /// Unwrap the result as a success
+    ///
+    /// Panics for other values than
+    pub fn unwrap_success(self) -> ArcHandle<T> {
+        match self {
+            ConvertAssetResult::Loading => {
+                panic!("asset conversion loading: unwrap success failed")
+            }
+            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
+            ConvertAssetResult::Success(arc_handle) => arc_handle,
+        }
+    }
 }
 
 pub enum ConvertAssetStatus<T: Asset> {
@@ -149,10 +172,11 @@ impl AssetCacheConvert {
                 panic!("could not get typed converter");
             };
 
-            tracing::info!("-- start polled conversion {}", dyn_handle);
+            let _conver_span = span!(tracing::Level::INFO, "converting").entered();
+            tracing::info!("start polled conversion {}", dyn_handle);
             let (result, state) =
                 typed_converter.convert(ctx, storage, loader, registry, dyn_handle.clone());
-            tracing::info!("-- done polled conversion {}", dyn_handle);
+            _conver_span.exit();
 
             // request conversions
             if let Some(request) = state.conversion_request {
@@ -175,12 +199,8 @@ impl AssetCacheConvert {
                         blocking_handle
                     );
 
-                    // TODO: feel like i need to
-                    // remove any pending handles
-                    self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_handle);
-                        !handles.is_empty()
-                    });
+                    // TODO: keep?
+                    self.clear_waiting_handles(&dyn_handle);
 
                     // add waiting handle
                     self.waiting_for
@@ -191,32 +211,24 @@ impl AssetCacheConvert {
                 ConversionPollResult::Failed => {
                     tracing::info!("conversion failed {}", dyn_handle);
 
-                    let blocking_handle = state
-                        .blocking_handle
-                        .expect("blocking handle cant be None if Waiting was returned");
+                    // TODO: keep?
+                    self.clear_waiting_handles(&dyn_handle);
 
-                    // TODO: feel like i need to
-                    // remove any pending handles
-                    self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_handle);
-                        !handles.is_empty()
-                    });
-
-                    self.waiting_for
-                        .entry(blocking_handle)
-                        .or_default()
-                        .insert(dyn_handle);
+                    if let Some(blocking_handle) = state.blocking_handle {
+                        self.waiting_for
+                            .entry(blocking_handle)
+                            .or_default()
+                            .insert(dyn_handle);
+                    } else {
+                        // error was caused by the converter itself
+                    }
                 }
                 ConversionPollResult::Success => {
                     registry.set_status(dyn_handle.clone(), LoadStatus::Ready);
                     registry.set_just_available(dyn_handle.clone());
 
-                    // TODO: feel like i need to
-                    // remove any pending handles
-                    self.waiting_for.retain(|_, handles| {
-                        handles.remove(&dyn_handle);
-                        !handles.is_empty()
-                    });
+                    // TODO: keep?
+                    self.clear_waiting_handles(&dyn_handle);
 
                     self.wakeup_waiting_on_handle(registry, &dyn_handle);
 
@@ -226,6 +238,14 @@ impl AssetCacheConvert {
                 }
             }
         }
+    }
+
+    // TODO: should this even be called?
+    fn clear_waiting_handles(&mut self, dyn_handle: &DynAssetHandle) {
+        self.waiting_for.retain(|_, handles| {
+            handles.remove(dyn_handle);
+            !handles.is_empty()
+        });
     }
 
     // setup conversion state
@@ -363,13 +383,20 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 
         match conversion {
             ConvertAssetStatus::Success(asset) => {
+                tracing::info!("conversion of {} success", handle);
                 // insert into typed storage
                 storage.insert::<T::Asset>(handle.clone(), asset);
 
                 (ConversionPollResult::Success, state)
             }
-            ConvertAssetStatus::Loading => (ConversionPollResult::Waiting, state),
-            ConvertAssetStatus::Failed => (ConversionPollResult::Failed, state),
+            ConvertAssetStatus::Loading => {
+                tracing::info!("conversion of {} loading", handle);
+                (ConversionPollResult::Waiting, state)
+            }
+            ConvertAssetStatus::Failed => {
+                tracing::info!("conversion of {} failed", handle);
+                (ConversionPollResult::Failed, state)
+            }
         }
     }
 
@@ -449,6 +476,7 @@ impl<'runtime> ConvertContext<'runtime> {
         self.state.dependencies.insert(handle.to_dyn());
 
         if let Some(asset) = self.runtime.storage.get_asset(handle) {
+            tracing::info!("get {} success", handle);
             return GetAssetResult::Success(asset);
         }
 
@@ -484,7 +512,10 @@ impl<'runtime> ConvertContext<'runtime> {
         self.state.dependencies.insert(handle.to_dyn());
 
         match self.runtime.storage.get_asset(&handle) {
-            Some(asset) => GetAssetResult::Success(asset),
+            Some(asset) => {
+                tracing::info!("conversion of {} success", handle);
+                GetAssetResult::Success(asset)
+            }
             None => {
                 match self.runtime.registry.get_status(&handle.to_dyn()) {
                     LoadStatus::Ready => {
@@ -516,28 +547,6 @@ impl<'runtime> ConvertContext<'runtime> {
                     }
                 }
             }
-        }
-    }
-}
-
-// NOTE: user facing
-pub enum ConvertAssetResult<T: Asset> {
-    Loading,
-    Success(ArcHandle<T>),
-    Failed,
-}
-
-impl<T: Asset> ConvertAssetResult<T> {
-    /// Unwrap the result as a success
-    ///
-    /// Panics for other values than
-    pub fn unwrap_success(self) -> ArcHandle<T> {
-        match self {
-            ConvertAssetResult::Loading => {
-                panic!("asset conversion loading: unwrap success failed")
-            }
-            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
-            ConvertAssetResult::Success(arc_handle) => arc_handle,
         }
     }
 }

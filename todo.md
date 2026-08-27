@@ -1,4 +1,3 @@
-auto implement shadermodule
 converters allowed to request loads?
 remove deprecated convert asset
 
@@ -7,7 +6,7 @@ if it initally fails it does reload correctly
 fix inserting?
 need to clean up dep graph when reload changes stuff
 
-eache failed conversion to avoid polling it in beginning of program
+cache failed conversion to avoid polling it in beginning of program
 a lot of invalidation on start load
 dependency graph for derivde assets
 cycles?
@@ -21,6 +20,7 @@ own handle cache for asset loading? how to sync?
 remove arc from assethandle?
 look at clone vs & for handles
 pass asset handle ctx and stuff instead of arcing
+auto implement shadermodule
 
 next up
     [] return errors to user
