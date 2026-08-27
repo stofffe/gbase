@@ -2,8 +2,9 @@
 use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
-        Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheRegistry, AssetCacheStorage,
-        AssetHandle, AssetHandleContext, DynAssetHandle, LoadStatus,
+        Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
+        AssetCacheStorage, AssetHandle, AssetHandleContext, AssetInserter, DynAssetHandle,
+        LoadStatus,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -23,24 +24,30 @@ use std::{error, path::Path};
 // Types
 //
 
-pub trait LoadAssetSettings: Hash + Eq + Clone + Send {}
-impl<T: Hash + Eq + Clone + Send> LoadAssetSettings for T {}
+pub trait LoadAssetSettings: Hash + Eq + Clone {}
+impl<T: Hash + Eq + Clone> LoadAssetSettings for T {}
 
-pub trait AssetError: error::Error + Send {}
-impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
+pub trait AssetError: error::Error {}
+impl<T: error::Error> AssetError for T {}
 
-pub trait AssetLoader: Any + Send {
+#[cfg(not(target_arch = "wasm32"))]
+pub trait AssetLoader: Send {
     type Asset: Asset;
-    type Settings: LoadAssetSettings;
-    type Error: AssetError;
+    type Settings: LoadAssetSettings + Send;
+    type Error: AssetError + Send;
 
-    #[cfg(not(target_arch = "wasm32"))]
     fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + Send;
+}
 
-    #[cfg(target_arch = "wasm32")]
+#[cfg(target_arch = "wasm32")]
+pub trait AssetLoader {
+    type Asset: Asset;
+    type Settings: LoadAssetSettings;
+    type Error: AssetError;
+
     fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
@@ -153,6 +160,9 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 // Load Request
 //
 
+/// Type erased load request
+///
+/// Is sent using async channels
 #[cfg(not(target_arch = "wasm32"))]
 trait DynLoadRequest: Send {
     fn get_or_load_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
@@ -160,7 +170,7 @@ trait DynLoadRequest: Send {
 
 #[cfg(target_arch = "wasm32")]
 trait DynLoadRequest {
-    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
+    fn get_or_load_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
 struct TypedLoadRequest<T: AssetLoader> {
@@ -174,14 +184,47 @@ impl<T: AssetLoader> TypedLoadRequest<T> {
     }
 }
 
-// TODO: probably mode this functionality into typed and call it from here
-impl<T: AssetLoader> DynLoadRequest for TypedLoadRequest<T> {
+impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
     fn get_or_load_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry) {
         let handle = loader.register_load::<T>(registry, &self.settings);
 
         self.sender
             .try_send(handle)
             .expect("could not send get asset handle response");
+    }
+}
+
+//
+// Insert request
+//
+
+/// Type erased insert request
+///
+/// Is sent using async channels
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) trait DynInsertRequest: Send {
+    fn insert_asset(&self, storage: &mut AssetCacheStorage, inserter: &mut AssetCacheInsert);
+}
+
+#[cfg(target_arch = "wasm32")]
+pub(crate) trait DynInsertRequest {
+    fn insert_asset(&self, storage: &mut AssetCacheStorage, inserter: &mut AssetCacheInsert);
+}
+
+struct TypedInsertRequest<T: Asset, I: AssetInserter> {
+    key: I::Key,
+    sender: async_channel::Sender<AssetHandle<T>>,
+}
+
+impl<T: Asset, I: AssetInserter> TypedInsertRequest<T, I> {
+    fn new(key: I::Key, sender: async_channel::Sender<AssetHandle<T>>) -> Self {
+        Self { key, sender }
+    }
+}
+
+impl<T: Asset, I: AssetInserter> DynInsertRequest for TypedInsertRequest<T, I> {
+    fn insert_asset(&self, storage: &mut AssetCacheStorage, inserter: &mut AssetCacheInsert) {
+        todo!()
     }
 }
 
@@ -305,7 +348,7 @@ impl AssetCacheLoad {
     // Load
     //
 
-    pub(crate) fn register_load<T: AssetLoader>(
+    pub(crate) fn register_load<T: AssetLoader + 'static>(
         &mut self,
         registry: &mut AssetCacheRegistry,
         settings: &T::Settings,
@@ -359,7 +402,7 @@ struct TypedAssetLoad<T: AssetLoader> {
     ty: PhantomData<T>,
 }
 
-impl<T: AssetLoader> TypedAssetLoad<T> {
+impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     fn new(
         task_ctx: TaskContext,
         filesystem_ctx: FileSystemContext,
