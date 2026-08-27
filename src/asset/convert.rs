@@ -358,7 +358,7 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
                 convert_ctx
                     .runtime
                     .storage
-                    .insert::<T::Asset>(handle.clone(), asset);
+                    .insert_asset_with_handle::<T::Asset>(handle.clone(), asset);
 
                 (ConversionPollResult::Success, state)
             }

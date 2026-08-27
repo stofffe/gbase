@@ -1,4 +1,4 @@
-use crate::asset::{AssetHandle, AssetHandleContext};
+use crate::asset::{AssetCacheRegistry, AssetHandle};
 use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
 
@@ -61,36 +61,12 @@ impl<T: Asset> GetAssetResultCloned<T> {
 
 pub(crate) struct AssetCacheStorage {
     typed_storage: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
-
-    asset_handle_ctx: AssetHandleContext,
 }
 
 impl AssetCacheStorage {
-    pub(crate) fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+    pub(crate) fn new() -> Self {
         let typed_storage = FxHashMap::default();
-        Self {
-            asset_handle_ctx,
-            typed_storage,
-        }
-    }
-
-    pub(crate) fn insert<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
-        self.get_typed_cache_mut::<T>().insert(handle, data)
-    }
-
-    pub(crate) fn insert_successful_new_handle<T: Asset>(&mut self, data: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.insert(handle.clone(), data);
-        handle
-    }
-
-    pub(crate) fn insert_successful_existing_handle<T: Asset>(
-        &mut self,
-        handle: AssetHandle<T>,
-        data: T,
-    ) -> AssetHandle<T> {
-        self.insert(handle.clone(), data);
-        handle
+        Self { typed_storage }
     }
 
     /// Get typed cache assuming it exists
@@ -107,13 +83,25 @@ impl AssetCacheStorage {
         let entry = self
             .typed_storage
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedAssetStorage::<T>::new(
-                self.asset_handle_ctx.clone(),
-            )));
+            .or_insert(Box::new(TypedAssetStorage::<T>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedAssetStorage<T>>()
             .expect("could not downcast typed storage cache")
+    }
+
+    pub(crate) fn insert_asset<T: Asset>(
+        &mut self,
+        registry: &mut AssetCacheRegistry,
+        data: T,
+    ) -> AssetHandle<T> {
+        let handle = registry.crate_insert_handle();
+        self.insert_asset_with_handle(handle.clone(), data);
+        handle
+    }
+
+    pub(crate) fn insert_asset_with_handle<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
+        self.get_typed_cache_mut::<T>().insert(handle, data)
     }
 
     pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&T> {
@@ -130,35 +118,18 @@ impl AssetCacheStorage {
 //
 
 struct TypedAssetStorage<T: Asset> {
-    asset_handle_ctx: AssetHandleContext,
     cache: FxHashMap<AssetHandle<T>, T>,
 }
 
 impl<T: Asset> TypedAssetStorage<T> {
-    fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+    fn new() -> Self {
         Self {
-            asset_handle_ctx,
             cache: FxHashMap::default(),
         }
     }
 
     fn get(&self, handle: &AssetHandle<T>) -> Option<&T> {
         self.cache.get(handle)
-    }
-
-    fn insert_successful_new_handle(&mut self, data: T) -> AssetHandle<T> {
-        let handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        self.cache.insert(handle.clone(), data);
-        handle
-    }
-
-    fn insert_successful_existing_handle(
-        &mut self,
-        handle: AssetHandle<T>,
-        data: T,
-    ) -> AssetHandle<T> {
-        self.cache.insert(handle.clone(), data);
-        handle
     }
 
     fn insert(&mut self, handle: AssetHandle<T>, data: T) {

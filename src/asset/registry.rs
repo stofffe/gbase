@@ -1,4 +1,6 @@
-use crate::asset::{AssetConverter, AssetHandle, AssetHandleContext, AssetLoader, DynAssetHandle};
+use crate::asset::{
+    Asset, AssetConverter, AssetHandle, AssetHandleContext, AssetLoader, DynAssetHandle,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::any::{Any, TypeId};
 
@@ -107,6 +109,16 @@ impl AssetCacheRegistry {
 
         self.register_load_handle_settings_mapping::<T>(new_handle.clone(), settings.clone());
 
+        new_handle
+    }
+
+    /// Note that this never returns cached handles it only creates new ones
+    pub(crate) fn crate_insert_handle<T: Asset + 'static>(&mut self) -> AssetHandle<T> {
+        let new_handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        tracing::warn!(
+            "creating insert handle {}, this is not cached in any way",
+            new_handle
+        );
         new_handle
     }
 

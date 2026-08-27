@@ -1,3 +1,5 @@
+use tracing_subscriber::registry;
+
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
@@ -20,6 +22,7 @@ pub struct AssetCache {
     registry: AssetCacheRegistry,
 
     dependency: AssetCacheDependency,
+
     #[cfg(not(target_arch = "wasm32"))]
     reloader: asset::reload::AssetCacheReload,
 }
@@ -30,7 +33,7 @@ impl AssetCache {
         let filesystem_ctx = ctx.filesystem.clone();
         let task_executor = ctx.task.clone();
 
-        let storage = AssetCacheStorage::new(asset_handle_ctx.clone());
+        let storage = AssetCacheStorage::new();
 
         let loader = AssetCacheLoad::new(
             task_executor.clone(),
@@ -106,7 +109,7 @@ impl AssetCache {
     }
 
     pub fn insert_asset<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
-        self.storage.insert_successful_new_handle(data)
+        self.storage.insert_asset(&mut self.registry, data)
     }
 
     pub fn get_asset<T: Asset + 'static>(

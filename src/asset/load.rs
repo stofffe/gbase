@@ -105,7 +105,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 let dyn_handle = self.handle.to_dyn();
 
                 // Storage
-                storage.insert(self.handle.clone(), asset);
+                storage.insert_asset_with_handle(self.handle.clone(), asset);
 
                 // Registry
                 registry.set_status(dyn_handle.clone(), LoadStatus::Ready);
