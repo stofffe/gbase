@@ -3,6 +3,7 @@ gat for inserters to avoid double generic param NamedInsert<Asset = Shader>>
 generic args for inserters such as ArcHandle?
 non caching inserter?
 add get_using_load_settings, insert_key, convert_settings?
+try and move functionality from dynrequests to the actual typed loader
 
 converters allowed to request loads?
 maybe have more states on getasset result, like depency failed?

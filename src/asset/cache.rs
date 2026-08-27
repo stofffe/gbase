@@ -121,11 +121,7 @@ impl AssetCache {
         &mut self,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
-
-        self.loader.queue_load(&mut self.registry, handle.to_dyn());
-
-        handle
+        self.loader.register_load::<T>(&mut self.registry, settings)
     }
 
     pub fn convert_asset<T: AssetConverter + 'static>(

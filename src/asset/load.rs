@@ -150,50 +150,35 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 }
 
 //
-// Request
+// Load Request
 //
 
 #[cfg(not(target_arch = "wasm32"))]
-trait DynHandleRequest: Send {
-    fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
+trait DynLoadRequest: Send {
+    fn get_or_load_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
 #[cfg(target_arch = "wasm32")]
-trait DynHandleRequest {
+trait DynLoadRequest {
     fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
-struct GetHandleRequest<T: AssetLoader> {
+struct TypedLoadRequest<T: AssetLoader> {
     settings: T::Settings,
     sender: async_channel::Sender<AssetHandle<T::Asset>>,
 }
 
-impl<T: AssetLoader> GetHandleRequest<T> {
+impl<T: AssetLoader> TypedLoadRequest<T> {
     fn new(settings: T::Settings, sender: async_channel::Sender<AssetHandle<T::Asset>>) -> Self {
         Self { settings, sender }
     }
 }
 
 // TODO: probably mode this functionality into typed and call it from here
-impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
-    fn get_or_load_new_asset(
-        &self,
-        loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
-    ) {
-        let handle = registry.get_or_create_load_handle::<T>(&self.settings);
+impl<T: AssetLoader> DynLoadRequest for TypedLoadRequest<T> {
+    fn get_or_load_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry) {
+        let handle = loader.register_load::<T>(registry, &self.settings);
 
-        // TODO: this is wrong
-        if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
-            tracing::info!(
-                "nested load request {} has no status, register and load now",
-                handle
-            );
-            loader.register_load::<T>(registry, &self.settings);
-            loader.queue_load(registry, handle.to_dyn());
-        }
-
-        // send the handle back
         self.sender
             .try_send(handle)
             .expect("could not send get asset handle response");
@@ -215,8 +200,8 @@ pub(crate) struct AssetCacheLoad {
     handle_to_loader_type: FxHashMap<DynAssetHandle, TypeId>,
 
     // Handle request
-    handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-    handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
+    handle_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
+    handle_request_receiver: async_channel::Receiver<Box<dyn DynLoadRequest>>,
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
@@ -295,7 +280,7 @@ impl AssetCacheLoad {
     // check for request of new handles
     pub(crate) fn poll_handle_requests(&mut self, registry: &mut AssetCacheRegistry) {
         while let Ok(request) = self.handle_request_receiver.try_recv() {
-            request.get_or_load_new_asset(self, registry);
+            request.get_or_load_asset(self, registry);
         }
     }
 
@@ -334,6 +319,8 @@ impl AssetCacheLoad {
                 .insert(handle.to_dyn(), TypeId::of::<T>());
 
             self.get_typed_cache_mut::<T>();
+
+            self.queue_load(registry, handle.to_dyn());
         } else {
             tracing::info!(
                 "already has status {:?}",
@@ -363,7 +350,7 @@ struct TypedAssetLoad<T: AssetLoader> {
     filesystem_ctx: FileSystemContext,
 
     // Handle request
-    handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
+    handle_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
@@ -378,7 +365,7 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
         filesystem_ctx: FileSystemContext,
         asset_handle_ctx: AssetHandleContext,
 
-        handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
+        handle_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
 
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
@@ -397,12 +384,12 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
         tracing::info!("spawn load {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
-        let new_asset_runtime = LoadRuntime {
-            asset_handle_ctx: self.asset_handle_ctx.clone(),
-            filesystem_ctx: self.filesystem_ctx.clone(),
-            handle_request_sender: self.handle_request_sender.clone(),
-            load_response_sender: self.response_sender.clone(),
-        };
+        let new_asset_runtime = LoadRuntime::new(
+            self.filesystem_ctx.clone(),
+            self.handle_request_sender.clone(),
+            self.response_sender.clone(),
+        );
+
         let mut new_load_ctx = LoadContext::new(new_asset_state, new_asset_runtime);
 
         // spawn load
@@ -413,7 +400,7 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
                 Ok(asset) => {
                     new_load_ctx
                         .runtime
-                        .load_response_sender
+                        .response_sender
                         .send(Box::new(LoadResponse {
                             handle: handle.clone(),
                             result: LoadAssetResult::<T>::Success(asset),
@@ -427,7 +414,7 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
                     tracing::warn!("could not load asset {}", err);
                     new_load_ctx
                         .runtime
-                        .load_response_sender
+                        .response_sender
                         .send(Box::new(LoadResponse {
                             handle: handle.clone(),
                             result: LoadAssetResult::<T>::Error,
@@ -493,26 +480,29 @@ impl LoadState {
 
 #[derive(Clone)]
 struct LoadRuntime {
-    asset_handle_ctx: AssetHandleContext,
     filesystem_ctx: filesystem::FileSystemContext,
 
-    handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-    load_response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
+    // async channel for requesting nested loads
+    load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
+
+    // async channel for requesting insertions
+    // insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>
+
+    // async channel for returning the result of the load
+    // note: not for nested loads
+    response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 }
 
 impl LoadRuntime {
     fn new(
-        asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
-        loader: &AssetCacheLoad,
+        load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
+        response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
-        let load_response_sender = loader.response_sender.clone();
-        let handle_request_sender = loader.handle_request_sender.clone();
         Self {
-            asset_handle_ctx,
             filesystem_ctx,
-            load_response_sender,
-            handle_request_sender,
+            response_sender,
+            load_request_sender,
         }
     }
 }
@@ -534,6 +524,8 @@ impl LoadContext {
 
     // TODO: should probably just get from registy and then send succes response
     pub fn insert_asset<T: Asset>(&self, value: T) -> AssetHandle<T> {
+        // TODO: similar to load?
+        // send async request with key + asset,
         todo!()
         // self.runtime
         //     .load_response_sender
@@ -555,8 +547,8 @@ impl LoadContext {
 
         tracing::info!("ASYNC: request nested load request for {}", self.handle());
         self.runtime
-            .handle_request_sender
-            .send(Box::new(GetHandleRequest::<T>::new(settings, sender)))
+            .load_request_sender
+            .send(Box::new(TypedLoadRequest::<T>::new(settings, sender)))
             .await
             .expect("could not send handle request");
 
