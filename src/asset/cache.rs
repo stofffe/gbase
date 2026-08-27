@@ -180,9 +180,7 @@ impl AssetCache {
         &mut self,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = self
-            .loader
-            .register_load::<T>(&mut self.registry, &settings);
+        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
 
         self.loader.queue_load(&mut self.registry, handle.to_dyn());
 
@@ -207,7 +205,7 @@ impl AssetCache {
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         self.converter
-            .register_conversion::<T>(&mut self.registry, &settings)
+            .register_conversion::<T>(&mut self.registry, settings)
     }
 
     //

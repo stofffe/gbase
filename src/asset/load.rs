@@ -174,6 +174,7 @@ impl<T: AssetLoader> GetHandleRequest<T> {
     }
 }
 
+// TODO: probably mode this functionality into typed and call it from here
 impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
     fn get_or_load_new_asset(
         &self,

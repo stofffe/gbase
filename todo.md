@@ -1,7 +1,8 @@
-remove deprecated convert asset
 converters allowed to request loads?
 maybe have more states on getasset result, like depency failed?
 fix pub in convert and loader
+convert error
+nested inserting?
 
 give better debug names
 if it initally fails it does reload correctly

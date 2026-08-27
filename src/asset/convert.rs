@@ -20,12 +20,12 @@ use tracing::span;
 // Types
 //
 
-pub trait DerivedAssetSettings: Hash + Eq + Clone {}
-impl<T: Hash + Eq + Clone> DerivedAssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait ConvertssetSettings: Hash + Eq + Clone {}
+impl<T: Hash + Eq + Clone> ConvertssetSettings for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetConverter {
     type Asset: Asset;
-    type Settings: DerivedAssetSettings;
+    type Settings: ConvertssetSettings;
     // TODO: is this even being used?
     type Error: error::Error;
 
@@ -36,7 +36,6 @@ pub trait AssetConverter {
     ) -> ConvertAssetStatus<Self::Asset>;
 }
 
-// NOTE: user facing
 pub enum ConvertAssetResult<T: Asset> {
     Loading,
     Success(ArcHandle<T>),
@@ -64,18 +63,22 @@ pub enum ConvertAssetStatus<T: Asset> {
     Failed,
 }
 
-pub struct ConvertRequest<T: AssetConverter> {
+//
+// Request
+//
+
+struct ConvertRequest<T: AssetConverter> {
     handle: AssetHandle<T::Asset>,
     settings: T::Settings,
 }
 
 impl<T: AssetConverter> ConvertRequest<T> {
-    pub fn new(handle: AssetHandle<T::Asset>, settings: T::Settings) -> Self {
+    fn new(handle: AssetHandle<T::Asset>, settings: T::Settings) -> Self {
         Self { handle, settings }
     }
 }
 
-pub trait DynConvertRequest {
+trait DynConvertRequest {
     fn handle(&self) -> DynAssetHandle;
     fn request(self: Box<Self>, convert: &mut AssetCacheConvert, registry: &mut AssetCacheRegistry);
 }
@@ -99,8 +102,8 @@ impl<T: AssetConverter + 'static> DynConvertRequest for ConvertRequest<T> {
 // Generic
 //
 
-pub struct AssetCacheConvert {
-    typed: FxHashMap<TypeId, Box<dyn DynAssetConvert>>,
+pub(crate) struct AssetCacheConvert {
+    typed_convert: FxHashMap<TypeId, Box<dyn DynAssetConvert>>,
 
     // queue
     queue: VecDeque<DynAssetHandle>,
@@ -113,9 +116,9 @@ pub struct AssetCacheConvert {
 }
 
 impl AssetCacheConvert {
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
-            typed: FxHashMap::default(),
+            typed_convert: FxHashMap::default(),
 
             queue: VecDeque::default(),
             queued: FxHashSet::default(),
@@ -126,24 +129,10 @@ impl AssetCacheConvert {
         }
     }
 
-    /// Get typed cache assuming it exists
-    pub fn get_typed_cache_ref<T: AssetConverter + 'static>(
-        &self,
-    ) -> Option<&TypedAssetConvert<T>> {
-        self.typed.get(&TypeId::of::<T>()).map(|dyn_convert| {
-            dyn_convert
-                .as_any()
-                .downcast_ref::<TypedAssetConvert<T>>()
-                .expect("could not downcast typed storage cache")
-        })
-    }
-
     /// Get mutable typed cache or create if it doesnt exist
-    pub fn get_typed_cache_mut<T: AssetConverter + 'static>(
-        &mut self,
-    ) -> &mut TypedAssetConvert<T> {
+    fn get_typed_cache_mut<T: AssetConverter + 'static>(&mut self) -> &mut TypedAssetConvert<T> {
         let entry = self
-            .typed
+            .typed_convert
             .entry(TypeId::of::<T>())
             .or_insert(Box::new(TypedAssetConvert::<T>::new()));
         entry
@@ -152,7 +141,7 @@ impl AssetCacheConvert {
             .expect("could not downcast typed storage cache")
     }
 
-    pub fn poll_conversions(
+    pub(crate) fn poll_conversions(
         &mut self,
         ctx: &mut Context,
         storage: &mut AssetCacheStorage,
@@ -168,14 +157,16 @@ impl AssetCacheConvert {
                 continue;
             };
 
-            let Some(typed_converter) = self.typed.get_mut(type_id) else {
+            let Some(typed_converter) = self.typed_convert.get_mut(type_id) else {
                 panic!("could not get typed converter");
             };
+
+            let mut convert_runtime = ConvertRuntime::new(storage, loader, registry);
 
             let _conver_span = span!(tracing::Level::INFO, "converting").entered();
             tracing::info!("start polled conversion {}", dyn_handle);
             let (result, state) =
-                typed_converter.convert(ctx, storage, loader, registry, dyn_handle.clone());
+                typed_converter.convert(ctx, &mut convert_runtime, dyn_handle.clone());
             _conver_span.exit();
 
             // request conversions
@@ -249,7 +240,7 @@ impl AssetCacheConvert {
     }
 
     // setup conversion state
-    pub fn register_conversion<T: AssetConverter + 'static>(
+    pub(crate) fn register_conversion<T: AssetConverter + 'static>(
         &mut self,
         registry: &mut AssetCacheRegistry,
         settings: &T::Settings,
@@ -273,7 +264,11 @@ impl AssetCacheConvert {
     // Queue a conversion of a derived handle
     //
     // Assumes all state is set up from queue_conversion function
-    pub fn queue_conversion(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
+    pub(crate) fn queue_conversion(
+        &mut self,
+        registry: &mut AssetCacheRegistry,
+        handle: DynAssetHandle,
+    ) {
         tracing::info!("queue conversion of {}", handle);
         if self.queued.insert(handle.clone()) {
             registry.set_status(handle.clone(), LoadStatus::Loading);
@@ -282,7 +277,7 @@ impl AssetCacheConvert {
     }
 
     /// Wake up all derived assets waiting for this handle to be ready
-    pub fn wakeup_waiting_on_handle(
+    pub(crate) fn wakeup_waiting_on_handle(
         &mut self,
         registry: &mut AssetCacheRegistry,
         dependency: &DynAssetHandle,
@@ -304,7 +299,7 @@ impl AssetCacheConvert {
     }
 
     // similar to reload
-    pub fn reload_depending_conversions(
+    pub(crate) fn reload_depending_conversions(
         &mut self,
         dependency: &mut AssetCacheDependency,
         registry: &mut AssetCacheRegistry,
@@ -324,46 +319,19 @@ impl AssetCacheConvert {
 // Typed
 //
 
-pub struct TypedAssetConvert<T: AssetConverter> {
+struct TypedAssetConvert<T: AssetConverter> {
     ty: PhantomData<T>,
 }
 
 impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self { ty: PhantomData }
     }
-}
 
-pub enum ConversionPollResult {
-    Waiting,
-    Failed,
-    Success,
-}
-
-//
-// Dyn
-//
-
-pub trait DynAssetConvert {
-    fn convert(
+    fn convert_asset<'a>(
         &mut self,
         ctx: &mut Context,
-        storage: &mut AssetCacheStorage,
-        loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
-        dyn_handle: DynAssetHandle,
-    ) -> (ConversionPollResult, ConvertState);
-    fn as_any(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
-impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
-    fn convert(
-        &mut self,
-        ctx: &mut Context,
-        storage: &mut AssetCacheStorage,
-        loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
+        runtime: &'a mut ConvertRuntime<'a>,
         dyn_handle: DynAssetHandle,
     ) -> (ConversionPollResult, ConvertState) {
         // TODO: maybe just store the dyn directly?
@@ -371,12 +339,14 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");
 
-        let Some(settings) = registry.get_convert_settings_from_handle::<T>(&dyn_handle) else {
+        let Some(settings) = runtime
+            .registry
+            .get_convert_settings_from_handle::<T>(&dyn_handle)
+        else {
             panic!("could not get settings from handle");
         };
 
-        let mut runtime = ConvertRuntime::new(storage, loader, registry);
-        let mut convert_ctx = ConvertContext::new(&mut runtime);
+        let mut convert_ctx = ConvertContext::new(runtime);
 
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
         let state = convert_ctx.state;
@@ -385,7 +355,10 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
             ConvertAssetStatus::Success(asset) => {
                 tracing::info!("conversion of {} success", handle);
                 // insert into typed storage
-                storage.insert::<T::Asset>(handle.clone(), asset);
+                convert_ctx
+                    .runtime
+                    .storage
+                    .insert::<T::Asset>(handle.clone(), asset);
 
                 (ConversionPollResult::Success, state)
             }
@@ -399,13 +372,40 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
             }
         }
     }
+}
 
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
+//
+// Dyn
+//
 
+enum ConversionPollResult {
+    Waiting,
+    Failed,
+    Success,
+}
+
+trait DynAssetConvert {
+    fn as_any_mut(&mut self) -> &mut dyn Any;
+    fn convert<'a>(
+        &mut self,
+        ctx: &mut Context,
+        runtime: &'a mut ConvertRuntime<'a>,
+        dyn_handle: DynAssetHandle,
+    ) -> (ConversionPollResult, ConvertState);
+}
+
+impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
+    }
+
+    fn convert<'a>(
+        &mut self,
+        ctx: &mut Context,
+        runtime: &'a mut ConvertRuntime<'a>,
+        dyn_handle: DynAssetHandle,
+    ) -> (ConversionPollResult, ConvertState) {
+        self.convert_asset(ctx, runtime, dyn_handle)
     }
 }
 
@@ -413,17 +413,17 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 // Conversion context
 //
 
-pub struct ConvertRuntime<'a> {
+struct ConvertRuntime<'a> {
     // to get assets
-    pub(crate) storage: &'a mut AssetCacheStorage,
+    storage: &'a mut AssetCacheStorage,
     // to request new loads if no cached value exist in storage
-    pub(crate) loader: &'a mut AssetCacheLoad,
+    loader: &'a mut AssetCacheLoad,
     // to get setting -> derived handle mapping
-    pub(crate) registry: &'a mut AssetCacheRegistry,
+    registry: &'a mut AssetCacheRegistry,
 }
 
 impl<'a> ConvertRuntime<'a> {
-    pub fn new(
+    fn new(
         storage: &'a mut AssetCacheStorage,
         loader: &'a mut AssetCacheLoad,
         registry: &'a mut AssetCacheRegistry,
@@ -436,19 +436,19 @@ impl<'a> ConvertRuntime<'a> {
     }
 }
 
-pub struct ConvertState {
+struct ConvertState {
     // The dependency that caused the conversion to return waiting
-    pub blocking_handle: Option<DynAssetHandle>,
+    blocking_handle: Option<DynAssetHandle>,
 
     // If wait_for was a nested conversion that resulted in a new handle, store the request here
-    pub conversion_request: Option<Box<dyn DynConvertRequest>>,
+    conversion_request: Option<Box<dyn DynConvertRequest>>,
 
     // All dependencies accessed during the conversion
-    pub dependencies: FxHashSet<DynAssetHandle>,
+    dependencies: FxHashSet<DynAssetHandle>,
 }
 
 impl ConvertState {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             blocking_handle: None,
             conversion_request: None,
@@ -459,12 +459,12 @@ impl ConvertState {
 
 /// Convertsion context related to a specific conversion
 pub struct ConvertContext<'runtime> {
-    pub runtime: &'runtime mut ConvertRuntime<'runtime>,
-    pub state: ConvertState,
+    runtime: &'runtime mut ConvertRuntime<'runtime>,
+    state: ConvertState,
 }
 
 impl<'runtime> ConvertContext<'runtime> {
-    pub fn new(runtime: &'runtime mut ConvertRuntime<'runtime>) -> Self {
+    fn new(runtime: &'runtime mut ConvertRuntime<'runtime>) -> Self {
         let state = ConvertState::new();
         Self { runtime, state }
     }
