@@ -23,15 +23,15 @@ use std::{error, path::Path};
 // Types
 //
 
-pub trait AssetSettings: Hash + Eq + Clone + Send {}
-impl<T: Hash + Eq + Clone + Send> AssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait LoadAssetSettings: Hash + Eq + Clone + Send {}
+impl<T: Hash + Eq + Clone + Send> LoadAssetSettings for T {}
 
 pub trait AssetError: error::Error + Send {}
 impl<T: error::Error + Send> AssetError for T {} // TODO: maybe do this for Asset and derived asset
 
 pub trait AssetLoader: Any + Send {
     type Asset: Asset;
-    type Settings: AssetSettings;
+    type Settings: LoadAssetSettings;
     type Error: AssetError;
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -105,7 +105,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 let dyn_handle = self.handle.to_dyn();
 
                 // Storage
-                storage.insert_asset_with_handle(self.handle.clone(), asset);
+                storage.insert_asset(self.handle.clone(), asset);
 
                 // Registry
                 registry.set_status(dyn_handle.clone(), LoadStatus::Ready);

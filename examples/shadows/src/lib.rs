@@ -53,7 +53,7 @@ fn mesh_to_lod_mesh(
     mesh: AssetHandle<render::Mesh>,
     material: AssetHandle<Material>,
 ) -> AssetHandle<MeshLod> {
-    cache.insert_asset(MeshLod {
+    cache.insert_asset_force(MeshLod {
         meshes: vec![(mesh, 0.0)],
         material,
     })
@@ -145,13 +145,13 @@ impl Callbacks for App {
         };
         let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
-        let plane_mesh_handle = cache.insert_asset(
+        let plane_mesh_handle = cache.insert_asset_force(
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         );
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert_asset(plane_material);
+        let plane_material = cache.insert_asset_force(plane_material);
         let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
         let shadow_pass = ShadowPass::new(ctx, cache);

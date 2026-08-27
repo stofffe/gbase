@@ -62,7 +62,7 @@ impl Callbacks for App {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]);
-        let mesh_handle = cache.insert_asset(mesh);
+        let mesh_handle = cache.insert_asset_force(mesh);
 
         let shader_gpu = cache.convert_asset::<ShaderGpuConverter>(
             &ShaderGpuConverterOptions::new(shader_handle.clone()),

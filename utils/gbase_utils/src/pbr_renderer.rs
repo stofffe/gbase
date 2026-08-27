@@ -7,7 +7,8 @@ use encase::ShaderType;
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+        MeshGpuConverterSettings, NamedInserter, NamedInserterKey, ShaderGpuConverter,
+        ShaderGpuConverterOptions,
     },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
@@ -47,12 +48,14 @@ impl PbrRenderer {
         // .watch(cache)
         // .build(cache);
 
-        let forward_shader_handle = asset::insert_asset(
+        let forward_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
             cache,
+            &NamedInserterKey::new("forward shader"),
             Shader::new(include_str!("../assets/shaders/mesh.wgsl")),
         );
-        let deferred_shader_handle = asset::insert_asset(
+        let deferred_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
             cache,
+            &NamedInserterKey::new("deferred shader"),
             render::Shader::new(include_str!("../assets/shaders/deferred_mesh.wgsl")),
         );
 
@@ -521,7 +524,7 @@ impl PbrMaterial {
             default: [u8; 4],
         ) -> asset::AssetHandle<Image> {
             if let Some(tex) = tex {
-                asset::insert_asset(cache, tex)
+                cache.insert_asset_force(tex)
             } else {
                 pixel_cache.allocate(cache, default)
             }

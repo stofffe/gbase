@@ -20,12 +20,12 @@ use tracing::span;
 // Types
 //
 
-pub trait ConvertssetSettings: Hash + Eq + Clone {}
-impl<T: Hash + Eq + Clone> ConvertssetSettings for T {} // TODO: maybe do this for Asset and derived asset
+pub trait ConvertAssetSettings: Hash + Eq + Clone {}
+impl<T: Hash + Eq + Clone> ConvertAssetSettings for T {}
 
 pub trait AssetConverter {
     type Asset: Asset;
-    type Settings: ConvertssetSettings;
+    type Settings: ConvertAssetSettings;
     // TODO: is this even being used?
     type Error: error::Error;
 
@@ -358,7 +358,7 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
                 convert_ctx
                     .runtime
                     .storage
-                    .insert_asset_with_handle::<T::Asset>(handle.clone(), asset);
+                    .insert_asset::<T::Asset>(handle.clone(), asset);
 
                 (ConversionPollResult::Success, state)
             }
@@ -412,50 +412,6 @@ impl<T: AssetConverter + 'static> DynAssetConvert for TypedAssetConvert<T> {
 //
 // Conversion context
 //
-
-struct ConvertRuntime<'a> {
-    // to get assets
-    storage: &'a mut AssetCacheStorage,
-    // to request new loads if no cached value exist in storage
-    loader: &'a mut AssetCacheLoad,
-    // to get setting -> derived handle mapping
-    registry: &'a mut AssetCacheRegistry,
-}
-
-impl<'a> ConvertRuntime<'a> {
-    fn new(
-        storage: &'a mut AssetCacheStorage,
-        loader: &'a mut AssetCacheLoad,
-        registry: &'a mut AssetCacheRegistry,
-    ) -> Self {
-        Self {
-            storage,
-            loader,
-            registry,
-        }
-    }
-}
-
-struct ConvertState {
-    // The dependency that caused the conversion to return waiting
-    blocking_handle: Option<DynAssetHandle>,
-
-    // If wait_for was a nested conversion that resulted in a new handle, store the request here
-    conversion_request: Option<Box<dyn DynConvertRequest>>,
-
-    // All dependencies accessed during the conversion
-    dependencies: FxHashSet<DynAssetHandle>,
-}
-
-impl ConvertState {
-    fn new() -> Self {
-        Self {
-            blocking_handle: None,
-            conversion_request: None,
-            dependencies: FxHashSet::default(),
-        }
-    }
-}
 
 /// Convertsion context related to a specific conversion
 pub struct ConvertContext<'runtime> {
@@ -547,6 +503,50 @@ impl<'runtime> ConvertContext<'runtime> {
                     }
                 }
             }
+        }
+    }
+}
+
+struct ConvertRuntime<'a> {
+    // to get assets
+    storage: &'a mut AssetCacheStorage,
+    // to request new loads if no cached value exist in storage
+    loader: &'a mut AssetCacheLoad,
+    // to get setting -> derived handle mapping
+    registry: &'a mut AssetCacheRegistry,
+}
+
+impl<'a> ConvertRuntime<'a> {
+    fn new(
+        storage: &'a mut AssetCacheStorage,
+        loader: &'a mut AssetCacheLoad,
+        registry: &'a mut AssetCacheRegistry,
+    ) -> Self {
+        Self {
+            storage,
+            loader,
+            registry,
+        }
+    }
+}
+
+struct ConvertState {
+    // The dependency that caused the conversion to return waiting
+    blocking_handle: Option<DynAssetHandle>,
+
+    // If wait_for was a nested conversion that resulted in a new handle, store the request here
+    conversion_request: Option<Box<dyn DynConvertRequest>>,
+
+    // All dependencies accessed during the conversion
+    dependencies: FxHashSet<DynAssetHandle>,
+}
+
+impl ConvertState {
+    fn new() -> Self {
+        Self {
+            blocking_handle: None,
+            conversion_request: None,
+            dependencies: FxHashSet::default(),
         }
     }
 }

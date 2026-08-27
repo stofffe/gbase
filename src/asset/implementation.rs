@@ -1,6 +1,11 @@
+use tracing::Instrument;
+
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
-    asset::{AssetConverter, ConvertAssetStatus, ConvertContext, GetAssetResult, LoadContext},
+    asset::{
+        AssetConverter, AssetInserter, ConvertAssetStatus, ConvertContext, GetAssetResult,
+        LoadContext,
+    },
     filesystem,
     render::{
         self, ArcHandle, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder,
@@ -12,6 +17,42 @@ use std::path::PathBuf;
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}
+
+//
+// Named inserter
+//
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct NamedInserterKey {
+    name: String, // TODO: arc or something instead?
+}
+
+impl NamedInserterKey {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
+    }
+}
+
+pub struct NamedInserter;
+
+impl AssetInserter for NamedInserter {
+    type Key = NamedInserterKey;
+}
+
+//
+// Arhandle inserter
+//
+
+#[derive(Clone, Hash, Eq, PartialEq)]
+pub struct IdInserterKey {
+    id: u64,
+}
+
+pub struct IdInserter;
+
+impl AssetInserter for IdInserter {
+    type Key = IdInserterKey;
+}
 
 //
 // Mesh

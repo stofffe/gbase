@@ -7,6 +7,7 @@ mod convert;
 mod dependency;
 mod handle;
 mod implementation;
+mod insert;
 mod load;
 mod registry;
 mod storage;
@@ -19,6 +20,7 @@ pub use convert::*;
 pub use dependency::*;
 pub use handle::*;
 pub use implementation::*;
+pub use insert::*;
 pub use load::*;
 pub use registry::*;
 pub use storage::*;
@@ -49,8 +51,22 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) 
     cache.handle_just_loaded(handle.clone())
 }
 
-pub fn insert_asset<T: Asset + 'static>(cache: &mut AssetCache, asset: T) -> AssetHandle<T> {
-    cache.insert_asset(asset)
+/// Inserts a new asset
+///
+/// If possible the AssetHandle will be reused depeneding on key
+pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
+    cache: &mut AssetCache,
+    key: &I::Key,
+    asset: T,
+) -> AssetHandle<T> {
+    cache.insert_asset::<T, I>(key, asset)
+}
+
+/// Inserts a new asset WITHOUT any caching
+///
+/// Will always create a new AssetHandle
+pub fn insert_asset_force<T: Asset + 'static>(cache: &mut AssetCache, asset: T) -> AssetHandle<T> {
+    cache.insert_asset_force::<T>(asset)
 }
 
 pub fn load_asset<T: AssetLoader + 'static>(

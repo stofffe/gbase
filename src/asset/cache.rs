@@ -1,11 +1,9 @@
-use tracing_subscriber::registry;
-
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, AssetCacheConvert, AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry,
-        AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, GetAssetResult,
-        GetAssetResultCloned, LoadStatus,
+        self, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
+        AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
+        AssetInserter, GetAssetResult, GetAssetResultCloned, LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -16,8 +14,9 @@ pub struct AssetCache {
     filesystem_ctx: FileSystemContext,
 
     storage: AssetCacheStorage,
-    loader: AssetCacheLoad,
 
+    inserter: AssetCacheInsert,
+    loader: AssetCacheLoad,
     converter: AssetCacheConvert,
     registry: AssetCacheRegistry,
 
@@ -35,13 +34,14 @@ impl AssetCache {
 
         let storage = AssetCacheStorage::new();
 
+        let inserter = AssetCacheInsert::new();
         let loader = AssetCacheLoad::new(
             task_executor.clone(),
             filesystem_ctx.clone(),
             asset_handle_ctx.clone(),
         );
-
         let converter = AssetCacheConvert::new();
+
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
         let dependency = AssetCacheDependency::new();
@@ -55,11 +55,13 @@ impl AssetCache {
 
             storage,
 
+            inserter,
             loader,
-            dependency,
-
             converter,
+
             registry,
+
+            dependency,
 
             #[cfg(not(target_arch = "wasm32"))]
             reloader,
@@ -100,16 +102,38 @@ impl AssetCache {
     //
     // Storage re-exports
     //
-    pub fn get_or_convert_asset<T: AssetConverter + 'static>(
+
+    pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
-        settings: &T::Settings,
-    ) -> GetAssetResult<'_, T::Asset> {
-        let handle = self.convert_asset::<T>(settings);
-        self.get_asset(&handle)
+        key: &I::Key,
+        asset: T,
+    ) -> AssetHandle<T> {
+        self.inserter
+            .insert_asset::<T, I>(&mut self.registry, &mut self.storage, key, asset)
     }
 
-    pub fn insert_asset<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
-        self.storage.insert_asset(&mut self.registry, data)
+    pub fn insert_asset_force<T: Asset + 'static>(&mut self, asset: T) -> AssetHandle<T> {
+        self.inserter
+            .insert_asset_force::<T>(&mut self.registry, &mut self.storage, asset)
+    }
+
+    pub fn load_asset<T: AssetLoader + 'static>(
+        &mut self,
+        settings: &T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
+
+        self.loader.queue_load(&mut self.registry, handle.to_dyn());
+
+        handle
+    }
+
+    pub fn convert_asset<T: AssetConverter + 'static>(
+        &mut self,
+        settings: &T::Settings,
+    ) -> AssetHandle<T::Asset> {
+        self.converter
+            .register_conversion::<T>(&mut self.registry, settings)
     }
 
     pub fn get_asset<T: Asset + 'static>(
@@ -150,6 +174,14 @@ impl AssetCache {
         }
     }
 
+    pub fn get_or_convert_asset<T: AssetConverter + 'static>(
+        &mut self,
+        settings: &T::Settings,
+    ) -> GetAssetResult<'_, T::Asset> {
+        let handle = self.convert_asset::<T>(settings);
+        self.get_asset(&handle)
+    }
+
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
         let status = self.registry.get_status(&handle.to_dyn());
         matches!(status, LoadStatus::Ready)
@@ -179,16 +211,6 @@ impl AssetCache {
 
     // TODO: does this keep re registering?
     // can and should this overwrite?
-    pub fn load_asset<T: AssetLoader + 'static>(
-        &mut self,
-        settings: &T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        let handle = self.loader.register_load::<T>(&mut self.registry, settings);
-
-        self.loader.queue_load(&mut self.registry, handle.to_dyn());
-
-        handle
-    }
 
     pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
         self.registry.handle_just_available(&handle.to_dyn())
@@ -201,14 +223,6 @@ impl AssetCache {
     pub fn clear_handles(&mut self) {
         // TODO:
         // self.derived.clear_unused_handles();
-    }
-
-    pub fn convert_asset<T: AssetConverter + 'static>(
-        &mut self,
-        settings: &T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        self.converter
-            .register_conversion::<T>(&mut self.registry, settings)
     }
 
     //

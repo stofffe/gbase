@@ -52,7 +52,7 @@ impl CloudRenderer {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]));
-        let mesh_handle = asset::insert_asset(cache, mesh);
+        let mesh_handle = asset::insert_asset_force(cache, mesh);
 
         let shader_handle = asset::load_asset::<ShaderLoader>(
             cache,

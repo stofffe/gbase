@@ -90,18 +90,22 @@ impl AssetCacheStorage {
             .expect("could not downcast typed storage cache")
     }
 
-    pub(crate) fn insert_asset<T: Asset>(
-        &mut self,
-        registry: &mut AssetCacheRegistry,
-        data: T,
-    ) -> AssetHandle<T> {
-        let handle = registry.crate_insert_handle();
-        self.insert_asset_with_handle(handle.clone(), data);
-        handle
-    }
+    // pub(crate) fn insert_asset<T: Asset>(
+    //     &mut self,
+    //     registry: &mut AssetCacheRegistry,
+    //     data: T,
+    // ) -> AssetHandle<T> {
+    //     let handle = registry.crate_insert_handle();
+    //     self.insert_asset_with_handle(handle.clone(), data);
+    //     handle
+    // }
+    //
+    // pub(crate) fn insert_asset_with_handle<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
+    //     self.get_typed_cache_mut::<T>().insert(handle, data)
+    // }
 
-    pub(crate) fn insert_asset_with_handle<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
-        self.get_typed_cache_mut::<T>().insert(handle, data)
+    pub(crate) fn insert_asset<T: Asset>(&mut self, handle: AssetHandle<T>, asset: T) {
+        self.get_typed_cache_mut::<T>().insert(handle, asset);
     }
 
     pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&T> {

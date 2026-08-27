@@ -31,7 +31,7 @@ impl PixelCache {
                     sampler_config: render::SamplerBuilder::new()
                         .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
                 };
-                let handle = asset::insert_asset(cache, image);
+                let handle = asset::insert_asset_force(cache, image);
                 self.default_textures.insert(value, handle.clone());
                 handle
             }

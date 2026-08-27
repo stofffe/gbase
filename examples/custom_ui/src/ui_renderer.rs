@@ -229,6 +229,7 @@ impl UIRenderer {
     ) {
         // clear handle to not use old data
         cache.clear_asset_handle(self.font.clone());
+        // TODO:
         todo!()
         // self.font = AssetBuilder::load::<FontLoader>()
         //     .handle(self.font.clone())

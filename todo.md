@@ -1,3 +1,9 @@
+add dependencies when using nested inserts
+gat for inserters to avoid double generic param NamedInsert<Asset = Shader>>
+generic args for inserters such as ArcHandle?
+non caching inserter?
+add get_using_load_settings, insert_key, convert_settings?
+
 converters allowed to request loads?
 maybe have more states on getasset result, like depency failed?
 fix pub in convert and loader
