@@ -47,24 +47,24 @@ pub trait AssetLoader: Any + Send {
     ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
 }
 
-pub enum LoadAssetResult<T: AssetLoader> {
-    Success(T::Asset),
-    Error,
-}
-
 //
 // Response
 //
 
-pub struct LoadResponse<T: AssetLoader> {
-    pub(crate) handle: AssetHandle<T::Asset>,
-    pub(crate) result: LoadAssetResult<T>,
-    pub(crate) dependencies: FxHashSet<DynAssetHandle>,
-    pub(crate) watches: FxHashSet<PathBuf>,
+enum LoadAssetResult<T: AssetLoader> {
+    Success(T::Asset),
+    Error,
+}
+
+struct LoadResponse<T: AssetLoader> {
+    handle: AssetHandle<T::Asset>,
+    result: LoadAssetResult<T>,
+    dependencies: FxHashSet<DynAssetHandle>,
+    watches: FxHashSet<PathBuf>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub trait DynLoadResponse: Send {
+trait DynLoadResponse: Send {
     fn handle_asset_load_response(
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
@@ -77,7 +77,7 @@ pub trait DynLoadResponse: Send {
 }
 
 #[cfg(target_arch = "wasm32")]
-pub trait DynLoadResponse {
+trait DynLoadResponse {
     fn handle_asset_load_response(
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
@@ -154,25 +154,22 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 //
 
 #[cfg(not(target_arch = "wasm32"))]
-pub trait DynHandleRequest: Send {
+trait DynHandleRequest: Send {
     fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
 #[cfg(target_arch = "wasm32")]
-pub trait DynHandleRequest {
+trait DynHandleRequest {
     fn get_or_load_new_asset(&self, loader: &mut AssetCacheLoad, registry: &mut AssetCacheRegistry);
 }
 
-pub struct GetHandleRequest<T: AssetLoader> {
+struct GetHandleRequest<T: AssetLoader> {
     settings: T::Settings,
     sender: async_channel::Sender<AssetHandle<T::Asset>>,
 }
 
 impl<T: AssetLoader> GetHandleRequest<T> {
-    pub fn new(
-        settings: T::Settings,
-        sender: async_channel::Sender<AssetHandle<T::Asset>>,
-    ) -> Self {
+    fn new(settings: T::Settings, sender: async_channel::Sender<AssetHandle<T::Asset>>) -> Self {
         Self { settings, sender }
     }
 }
@@ -206,7 +203,7 @@ impl<T: AssetLoader> DynHandleRequest for GetHandleRequest<T> {
 // Generic
 //
 
-pub struct AssetCacheLoad {
+pub(crate) struct AssetCacheLoad {
     typed_load: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
     asset_handle_ctx: AssetHandleContext,
     task_ctx: TaskContext,
@@ -217,12 +214,12 @@ pub struct AssetCacheLoad {
     handle_to_loader_type: FxHashMap<DynAssetHandle, TypeId>,
 
     // Handle request
-    pub(crate) handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-    pub(crate) handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
+    handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
+    handle_request_receiver: async_channel::Receiver<Box<dyn DynHandleRequest>>,
 
     // Load response
-    pub(crate) response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
-    pub(crate) response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
+    response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
+    response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
 }
 
 impl AssetCacheLoad {
@@ -254,16 +251,8 @@ impl AssetCacheLoad {
         }
     }
 
-    pub fn get_typed_cache_ref<T: AssetLoader + 'static>(&self) -> Option<&TypedAssetLoad<T>> {
-        self.typed_load.get(&TypeId::of::<T>()).map(|a| {
-            a.as_any()
-                .downcast_ref::<TypedAssetLoad<T>>()
-                .expect("could not downcast typed storage cache")
-        })
-    }
-
     /// Get mutable typed cache or create if it doesnt exist
-    pub fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetLoad<T> {
+    fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetLoad<T> {
         let entry =
             self.typed_load
                 .entry(TypeId::of::<T>())
@@ -281,7 +270,7 @@ impl AssetCacheLoad {
     }
 
     // check if any files completed loading and update cache and invalidate render cache
-    pub fn poll_loaded(
+    pub(crate) fn poll_loaded(
         &mut self,
         storage: &mut AssetCacheStorage,
         registry: &mut AssetCacheRegistry,
@@ -303,13 +292,13 @@ impl AssetCacheLoad {
     }
 
     // check for request of new handles
-    pub fn poll_handle_requests(&mut self, registry: &mut AssetCacheRegistry) {
+    pub(crate) fn poll_handle_requests(&mut self, registry: &mut AssetCacheRegistry) {
         while let Ok(request) = self.handle_request_receiver.try_recv() {
             request.get_or_load_new_asset(self, registry);
         }
     }
 
-    pub fn poll_queue_loads(&mut self, registry: &mut AssetCacheRegistry) {
+    pub(crate) fn poll_queue_loads(&mut self, registry: &mut AssetCacheRegistry) {
         while let Some(dyn_handle) = self.queue.pop_front() {
             self.queued.remove(&dyn_handle);
 
@@ -330,7 +319,7 @@ impl AssetCacheLoad {
     // Load
     //
 
-    pub fn register_load<T: AssetLoader>(
+    pub(crate) fn register_load<T: AssetLoader>(
         &mut self,
         registry: &mut AssetCacheRegistry,
         settings: &T::Settings,
@@ -354,8 +343,7 @@ impl AssetCacheLoad {
         handle
     }
 
-    // TODO: does this need to be generic?
-    pub fn queue_load(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
+    pub(crate) fn queue_load(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
         tracing::info!("queue load for {}", handle);
         if self.queued.insert(handle.clone()) {
             registry.set_status(handle.clone(), LoadStatus::Loading);
@@ -368,7 +356,7 @@ impl AssetCacheLoad {
 // Typed
 //
 
-pub struct TypedAssetLoad<T: AssetLoader> {
+struct TypedAssetLoad<T: AssetLoader> {
     asset_handle_ctx: AssetHandleContext,
     task_ctx: TaskContext,
     filesystem_ctx: FileSystemContext,
@@ -384,7 +372,7 @@ pub struct TypedAssetLoad<T: AssetLoader> {
 }
 
 impl<T: AssetLoader> TypedAssetLoad<T> {
-    pub fn new(
+    fn new(
         task_ctx: TaskContext,
         filesystem_ctx: FileSystemContext,
         asset_handle_ctx: AssetHandleContext,
@@ -456,17 +444,12 @@ impl<T: AssetLoader> TypedAssetLoad<T> {
 // Dyn
 //
 
-pub trait DynAssetLoad {
-    fn as_any(&self) -> &dyn Any;
+trait DynAssetLoad {
     fn as_any_mut(&mut self) -> &mut dyn Any;
     fn load(&mut self, registry: &mut AssetCacheRegistry, dyn_handle: DynAssetHandle);
 }
 
 impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
     }
@@ -490,7 +473,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
 //
 
 #[derive(Clone)]
-pub struct LoadState {
+struct LoadState {
     pub(crate) handle: DynAssetHandle,
     // TODO: not being used rn
     pub(crate) dependencies: FxHashSet<DynAssetHandle>,
@@ -498,7 +481,7 @@ pub struct LoadState {
 }
 
 impl LoadState {
-    pub fn new(handle: DynAssetHandle) -> Self {
+    fn new(handle: DynAssetHandle) -> Self {
         Self {
             handle,
             dependencies: FxHashSet::default(),
@@ -508,16 +491,16 @@ impl LoadState {
 }
 
 #[derive(Clone)]
-pub struct LoadRuntime {
-    pub(crate) asset_handle_ctx: AssetHandleContext,
-    pub(crate) filesystem_ctx: filesystem::FileSystemContext,
+struct LoadRuntime {
+    asset_handle_ctx: AssetHandleContext,
+    filesystem_ctx: filesystem::FileSystemContext,
 
-    pub(crate) handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
-    pub(crate) load_response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
+    handle_request_sender: async_channel::Sender<Box<dyn DynHandleRequest>>,
+    load_response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 }
 
 impl LoadRuntime {
-    pub fn new(
+    fn new(
         asset_handle_ctx: AssetHandleContext,
         filesystem_ctx: filesystem::FileSystemContext,
         loader: &AssetCacheLoad,
@@ -540,15 +523,11 @@ pub struct LoadContext {
 }
 
 impl LoadContext {
-    pub fn new(state: LoadState, runtime: LoadRuntime) -> Self {
+    fn new(state: LoadState, runtime: LoadRuntime) -> Self {
         Self { runtime, state }
     }
 
-    pub fn dependencies(&self) -> &FxHashSet<DynAssetHandle> {
-        &self.state.dependencies
-    }
-
-    pub fn handle(&self) -> DynAssetHandle {
+    fn handle(&self) -> DynAssetHandle {
         self.state.handle.clone()
     }
 
