@@ -3,7 +3,7 @@ use crate::{
     asset::{
         self, AssetCacheConvert, AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry,
         AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, GetAssetResult,
-        LoadStatus,
+        GetAssetResultCloned, LoadStatus,
     },
     filesystem::FileSystemContext,
     Context,
@@ -120,6 +120,25 @@ impl AssetCache {
         match self.registry.get_status(&handle.to_dyn()) {
             LoadStatus::Loading => GetAssetResult::Loading,
             LoadStatus::Failed => GetAssetResult::Error,
+            LoadStatus::Ready => panic!(
+                "could not get asset from storage but status is ready {}",
+                handle
+            ),
+            LoadStatus::NotRegistered => panic!("trying to get unregistered asset {}", handle),
+        }
+    }
+
+    pub fn get_asset_cloned<T: Asset + Clone + 'static>(
+        &mut self,
+        handle: &AssetHandle<T>,
+    ) -> GetAssetResultCloned<T> {
+        if let Some(success) = self.storage.get_asset(handle) {
+            return GetAssetResultCloned::Success(success.clone());
+        }
+
+        match self.registry.get_status(&handle.to_dyn()) {
+            LoadStatus::Loading => GetAssetResultCloned::Loading,
+            LoadStatus::Failed => GetAssetResultCloned::Error,
             LoadStatus::Ready => panic!(
                 "could not get asset from storage but status is ready {}",
                 handle

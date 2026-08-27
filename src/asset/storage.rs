@@ -21,9 +21,9 @@ pub enum GetAssetResult<'a, T: Asset> {
 impl<'a, T: Asset> GetAssetResult<'a, T> {
     pub fn unwrap_success(self) -> &'a T {
         match self {
-            GetAssetResult::Success(asset) => asset,
-            GetAssetResult::Loading => panic!("Asset is still loading"),
-            GetAssetResult::Error => panic!("Asset failed to load"),
+            Self::Success(asset) => asset,
+            Self::Loading => panic!("Asset is still loading"),
+            Self::Error => panic!("Asset failed to load"),
         }
     }
 
@@ -32,9 +32,25 @@ impl<'a, T: Asset> GetAssetResult<'a, T> {
         T: Clone,
     {
         match self {
-            GetAssetResult::Success(asset) => asset.clone(),
-            GetAssetResult::Loading => panic!("Asset is still loading"),
-            GetAssetResult::Error => panic!("Asset failed to load"),
+            Self::Success(asset) => asset.clone(),
+            Self::Loading => panic!("Asset is still loading"),
+            Self::Error => panic!("Asset failed to load"),
+        }
+    }
+}
+
+pub enum GetAssetResultCloned<T: Asset> {
+    Loading,
+    Success(T),
+    Error,
+}
+
+impl<T: Asset> GetAssetResultCloned<T> {
+    pub fn unwrap_success(self) -> T {
+        match self {
+            Self::Success(asset) => asset,
+            Self::Loading => panic!("Asset is still loading"),
+            Self::Error => panic!("Asset failed to load"),
         }
     }
 }
