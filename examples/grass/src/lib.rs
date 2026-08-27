@@ -98,15 +98,15 @@ impl Callbacks for App {
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let plane_mesh_handle = asset::AssetBuilder::insert(
+        let plane_mesh_handle = cache.insert_asset(
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
-        )
-        .build(cache);
+        );
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert(plane_material);
-        let plane_mesh = cache.insert(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
+        let plane_material = cache.insert_asset(plane_material);
+        let plane_mesh =
+            cache.insert_asset(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 

@@ -1,5 +1,7 @@
-converters allowed to request loads?
 remove deprecated convert asset
+converters allowed to request loads?
+maybe have more states on getasset result, like depency failed?
+fix pub in convert and loader
 
 give better debug names
 if it initally fails it does reload correctly

@@ -97,6 +97,13 @@ impl AssetCache {
     //
     // Storage re-exports
     //
+    pub fn get_or_convert_asset<T: AssetConverter + 'static>(
+        &mut self,
+        settings: &T::Settings,
+    ) -> GetAssetResult<'_, T::Asset> {
+        let handle = self.convert_asset::<T>(settings);
+        self.get_asset(&handle)
+    }
 
     pub fn insert_asset<T: Asset + 'static>(&mut self, data: T) -> AssetHandle<T> {
         self.storage.insert_successful_new_handle(data)
@@ -178,7 +185,7 @@ impl AssetCache {
 
     pub fn convert_asset<T: AssetConverter + 'static>(
         &mut self,
-        settings: T::Settings,
+        settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         self.converter
             .register_conversion::<T>(&mut self.registry, &settings)

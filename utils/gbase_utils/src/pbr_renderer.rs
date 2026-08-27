@@ -196,7 +196,7 @@ impl PbrRenderer {
 
         let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -231,8 +231,7 @@ impl PbrRenderer {
             if !mesh_lod.loaded(cache) {
                 return false;
             }
-            let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
-                ctx,
+            let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
                 cache,
                 &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
             )
@@ -246,8 +245,7 @@ impl PbrRenderer {
 
         let mut final_meshes = Vec::new();
         for (mesh_lod, transform) in frame_meshes {
-            let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
-                ctx,
+            let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
                 cache,
                 &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
             )
@@ -312,42 +310,36 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
-                ctx,
+            let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
                 cache,
                 &MeshGpuConverterSettings::new(mesh.clone()),
             )
-            .unwrap_success();
-            let base_color_texture = asset::convert_asset::<ImageGpuConverter>(
-                ctx,
+            .unwrap_success_cloned();
+            let base_color_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 &ImageGpuConverterOptions::new(base_color_texture),
             )
-            .unwrap_success();
-            let normal_texture = asset::convert_asset::<ImageGpuConverter>(
-                ctx,
+            .unwrap_success_cloned();
+            let normal_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 &ImageGpuConverterOptions::new(normal_texture),
             )
-            .unwrap_success();
-            let metallic_roughness_texture = asset::convert_asset::<ImageGpuConverter>(
-                ctx,
+            .unwrap_success_cloned();
+            let metallic_roughness_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 &ImageGpuConverterOptions::new(metallic_roughness_texture),
             )
-            .unwrap_success();
-            let occlusion_texture = asset::convert_asset::<ImageGpuConverter>(
-                ctx,
+            .unwrap_success_cloned();
+            let occlusion_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 &ImageGpuConverterOptions::new(occlusion_texture),
             )
-            .unwrap_success();
-            let emissive_texture = asset::convert_asset::<ImageGpuConverter>(
-                ctx,
+            .unwrap_success_cloned();
+            let emissive_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
                 &ImageGpuConverterOptions::new(emissive_texture),
             )
-            .unwrap_success();
+            .unwrap_success_cloned();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()

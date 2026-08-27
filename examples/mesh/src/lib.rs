@@ -1,7 +1,7 @@
 mod bloom;
 
 use gbase::{
-    asset::{AssetBuilder, AssetHandle},
+    asset::AssetHandle,
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile,
@@ -98,15 +98,13 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>().build(
-            cache,
-            MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
+        let helmet_mesh = cache.load_asset::<MeshLodLoader>(
+            &MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         );
-        let sponza_gltf = AssetBuilder::load::<GltfLoader>().build(
-            cache,
-            GltfLoaderSettings::new("assets/models/sponza.glb")
+        let sponza_gltf = cache.load_asset::<GltfLoader>(
+            &GltfLoaderSettings::new("assets/models/sponza.glb")
                 .required_attributes(pbr_renderer.required_attributes().clone()),
         );
 
@@ -180,7 +178,8 @@ impl Callbacks for App {
                     let mesh = mesh.get(cache).unwrap_success();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
-                    self.sponza_lod_meshes.push((cache.insert(lod), transform));
+                    self.sponza_lod_meshes
+                        .push((cache.insert_asset(lod), transform));
                 }
             }
         }

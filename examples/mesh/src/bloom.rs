@@ -60,7 +60,7 @@ impl Tonemap {
 
         let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -161,9 +161,9 @@ impl Bloom {
         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![extract_bindgroup_layout.clone()])
             .build(ctx);
-        let extract_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+        let extract_shader_handle = asset::load_asset::<ShaderLoader>(
             cache,
-            ShaderLoaderSettings::new("assets/shaders/bloom_extract.wgsl"),
+            &ShaderLoaderSettings::new("assets/shaders/bloom_extract.wgsl"),
         );
 
         //
@@ -185,9 +185,9 @@ impl Bloom {
         let downsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
-        let downsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+        let downsample_shader_handle = asset::load_asset::<ShaderLoader>(
             cache,
-            ShaderLoaderSettings::new("assets/shaders/bloom_downsample.wgsl"),
+            &ShaderLoaderSettings::new("assets/shaders/bloom_downsample.wgsl"),
         );
 
         //
@@ -213,9 +213,9 @@ impl Bloom {
         let upsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![upsample_bindgroup_layout.clone()])
             .build(ctx);
-        let upsample_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+        let upsample_shader_handle = asset::load_asset::<ShaderLoader>(
             cache,
-            ShaderLoaderSettings::new("assets/shaders/bloom_upsample.wgsl"),
+            &ShaderLoaderSettings::new("assets/shaders/bloom_upsample.wgsl"),
         );
 
         //
@@ -257,9 +257,9 @@ impl Bloom {
         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![combine_bindgroup_layout.clone()])
             .build(ctx);
-        let combine_shader_handle = asset::AssetBuilder::load::<ShaderLoader>().build(
+        let combine_shader_handle = asset::load_asset::<ShaderLoader>(
             cache,
-            ShaderLoaderSettings::new("assets/shaders/bloom_combine.wgsl"),
+            &ShaderLoaderSettings::new("assets/shaders/bloom_combine.wgsl"),
         );
 
         let downsampling_buffer = FrameBufferBuilder::new()
@@ -360,7 +360,7 @@ impl Bloom {
 
         let extract_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.extract_shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.extract_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -399,7 +399,7 @@ impl Bloom {
             .build(ctx);
         let downsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.downsample_shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.downsample_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -448,7 +448,7 @@ impl Bloom {
             .build(ctx);
         let upsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.upsample_shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.upsample_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -524,7 +524,7 @@ impl Bloom {
 
         let combine_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            ShaderGpuConverterOptions::new(self.combine_shader_handle.clone()),
+            &ShaderGpuConverterOptions::new(self.combine_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();

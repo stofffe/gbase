@@ -26,6 +26,17 @@ impl<'a, T: Asset> GetAssetResult<'a, T> {
             GetAssetResult::Error => panic!("Asset failed to load"),
         }
     }
+
+    pub fn unwrap_success_cloned(self) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            GetAssetResult::Success(asset) => asset.clone(),
+            GetAssetResult::Loading => panic!("Asset is still loading"),
+            GetAssetResult::Error => panic!("Asset failed to load"),
+        }
+    }
 }
 
 //

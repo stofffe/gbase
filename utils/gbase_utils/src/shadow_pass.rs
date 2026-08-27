@@ -161,8 +161,7 @@ impl ShadowPass {
                     return false;
                 }
 
-                let bounds = asset::convert_asset::<LodMeshToBoundingBoxConverter>(
-                    ctx,
+                let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
                     cache,
                     &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
                 )
@@ -202,12 +201,11 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let gpu_mesh = asset::convert_asset::<MeshGpuConverter>(
-                    ctx,
+                let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
                     cache,
                     &MeshGpuConverterSettings::new(mesh_handle.clone()),
                 )
-                .unwrap_success();
+                .unwrap_success_cloned();
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -235,7 +233,7 @@ impl ShadowPass {
 
             let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
                 cache,
-                ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+                &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
             )
             .unwrap_success()
             .clone();

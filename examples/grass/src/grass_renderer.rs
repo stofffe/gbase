@@ -347,12 +347,11 @@ impl GrassRenderer {
                     ])
                     .build(ctx),
             ];
-            let instance_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-                cache,
-                ShaderGpuConverterOptions::new(self.instance_shader_handle.clone()),
-            )
-            .unwrap_success()
-            .clone(); // TODO:
+            let instance_shader = cache
+                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+                    self.instance_shader_handle.clone(),
+                ))
+                .unwrap_success_cloned();
 
             let instance_pipeline = render::ComputePipelineBuilder::new(
                 instance_shader,
@@ -390,12 +389,11 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let draw_compute_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-                cache,
-                ShaderGpuConverterOptions::new(self.draw_shader_handle.clone()),
-            )
-            .unwrap_success()
-            .clone(); // TODO:
+            let draw_compute_shader = cache
+                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+                    self.draw_shader_handle.clone(),
+                ))
+                .unwrap_success_cloned();
 
             let draw_pipeline = render::ComputePipelineBuilder::new(
                 draw_compute_shader,
@@ -433,12 +431,13 @@ impl GrassRenderer {
                     view_format,
                     depth_buffer,
                 } => {
-                    let render_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-                        cache,
-                        ShaderGpuConverterOptions::new(self.render_forward_shader_handle.clone()),
-                    )
-                    .unwrap_success()
-                    .clone();
+                    let render_shader = cache
+                        .get_or_convert_asset::<ShaderGpuConverter>(
+                            &ShaderGpuConverterOptions::new(
+                                self.render_forward_shader_handle.clone(),
+                            ),
+                        )
+                        .unwrap_success_cloned();
 
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
@@ -462,12 +461,13 @@ impl GrassRenderer {
                         });
                 }
                 RenderMode::Deferred { buffers } => {
-                    let render_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-                        cache,
-                        ShaderGpuConverterOptions::new(self.render_deferred_shader_handle.clone()),
-                    )
-                    .unwrap_success()
-                    .clone();
+                    let render_shader = cache
+                        .get_or_convert_asset::<ShaderGpuConverter>(
+                            &ShaderGpuConverterOptions::new(
+                                self.render_deferred_shader_handle.clone(),
+                            ),
+                        )
+                        .unwrap_success_cloned();
                     let render_pipeline = render::RenderPipelineBuilder::new(
                         render_shader,
                         self.render_pipeline_layout.clone(),

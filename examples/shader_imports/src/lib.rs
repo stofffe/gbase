@@ -284,7 +284,7 @@ impl Callbacks for App {
 
         let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,
-            MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         ) else {
             return CallbackResult::Continue;
         };
@@ -293,7 +293,7 @@ impl Callbacks for App {
         let asset::GetAssetResult::Success(shader) =
             asset::get_or_convert_asset::<ShaderWithImportsGpuConverter>(
                 cache,
-                ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
+                &ShaderWithImportsGpuConverterSettings::new(self.shader_handle.clone()),
             )
         else {
             return CallbackResult::Continue;
@@ -303,7 +303,7 @@ impl Callbacks for App {
         let asset::GetAssetResult::Success(texture) =
             asset::get_or_convert_asset::<ImageGpuConverter>(
                 cache,
-                ImageGpuConverterOptions::new(self.texture_handle.clone()),
+                &ImageGpuConverterOptions::new(self.texture_handle.clone()),
             )
         else {
             return CallbackResult::Continue;

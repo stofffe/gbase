@@ -26,8 +26,6 @@ pub use storage::*;
 #[cfg(not(target_arch = "wasm32"))]
 pub use reload::*;
 
-use crate::Context;
-
 //
 // Commands
 //
@@ -62,36 +60,24 @@ pub fn load_asset<T: AssetLoader + 'static>(
     cache.load_asset::<T>(settings)
 }
 
-pub fn get_asset<T: Asset + 'static>(
+pub fn convert_asset<T: AssetConverter + 'static>(
     cache: &mut AssetCache,
-    handle: AssetHandle<T>,
-) -> GetAssetResult<'_, T> {
-    // tracing::info!("get asset");
-    cache.get_asset(&handle)
-}
-
-#[deprecated(since = "1.0.0", note = "use `new_function` instead")]
-pub fn convert_asset<G: AssetConverter + 'static>(
-    ctx: &mut Context,
-    cache: &mut AssetCache,
-    settings: &G::Settings,
-) -> ConvertAssetResult<G::Asset> {
-    todo!()
-    // cache.convert::<G>(ctx, settings)
-}
-
-pub fn convert_asset_new<T: AssetConverter + 'static>(
-    cache: &mut AssetCache,
-    settings: T::Settings,
+    settings: &T::Settings,
 ) -> AssetHandle<T::Asset> {
     cache.convert_asset::<T>(settings)
 }
 
-pub fn get_or_convert_asset<T: AssetConverter + 'static>(
+pub fn get_asset<T: Asset + 'static>(
     cache: &mut AssetCache,
-    settings: T::Settings,
-) -> GetAssetResult<'_, T::Asset> {
-    // tracing::info!("get or convert asset");
+    handle: AssetHandle<T>,
+) -> GetAssetResult<'_, T> {
+    cache.get_asset(&handle)
+}
+
+pub fn get_or_convert_asset<'a, T: AssetConverter + 'static>(
+    cache: &'a mut AssetCache,
+    settings: &T::Settings,
+) -> GetAssetResult<'a, T::Asset> {
     let handle = cache.convert_asset::<T>(settings);
     cache.get_asset(&handle)
 }

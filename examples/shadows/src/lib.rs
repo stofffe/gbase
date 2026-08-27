@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, AssetBuilder, AssetCache, AssetHandle},
+    asset::{self, AssetCache, AssetHandle},
     egui::{self, load::SizedTexture},
     egui_ui,
     glam::{vec3, Quat, Vec3},
@@ -53,7 +53,7 @@ fn mesh_to_lod_mesh(
     mesh: AssetHandle<render::Mesh>,
     material: AssetHandle<Material>,
 ) -> AssetHandle<MeshLod> {
-    cache.insert(MeshLod {
+    cache.insert_asset(MeshLod {
         meshes: vec![(mesh, 0.0)],
         material,
     })
@@ -113,16 +113,14 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
-        let helmet_mesh = AssetBuilder::load::<MeshLodLoader>().build(
-            cache,
-            MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
+        let helmet_mesh = cache.load_asset::<MeshLodLoader>(
+            &MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         );
 
-        let ak47_mesh = AssetBuilder::load::<MeshLodLoader>().build(
-            cache,
-            MeshLodLoaderSettings::new("assets/models/ak47.glb")
+        let ak47_mesh = cache.load_asset::<MeshLodLoader>(
+            &MeshLodLoaderSettings::new("assets/models/ak47.glb")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         );
 
@@ -147,14 +145,13 @@ impl Callbacks for App {
         };
         let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
-        let plane_mesh_handle = asset::AssetBuilder::insert(
+        let plane_mesh_handle = cache.insert_asset(
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
-        )
-        .build(cache);
+        );
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert(plane_material);
+        let plane_material = cache.insert_asset(plane_material);
         let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
         let shadow_pass = ShadowPass::new(ctx, cache);

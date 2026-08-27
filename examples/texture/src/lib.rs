@@ -51,10 +51,10 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let shader_handle = asset::AssetBuilder::load::<ShaderLoader>()
-            .build(cache, ShaderLoaderSettings::new("shaders/texture.wgsl"));
-        let texture_handle = asset::AssetBuilder::load::<ImageLoader>()
-            .build(cache, ImageLoaderSettings::new("textures/texture.jpeg"));
+        let shader_handle =
+            cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("shaders/texture.wgsl"));
+        let texture_handle =
+            cache.load_asset::<ImageLoader>(&ImageLoaderSettings::new("textures/texture.jpeg"));
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -62,11 +62,10 @@ impl Callbacks for App {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]);
-        let mesh_handle = asset::AssetBuilder::insert(mesh).build(cache);
+        let mesh_handle = cache.insert_asset(mesh);
 
-        let shader_gpu = asset::convert_asset_new::<ShaderGpuConverter>(
-            cache,
-            ShaderGpuConverterOptions::new(shader_handle.clone()),
+        let shader_gpu = cache.convert_asset::<ShaderGpuConverter>(
+            &ShaderGpuConverterOptions::new(shader_handle.clone()),
         );
 
         Self {
@@ -90,7 +89,7 @@ impl Callbacks for App {
     ) -> CallbackResult {
         let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,
-            MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         ) else {
             return CallbackResult::Continue;
         };
@@ -113,11 +112,10 @@ impl Callbacks for App {
         // };
         // let shader = mesh.clone();
 
-        let asset::GetAssetResult::Success(texture) =
-            asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                ImageGpuConverterOptions::new(self.texture_handle.clone()),
-            )
+        let asset::GetAssetResult::Success(texture) = cache
+            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
+                self.texture_handle.clone(),
+            ))
         else {
             return CallbackResult::Continue;
         };

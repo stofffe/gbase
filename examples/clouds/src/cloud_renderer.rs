@@ -142,18 +142,16 @@ impl CloudRenderer {
 
         self.app_info.update_buffer(ctx);
 
-        let weather_map = asset::convert_asset::<ImageGpuConverter>(
-            ctx,
-            cache,
-            &ImageGpuConverterOptions::new(self.weather_map_handle.clone()),
-        )
-        .unwrap_success();
-        let blue_noise = asset::convert_asset::<ImageGpuConverter>(
-            ctx,
-            cache,
-            &ImageGpuConverterOptions::new(self.blue_noise_handle.clone()),
-        )
-        .unwrap_success();
+        let weather_map = cache
+            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
+                self.weather_map_handle.clone(),
+            ))
+            .unwrap_success_cloned();
+        let blue_noise = cache
+            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
+                self.blue_noise_handle.clone(),
+            ))
+            .unwrap_success();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -177,12 +175,12 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        )
-        .unwrap_success()
-        .clone();
+        let shader = cache
+            .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+                self.shader_handle.clone(),
+            ))
+            .unwrap_success()
+            .clone();
         let mesh = self.mesh_handle.get(cache).unwrap_success();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
@@ -191,12 +189,11 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = asset::convert_asset::<MeshGpuConverter>(
-            ctx,
-            cache,
-            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-        )
-        .unwrap_success();
+        let mesh_gpu = cache
+            .get_or_convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(
+                self.mesh_handle.clone(),
+            ))
+            .unwrap_success();
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

@@ -6,42 +6,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq)]
-pub struct DynAssetHandle {
-    id: Arc<u64>,
-    type_id: TypeId,
-}
-
-impl DynAssetHandle {
-    pub fn new<T: Asset>(handle: &AssetHandle<T>) -> Self {
-        Self {
-            id: handle.id.clone(),
-            type_id: TypeId::of::<T>(),
-        }
-    }
-
-    pub fn id(&self) -> u64 {
-        *self.id
-    }
-
-    pub fn to_typed<T: Asset + 'static>(&self) -> Option<AssetHandle<T>> {
-        if self.type_id != TypeId::of::<T>() {
-            return None;
-        }
-
-        Some(AssetHandle {
-            id: self.id.clone(),
-            ty: PhantomData,
-        })
-    }
-}
-
-impl Display for DynAssetHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}: dyn asset handle]", self.id())
-    }
-}
-
 //
 // Asset handle
 //
@@ -122,6 +86,46 @@ impl<T: Asset + 'static> Clone for AssetHandle<T> {
 impl<T: Asset + 'static> Display for AssetHandle<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[{}: {}]", self.id(), type_name::<T>())
+    }
+}
+
+//
+// Dyn Asset Handle
+//
+
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
+pub struct DynAssetHandle {
+    id: Arc<u64>,
+    type_id: TypeId,
+}
+
+impl DynAssetHandle {
+    pub fn new<T: Asset>(handle: &AssetHandle<T>) -> Self {
+        Self {
+            id: handle.id.clone(),
+            type_id: TypeId::of::<T>(),
+        }
+    }
+
+    pub fn id(&self) -> u64 {
+        *self.id
+    }
+
+    pub fn to_typed<T: Asset + 'static>(&self) -> Option<AssetHandle<T>> {
+        if self.type_id != TypeId::of::<T>() {
+            return None;
+        }
+
+        Some(AssetHandle {
+            id: self.id.clone(),
+            ty: PhantomData,
+        })
+    }
+}
+
+impl Display for DynAssetHandle {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}: dyn asset handle]", self.id())
     }
 }
 
