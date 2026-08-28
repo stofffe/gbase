@@ -110,7 +110,9 @@ pub async fn parse_gltf_file(
 }
 
 // TODO: would be nicer to just implement loop based
-#[async_recursion]
+
+#[cfg_attr(not(target_arch = "wasm32"), async_recursion)]
+#[cfg_attr(target_arch = "wasm32", async_recursion(?Send))]
 async fn parse_gltf_node(
     load_ctx: &mut LoadContext,
     buffer: &[u8],
