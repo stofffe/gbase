@@ -1,4 +1,4 @@
-use crate::asset::{Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle};
+use crate::asset::{Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, LoadStatus};
 use std::{fmt::Debug, hash::Hash};
 
 //
@@ -39,6 +39,7 @@ impl AssetCacheInsert {
         let handle = registry.get_or_create_insert_handle::<T, I>(key);
 
         storage.insert_asset(handle.clone(), asset);
+        registry.set_status(handle.to_dyn(), LoadStatus::Ready);
 
         handle
     }
@@ -52,6 +53,7 @@ impl AssetCacheInsert {
         let handle = registry.create_empty_handle::<T>();
 
         storage.insert_asset(handle.clone(), asset);
+        registry.set_status(handle.to_dyn(), LoadStatus::Ready);
 
         handle
     }

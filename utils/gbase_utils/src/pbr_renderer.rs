@@ -179,8 +179,8 @@ impl PbrRenderer {
         shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
         shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
-        if !asset::handle_loaded(cache, self.forward_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.deferred_shader_handle.clone())
+        if !cache.handle_successfully_loaded(&self.forward_shader_handle)
+            || !cache.handle_successfully_loaded(&self.deferred_shader_handle)
         {
             return;
         }

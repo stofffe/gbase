@@ -2,7 +2,7 @@ use gbase::{
     filesystem,
     input::{self, KeyCode},
     render::{self, ArcTextureView, TextureBuilder},
-    wgpu, winit, CallbackResult, Callbacks, Context,
+    tracing, wgpu, winit, CallbackResult, Callbacks, Context, ContextBuilder,
 };
 use gbase_utils::{box_filter, gaussian_filter, median_filter, sobel_filter};
 
@@ -31,6 +31,10 @@ pub struct App {
 }
 
 impl Callbacks for App {
+    fn init_ctx() -> gbase::ContextBuilder {
+        ContextBuilder::new().assets_path(".")
+    }
+
     #[no_mangle]
     fn resize(
         &mut self,
@@ -41,6 +45,7 @@ impl Callbacks for App {
         self.framebuffer.resize(ctx, new_size);
         CallbackResult::Continue
     }
+
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
         // renderers
@@ -60,6 +65,7 @@ impl Callbacks for App {
         // textures
         let texture1 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .label("nature")
             .build(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(
@@ -70,6 +76,7 @@ impl Callbacks for App {
             .with_default_sampler_and_view(ctx);
         let texture2 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .label("city")
             .build(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(
@@ -82,6 +89,7 @@ impl Callbacks for App {
         let texture3 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .label("hellokitty")
             .build(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(
@@ -92,6 +100,7 @@ impl Callbacks for App {
             .with_default_sampler_and_view(ctx);
         let texture4 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .label("mario")
             .build(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(
@@ -102,6 +111,7 @@ impl Callbacks for App {
             .with_default_sampler_and_view(ctx);
         let texture5 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
+            .label("antialias")
             .build(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(
@@ -144,6 +154,21 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        if input::key_just_pressed(ctx, KeyCode::KeyD) {
+            cache.debug_asset_dependency_graph();
+        }
+
+        if self.texture_renderer_base.all_assets_just_loaded(cache) {
+            self.texture_renderer_base.render(
+                ctx,
+                cache,
+                self.current_texture.clone(),
+                self.framebuffer.view_ref(),
+                wgpu::TextureFormat::Rgba8Unorm,
+            );
+            tracing::info!("all just loaded");
+        }
+
         if input::key_just_pressed(ctx, KeyCode::Backspace)
             || input::key_just_pressed(ctx, KeyCode::KeyR)
         {

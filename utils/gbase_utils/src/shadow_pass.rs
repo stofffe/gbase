@@ -126,7 +126,7 @@ impl ShadowPass {
         //
 
         let mut assets_loaded = true;
-        assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
+        assets_loaded &= asset::handle_loaded(cache, &self.shader_handle);
         if !assets_loaded {
             tracing::info!("early exit");
             return;

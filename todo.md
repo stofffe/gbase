@@ -1,3 +1,30 @@
+fixed examples
+    [x] camera
+    [ ] custom_ui
+    [ ] egui
+    [ ] flappy_bird
+    [x] gizmos
+    [ ] grass
+    [/] mesh
+    [x] physics
+    [x] post_process
+    [x] shader_imports
+    [/] shadows
+    [ ] texture
+    [ ] transform
+    [ ] ui
+    [x] audio
+    [x] compute
+    [x] filesystem
+    [x] input
+    [x] logging
+    [x] time
+    [x] triangle
+
+insert force to regging deps?
+engine should poll assets smartly, user shouldnt have to poll in any way
+
+
 build in methods for named and parent named inserters?
 add dependencies when using nested inserts
 gat for inserters to avoid double generic param NamedInsert<Asset = Shader>>

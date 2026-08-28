@@ -34,11 +34,11 @@ impl<T: Asset + 'static> AssetHandle<T> {
     }
 
     pub fn loaded(&self, cache: &mut AssetCache) -> bool {
-        cache.handle_successfully_loaded(self.clone())
+        cache.handle_successfully_loaded(self)
     }
 
     pub fn just_loaded(&self, cache: &AssetCache) -> bool {
-        cache.handle_just_loaded(self.clone())
+        cache.handle_just_loaded(self)
     }
 
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {

@@ -42,13 +42,13 @@ pub fn reload_asset<T: AssetLoader + 'static>(
 }
 
 /// Check if a specific asset is loaded
-pub fn handle_loaded<T: Asset>(cache: &mut AssetCache, handle: AssetHandle<T>) -> bool {
-    cache.handle_successfully_loaded(handle.clone())
+pub fn handle_loaded<T: Asset>(cache: &mut AssetCache, handle: &AssetHandle<T>) -> bool {
+    cache.handle_successfully_loaded(handle)
 }
 
 /// Check if a specific asset is loaded
-pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: AssetHandle<T>) -> bool {
-    cache.handle_just_loaded(handle.clone())
+pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: &AssetHandle<T>) -> bool {
+    cache.handle_just_loaded(handle)
 }
 
 /// Inserts a new asset

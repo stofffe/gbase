@@ -312,10 +312,10 @@ impl Bloom {
         input_buffer: &render::FrameBuffer,
         output_buffer: &render::FrameBuffer,
     ) {
-        if !asset::handle_loaded(cache, self.extract_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.combine_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.upsample_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.downsample_shader_handle.clone())
+        if !asset::handle_loaded(cache, &self.extract_shader_handle)
+            || !asset::handle_loaded(cache, &self.combine_shader_handle)
+            || !asset::handle_loaded(cache, &self.upsample_shader_handle)
+            || !asset::handle_loaded(cache, &self.downsample_shader_handle)
         {
             return;
         }

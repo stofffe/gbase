@@ -1,38 +1,65 @@
 use gbase::{
     asset::{
-        self, GetAssetResult, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterOptions,
+        self, AssetCache, GetAssetResult, GetAssetResultCloned, MeshGpuConverter,
+        MeshGpuConverterSettings, NamedInserter, NamedInserterKey, ShaderGpuConverter,
+        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
-    render::{self, ArcTextureView, Shader},
-    tracing, wgpu, Context,
+    render::{self, ArcShaderModule, ArcTextureView, GpuMesh, Mesh, Shader},
+    wgpu, Context,
 };
 
 use crate::CameraUniform;
 
 pub struct TextureRenderer {
-    shader_handle: asset::AssetHandle<Shader>,
-    shader_depth_handle: asset::AssetHandle<Shader>,
+    shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
+    shader_depth_gpu_handle: asset::AssetHandle<ArcShaderModule>,
+    fullscreen_mesh_handle: asset::AssetHandle<Mesh>,
+    fullscreen_mesh_gpu_handle: asset::AssetHandle<GpuMesh>,
     sampler: render::ArcSampler,
-    vertices: asset::AssetHandle<render::Mesh>,
 }
 
 impl TextureRenderer {
-    pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        // let shader_handle =
-        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture.wgsl")
-        //         .watch(cache)
-        //         .build(cache);
-        // let shader_depth_handle =
-        //     asset::AssetBuilder::load("../../utils/gbase_utils/assets/shaders/texture_depth.wgsl")
-        //         .watch(cache)
-        //         .build(cache);
-        let shader_handle = asset::insert_asset_force(
-            cache,
+    pub fn all_assets_just_loaded(&self, cache: &mut AssetCache) -> bool {
+        // at least one just loaded
+        let one_just_loaded = cache.handle_just_loaded(&self.shader_gpu_handle)
+            || cache.handle_just_loaded(&self.shader_depth_gpu_handle)
+            || cache.handle_just_loaded(&self.fullscreen_mesh_handle)
+            || cache.handle_just_loaded(&self.fullscreen_mesh_gpu_handle);
+
+        if !one_just_loaded {
+            return false;
+        }
+
+        // all loaded
+        cache.handle_successfully_loaded(&self.shader_gpu_handle)
+            && cache.handle_successfully_loaded(&self.shader_depth_gpu_handle)
+            && cache.handle_successfully_loaded(&self.fullscreen_mesh_handle)
+            && cache.handle_successfully_loaded(&self.fullscreen_mesh_gpu_handle)
+    }
+
+    pub fn new(ctx: &mut Context, cache: &mut AssetCache) -> Self {
+        // let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
+        //     "../../utils/gbase_utils/assets/shaders/texture.wgsl",
+        // ));
+        // let shader_depth_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
+        //     "../../utils/gbase_utils/assets/shaders/texture_depth.wgsl",
+        // ));
+
+        let shader_handle = cache.insert_asset::<Shader, NamedInserter>(
+            &NamedInserterKey::new("texture renderer shader"),
             render::Shader::new(include_str!("../assets/shaders/texture.wgsl")),
         );
-        let shader_depth_handle = asset::insert_asset_force(
-            cache,
+
+        let shader_depth_handle = cache.insert_asset::<Shader, NamedInserter>(
+            &NamedInserterKey::new("texture renderer depth shader"),
             render::Shader::new(include_str!("../assets/shaders/texture_depth.wgsl")),
+        );
+
+        let shader_gpu_handle = cache.convert_asset::<ShaderGpuConverter>(
+            &ShaderGpuConverterOptions::new(shader_handle.clone()),
+        );
+        let shader_depth_gpu_handle = cache.convert_asset::<ShaderGpuConverter>(
+            &ShaderGpuConverterOptions::new(shader_depth_handle.clone()),
         );
 
         let sampler = render::SamplerBuilder::new()
@@ -40,34 +67,42 @@ impl TextureRenderer {
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
             .build(ctx);
 
-        let vertices = render::Mesh::new(wgpu::PrimitiveTopology::TriangleList)
-            .with_attribute(
-                render::VertexAttributeId::Position,
-                render::VertexAttributeValues::Float32x3(vec![
-                    [-1.0, -1.0, 0.0],
-                    [1.0, -1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [-1.0, -1.0, 0.0],
-                    [1.0, 1.0, 0.0],
-                    [-1.0, 1.0, 0.0],
-                ]),
-            )
-            .with_attribute(
-                render::VertexAttributeId::Uv(0),
-                render::VertexAttributeValues::Float32x2(vec![
-                    [0.0, 1.0],
-                    [1.0, 1.0],
-                    [1.0, 0.0],
-                    [0.0, 1.0],
-                    [1.0, 0.0],
-                    [0.0, 0.0],
-                ]),
-            );
+        let fullscreen_mesh_handle = cache.insert_asset::<_, NamedInserter>(
+            &NamedInserterKey::new("texture renderer fullscreen mesh"),
+            render::Mesh::new(wgpu::PrimitiveTopology::TriangleList)
+                .with_attribute(
+                    render::VertexAttributeId::Position,
+                    render::VertexAttributeValues::Float32x3(vec![
+                        [-1.0, -1.0, 0.0],
+                        [1.0, -1.0, 0.0],
+                        [1.0, 1.0, 0.0],
+                        [-1.0, -1.0, 0.0],
+                        [1.0, 1.0, 0.0],
+                        [-1.0, 1.0, 0.0],
+                    ]),
+                )
+                .with_attribute(
+                    render::VertexAttributeId::Uv(0),
+                    render::VertexAttributeValues::Float32x2(vec![
+                        [0.0, 1.0],
+                        [1.0, 1.0],
+                        [1.0, 0.0],
+                        [0.0, 1.0],
+                        [1.0, 0.0],
+                        [0.0, 0.0],
+                    ]),
+                ),
+        );
+
+        let fullscreen_mesh_gpu_handle = cache.convert_asset::<MeshGpuConverter>(
+            &MeshGpuConverterSettings::new(fullscreen_mesh_handle.clone()),
+        );
 
         Self {
-            vertices: asset::insert_asset_force(cache, vertices),
-            shader_handle,
-            shader_depth_handle,
+            shader_gpu_handle,
+            shader_depth_gpu_handle,
+            fullscreen_mesh_handle,
+            fullscreen_mesh_gpu_handle,
             sampler,
         }
     }
@@ -105,19 +140,24 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        ) else {
-            tracing::info!("waiting for tex render shader");
+        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
+        else {
             return;
         };
-        let shader = shader.clone();
+        let GetAssetResult::Success(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
+            return;
+        };
 
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
+            .buffers(mesh.buffer_layout())
             .build(ctx);
+
+        let GetAssetResultCloned::Success(mesh_gpu) =
+            cache.get_asset_cloned(&self.fullscreen_mesh_gpu_handle)
+        else {
+            return;
+        };
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
@@ -125,21 +165,12 @@ impl TextureRenderer {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
-                let GetAssetResult::Success(gpu_mesh) =
-                    asset::get_or_convert_asset::<MeshGpuConverter>(
-                        cache,
-                        &MeshGpuConverterSettings::new(self.vertices.clone()),
-                    )
-                else {
-                    tracing::info!("waiting for tex render gpu mesh ");
-                    return;
-                };
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                gpu_mesh.bind_to_render_pass(&mut render_pass);
-                gpu_mesh.draw_in_render_pass(&mut render_pass);
+                mesh_gpu.bind_to_render_pass(&mut render_pass);
+                mesh_gpu.draw_in_render_pass(&mut render_pass);
             });
         encoder.submit(ctx);
     }
@@ -155,7 +186,7 @@ impl TextureRenderer {
         camera: &render::UniformBuffer<CameraUniform>,
         viewport: Option<ViewPort>,
     ) {
-        if !asset::handle_loaded(cache, self.shader_depth_handle.clone()) {
+        if !cache.handle_successfully_loaded(&self.shader_depth_gpu_handle) {
             return;
         }
 
@@ -188,15 +219,25 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            &ShaderGpuConverterOptions::new(self.shader_depth_handle.clone()),
-        )
-        .unwrap_success_cloned();
+        let GetAssetResultCloned::Success(shader) =
+            cache.get_asset_cloned(&self.shader_depth_gpu_handle)
+        else {
+            return;
+        };
+        let GetAssetResult::Success(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
+            return;
+        };
+
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
-            .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
+            .buffers(mesh.buffer_layout())
             .build(ctx);
+
+        let GetAssetResultCloned::Success(mesh_gpu) =
+            cache.get_asset_cloned(&self.fullscreen_mesh_gpu_handle)
+        else {
+            return;
+        };
 
         let mut encoder = render::EncoderBuilder::new().build_new(ctx);
         render::RenderPassBuilder::new()
@@ -204,21 +245,17 @@ impl TextureRenderer {
             .color_attachments(&[Some(
                 render::RenderPassColorAttachment::new(out_texture).load(),
             )])
-            .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
+            .build_run(ctx, &mut encoder, |_ctx, mut render_pass| {
                 if let Some(viewport) = viewport {
                     render_pass
                         .set_viewport(viewport.x, viewport.y, viewport.w, viewport.h, 0.0, 1.0);
                 }
 
                 render_pass.set_pipeline(&pipeline);
-                let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
-                    cache,
-                    &MeshGpuConverterSettings::new(self.vertices.clone()),
-                )
-                .unwrap_success();
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                gpu_mesh.bind_to_render_pass(&mut render_pass);
-                gpu_mesh.draw_in_render_pass(&mut render_pass);
+
+                mesh_gpu.bind_to_render_pass(&mut render_pass);
+                mesh_gpu.draw_in_render_pass(&mut render_pass);
             });
         encoder.submit(ctx);
     }

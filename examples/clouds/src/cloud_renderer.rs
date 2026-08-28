@@ -131,10 +131,10 @@ impl CloudRenderer {
         camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
         parameters: &render::UniformBuffer<CloudParameters>,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone())
-            || !asset::handle_loaded(cache, self.mesh_handle.clone())
-            || !asset::handle_loaded(cache, self.weather_map_handle.clone())
-            || !asset::handle_loaded(cache, self.blue_noise_handle.clone())
+        if !asset::handle_loaded(cache, &self.shader_handle)
+            || !asset::handle_loaded(cache, &self.mesh_handle)
+            || !asset::handle_loaded(cache, &self.weather_map_handle)
+            || !asset::handle_loaded(cache, &self.blue_noise_handle)
         {
             tracing::warn!("all cloud asset not loaded, skipping render");
             return;

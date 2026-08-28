@@ -245,10 +245,10 @@ impl GrassRenderer {
         frustum_buffer: &impl BindGroupBindable<CameraFrustum>,
         render_mode: RenderMode,
     ) {
-        if !asset::handle_loaded(cache, self.draw_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.instance_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.render_forward_shader_handle.clone())
-            || !asset::handle_loaded(cache, self.render_deferred_shader_handle.clone())
+        if !asset::handle_loaded(cache, &self.draw_shader_handle)
+            || !asset::handle_loaded(cache, &self.instance_shader_handle)
+            || !asset::handle_loaded(cache, &self.render_forward_shader_handle)
+            || !asset::handle_loaded(cache, &self.render_deferred_shader_handle)
         {
             return;
         }

@@ -35,11 +35,7 @@ impl AssetCache {
         let storage = AssetCacheStorage::new();
 
         let inserter = AssetCacheInsert::new();
-        let loader = AssetCacheLoad::new(
-            task_executor.clone(),
-            filesystem_ctx.clone(),
-            asset_handle_ctx.clone(),
-        );
+        let loader = AssetCacheLoad::new(task_executor.clone(), filesystem_ctx.clone());
         let converter = AssetCacheConvert::new();
 
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
@@ -186,7 +182,7 @@ impl AssetCache {
         self.get_asset(&handle)
     }
 
-    pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: AssetHandle<T>) -> bool {
+    pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.registry.get_status(&handle.to_dyn());
         matches!(status, LoadStatus::Ready)
     }
@@ -216,7 +212,7 @@ impl AssetCache {
     // TODO: does this keep re registering?
     // can and should this overwrite?
 
-    pub fn handle_just_loaded<T: Asset>(&self, handle: AssetHandle<T>) -> bool {
+    pub fn handle_just_loaded<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         self.registry.handle_just_available(&handle.to_dyn())
     }
 

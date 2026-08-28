@@ -278,7 +278,6 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
 
 pub(crate) struct AssetCacheLoad {
     typed_load: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
-    asset_handle_ctx: AssetHandleContext,
     task_ctx: TaskContext,
     filesystem_ctx: FileSystemContext,
 
@@ -300,11 +299,7 @@ pub(crate) struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new(
-        task_ctx: TaskContext,
-        filesystem_ctx: FileSystemContext,
-        asset_handle_ctx: AssetHandleContext,
-    ) -> Self {
+    pub(crate) fn new(task_ctx: TaskContext, filesystem_ctx: FileSystemContext) -> Self {
         let typed_load = FxHashMap::default();
 
         let (response_sender, response_receiver) = async_channel::unbounded();
@@ -314,7 +309,6 @@ impl AssetCacheLoad {
         Self {
             task_ctx,
             filesystem_ctx,
-            asset_handle_ctx,
             typed_load,
 
             queue: VecDeque::default(),
@@ -340,7 +334,6 @@ impl AssetCacheLoad {
                 .or_insert(Box::new(TypedAssetLoad::<T>::new(
                     self.task_ctx.clone(),
                     self.filesystem_ctx.clone(),
-                    self.asset_handle_ctx.clone(),
                     self.load_request_sender.clone(),
                     self.insert_request_sender.clone(),
                     self.response_sender.clone(),
@@ -453,7 +446,6 @@ impl AssetCacheLoad {
 //
 
 struct TypedAssetLoad<T: AssetLoader> {
-    asset_handle_ctx: AssetHandleContext,
     task_ctx: TaskContext,
     filesystem_ctx: FileSystemContext,
 
@@ -471,7 +463,6 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     fn new(
         task_ctx: TaskContext,
         filesystem_ctx: FileSystemContext,
-        asset_handle_ctx: AssetHandleContext,
 
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
@@ -479,7 +470,6 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
-            asset_handle_ctx,
             task_ctx,
             filesystem_ctx,
 
@@ -636,7 +626,6 @@ impl LoadContext {
         self.state.handle.clone()
     }
 
-    // TODO: should probably just get from registy and then send succes response
     pub async fn insert_asset<T: Asset, I: AssetInserter + 'static>(
         &mut self,
         key: I::Key,
@@ -704,6 +693,14 @@ impl LoadContext {
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
         let result = self.runtime.filesystem_ctx.load_asset_bytes(&path).await;
 
+        if let Err(err) = &result {
+            tracing::error!(
+                "could not load nested bytes at {:?}: {}",
+                path.as_ref(),
+                err
+            );
+        }
+
         if result.is_ok() {
             #[cfg(not(target_arch = "wasm32"))]
             self.state.watches.insert(path.as_ref().to_path_buf());
@@ -717,6 +714,14 @@ impl LoadContext {
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
         let result = self.runtime.filesystem_ctx.load_asset_string(&path).await;
+
+        if let Err(err) = &result {
+            tracing::error!(
+                "could not load nested string at {:?}: {}",
+                path.as_ref(),
+                err
+            );
+        }
 
         if result.is_ok() {
             #[cfg(not(target_arch = "wasm32"))]
