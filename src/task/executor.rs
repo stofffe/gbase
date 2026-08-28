@@ -35,7 +35,15 @@ impl TaskExecutor {
         #[cfg(not(target_arch = "wasm32"))]
         std::thread::spawn(move || {
             // TODO: should probably use better executor
-            pollster::block_on(Self::task_runner(task_receiver));
+            // pollster::block_on(Self::task_runner(task_receiver));
+
+            // if the thread crashes crash the main program as well
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                pollster::block_on(Self::task_runner(task_receiver));
+            })) {
+                Ok(_) => {}
+                Err(_) => std::process::abort(),
+            };
         });
 
         #[cfg(target_arch = "wasm32")]
