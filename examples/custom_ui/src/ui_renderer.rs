@@ -656,7 +656,7 @@ impl gbase::asset::Asset for Font {}
 
 pub struct FontLoader {}
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct FontLoaderSettings {
     path: PathBuf,
 
@@ -713,7 +713,7 @@ pub struct FontAtlasConverter<'a> {
     font_raster_size: f32,
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct FontAtlasConverterSettings {
     pub font: AssetHandle<Font>,
     pub supported_chars: Vec<char>,

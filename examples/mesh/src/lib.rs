@@ -1,11 +1,11 @@
 mod bloom;
 
 use gbase::{
-    asset::AssetHandle,
+    asset::{AssetHandle, NamedInserter, NamedInserterKey},
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile,
-    render::{self},
+    render::{self, Mesh},
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
@@ -103,6 +103,17 @@ impl Callbacks for App {
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         );
+
+        // let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
+        //     &NamedInserterKey::new("plane mesh"),
+        //     render::MeshBuilder::quad()
+        //         .build()
+        //         .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
+        // );
+        // let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
+        // let plane_material = cache.insert_asset_force(plane_material);
+        // let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
+
         let sponza_gltf = cache.load_asset::<GltfLoader>(
             &GltfLoaderSettings::new("assets/models/sponza.glb")
                 .required_attributes(pbr_renderer.required_attributes().clone()),
@@ -171,13 +182,21 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         if self.sponza_gltf.just_loaded(cache) {
-            for node in &self.sponza_gltf.get(cache).unwrap_success().clone().nodes {
+            tracing::info!("sponza just loaded");
+            for node in &cache
+                .get_asset(&self.sponza_gltf)
+                .unwrap_success()
+                .clone()
+                .nodes
+            {
+                // tracing::info!("node {}", node);
                 let node = node.get(cache).unwrap_success();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
                     let mesh = mesh.get(cache).unwrap_success();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
+                    tracing::info!("push {:?}", lod);
                     self.sponza_lod_meshes
                         .push((cache.insert_asset_force(lod), transform));
                 }
@@ -245,8 +264,8 @@ impl Callbacks for App {
         });
 
         // let start = std::time::Instant::now();
-        // // self.bloom
-        // //     .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
+        // self.bloom
+        //     .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
         // if input::key_pressed(ctx, input::KeyCode::KeyB) {
         //     time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
         // }

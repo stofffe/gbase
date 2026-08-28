@@ -4,12 +4,12 @@ use crate::{
 };
 use gbase::{
     asset::{
-        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, GetAssetResult, MeshGpuConverter, MeshGpuConverterSettings,
+        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
-    render, wgpu, Context,
+    render, tracing, wgpu, Context,
 };
 
 pub struct ShadowPass {
@@ -40,6 +40,7 @@ impl ShadowPass {
             cache,
             &ShaderLoaderSettings::new("assets/shaders/shadow_pass.wgsl"),
         );
+
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // light matrices
@@ -112,6 +113,14 @@ impl ShadowPass {
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
+        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+            cache,
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        ) else {
+            return;
+        };
+        let shader = shader.clone();
+
         //
         // early exits
         //
@@ -119,6 +128,7 @@ impl ShadowPass {
         let mut assets_loaded = true;
         assets_loaded &= asset::handle_loaded(cache, self.shader_handle.clone());
         if !assets_loaded {
+            tracing::info!("early exit");
             return;
         }
 
@@ -157,16 +167,15 @@ impl ShadowPass {
 
             let mut meshes = meshes.to_vec();
             meshes.retain(|(handle, transform)| {
-                if !handle.loaded(cache) {
+                let GetAssetResult::Success(bounds) =
+                    asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
+                        cache,
+                        &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
+                    )
+                else {
                     return false;
-                }
-
-                let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                    cache,
-                    &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
-                )
-                .unwrap_success();
-                frustums[i].sphere_inside(&bounds, transform)
+                };
+                frustums[i].sphere_inside(bounds, transform)
             });
             let mut ranges = Vec::new();
 
@@ -201,11 +210,16 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
-                    cache,
-                    &MeshGpuConverterSettings::new(mesh_handle.clone()),
-                )
-                .unwrap_success_cloned();
+                let GetAssetResult::Success(gpu_mesh) =
+                    asset::get_or_convert_asset::<MeshGpuConverter>(
+                        cache,
+                        &MeshGpuConverterSettings::new(mesh_handle.clone()),
+                    )
+                else {
+                    return;
+                };
+                let gpu_mesh = gpu_mesh.clone();
+
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
@@ -231,31 +245,26 @@ impl ShadowPass {
                 ])
                 .build(ctx);
 
-            let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-                cache,
-                &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-            )
-            .unwrap_success()
-            .clone();
-            let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
-                .label("shadow_pass")
-                .cull_mode(wgpu::Face::Back)
-                .buffers(vec![render::VertexBufferLayout::from_vertex_formats(
-                    gbase::wgpu::VertexStepMode::Vertex,
-                    vec![wgpu::VertexFormat::Float32x3], // pos
-                )])
-                .depth_stencil(wgpu::DepthStencilState {
-                    format: self.shadow_map.format(),
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
-                    stencil: wgpu::StencilState::default(),
-                    bias: wgpu::DepthBiasState {
-                        constant: DEPTH_BIAS_STATE_CONSTANT,
-                        slope_scale: DEPTH_BIAS_STATE_SLOPE_SCALE,
-                        clamp: DEPTH_BIAS_STATE_CLAMP, // disable with 0.0
-                    },
-                })
-                .build(ctx);
+            let pipeline =
+                render::RenderPipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())
+                    .label("shadow_pass")
+                    .cull_mode(wgpu::Face::Back)
+                    .buffers(vec![render::VertexBufferLayout::from_vertex_formats(
+                        gbase::wgpu::VertexStepMode::Vertex,
+                        vec![wgpu::VertexFormat::Float32x3], // pos
+                    )])
+                    .depth_stencil(wgpu::DepthStencilState {
+                        format: self.shadow_map.format(),
+                        depth_write_enabled: true,
+                        depth_compare: wgpu::CompareFunction::LessEqual,
+                        stencil: wgpu::StencilState::default(),
+                        bias: wgpu::DepthBiasState {
+                            constant: DEPTH_BIAS_STATE_CONSTANT,
+                            slope_scale: DEPTH_BIAS_STATE_SLOPE_SCALE,
+                            clamp: DEPTH_BIAS_STATE_CLAMP, // disable with 0.0
+                        },
+                    })
+                    .build(ctx);
 
             let mut encoder = render::EncoderBuilder::new().build(ctx);
             render::RenderPassBuilder::new()

@@ -78,7 +78,9 @@ impl AssetCache {
         self.registry.clear_just_available();
 
         // loading
-        self.loader.poll_handle_requests(&mut self.registry);
+        self.loader.poll_load_requests(&mut self.registry);
+        self.loader
+            .poll_insert_requests(&mut self.registry, &mut self.storage, &mut self.inserter);
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
@@ -141,8 +143,14 @@ impl AssetCache {
         }
 
         match self.registry.get_status(&handle.to_dyn()) {
-            LoadStatus::Loading => GetAssetResult::Loading,
-            LoadStatus::Failed => GetAssetResult::Error,
+            LoadStatus::Loading => {
+                tracing::info!("waiting for {}", handle);
+                GetAssetResult::Loading
+            }
+            LoadStatus::Failed => {
+                tracing::info!("erron in {}", handle);
+                GetAssetResult::Error
+            }
             LoadStatus::Ready => panic!(
                 "could not get asset from storage but status is ready {}",
                 handle

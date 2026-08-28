@@ -11,6 +11,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
     collections::VecDeque,
+    fmt::Debug,
     hash::Hash,
     marker::PhantomData,
 };
@@ -25,13 +26,13 @@ impl<T: Hash + Eq + Clone> ConvertAssetSettings for T {}
 
 pub trait AssetConverter {
     type Asset: Asset;
-    type Settings: ConvertAssetSettings;
+    type Settings: ConvertAssetSettings + Debug;
     // TODO: is this even being used?
     type Error: error::Error;
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset>;
 }

@@ -6,9 +6,9 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
-        MeshGpuConverterSettings, NamedInserter, NamedInserterKey, ShaderGpuConverter,
-        ShaderGpuConverterOptions,
+        self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
+        MeshGpuConverter, MeshGpuConverterSettings, NamedInserter, NamedInserterKey,
+        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
     },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
@@ -34,30 +34,23 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        // let forward_shader_handle = asset::AssetBuilder::load(
-        //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
-        //     NoSettingsNoSettings{},
-        // )
-        // .watch(cache)
-        // .build(cache);
-        //
-        // let deferred_shader_handle = asset::AssetBuilder::load(
-        //     "../../utils/gbase_utils/assets/shaders/deferred_mesh.wgsl",
-        //     NoSettingsNoSettings{},
-        // )
-        // .watch(cache)
-        // .build(cache);
+        let forward_shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
+            "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
+        ));
+        let deferred_shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
+            "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
+        ));
 
-        let forward_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
-            cache,
-            &NamedInserterKey::new("forward shader"),
-            Shader::new(include_str!("../assets/shaders/mesh.wgsl")),
-        );
-        let deferred_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
-            cache,
-            &NamedInserterKey::new("deferred shader"),
-            render::Shader::new(include_str!("../assets/shaders/deferred_mesh.wgsl")),
-        );
+        // let forward_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
+        //     cache,
+        //     &NamedInserterKey::new("forward shader"),
+        //     Shader::new(include_str!("../assets/shaders/mesh.wgsl")),
+        // );
+        // let deferred_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
+        //     cache,
+        //     &NamedInserterKey::new("deferred shader"),
+        //     render::Shader::new(include_str!("../assets/shaders/deferred_mesh.wgsl")),
+        // );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -197,12 +190,13 @@ impl PbrRenderer {
             return;
         }
 
-        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
+        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             &ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
-        )
-        .unwrap_success()
-        .clone();
+        ) else {
+            return;
+        };
+        let shader = shader.clone();
 
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {
@@ -234,12 +228,16 @@ impl PbrRenderer {
             if !mesh_lod.loaded(cache) {
                 return false;
             }
-            let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                cache,
-                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
-            )
-            .unwrap_success();
-            frustum.sphere_inside(&bounds, transform)
+            let GetAssetResult::Success(bounds) =
+                asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
+                    cache,
+                    &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
+                )
+            else {
+                // tracing::info!("bounds not okay");
+                return false;
+            };
+            frustum.sphere_inside(bounds, transform)
         });
 
         //
@@ -253,7 +251,7 @@ impl PbrRenderer {
                 &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
             )
             .unwrap_success();
-            let bounds_sphere = BoundingSphere::new(&bounds, &transform);
+            let bounds_sphere = BoundingSphere::new(bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
             // TODO: hardcoded
@@ -313,36 +311,63 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
+            let GetAssetResult::Success(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
                 cache,
                 &MeshGpuConverterSettings::new(mesh.clone()),
-            )
-            .unwrap_success_cloned();
-            let base_color_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(base_color_texture),
-            )
-            .unwrap_success_cloned();
-            let normal_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(normal_texture),
-            )
-            .unwrap_success_cloned();
-            let metallic_roughness_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(metallic_roughness_texture),
-            )
-            .unwrap_success_cloned();
-            let occlusion_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(occlusion_texture),
-            )
-            .unwrap_success_cloned();
-            let emissive_texture = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(emissive_texture),
-            )
-            .unwrap_success_cloned();
+            ) else {
+                return;
+            };
+            let gpu_mesh = gpu_mesh.clone();
+
+            let GetAssetResult::Success(base_color_texture) =
+                asset::get_or_convert_asset::<ImageGpuConverter>(
+                    cache,
+                    &ImageGpuConverterOptions::new(base_color_texture),
+                )
+            else {
+                return;
+            };
+            let base_color_texture = base_color_texture.clone();
+
+            let GetAssetResult::Success(normal_texture) =
+                asset::get_or_convert_asset::<ImageGpuConverter>(
+                    cache,
+                    &ImageGpuConverterOptions::new(normal_texture),
+                )
+            else {
+                return;
+            };
+            let normal_texture = normal_texture.clone();
+
+            let GetAssetResult::Success(metallic_roughness_texture) =
+                asset::get_or_convert_asset::<ImageGpuConverter>(
+                    cache,
+                    &ImageGpuConverterOptions::new(metallic_roughness_texture),
+                )
+            else {
+                return;
+            };
+            let metallic_roughness_texture = metallic_roughness_texture.clone();
+
+            let GetAssetResult::Success(occlusion_texture) =
+                asset::get_or_convert_asset::<ImageGpuConverter>(
+                    cache,
+                    &ImageGpuConverterOptions::new(occlusion_texture),
+                )
+            else {
+                return;
+            };
+            let occlusion_texture = occlusion_texture.clone();
+
+            let GetAssetResult::Success(emissive_texture) =
+                asset::get_or_convert_asset::<ImageGpuConverter>(
+                    cache,
+                    &ImageGpuConverterOptions::new(emissive_texture),
+                )
+            else {
+                return;
+            };
+            let emissive_texture = emissive_texture.clone();
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()

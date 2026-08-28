@@ -1,7 +1,7 @@
 use crate::asset::{self, Asset, AssetCache, GetAssetResult};
 use std::{
     any::{type_name, TypeId},
-    fmt::Display,
+    fmt::{Debug, Display},
     marker::PhantomData,
     sync::{Arc, Mutex},
 };
@@ -10,7 +10,6 @@ use std::{
 // Asset handle
 //
 
-#[derive(Debug)]
 pub struct AssetHandle<T: Asset + 'static> {
     pub(crate) id: Arc<u64>, // TODO: use strong and weak outside/inside cache
     pub(crate) ty: PhantomData<T>,
@@ -43,7 +42,6 @@ impl<T: Asset + 'static> AssetHandle<T> {
     }
 
     pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
-        tracing::info!("get asset from handle");
         cache.get_asset(self)
     }
 }
@@ -89,6 +87,15 @@ impl<T: Asset + 'static> Display for AssetHandle<T> {
     }
 }
 
+impl<T: Asset + 'static> Debug for AssetHandle<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AssetHandle")
+            .field("id", &self.id)
+            .field("ty", &self.ty)
+            .finish()
+    }
+}
+
 //
 // Dyn Asset Handle
 //
@@ -113,6 +120,10 @@ impl DynAssetHandle {
 
     pub fn to_typed<T: Asset + 'static>(&self) -> Option<AssetHandle<T>> {
         if self.type_id != TypeId::of::<T>() {
+            tracing::error!(
+                "could not convert dyn handle to typed, not a {}",
+                type_name::<T>(),
+            );
             return None;
         }
 

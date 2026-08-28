@@ -22,7 +22,7 @@ pub struct ShaderWithImports {
 
 impl Asset for ShaderWithImports {}
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ShaderWithImportsLoaderSettings {
     path: PathBuf,
 }
@@ -92,7 +92,7 @@ pub struct ShaderWithImportsFinal {
 
 impl Asset for ShaderWithImportsFinal {}
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ShaderWithImportsConverterOptions {
     shader: AssetHandle<ShaderWithImports>,
 }
@@ -147,7 +147,7 @@ impl AssetConverter for ShaderWithImportsConverter {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ShaderWithImportsGpuConverterSettings {
     shader: AssetHandle<ShaderWithImports>,
 }

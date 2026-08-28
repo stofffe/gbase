@@ -1,5 +1,5 @@
 use crate::asset::{Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle};
-use std::hash::Hash;
+use std::{fmt::Debug, hash::Hash};
 
 //
 // Types
@@ -8,6 +8,12 @@ use std::hash::Hash;
 pub trait InsertAssetKey: Hash + Eq + Clone {}
 impl<T: Hash + Eq + Clone> InsertAssetKey for T {}
 
+#[cfg(not(target_arch = "wasm32"))]
+pub trait AssetInserter: Send {
+    type Key: InsertAssetKey + Send + Debug;
+}
+
+#[cfg(target_arch = "wasm32")]
 pub trait AssetInserter {
     type Key: InsertAssetKey;
 }

@@ -1,3 +1,4 @@
+build in methods for named and parent named inserters?
 add dependencies when using nested inserts
 gat for inserters to avoid double generic param NamedInsert<Asset = Shader>>
 generic args for inserters such as ArcHandle?

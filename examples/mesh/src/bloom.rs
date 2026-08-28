@@ -1,6 +1,7 @@
 use gbase::{
     asset::{
-        self, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        self, GetAssetResult, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        ShaderLoaderSettings,
     },
     render::{self, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
@@ -45,9 +46,13 @@ impl Tonemap {
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
+        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+            cache,
+            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+        ) else {
             return;
-        }
+        };
+        let shader = shader.clone();
 
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
@@ -58,12 +63,6 @@ impl Tonemap {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        )
-        .unwrap_success()
-        .clone();
         let pipeline =
             render::ComputePipelineBuilder::new(shader, self.pipeline_layout.clone()).build(ctx);
 

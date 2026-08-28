@@ -22,7 +22,7 @@ pub enum EmptyError {}
 // Named inserter
 //
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct NamedInserterKey {
     name: String, // TODO: arc or something instead?
 }
@@ -43,7 +43,7 @@ impl AssetInserter for NamedInserter {
 // Arhandle inserter
 //
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct IdInserterKey {
     id: u64,
 }
@@ -60,7 +60,7 @@ impl AssetInserter for IdInserter {
 
 impl Asset for render::Mesh {}
 
-#[derive(Clone, Hash, Eq, PartialEq)]
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct MeshGpuConverterSettings {
     mesh: AssetHandle<Mesh>,
 }
@@ -92,7 +92,7 @@ impl AssetConverter for MeshGpuConverter {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct BoundingBoxConverterOptions {
     mesh: AssetHandle<Mesh>,
 }
@@ -127,7 +127,7 @@ impl Asset for ArcHandle<wgpu::ShaderModule> {}
 
 impl Asset for Shader {}
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ShaderLoaderSettings {
     path: PathBuf,
 }
@@ -164,7 +164,7 @@ impl AssetLoader for ShaderLoader {
 
 pub struct ShaderGpuConverter;
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ShaderGpuConverterOptions {
     shader: AssetHandle<Shader>,
 }
@@ -223,7 +223,7 @@ impl Asset for render::Image {}
 
 pub struct ImageLoader {}
 
-#[derive(Hash, PartialEq, Eq, Clone, Default)]
+#[derive(Hash, PartialEq, Eq, Clone, Default, Debug)]
 pub struct ImageLoaderSettings {
     pub path: PathBuf,
     pub texture_config: Option<TextureBuilder>,
@@ -282,7 +282,7 @@ impl AssetLoader for ImageLoader {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct ImageGpuConverterOptions {
     image: AssetHandle<Image>,
 }

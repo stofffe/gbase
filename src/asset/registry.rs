@@ -3,7 +3,11 @@ use crate::asset::{
     DynAssetHandle,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::any::{Any, TypeId};
+use std::{
+    any::{type_name, Any, TypeId},
+    fmt::Debug,
+    marker::{PhantomData, PhantomPinned},
+};
 
 //
 // Genereic
@@ -69,16 +73,16 @@ impl AssetCacheRegistry {
             .expect("could not downcast typed storage cache")
     }
 
-    fn get_or_create_typed_insert_registry_mut<T: AssetInserter + 'static>(
+    fn get_or_create_typed_insert_registry_mut<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
-    ) -> &mut TypedInsertRegistry<T> {
+    ) -> &mut TypedInsertRegistry<T, I> {
         let entry = self
             .typed_insert_registries
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedInsertRegistry::<T>::new()));
+            .or_insert(Box::new(TypedInsertRegistry::<T, I>::new()));
         entry
             .as_any_mut()
-            .downcast_mut::<TypedInsertRegistry<T>>()
+            .downcast_mut::<TypedInsertRegistry<T, I>>()
             .expect("could not downcast typed storage cache")
     }
 
@@ -104,7 +108,13 @@ impl AssetCacheRegistry {
         let new_handle = AssetHandle::<T::Asset>::new(&self.asset_handle_ctx);
         tracing::info!("create convert handle {}", new_handle);
 
-        self.register_convert_handle_settings_mapping::<T>(new_handle.clone(), settings.clone());
+        let typed = self.get_or_create_typed_convert_registry_mut::<T>();
+        typed
+            .handle_to_settings
+            .insert(new_handle.to_dyn(), settings.clone());
+        typed
+            .settings_to_handle
+            .insert(settings.clone(), new_handle.to_dyn());
 
         new_handle
     }
@@ -127,7 +137,13 @@ impl AssetCacheRegistry {
         let new_handle = AssetHandle::<T::Asset>::new(&self.asset_handle_ctx);
         tracing::info!("create load handle {}", new_handle);
 
-        self.register_load_handle_settings_mapping::<T>(new_handle.clone(), settings.clone());
+        let typed = self.get_or_create_typed_load_registry_mut::<T>();
+        typed
+            .handle_to_settings
+            .insert(new_handle.to_dyn(), settings.clone());
+        typed
+            .settings_to_handle
+            .insert(settings.clone(), new_handle.to_dyn());
 
         new_handle
     }
@@ -135,11 +151,11 @@ impl AssetCacheRegistry {
     /// Gets an existing or creates a new handle
     ///
     /// Does not queue any conversions
-    pub(crate) fn get_or_create_insert_handle<T: Asset, I: AssetInserter + 'static>(
+    pub(crate) fn get_or_create_insert_handle<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
         key: &I::Key,
     ) -> AssetHandle<T> {
-        let typed = self.get_or_create_typed_insert_registry_mut::<I>();
+        let typed = self.get_or_create_typed_insert_registry_mut::<T, I>();
         if let Some(handle) = typed.key_to_handle.get(key) {
             let typed_handle = handle
                 .to_typed()
@@ -150,19 +166,10 @@ impl AssetCacheRegistry {
         let new_handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
         tracing::info!("create insert handle {}", new_handle);
 
-        self.register_insert_handle_settings_mapping::<T, I>(new_handle.clone(), key.clone());
+        let typed = self.get_or_create_typed_insert_registry_mut::<T, I>();
+        typed.handle_to_key.insert(new_handle.to_dyn(), key.clone());
+        typed.key_to_handle.insert(key.clone(), new_handle.to_dyn());
 
-        new_handle
-    }
-
-    /// Note that this never returns cached handles it only creates new ones
-    #[deprecated]
-    pub(crate) fn crate_insert_handle<T: Asset + 'static>(&mut self) -> AssetHandle<T> {
-        let new_handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
-        tracing::warn!(
-            "creating insert handle {}, this is not cached in any way",
-            new_handle
-        );
         new_handle
     }
 
@@ -191,46 +198,8 @@ impl AssetCacheRegistry {
     }
 
     //
-    // Handle -> Settings
-    // Settings -> Handle
+    // Get settings/keys
     //
-
-    pub(crate) fn register_convert_handle_settings_mapping<T: AssetConverter + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // tracing::info!("map convert settings -> handle {}", handle);
-        let typed = self.get_or_create_typed_convert_registry_mut::<T>();
-        typed
-            .handle_to_settings
-            .insert(handle.to_dyn(), settings.clone());
-        typed.settings_to_handle.insert(settings, handle.to_dyn());
-    }
-
-    pub(crate) fn register_load_handle_settings_mapping<T: AssetLoader + 'static>(
-        &mut self,
-        handle: AssetHandle<T::Asset>,
-        settings: T::Settings,
-    ) {
-        // tracing::info!("map load settings -> handle {}", handle);
-        let typed = self.get_or_create_typed_load_registry_mut::<T>();
-        typed
-            .handle_to_settings
-            .insert(handle.to_dyn(), settings.clone());
-        typed.settings_to_handle.insert(settings, handle.to_dyn());
-    }
-
-    pub(crate) fn register_insert_handle_settings_mapping<T: Asset, I: AssetInserter + 'static>(
-        &mut self,
-        handle: AssetHandle<T>,
-        key: I::Key,
-    ) {
-        // tracing::info!("map load settings -> handle {}", handle);
-        let typed = self.get_or_create_typed_insert_registry_mut::<I>();
-        typed.handle_to_key.insert(handle.to_dyn(), key.clone());
-        typed.key_to_handle.insert(key, handle.to_dyn());
-    }
 
     pub(crate) fn get_convert_settings_from_handle<T: AssetConverter + 'static>(
         &mut self,
@@ -256,7 +225,7 @@ impl AssetCacheRegistry {
         &mut self,
         handle: &DynAssetHandle,
     ) -> Option<I::Key> {
-        self.get_or_create_typed_insert_registry_mut::<I>()
+        self.get_or_create_typed_insert_registry_mut::<T, I>()
             .handle_to_key
             .get(handle)
             .cloned()
@@ -362,16 +331,19 @@ impl<T: AssetLoader + 'static> DynLoadRegistry for TypedLoadRegistry<T> {
 
 // Insert
 
-struct TypedInsertRegistry<T: AssetInserter> {
-    handle_to_key: FxHashMap<DynAssetHandle, T::Key>,
-    key_to_handle: FxHashMap<T::Key, DynAssetHandle>,
+struct TypedInsertRegistry<T: Asset, I: AssetInserter> {
+    handle_to_key: FxHashMap<DynAssetHandle, I::Key>,
+    key_to_handle: FxHashMap<I::Key, DynAssetHandle>,
+
+    inserter_type: PhantomData<T>,
 }
 
-impl<T: AssetInserter + 'static> TypedInsertRegistry<T> {
+impl<T: Asset + 'static, I: AssetInserter + 'static> TypedInsertRegistry<T, I> {
     fn new() -> Self {
         Self {
             handle_to_key: FxHashMap::default(),
             key_to_handle: FxHashMap::default(),
+            inserter_type: PhantomData,
         }
     }
 }
@@ -381,7 +353,9 @@ trait DynInsertRegistry {
     fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
-impl<T: AssetInserter + 'static> DynInsertRegistry for TypedInsertRegistry<T> {
+impl<T: Asset + 'static, I: AssetInserter + 'static> DynInsertRegistry
+    for TypedInsertRegistry<T, I>
+{
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
     }

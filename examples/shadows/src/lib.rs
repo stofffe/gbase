@@ -1,10 +1,12 @@
 use gbase::{
-    asset::{self, AssetCache, AssetHandle},
+    asset::{self, AssetCache, AssetHandle, NamedInserter, NamedInserterKey},
     egui::{self, load::SizedTexture},
     egui_ui,
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, profile, render, time,
+    load_b, profile,
+    render::{self, Mesh},
+    time,
     tracing::{self, span},
     wgpu, winit, CallbackResult, Callbacks, Context,
 };
@@ -145,7 +147,8 @@ impl Callbacks for App {
         };
         let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
-        let plane_mesh_handle = cache.insert_asset_force(
+        let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
+            &NamedInserterKey::new("plane mesh"),
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),

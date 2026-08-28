@@ -1,6 +1,7 @@
 use crate::{texture_source_from_image_bytes, Transform3D};
+use async_recursion::async_recursion;
 use gbase::{
-    asset::{Asset, AssetCache, AssetHandle, LoadContext},
+    asset::{Asset, AssetCache, AssetHandle, LoadContext, NamedInserter, NamedInserterKey},
     glam::{Quat, Vec3},
     render::{self, Image, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
     tracing, wgpu,
@@ -36,8 +37,8 @@ impl GltfLoadCache {
 
 // TODO: have local cache for duplicate materials/primitives
 
-pub fn parse_gltf_primitives(
-    load_ctx: &LoadContext,
+pub async fn parse_gltf_primitives(
+    load_ctx: &mut LoadContext,
     bytes: &[u8],
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
 ) -> Vec<GltfPrimitive> {
@@ -61,7 +62,8 @@ pub fn parse_gltf_primitives(
                 primitive,
                 &name,
                 required_attributes,
-            );
+            )
+            .await;
             primitives.push(primitive);
         }
     }
@@ -69,8 +71,8 @@ pub fn parse_gltf_primitives(
     primitives
 }
 
-pub fn parse_gltf_file(
-    load_ctx: &LoadContext,
+pub async fn parse_gltf_file(
+    load_ctx: &mut LoadContext,
     bytes: &[u8],
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
 ) -> Gltf {
@@ -87,7 +89,8 @@ pub fn parse_gltf_file(
             &mut gltf_cache,
             required_attributes,
             node,
-        );
+        )
+        .await;
     }
 
     let GltfLoadCache {
@@ -106,12 +109,14 @@ pub fn parse_gltf_file(
     }
 }
 
-fn parse_gltf_node(
-    load_ctx: &LoadContext,
+// TODO: would be nicer to just implement loop based
+#[async_recursion]
+async fn parse_gltf_node(
+    load_ctx: &mut LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
-    node: gltf::Node<'_>,
+    node: gltf::Node<'async_recursion>,
 ) -> AssetHandle<GltfNode> {
     if let Some(node_handle) = gltf_cache.nodes.get(&node.index()) {
         // tracing::error!("REUSE NODE {}", node.index());
@@ -123,9 +128,12 @@ fn parse_gltf_node(
         .map(|name| name.to_string())
         .unwrap_or(format!("Node{}", node.index()));
 
-    let mesh = node
-        .mesh()
-        .map(|mesh| parse_gltf_mesh(load_ctx, buffer, gltf_cache, required_attributes, mesh));
+    let mesh = match node.mesh() {
+        Some(mesh) => {
+            Some(parse_gltf_mesh(load_ctx, buffer, gltf_cache, required_attributes, mesh).await)
+        }
+        None => None,
+    };
 
     let (translation, rotation, scale) = node.transform().decomposed();
     let transform = Transform3D::new(
@@ -137,16 +145,21 @@ fn parse_gltf_node(
     let mut children = Vec::new();
     for child in node.children() {
         let child_node_handle =
-            parse_gltf_node(load_ctx, buffer, gltf_cache, required_attributes, child);
+            parse_gltf_node(load_ctx, buffer, gltf_cache, required_attributes, child).await;
         children.push(child_node_handle);
     }
 
-    let node_handle = load_ctx.insert_asset(GltfNode {
-        name,
-        mesh,
-        transform,
-        children,
-    });
+    let node_handle = load_ctx
+        .insert_asset::<GltfNode, NamedInserter>(
+            NamedInserterKey::new(name.clone()),
+            GltfNode {
+                name,
+                mesh,
+                transform,
+                children,
+            },
+        )
+        .await;
 
     gltf_cache.nodes.insert(node.index(), node_handle.clone());
     if let Some(name) = node.name() {
@@ -157,15 +170,15 @@ fn parse_gltf_node(
     node_handle
 }
 
-fn parse_gltf_mesh(
-    load_ctx: &LoadContext,
+async fn parse_gltf_mesh(
+    load_ctx: &mut LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
     mesh: gltf::Mesh<'_>,
 ) -> AssetHandle<GltfMesh> {
     if let Some(mesh_handle) = gltf_cache.meshes.get(&mesh.index()) {
-        // tracing::error!("REUSE MESH {}", mesh.index());
+        tracing::error!("REUSE MESH {}", mesh.index());
         return mesh_handle.clone();
     }
 
@@ -183,22 +196,31 @@ fn parse_gltf_mesh(
             primitive,
             &name,
             required_attributes,
-        ); // TODO: maybe add this option
+        )
+        .await; // TODO: maybe add this option
         primitives.push(primitive);
     }
 
-    let mesh_handle = load_ctx.insert_asset(GltfMesh { name, primitives });
+    let mesh_handle = load_ctx
+        .insert_asset::<GltfMesh, NamedInserter>(
+            NamedInserterKey::new(name.clone()),
+            GltfMesh { name, primitives },
+        )
+        .await;
+
     if let Some(name) = mesh.name() {
         gltf_cache
             .named_meshes
             .insert(Box::from(name), mesh_handle.clone());
     }
+
     gltf_cache.meshes.insert(mesh.index(), mesh_handle.clone());
+
     mesh_handle
 }
 
-fn parse_gltf_primitive(
-    load_ctx: &LoadContext,
+async fn parse_gltf_primitive(
+    load_ctx: &mut LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
     primitive: gltf::Primitive<'_>,
@@ -333,19 +355,24 @@ fn parse_gltf_primitive(
     }
 
     // let name = format!("{}_Primitive{}", mesh_name, primitive.index());
+    // TODO: this should not be needed
     let name = mesh_name.to_string();
 
-    let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material());
+    let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material()).await;
+
+    let mesh = load_ctx
+        .insert_asset::<Mesh, NamedInserter>(NamedInserterKey::new(name.clone()), mesh)
+        .await;
 
     GltfPrimitive {
         name,
         material,
-        mesh: load_ctx.insert_asset(mesh),
+        mesh,
     }
 }
 
-pub fn parse_gltf_material(
-    load_ctx: &LoadContext,
+pub async fn parse_gltf_material(
+    load_ctx: &mut LoadContext,
     buffer: &[u8],
     gltf_cache: &mut GltfLoadCache,
     material: gltf::Material<'_>,
@@ -357,8 +384,8 @@ pub fn parse_gltf_material(
         }
     }
 
-    fn load_image(
-        load_ctx: &LoadContext,
+    async fn load_image(
+        load_ctx: &mut LoadContext,
         gltf_cache: &mut GltfLoadCache,
         buffer: &[u8],
         texture: &gltf::texture::Texture<'_>,
@@ -432,14 +459,22 @@ pub fn parse_gltf_material(
             sampler_config,
         };
 
-        let handle = load_ctx.insert_asset(image);
+        // TODO: temp probably want something else
+        let name = texture
+            .name()
+            .map(String::from)
+            .unwrap_or_else(|| format!("glb texture {}", texture.index()));
+
+        let handle = load_ctx
+            .insert_asset::<Image, NamedInserter>(NamedInserterKey::new(name), image)
+            .await;
         gltf_cache.images.insert(texture.index(), handle.clone());
         handle
     }
 
     // TODO: use cache here aswell
-    fn single_pixel_image(
-        load_ctx: &LoadContext,
+    async fn single_pixel_image(
+        load_ctx: &mut LoadContext,
         gltf_cache: &mut GltfLoadCache,
         color: [u8; 4],
     ) -> AssetHandle<Image> {
@@ -455,7 +490,10 @@ pub fn parse_gltf_material(
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         };
 
-        let handle = load_ctx.insert_asset(image);
+        let name = format!("single pixel rgb {:?}", color);
+        let handle = load_ctx
+            .insert_asset::<Image, NamedInserter>(NamedInserterKey::new(name), image)
+            .await;
         gltf_cache.single_pixel_images.insert(color, handle.clone());
         handle
     }
@@ -488,8 +526,9 @@ pub fn parse_gltf_material(
                 &info.texture(),
                 BASE_COLOR_FORMAT,
             )
+            .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, BASE_COLOR_DEFAULT),
+        None => single_pixel_image(load_ctx, gltf_cache, BASE_COLOR_DEFAULT).await,
     };
 
     let roughness_factor = pbr.roughness_factor();
@@ -507,8 +546,9 @@ pub fn parse_gltf_material(
                 &info.texture(),
                 METALLIC_ROUGHNESS_FORMAT,
             )
+            .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, METALLIC_ROUGHNESS_DEFAULT),
+        None => single_pixel_image(load_ctx, gltf_cache, METALLIC_ROUGHNESS_DEFAULT).await,
     };
 
     let (occlusion_texture, occlusion_strength) = match material.occlusion_texture() {
@@ -523,11 +563,12 @@ pub fn parse_gltf_material(
                 buffer,
                 &info.texture(),
                 OCCLUSION_FORMAT,
-            );
+            )
+            .await;
             (image, info.strength())
         }
         None => {
-            let image = single_pixel_image(load_ctx, gltf_cache, OCCLUSION_DEFAULT);
+            let image = single_pixel_image(load_ctx, gltf_cache, OCCLUSION_DEFAULT).await;
             (image, 1.0)
         }
     };
@@ -538,11 +579,12 @@ pub fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (normal)"
             );
-            let image = load_image(load_ctx, gltf_cache, buffer, &info.texture(), NORMAL_FORMAT);
+            let image =
+                load_image(load_ctx, gltf_cache, buffer, &info.texture(), NORMAL_FORMAT).await;
             (image, info.scale())
         }
         None => {
-            let image = single_pixel_image(load_ctx, gltf_cache, NORMAL_DEFAULT);
+            let image = single_pixel_image(load_ctx, gltf_cache, NORMAL_DEFAULT).await;
             (image, 1.0)
         }
     };
@@ -561,23 +603,30 @@ pub fn parse_gltf_material(
                 &info.texture(),
                 EMMISIVE_FORMAT,
             )
+            .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, EMISSIVE_DEFAULT),
+        None => single_pixel_image(load_ctx, gltf_cache, EMISSIVE_DEFAULT).await,
     };
 
-    let material_handle = load_ctx.insert_asset(Material {
-        base_color_texture,
-        color_factor,
-        metallic_roughness_texture,
-        roughness_factor,
-        metallic_factor,
-        occlusion_texture,
-        occlusion_strength,
-        normal_texture,
-        normal_scale,
-        emissive_texture,
-        emissive_factor,
-    });
+    let name = material.name().expect("could not get material name");
+    let material_handle = load_ctx
+        .insert_asset::<Material, NamedInserter>(
+            NamedInserterKey::new(name),
+            Material {
+                base_color_texture,
+                color_factor,
+                metallic_roughness_texture,
+                roughness_factor,
+                metallic_factor,
+                occlusion_texture,
+                occlusion_strength,
+                normal_texture,
+                normal_scale,
+                emissive_texture,
+                emissive_factor,
+            },
+        )
+        .await;
 
     if let Some(index) = material.index() {
         gltf_cache.materials.insert(index, material_handle.clone());

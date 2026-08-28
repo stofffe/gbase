@@ -148,45 +148,6 @@ impl Mesh {
     ) -> Self {
         self.extract_attributes(attributes);
         self
-        // let attributes = attributes.into();
-        // // remove
-        // self.attributes = self
-        //     .clone()
-        //     .attributes
-        //     .into_iter()
-        //     .filter(|(id, _)| attributes.contains(id))
-        //     .collect::<BTreeMap<VertexAttributeId, VertexAttributeValues>>();
-        //
-        // // add
-        // for attr in attributes {
-        //     if !self.attributes.contains_key(&attr) {
-        //         match attr {
-        //             VertexAttributeId::Normal => {
-        //                 tracing::warn!(
-        //                     "normal attribute could not be found, generating for each vertex"
-        //                 );
-        //                 self.generate_normals();
-        //             }
-        //             VertexAttributeId::Tangent => {
-        //                 tracing::warn!(
-        //                     "tangent attribute could not be found, generating for each vertex"
-        //                 );
-        //                 self.generate_tangents();
-        //             }
-        //             VertexAttributeId::Color(i) => {
-        //                 tracing::warn!(
-        //                 "color attribute could not be found, generating [1,1,1] for each vertex"
-        //             );
-        //                 self.generate_colors(i, [1.0, 1.0, 1.0]);
-        //             }
-        //             id => {
-        //                 panic!("vertex attributes does not contain required {:?}", id);
-        //             }
-        //         }
-        //     }
-        // }
-        //
-        // self
     }
 
     pub fn generate_normals(&mut self) {
@@ -200,9 +161,11 @@ impl Mesh {
             self.generate_flat_normals();
         }
     }
+
     pub fn generate_flat_normals(&mut self) {
         todo!()
     }
+
     pub fn generate_smoothed_normals(&mut self) {
         todo!()
     }
@@ -210,6 +173,7 @@ impl Mesh {
     pub fn generate_tangents(&mut self) {
         todo!()
     }
+
     pub fn generate_colors(&mut self, color_index: u32, color: [f32; 3]) {
         let Some(count) = self.vertex_count() else {
             tracing::error!("trying to generate colors for mesh without vertices");

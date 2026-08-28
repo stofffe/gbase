@@ -6,6 +6,7 @@ use gbase::{
     },
     filesystem,
     render::{self, BoundingBox, VertexAttributeId},
+    tracing,
 };
 use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 
@@ -44,7 +45,7 @@ impl Asset for MeshLod {}
 #[derive(Clone)]
 pub struct MeshLodLoader {}
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct MeshLodLoaderSettings {
     path: PathBuf,
     node_name: Option<String>,
@@ -82,7 +83,9 @@ impl AssetLoader for MeshLodLoader {
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;
         let primitives =
-            parse_gltf_primitives(load_ctx, &bytes, settings.required_attributes.as_ref());
+            parse_gltf_primitives(load_ctx, &bytes, settings.required_attributes.as_ref()).await;
+
+        // panic!("PRIMS {:#?}", primitives);
 
         // extract material from LOD0
         let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
@@ -110,6 +113,12 @@ impl AssetLoader for MeshLodLoader {
             }
         }
 
+        assert!(
+            !parsed_primitives.is_empty(),
+            "parsed primitives empty for {:?}",
+            settings
+        );
+
         // create lod
         let meshes = parsed_primitives
             .into_iter()
@@ -124,7 +133,7 @@ impl AssetLoader for MeshLodLoader {
 #[derive(Clone, Default)]
 pub struct GltfLoader {}
 
-#[derive(Hash, PartialEq, Eq, Clone)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct GltfLoaderSettings {
     path: PathBuf,
     required_attributes: Option<BTreeSet<VertexAttributeId>>,
@@ -154,11 +163,8 @@ impl AssetLoader for GltfLoader {
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = load_ctx.load_bytes(&settings.path).await?;
-        Ok(parse_gltf_file(
-            load_ctx,
-            &bytes,
-            settings.required_attributes.as_ref(),
-        ))
+        let gltf = parse_gltf_file(load_ctx, &bytes, settings.required_attributes.as_ref()).await;
+        Ok(gltf)
     }
 }
 
@@ -175,7 +181,7 @@ impl Deref for BoundingBoxWrapper {
     }
 }
 
-#[derive(Clone, Hash, PartialEq, Eq)]
+#[derive(Clone, Hash, PartialEq, Eq, Debug)]
 pub struct LodMeshToBoundingBoxConverterOptions {
     mesh_lod: AssetHandle<MeshLod>,
 }
@@ -198,8 +204,20 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
-        let source = convert_ctx.get_asset(&settings.mesh_lod).unwrap_success();
-        let handle = source.meshes[0].0.clone();
+        let mesh = match convert_ctx.get_asset(&settings.mesh_lod) {
+            asset::GetAssetResult::Loading => return ConvertAssetStatus::Loading,
+            asset::GetAssetResult::Error => return ConvertAssetStatus::Failed,
+            asset::GetAssetResult::Success(asset) => asset.clone(),
+        };
+
+        if mesh.meshes.is_empty() {
+            tracing::info!("{:?}", mesh);
+            panic!("meshes for {:?} empty", settings);
+            // tracing::error!("bounding box converter failed, mesh has no meshes");
+            return ConvertAssetStatus::Failed;
+        }
+
+        let handle = mesh.meshes[0].0.clone();
 
         let bounding_box = BoundingBoxWrapper(
             convert_ctx

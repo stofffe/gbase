@@ -1,10 +1,10 @@
 use gbase::{
     asset::{
-        self, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
+        self, GetAssetResult, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
         ShaderGpuConverterOptions,
     },
     render::{self, ArcTextureView, Shader},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 
 use crate::CameraUniform;
@@ -80,10 +80,6 @@ impl TextureRenderer {
         out_texture: &wgpu::TextureView,
         out_texture_format: wgpu::TextureFormat,
     ) {
-        if !asset::handle_loaded(cache, self.shader_handle.clone()) {
-            return;
-        }
-
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
                 // texture
@@ -109,12 +105,15 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
+        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        )
-        .unwrap_success()
-        .clone();
+        ) else {
+            tracing::info!("waiting for tex render shader");
+            return;
+        };
+        let shader = shader.clone();
+
         let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout.clone())
             .single_target(render::ColorTargetState::new().format(out_texture_format))
             .buffers(self.vertices.get(cache).unwrap_success().buffer_layout())
@@ -129,11 +128,15 @@ impl TextureRenderer {
             .build_run(ctx, &mut encoder, |ctx, mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
-                let gpu_mesh = asset::get_or_convert_asset::<MeshGpuConverter>(
-                    cache,
-                    &MeshGpuConverterSettings::new(self.vertices.clone()),
-                )
-                .unwrap_success();
+                let GetAssetResult::Success(gpu_mesh) =
+                    asset::get_or_convert_asset::<MeshGpuConverter>(
+                        cache,
+                        &MeshGpuConverterSettings::new(self.vertices.clone()),
+                    )
+                else {
+                    tracing::info!("waiting for tex render gpu mesh ");
+                    return;
+                };
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
                 gpu_mesh.bind_to_render_pass(&mut render_pass);
                 gpu_mesh.draw_in_render_pass(&mut render_pass);
