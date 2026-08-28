@@ -165,10 +165,10 @@ impl AssetLoader for ShaderLoader {
 pub struct ShaderGpuConverter;
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct ShaderGpuConverterOptions {
+pub struct ShaderGpuConverterSettings {
     shader: AssetHandle<Shader>,
 }
-impl ShaderGpuConverterOptions {
+impl ShaderGpuConverterSettings {
     pub fn new(shader: AssetHandle<Shader>) -> Self {
         Self { shader }
     }
@@ -178,7 +178,7 @@ impl Asset for wgpu::ShaderModule {}
 impl AssetConverter for ShaderGpuConverter {
     type Asset = ArcHandle<wgpu::ShaderModule>;
     type Error = wgpu::Error;
-    type Settings = ShaderGpuConverterOptions;
+    type Settings = ShaderGpuConverterSettings;
 
     fn convert(
         ctx: &mut Context,

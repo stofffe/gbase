@@ -2,7 +2,7 @@ use gbase::{
     asset::{
         self, AssetCache, GetAssetResult, GetAssetResultCloned, MeshGpuConverter,
         MeshGpuConverterSettings, NamedInserter, NamedInserterKey, ShaderGpuConverter,
-        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        ShaderGpuConverterSettings,
     },
     render::{self, ArcShaderModule, ArcTextureView, GpuMesh, Mesh, Shader},
     wgpu, Context,
@@ -56,10 +56,10 @@ impl TextureRenderer {
         );
 
         let shader_gpu_handle = cache.convert_asset::<ShaderGpuConverter>(
-            &ShaderGpuConverterOptions::new(shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(shader_handle.clone()),
         );
         let shader_depth_gpu_handle = cache.convert_asset::<ShaderGpuConverter>(
-            &ShaderGpuConverterOptions::new(shader_depth_handle.clone()),
+            &ShaderGpuConverterSettings::new(shader_depth_handle.clone()),
         );
 
         let sampler = render::SamplerBuilder::new()

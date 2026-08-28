@@ -2,19 +2,19 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        self, Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetResult,
-        ConvertAssetStatus, ConvertContext, EmptyError, GetAssetResult, LoadContext,
-        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetStatus,
+        ConvertContext, EmptyError, GetAssetResult, GetAssetResultCloned, LoadContext,
+        ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
-    render::{self, BindGroupBindable},
+    render::{self, ArcShaderModule, BindGroupBindable},
     wgpu, Context,
 };
 use std::{collections::HashMap, hash::Hash, path::PathBuf};
 
 pub struct UIRenderer {
-    shader_handle: AssetHandle<render::Shader>,
+    shader_gpu_handle: AssetHandle<ArcShaderModule>,
     bindgroup_layout: render::ArcBindGroupLayout,
     pipeline_layout: render::ArcPipelineLayout,
 
@@ -22,7 +22,9 @@ pub struct UIRenderer {
 
     projection: render::UniformBuffer<glam::Mat4>,
 
-    font: AssetHandle<Font>,
+    font_handle: AssetHandle<Font>,
+    font_atlas_handle: AssetHandle<FontAtlas>,
+
     font_atlas_raster_size: f32,
     font_atlas_supported_chars: Vec<char>,
 }
@@ -35,7 +37,27 @@ impl UIRenderer {
         font_atlas_raster_size: f32,
         max_elements: u64,
     ) -> Self {
-        let font = cache.load_asset::<FontLoader>(&FontLoaderSettings::new(font_path));
+        let mut font_atlas_supported_chars = Vec::new();
+        for char in 'a'..='z' {
+            font_atlas_supported_chars.push(char);
+        }
+        for char in 'A'..='Z' {
+            font_atlas_supported_chars.push(char);
+        }
+        for char in '0'..='9' {
+            font_atlas_supported_chars.push(char);
+        }
+        for char in " \t\n,.;/".chars() {
+            font_atlas_supported_chars.push(char);
+        }
+
+        let font_handle = cache.load_asset::<FontLoader>(&FontLoaderSettings::new(font_path));
+        let font_atlas_handle =
+            cache.convert_asset::<FontAtlasConverter>(&FontAtlasConverterSettings {
+                font: font_handle.clone(),
+                supported_chars: font_atlas_supported_chars.to_vec(),
+                font_raster_size: font_atlas_raster_size as u32,
+            });
 
         //
         // gpu resources
@@ -43,6 +65,8 @@ impl UIRenderer {
 
         let shader_handle =
             cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
+        let shader_gpu_handle = cache
+            .convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(shader_handle));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -69,28 +93,15 @@ impl UIRenderer {
             .usage(wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST)
             .build(ctx);
 
-        let mut font_atlas_supported_chars = Vec::new();
-        for char in 'a'..='z' {
-            font_atlas_supported_chars.push(char);
-        }
-        for char in 'A'..='Z' {
-            font_atlas_supported_chars.push(char);
-        }
-        for char in '0'..='9' {
-            font_atlas_supported_chars.push(char);
-        }
-        for char in " \t\n,.;/".chars() {
-            font_atlas_supported_chars.push(char);
-        }
-
         Self {
             pipeline_layout,
             bindgroup_layout,
-            shader_handle,
+            shader_gpu_handle,
             instance_buffer,
             projection,
 
-            font,
+            font_handle,
+            font_atlas_handle,
             font_atlas_raster_size,
             font_atlas_supported_chars,
         }
@@ -104,19 +115,13 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let GetAssetResult::Success(shader) = cache.get_or_convert_asset::<ShaderGpuConverter>(
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
-        ) else {
+        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
+        else {
             return;
         };
-        let shader = shader.clone();
 
-        let GetAssetResult::Success(font_atlas) =
-            cache.get_or_convert_asset::<FontAtlasConverter>(&FontAtlasConverterSettings {
-                font: self.font.clone(),
-                supported_chars: self.font_atlas_supported_chars.to_vec(),
-                font_raster_size: self.font_atlas_raster_size as u32,
-            })
+        let GetAssetResultCloned::Success(font_atlas) =
+            cache.get_asset_cloned(&self.font_atlas_handle)
         else {
             return;
         };
@@ -228,7 +233,7 @@ impl UIRenderer {
         font_path: impl Into<PathBuf>,
     ) {
         // clear handle to not use old data
-        cache.clear_asset_handle(self.font.clone());
+        cache.clear_asset_handle(self.font_handle.clone());
         // TODO:
         todo!()
         // self.font = AssetBuilder::load::<FontLoader>()
@@ -246,7 +251,7 @@ impl UIRenderer {
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
-        let GetAssetResult::Success(font) = self.font.get(cache) else {
+        let GetAssetResult::Success(font) = self.font_handle.get(cache) else {
             return TextSizeResult {
                 preferred_width: 0.0,
                 preferred_height: 0.0,
@@ -319,22 +324,16 @@ impl UIRenderer {
         font_size: u32,
         max_width: f32,
     ) -> TextLayoutResult {
-        let GetAssetResult::Success(font) = self.font.get(cache) else {
+        let GetAssetResultCloned::Success(font) = cache.get_asset_cloned(&self.font_handle) else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
                 glyphs: Vec::new(),
             };
         };
-        // TODO: bad?
-        let font = font.clone();
 
-        let GetAssetResult::Success(font_atlas) =
-            cache.get_or_convert_asset::<FontAtlasConverter>(&FontAtlasConverterSettings {
-                font: self.font.clone(),
-                supported_chars: self.font_atlas_supported_chars.to_vec(),
-                font_raster_size: self.font_atlas_raster_size as u32,
-            })
+        let GetAssetResultCloned::Success(font_atlas) =
+            cache.get_asset_cloned(&self.font_atlas_handle)
         else {
             return TextLayoutResult {
                 width: 0.0,

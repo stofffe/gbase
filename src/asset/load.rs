@@ -1,16 +1,15 @@
 #[cfg(not(target_arch = "wasm32"))]
 use crate::asset::AssetCacheReload;
+
 use crate::{
     asset::{
         Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
-        AssetCacheStorage, AssetHandle, AssetHandleContext, AssetInserter, DynAssetHandle,
-        InsertAssetKey, LoadStatus,
+        AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, LoadStatus,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-#[cfg(not(target_arch = "wasm32"))]
 use std::fmt::Debug;
 use std::{
     any::{Any, TypeId},
@@ -26,8 +25,8 @@ use std::{error, path::Path};
 // Types
 //
 
-pub trait LoadAssetSettings: Hash + Eq + Clone {}
-impl<T: Hash + Eq + Clone> LoadAssetSettings for T {}
+pub trait LoadAssetSettings: Debug + Hash + Eq + Clone {}
+impl<T: Debug + Hash + Eq + Clone> LoadAssetSettings for T {}
 
 pub trait AssetError: error::Error {}
 impl<T: error::Error> AssetError for T {}
@@ -35,7 +34,7 @@ impl<T: error::Error> AssetError for T {}
 #[cfg(not(target_arch = "wasm32"))]
 pub trait AssetLoader: Send {
     type Asset: Asset;
-    type Settings: LoadAssetSettings + Send + Debug;
+    type Settings: LoadAssetSettings + Send;
     type Error: AssetError + Send;
 
     fn load(

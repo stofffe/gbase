@@ -5,7 +5,7 @@ use crate::{
 use gbase::{
     asset::{
         self, AssetHandle, GetAssetResult, MeshGpuConverter, MeshGpuConverterSettings,
-        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
@@ -115,7 +115,7 @@ impl ShadowPass {
     ) {
         let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.shader_handle.clone()),
         ) else {
             return;
         };

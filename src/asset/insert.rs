@@ -5,12 +5,12 @@ use std::{fmt::Debug, hash::Hash};
 // Types
 //
 
-pub trait InsertAssetKey: Hash + Eq + Clone {}
-impl<T: Hash + Eq + Clone> InsertAssetKey for T {}
+pub trait InsertAssetKey: Debug + Hash + Eq + Clone {}
+impl<T: Debug + Hash + Eq + Clone> InsertAssetKey for T {}
 
 #[cfg(not(target_arch = "wasm32"))]
 pub trait AssetInserter: Send {
-    type Key: InsertAssetKey + Send + Debug;
+    type Key: InsertAssetKey + Send;
 }
 
 #[cfg(target_arch = "wasm32")]

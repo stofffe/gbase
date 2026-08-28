@@ -21,12 +21,12 @@ use tracing::span;
 // Types
 //
 
-pub trait ConvertAssetSettings: Hash + Eq + Clone {}
-impl<T: Hash + Eq + Clone> ConvertAssetSettings for T {}
+pub trait ConvertAssetSettings: Debug + Hash + Eq + Clone {}
+impl<T: Debug + Hash + Eq + Clone> ConvertAssetSettings for T {}
 
 pub trait AssetConverter {
     type Asset: Asset;
-    type Settings: ConvertAssetSettings + Debug;
+    type Settings: ConvertAssetSettings;
     // TODO: is this even being used?
     type Error: error::Error;
 

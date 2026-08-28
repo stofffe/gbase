@@ -2,7 +2,7 @@ use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
     ImageGpuConverter, ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings,
-    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterOptions,
+    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings,
     ShaderLoader, ShaderLoaderSettings,
 };
 use gbase::render::{Image, Mesh, SamplerBuilder, TextureBuilder};
@@ -176,7 +176,7 @@ impl CloudRenderer {
             .build(ctx);
 
         let shader = cache
-            .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+            .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(
                 self.shader_handle.clone(),
             ))
             .unwrap_success()

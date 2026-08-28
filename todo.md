@@ -1,6 +1,6 @@
 fixed examples
     [x] camera
-    [ ] custom_ui
+    [x] custom_ui
     [ ] egui
     [ ] flappy_bird
     [x] gizmos
@@ -10,8 +10,8 @@ fixed examples
     [x] post_process
     [x] shader_imports
     [/] shadows
-    [ ] texture
-    [ ] transform
+    [x] texture
+    [x] transform
     [ ] ui
     [x] audio
     [x] compute

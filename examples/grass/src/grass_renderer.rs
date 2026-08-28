@@ -1,7 +1,7 @@
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        self, AssetHandle, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
         ShaderLoaderSettings,
     },
     filesystem,
@@ -348,7 +348,7 @@ impl GrassRenderer {
                     .build(ctx),
             ];
             let instance_shader = cache
-                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(
                     self.instance_shader_handle.clone(),
                 ))
                 .unwrap_success_cloned();
@@ -390,7 +390,7 @@ impl GrassRenderer {
             ];
 
             let draw_compute_shader = cache
-                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterOptions::new(
+                .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(
                     self.draw_shader_handle.clone(),
                 ))
                 .unwrap_success_cloned();
@@ -433,7 +433,7 @@ impl GrassRenderer {
                 } => {
                     let render_shader = cache
                         .get_or_convert_asset::<ShaderGpuConverter>(
-                            &ShaderGpuConverterOptions::new(
+                            &ShaderGpuConverterSettings::new(
                                 self.render_forward_shader_handle.clone(),
                             ),
                         )
@@ -463,7 +463,7 @@ impl GrassRenderer {
                 RenderMode::Deferred { buffers } => {
                     let render_shader = cache
                         .get_or_convert_asset::<ShaderGpuConverter>(
-                            &ShaderGpuConverterOptions::new(
+                            &ShaderGpuConverterSettings::new(
                                 self.render_deferred_shader_handle.clone(),
                             ),
                         )

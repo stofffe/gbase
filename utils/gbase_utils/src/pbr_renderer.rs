@@ -7,11 +7,11 @@ use encase::ShaderType;
 use gbase::{
     asset::{
         self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
-        MeshGpuConverter, MeshGpuConverterSettings, NamedInserter, NamedInserterKey,
-        ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings,
+        ShaderLoader, ShaderLoaderSettings,
     },
     glam::{Mat4, Vec3},
-    render::{self, BindGroupBindable, Image, Mesh, RawBuffer, Shader},
+    render::{self, BindGroupBindable, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -192,7 +192,7 @@ impl PbrRenderer {
 
         let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.forward_shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.forward_shader_handle.clone()),
         ) else {
             return;
         };

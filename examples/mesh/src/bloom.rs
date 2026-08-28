@@ -1,6 +1,6 @@
 use gbase::{
     asset::{
-        self, GetAssetResult, ShaderGpuConverter, ShaderGpuConverterOptions, ShaderLoader,
+        self, GetAssetResult, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
         ShaderLoaderSettings,
     },
     render::{self, FrameBuffer, FrameBufferBuilder},
@@ -48,7 +48,7 @@ impl Tonemap {
     ) {
         let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.shader_handle.clone()),
         ) else {
             return;
         };
@@ -359,7 +359,7 @@ impl Bloom {
 
         let extract_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.extract_shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.extract_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -398,7 +398,7 @@ impl Bloom {
             .build(ctx);
         let downsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.downsample_shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.downsample_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -447,7 +447,7 @@ impl Bloom {
             .build(ctx);
         let upsample_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.upsample_shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.upsample_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();
@@ -523,7 +523,7 @@ impl Bloom {
 
         let combine_shader = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
-            &ShaderGpuConverterOptions::new(self.combine_shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(self.combine_shader_handle.clone()),
         )
         .unwrap_success()
         .clone();

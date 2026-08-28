@@ -2,7 +2,7 @@ use gbase::{
     asset::{
         self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
         ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterOptions, ShaderLoader, ShaderLoaderSettings,
+        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcHandle, ArcPipelineLayout, Image},
     wgpu::{self},
@@ -65,7 +65,7 @@ impl Callbacks for App {
         let mesh_handle = cache.insert_asset_force(mesh);
 
         let shader_gpu = cache.convert_asset::<ShaderGpuConverter>(
-            &ShaderGpuConverterOptions::new(shader_handle.clone()),
+            &ShaderGpuConverterSettings::new(shader_handle.clone()),
         );
 
         Self {
