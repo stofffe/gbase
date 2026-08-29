@@ -1,8 +1,8 @@
 fixed examples
     [x] camera
     [x] custom_ui
-    [ ] egui
-    [ ] flappy_bird
+    [x] egui
+    [x] flappy_bird
     [x] gizmos
     [ ] grass
     [/] mesh
@@ -12,7 +12,7 @@ fixed examples
     [/] shadows
     [x] texture
     [x] transform
-    [ ] ui
+    [ ] ui (wait for new ui instead)
     [x] audio
     [x] compute
     [x] filesystem
@@ -21,9 +21,8 @@ fixed examples
     [x] time
     [x] triangle
 
-insert force to regging deps?
-engine should poll assets smartly, user shouldnt have to poll in any way
-
+make conversion async?
+remove loader/setting separation
 
 build in methods for named and parent named inserters?
 add dependencies when using nested inserts

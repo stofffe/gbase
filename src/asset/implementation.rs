@@ -13,7 +13,7 @@ use crate::{
     },
     Context,
 };
-use std::path::PathBuf;
+use std::{fmt::Debug, hash::Hash, marker::PhantomData, path::PathBuf};
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}
@@ -40,7 +40,65 @@ impl AssetInserter for NamedInserter {
 }
 
 //
-// Arhandle inserter
+// Named
+//
+
+pub struct ScopedNamedInserterKey<T: Asset> {
+    parent: AssetHandle<T>,
+    name: String, // TODO: arc or something instead?
+}
+
+impl<T: Asset> ScopedNamedInserterKey<T> {
+    pub fn new(name: impl Into<String>, parent: AssetHandle<T>) -> Self {
+        Self {
+            name: name.into(),
+            parent,
+        }
+    }
+}
+
+pub struct ScopedNamedInserter<T: Asset> {
+    ty: PhantomData<T>,
+}
+
+impl<T: Asset> AssetInserter for ScopedNamedInserter<T> {
+    type Key = ScopedNamedInserterKey<T>;
+}
+
+impl<T: Asset> Hash for ScopedNamedInserterKey<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.parent.hash(state);
+        self.name.hash(state);
+    }
+}
+
+impl<T: Asset> Clone for ScopedNamedInserterKey<T> {
+    fn clone(&self) -> Self {
+        Self {
+            parent: self.parent.clone(),
+            name: self.name.clone(),
+        }
+    }
+}
+
+impl<T: Asset> PartialEq for ScopedNamedInserterKey<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.parent == other.parent && self.name == other.name
+    }
+}
+impl<T: Asset> Eq for ScopedNamedInserterKey<T> {}
+
+impl<T: Asset> Debug for ScopedNamedInserterKey<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ScopedNamedInserterKey")
+            .field("parent", &self.parent)
+            .field("name", &self.name)
+            .finish()
+    }
+}
+
+//
+// Id inserter
 //
 
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]

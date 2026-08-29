@@ -4,6 +4,7 @@ mod sprite_renderer;
 use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
+    asset::AssetCache,
     audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
@@ -277,7 +278,7 @@ impl Callbacks for App {
     }
 
     #[no_mangle]
-    fn new(ctx: &mut gbase::Context, _cache: &mut gbase::asset::AssetCache) -> Self {
+    fn new(ctx: &mut Context, cache: &mut AssetCache) -> Self {
         random::seed_with_time(ctx);
 
         let mut entities = EntityHandler::new();
@@ -377,8 +378,7 @@ impl Callbacks for App {
         });
 
         // other
-        let sprite_renderer =
-            sprite_renderer::SpriteRenderer::new(ctx, MAX_SPRITES, render::surface_format(ctx));
+        let sprite_renderer = sprite_renderer::SpriteRenderer::new(ctx, cache, MAX_SPRITES);
         let mut camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
             gbase_utils::CameraProjection::Orthographic {
@@ -454,8 +454,8 @@ impl Callbacks for App {
     #[no_mangle]
     fn render(
         &mut self,
-        ctx: &mut gbase::Context,
-        _cache: &mut gbase::asset::AssetCache,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         #[cfg(feature = "hot_reload")]
@@ -672,7 +672,7 @@ impl Callbacks for App {
             BACKGROUND.atlas_size(),
         );
         self.sprite_renderer
-            .render_stencil(ctx, &self.camera_buffer, STENCIL_FULL);
+            .render_stencil(ctx, cache, &self.camera_buffer, STENCIL_FULL);
 
         // background
         self.sprite_renderer.draw_sprite(
@@ -706,9 +706,12 @@ impl Callbacks for App {
                 }
             }
         }
+        let screen_format = render::surface_format(ctx);
         self.sprite_renderer.render(
             ctx,
+            cache,
             screen_view,
+            screen_format,
             &self.camera_buffer,
             &self.sprite_atlas,
             STENCIL_FULL,

@@ -1,7 +1,11 @@
+use gbase::asset::{
+    AssetCache, AssetHandle, GetAssetResultCloned, ShaderGpuConverter, ShaderGpuConverterSettings,
+    ShaderLoader, ShaderLoaderSettings,
+};
 use gbase::glam::{Vec2, Vec4};
+use gbase::render::{ArcPipelineLayout, ArcShaderModule};
 use gbase::winit::dpi::PhysicalSize;
 use gbase::{
-    filesystem,
     glam::{vec4, Vec4Swizzles},
     render::{self, VertexTrait},
     wgpu, Context,
@@ -16,18 +20,23 @@ pub struct SpriteRenderer {
     vertex_buffer: render::VertexBuffer<VertexSprite>,
     index_buffer: render::IndexBuffer,
 
+    shader_gpu_handle: AssetHandle<ArcShaderModule>,
+
     bindgroup_layout: render::ArcBindGroupLayout,
-    pipeline: render::ArcRenderPipeline,
+
+    pipeline_layout: ArcPipelineLayout,
+
     // TODO: pass from user code?
     sampler: render::ArcSampler,
 
     stencil_buffer: render::FrameBuffer,
     stencil_bindgroup_layout: render::ArcBindGroupLayout,
-    stencil_pipeline: render::ArcRenderPipeline,
+    stencil_shader_gpu_handle: AssetHandle<ArcShaderModule>,
+    stencil_pipeline_layout: render::ArcPipelineLayout,
 }
 
 impl SpriteRenderer {
-    pub fn new(ctx: &mut Context, max_sprites: u64, output_format: wgpu::TextureFormat) -> Self {
+    pub fn new(ctx: &mut Context, cache: &mut AssetCache, max_sprites: u64) -> Self {
         let vertices = Vec::new();
         let indices = Vec::new();
 
@@ -38,11 +47,10 @@ impl SpriteRenderer {
             render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_sprites * 6))
                 .build(ctx);
 
-        let shader = render::ShaderBuilder::new().build(
-            ctx,
-            filesystem::load_s!("shaders/sprite_renderer.wgsl")
-                .expect("could not load sprite renderer shader"),
-        );
+        let shader_handle = cache
+            .load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("shaders/sprite_renderer.wgsl"));
+        let shader_gpu_handle = cache
+            .convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(shader_handle));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -62,17 +70,157 @@ impl SpriteRenderer {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
+
         let stencil_buffer = render::FrameBufferBuilder::new()
             .screen_size(ctx)
             .format(wgpu::TextureFormat::Depth24PlusStencil8)
             .usage(wgpu::TextureUsages::RENDER_ATTACHMENT)
             .build(ctx);
 
-        let pipeline = render::RenderPipelineBuilder::new(shader, pipeline_layout)
+        let sampler = render::SamplerBuilder::new()
+            .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
+            .build(ctx);
+
+        // Stencil
+
+        let stencil_shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
+            "../assets/shaders/stencil.wgsl",
+        ));
+        let stencil_shader_gpu_handle = cache.convert_asset::<ShaderGpuConverter>(
+            &ShaderGpuConverterSettings::new(stencil_shader_handle),
+        );
+
+        let stencil_bindgroup_layout = render::BindGroupLayoutBuilder::new()
+            .entries(vec![render::BindGroupLayoutEntry::new().uniform().vertex()])
+            .build(ctx);
+
+        let stencil_pipeline_layout = render::PipelineLayoutBuilder::new()
+            .bind_groups(vec![stencil_bindgroup_layout.clone()])
+            .build(ctx);
+
+        Self {
+            vertices,
+            indices,
+            vertex_buffer,
+            index_buffer,
+
+            shader_gpu_handle,
+            stencil_shader_gpu_handle,
+
+            bindgroup_layout,
+            pipeline_layout,
+            sampler,
+
+            stencil_buffer,
+            stencil_bindgroup_layout,
+            stencil_pipeline_layout,
+        }
+    }
+
+    /// renders everything to the internal stencil buffer
+    pub fn render_stencil(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
+        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
+        stencil_reference: u32,
+    ) {
+        // update buffers
+        self.vertex_buffer.write(ctx, &self.vertices);
+        self.index_buffer.write(ctx, &self.indices);
+
+        let GetAssetResultCloned::Success(stencil_shader) =
+            cache.get_asset_cloned(&self.stencil_shader_gpu_handle)
+        else {
+            return;
+        };
+
+        let stencil_pipeline = render::RenderPipelineBuilder::new(
+            stencil_shader,
+            self.stencil_pipeline_layout.clone(),
+        )
+        .buffers(vec![self.vertex_buffer.desc()])
+        .depth_stencil(wgpu::DepthStencilState {
+            format: self.stencil_buffer.format(),
+            depth_write_enabled: false,
+            depth_compare: wgpu::CompareFunction::Always,
+            stencil: wgpu::StencilState {
+                front: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Replace,
+                    pass_op: wgpu::StencilOperation::Replace,
+                    depth_fail_op: wgpu::StencilOperation::Replace,
+                },
+                back: wgpu::StencilFaceState {
+                    compare: wgpu::CompareFunction::Always,
+                    fail_op: wgpu::StencilOperation::Replace,
+                    pass_op: wgpu::StencilOperation::Replace,
+                    depth_fail_op: wgpu::StencilOperation::Replace,
+                },
+                read_mask: 0x00,
+                write_mask: 0xFF,
+            },
+            bias: wgpu::DepthBiasState::default(),
+        })
+        .build(ctx);
+
+        // create bindgroup
+        let stencil_bindgroup =
+            render::BindGroupBuilder::new(self.stencil_bindgroup_layout.clone())
+                .entries(vec![
+                    // camera
+                    render::BindGroupEntry::Buffer(camera.buffer()),
+                ])
+                .build(ctx);
+
+        render::RenderPassBuilder::new()
+            .depth_stencil_attachment(wgpu::RenderPassDepthStencilAttachment {
+                view: self.stencil_buffer.view_ref(),
+                depth_ops: None,
+                stencil_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(0),
+                    store: wgpu::StoreOp::Store,
+                }),
+            })
+            .build_run_submit(ctx, |mut pass| {
+                pass.set_stencil_reference(stencil_reference);
+                pass.set_pipeline(&stencil_pipeline);
+                pass.set_bind_group(0, stencil_bindgroup.as_ref(), &[]);
+                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // TODO: use len of vertices?
+                pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
+
+                pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+            });
+
+        self.vertices.clear();
+        self.indices.clear();
+    }
+
+    pub fn render(
+        &mut self,
+        ctx: &mut Context,
+        cache: &mut AssetCache,
+        output_view: &wgpu::TextureView,
+        output_format: wgpu::TextureFormat,
+        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
+        atlas: &render::GpuImage,
+        stencil_reference: u32,
+    ) {
+        // update buffers
+        self.vertex_buffer.write(ctx, &self.vertices);
+        self.index_buffer.write(ctx, &self.indices);
+
+        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
+        else {
+            return;
+        };
+
+        // pipeline
+        let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("sprite renderer")
-            .buffers(vec![vertex_buffer.desc()])
+            .buffers(vec![self.vertex_buffer.desc()])
             .depth_stencil(wgpu::DepthStencilState {
-                format: stencil_buffer.format(),
+                format: self.stencil_buffer.format(),
                 depth_write_enabled: false,
                 depth_compare: wgpu::CompareFunction::Always,
                 stencil: wgpu::StencilState {
@@ -99,119 +247,6 @@ impl SpriteRenderer {
                     .blend(wgpu::BlendState::ALPHA_BLENDING),
             )
             .build(ctx);
-
-        let sampler = render::SamplerBuilder::new()
-            .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
-            .build(ctx);
-
-        // Stencil
-
-        let stencil_shader =
-            render::ShaderBuilder::new().build(ctx, include_str!("../assets/shaders/stencil.wgsl"));
-
-        let stencil_bindgroup_layout = render::BindGroupLayoutBuilder::new()
-            .entries(vec![render::BindGroupLayoutEntry::new().uniform().vertex()])
-            .build(ctx);
-
-        let stencil_pipeline_layout = render::PipelineLayoutBuilder::new()
-            .bind_groups(vec![stencil_bindgroup_layout.clone()])
-            .build(ctx);
-        let stencil_pipeline =
-            render::RenderPipelineBuilder::new(stencil_shader, stencil_pipeline_layout)
-                .buffers(vec![VertexSprite::desc()])
-                .depth_stencil(wgpu::DepthStencilState {
-                    format: stencil_buffer.format(),
-                    depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Always,
-                    stencil: wgpu::StencilState {
-                        front: wgpu::StencilFaceState {
-                            compare: wgpu::CompareFunction::Always,
-                            fail_op: wgpu::StencilOperation::Replace,
-                            pass_op: wgpu::StencilOperation::Replace,
-                            depth_fail_op: wgpu::StencilOperation::Replace,
-                        },
-                        back: wgpu::StencilFaceState {
-                            compare: wgpu::CompareFunction::Always,
-                            fail_op: wgpu::StencilOperation::Replace,
-                            pass_op: wgpu::StencilOperation::Replace,
-                            depth_fail_op: wgpu::StencilOperation::Replace,
-                        },
-                        read_mask: 0x00,
-                        write_mask: 0xFF,
-                    },
-                    bias: wgpu::DepthBiasState::default(),
-                })
-                .build(ctx);
-
-        Self {
-            vertices,
-            indices,
-            vertex_buffer,
-            index_buffer,
-            bindgroup_layout,
-            pipeline,
-            sampler,
-
-            stencil_buffer,
-            stencil_bindgroup_layout,
-            stencil_pipeline,
-        }
-    }
-
-    /// renders everything to the internal stencil buffer
-    pub fn render_stencil(
-        &mut self,
-        ctx: &mut Context,
-        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
-        stencil_reference: u32,
-    ) {
-        // update buffers
-        self.vertex_buffer.write(ctx, &self.vertices);
-        self.index_buffer.write(ctx, &self.indices);
-
-        // create bindgroup
-        let stencil_bindgroup =
-            render::BindGroupBuilder::new(self.stencil_bindgroup_layout.clone())
-                .entries(vec![
-                    // camera
-                    render::BindGroupEntry::Buffer(camera.buffer()),
-                ])
-                .build(ctx);
-
-        render::RenderPassBuilder::new()
-            .depth_stencil_attachment(wgpu::RenderPassDepthStencilAttachment {
-                view: self.stencil_buffer.view_ref(),
-                depth_ops: None,
-                stencil_ops: Some(wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(0),
-                    store: wgpu::StoreOp::Store,
-                }),
-            })
-            .build_run_submit(ctx, |mut pass| {
-                pass.set_stencil_reference(stencil_reference);
-                pass.set_pipeline(&self.stencil_pipeline);
-                pass.set_bind_group(0, stencil_bindgroup.as_ref(), &[]);
-                pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // TODO: use len of vertices?
-                pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
-
-                pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
-            });
-
-        self.vertices.clear();
-        self.indices.clear();
-    }
-
-    pub fn render(
-        &mut self,
-        ctx: &mut Context,
-        output_view: &wgpu::TextureView,
-        camera: &render::UniformBuffer<gbase_utils::CameraUniform>,
-        atlas: &render::GpuImage,
-        stencil_reference: u32,
-    ) {
-        // update buffers
-        self.vertex_buffer.write(ctx, &self.vertices);
-        self.index_buffer.write(ctx, &self.indices);
 
         // create bindgroup
         let mut encoder = render::EncoderBuilder::new().build(ctx);
@@ -240,7 +275,7 @@ impl SpriteRenderer {
             })
             .build_run(ctx, &mut encoder, |_ctx, mut pass| {
                 pass.set_stencil_reference(stencil_reference);
-                pass.set_pipeline(&self.pipeline);
+                pass.set_pipeline(&pipeline);
                 pass.set_bind_group(0, bindgroup.as_ref(), &[]);
                 pass.set_vertex_buffer(0, self.vertex_buffer.slice(..)); // TODO: use len of vertices?
                 pass.set_index_buffer(self.index_buffer.slice(..), self.index_buffer.format());
