@@ -4,12 +4,12 @@ fixed examples
     [x] egui
     [x] flappy_bird
     [x] gizmos
-    [ ] grass
-    [/] mesh
+    [x] grass
+    [x] mesh
     [x] physics
     [x] post_process
     [x] shader_imports
-    [/] shadows
+    [x] shadows
     [x] texture
     [x] transform
     [ ] ui (wait for new ui instead)
@@ -23,6 +23,7 @@ fixed examples
 
 make conversion async?
 remove loader/setting separation
+named inserter impl into for str
 
 build in methods for named and parent named inserters?
 add dependencies when using nested inserts

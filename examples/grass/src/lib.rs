@@ -1,15 +1,18 @@
 mod grass_renderer;
 
 use gbase::{
-    asset::{self, AssetHandle},
+    asset::{self, AssetHandle, NamedInserter, NamedInserterKey},
     filesystem,
-    glam::{vec3, vec4, Quat, Vec3},
-    input, profile, render, time, tracing, wgpu,
+    glam::{vec2, vec3, vec4, Quat, Vec3},
+    input, profile,
+    render::{self, Mesh},
+    time, tracing, wgpu,
     winit::{dpi::PhysicalSize, keyboard::KeyCode, window::Window},
     CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
-    Direction, GrowingBufferArena, MeshLod, PbrLightUniforms, SizeKind, Transform3D, Widget,
+    Direction, GrowingBufferArena, Material, MeshLod, PbrLightUniforms, SizeKind, Transform3D,
+    Widget,
 };
 use grass_renderer::GrassRenderer;
 use std::f32::consts::PI;
@@ -98,15 +101,22 @@ impl Callbacks for App {
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let plane_mesh_handle = cache.insert_asset_force(
+        // Manual plane mesh creation
+        let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
+            &NamedInserterKey::new("plane mesh"),
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         );
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert_asset_force(plane_material);
-        let plane_mesh =
-            cache.insert_asset_force(MeshLod::from_single_lod(plane_mesh_handle, plane_material));
+        let plane_material = cache.insert_asset::<Material, NamedInserter>(
+            &NamedInserterKey::new("plane material"),
+            plane_material,
+        );
+        let plane_mesh = cache.insert_asset::<MeshLod, NamedInserter>(
+            &NamedInserterKey::new("plane lod mesh"),
+            MeshLod::from_single_lod(plane_mesh_handle, plane_material),
+        );
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
 
@@ -154,20 +164,19 @@ impl Callbacks for App {
         if input::key_just_pressed(ctx, KeyCode::Escape) {
             self.paused = !self.paused;
         }
+
         if self.paused {
-            // self.gui_renderer.text(
-            //     "pause (esc)",
-            //     vec2(0.0, 0.0),
-            //     vec2(22.5, 22.5),
-            //     100.0,
-            //     vec4(1.0, 1.0, 1.0, 1.0),
-            //     false,
-            // );
+            self.gui_renderer.text(
+                "pause (esc)",
+                vec2(0.0, 0.0),
+                vec2(22.5, 22.5),
+                100.0,
+                vec4(1.0, 1.0, 1.0, 1.0),
+                false,
+            );
         } else {
             self.camera.flying_controls(ctx);
         }
-
-        // TODO: temp
 
         // update buffers
         self.framebuffer.clear(ctx, wgpu::Color::BLACK);
