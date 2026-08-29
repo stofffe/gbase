@@ -30,7 +30,7 @@ impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
         let filesystem_ctx = ctx.filesystem.clone();
-        let task_executor = ctx.task.clone();
+        let task_executor = ctx.task.runtime();
 
         let storage = AssetCacheStorage::new();
 

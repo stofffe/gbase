@@ -7,7 +7,7 @@ use crate::{
         AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
     filesystem::{self, FileSystemContext},
-    task::TaskContext,
+    task::{TaskContext, TaskExecutorRuntime},
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::fmt::Debug;
@@ -300,7 +300,7 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
 
 pub(crate) struct AssetCacheLoad {
     typed_load: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
-    task_ctx: TaskContext,
+    task_ctx: TaskExecutorRuntime,
     filesystem_ctx: FileSystemContext,
 
     queue: VecDeque<DynAssetHandle>,
@@ -321,7 +321,7 @@ pub(crate) struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new(task_ctx: TaskContext, filesystem_ctx: FileSystemContext) -> Self {
+    pub(crate) fn new(task_ctx: TaskExecutorRuntime, filesystem_ctx: FileSystemContext) -> Self {
         let typed_load = FxHashMap::default();
 
         let (response_sender, response_receiver) = async_channel::unbounded();
@@ -468,7 +468,7 @@ impl AssetCacheLoad {
 //
 
 struct TypedAssetLoad<T: AssetLoader> {
-    task_ctx: TaskContext,
+    task_ctx: TaskExecutorRuntime,
     filesystem_ctx: FileSystemContext,
 
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
@@ -483,7 +483,7 @@ struct TypedAssetLoad<T: AssetLoader> {
 
 impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     fn new(
-        task_ctx: TaskContext,
+        task_ctx: TaskExecutorRuntime,
         filesystem_ctx: FileSystemContext,
 
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,

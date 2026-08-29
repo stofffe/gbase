@@ -21,6 +21,8 @@ fixed examples
     [x] time
     [x] triangle
 
+split task executor into clone and non cloneable
+
 make conversion async?
 converters allowed to request loads and insert?
 make conversion result be result
