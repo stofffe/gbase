@@ -181,14 +181,14 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        if self.sponza_gltf.just_loaded(cache) {
+        if cache.handle_just_available(&self.sponza_gltf) {
             tracing::info!("sponza just loaded");
             for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
                 // tracing::info!("node {}", node);
-                let node = node.get(cache).unwrap();
+                let node = cache.get_asset(node).unwrap();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
-                    let mesh = mesh.get(cache).unwrap();
+                    let mesh = cache.get_asset(&mesh).unwrap();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
                     tracing::info!("push {:?}", lod);

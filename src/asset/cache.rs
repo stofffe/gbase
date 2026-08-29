@@ -171,7 +171,7 @@ impl AssetCache {
         self.get_asset(&handle)
     }
 
-    pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
+    pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.registry.get_status(handle.to_dyn());
         matches!(status, InternalAssetState::Ready)
     }
@@ -186,37 +186,19 @@ impl AssetCache {
         // self.storage.clear_unused_handles(&mut self.derived);
     }
 
-    //
-    // Dependency re-exports
-    //
-
     pub fn debug_asset_dependency_graph(&self) {
         self.dependency.debug_graph();
     }
 
-    //
-    // Load re-exports
-    //
-
-    // TODO: does this keep re registering?
-    // can and should this overwrite?
-
-    pub fn handle_just_loaded<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
+    /// Return if the handle became ready this frame
+    pub fn handle_just_available<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         self.registry.handle_just_available(&handle.to_dyn())
     }
-
-    //
-    // Convert re-exports
-    //
 
     pub fn clear_handles(&mut self) {
         // TODO:
         // self.derived.clear_unused_handles();
     }
-
-    //
-    // Reload re-exports
-    //
 
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]

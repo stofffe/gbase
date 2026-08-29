@@ -126,7 +126,7 @@ impl ShadowPass {
         //
 
         let mut assets_loaded = true;
-        assets_loaded &= asset::handle_loaded(cache, &self.shader_handle);
+        assets_loaded &= asset::handle_available(cache, &self.shader_handle);
         if !assets_loaded {
             tracing::info!("early exit");
             return;
@@ -184,7 +184,10 @@ impl ShadowPass {
             let mut sorted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
                 // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
-                sorted_meshes.push((mesh_lod.get(cache).unwrap().get_lod_closest(i), transform));
+                sorted_meshes.push((
+                    cache.get_asset(mesh_lod).unwrap().get_lod_closest(i),
+                    transform,
+                ));
             }
 
             //

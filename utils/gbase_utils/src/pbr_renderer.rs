@@ -179,8 +179,8 @@ impl PbrRenderer {
         shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
         shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
-        if !cache.handle_successfully_loaded(&self.forward_shader_handle)
-            || !cache.handle_successfully_loaded(&self.deferred_shader_handle)
+        if !cache.handle_available(&self.forward_shader_handle)
+            || !cache.handle_available(&self.deferred_shader_handle)
         {
             return;
         }
@@ -225,9 +225,6 @@ impl PbrRenderer {
         //
 
         frame_meshes.retain(|(mesh_lod, transform)| {
-            if !mesh_lod.loaded(cache) {
-                return false;
-            }
             let Ok(bounds) = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
                 cache,
                 &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
@@ -274,7 +271,7 @@ impl PbrRenderer {
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
-            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap();
+            let mesh_lod = cache.get_asset(mesh_lod_handle).unwrap();
             let material = mesh_lod.material.clone();
             let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
@@ -289,7 +286,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = material.get(cache).unwrap().clone();
+            } = cache.get_asset(&material).unwrap().clone();
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),

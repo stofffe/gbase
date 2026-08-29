@@ -248,7 +248,7 @@ impl UIRenderer {
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
-        let Ok(font) = self.font_handle.get(cache) else {
+        let Ok(font) = cache.get_asset(&self.font_handle) else {
             return TextSizeResult {
                 preferred_width: 0.0,
                 preferred_height: 0.0,

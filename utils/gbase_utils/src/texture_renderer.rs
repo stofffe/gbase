@@ -20,20 +20,20 @@ pub struct TextureRenderer {
 impl TextureRenderer {
     pub fn all_assets_just_loaded(&self, cache: &mut AssetCache) -> bool {
         // at least one just loaded
-        let one_just_loaded = cache.handle_just_loaded(&self.shader_gpu_handle)
-            || cache.handle_just_loaded(&self.shader_depth_gpu_handle)
-            || cache.handle_just_loaded(&self.fullscreen_mesh_handle)
-            || cache.handle_just_loaded(&self.fullscreen_mesh_gpu_handle);
+        let one_just_loaded = cache.handle_just_available(&self.shader_gpu_handle)
+            || cache.handle_just_available(&self.shader_depth_gpu_handle)
+            || cache.handle_just_available(&self.fullscreen_mesh_handle)
+            || cache.handle_just_available(&self.fullscreen_mesh_gpu_handle);
 
         if !one_just_loaded {
             return false;
         }
 
         // all loaded
-        cache.handle_successfully_loaded(&self.shader_gpu_handle)
-            && cache.handle_successfully_loaded(&self.shader_depth_gpu_handle)
-            && cache.handle_successfully_loaded(&self.fullscreen_mesh_handle)
-            && cache.handle_successfully_loaded(&self.fullscreen_mesh_gpu_handle)
+        cache.handle_available(&self.shader_gpu_handle)
+            && cache.handle_available(&self.shader_depth_gpu_handle)
+            && cache.handle_available(&self.fullscreen_mesh_handle)
+            && cache.handle_available(&self.fullscreen_mesh_gpu_handle)
     }
 
     pub fn new(ctx: &mut Context, cache: &mut AssetCache) -> Self {
@@ -182,7 +182,7 @@ impl TextureRenderer {
         camera: &render::UniformBuffer<CameraUniform>,
         viewport: Option<ViewPort>,
     ) {
-        if !cache.handle_successfully_loaded(&self.shader_depth_gpu_handle) {
+        if !cache.handle_available(&self.shader_depth_gpu_handle) {
             return;
         }
 

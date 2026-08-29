@@ -1,4 +1,4 @@
-use crate::asset::{self, Asset, AssetCache, GetAssetState, InternalAssetState};
+use crate::asset::{self, Asset};
 use std::{
     any::{type_name, TypeId},
     fmt::{Debug, Display},
@@ -32,18 +32,6 @@ impl<T: Asset + 'static> AssetHandle<T> {
 
     pub(crate) fn to_dyn(&self) -> DynAssetHandle {
         DynAssetHandle::new(self)
-    }
-
-    pub fn loaded(&self, cache: &mut AssetCache) -> bool {
-        cache.handle_successfully_loaded(self)
-    }
-
-    pub fn just_loaded(&self, cache: &AssetCache) -> bool {
-        cache.handle_just_loaded(self)
-    }
-
-    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Result<&'a T, GetAssetState> {
-        cache.get_asset(self)
     }
 }
 
