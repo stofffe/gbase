@@ -435,7 +435,7 @@ impl AssetCacheLoad {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_load_handle::<T>(settings);
 
-        if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
+        if let LoadStatus::NotRegistered = registry.get_status(handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -447,7 +447,7 @@ impl AssetCacheLoad {
         } else {
             tracing::info!(
                 "already has status {:?}",
-                registry.get_status(&handle.to_dyn())
+                registry.get_status(handle.to_dyn())
             )
         }
 

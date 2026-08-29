@@ -6,13 +6,26 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
     any::{Any, TypeId},
     fmt::Debug,
-    hash::Hash,
     marker::PhantomData,
 };
 
 //
-// Genereic
+// Metadata
 //
+
+pub struct AssetMetadata {
+    status: LoadStatus,
+    debug_name: Option<String>,
+}
+
+impl AssetMetadata {
+    fn new() -> Self {
+        Self {
+            status: LoadStatus::NotRegistered,
+            debug_name: None,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum LoadStatus {
@@ -22,18 +35,20 @@ pub enum LoadStatus {
     NotRegistered,
 }
 
+//
+// Genereic
+//
+
 pub struct AssetCacheRegistry {
+    asset_handle_ctx: AssetHandleContext,
+
     typed_convert_registries: FxHashMap<TypeId, Box<dyn DynConvertRegistry>>,
     typed_load_registries: FxHashMap<TypeId, Box<dyn DynLoadRegistry>>,
     typed_insert_registries: FxHashMap<TypeId, Box<dyn DynInsertRegistry>>,
 
-    // the status for handles
-    // successfully loaded handles are removed
-    status: FxHashMap<DynAssetHandle, LoadStatus>,
+    metadata: FxHashMap<DynAssetHandle, AssetMetadata>,
     // handles that became available this frame
     just_available: FxHashSet<DynAssetHandle>,
-
-    asset_handle_ctx: AssetHandleContext,
 }
 
 impl AssetCacheRegistry {
@@ -43,7 +58,7 @@ impl AssetCacheRegistry {
             typed_load_registries: FxHashMap::default(),
             typed_insert_registries: FxHashMap::default(),
             just_available: FxHashSet::default(),
-            status: FxHashMap::default(),
+            metadata: FxHashMap::default(),
             asset_handle_ctx,
         }
     }
@@ -252,18 +267,31 @@ impl AssetCacheRegistry {
     }
 
     //
-    // Status
+    // Metadata
     //
 
-    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
-        self.status.insert(handle, status);
+    fn get_metadata_mut(&mut self, handle: DynAssetHandle) -> &mut AssetMetadata {
+        self.metadata.entry(handle).or_insert(AssetMetadata::new())
     }
 
-    pub(crate) fn get_status(&mut self, handle: &DynAssetHandle) -> LoadStatus {
-        self.status
-            .entry(handle.clone())
-            .or_insert(LoadStatus::NotRegistered)
-            .clone()
+    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
+        let metadata = self.get_metadata_mut(handle);
+        metadata.status = status;
+    }
+
+    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> LoadStatus {
+        let metadata = self.get_metadata_mut(handle);
+        metadata.status.clone()
+    }
+
+    pub(crate) fn set_debug_name(&mut self, handle: DynAssetHandle, debug_name: String) {
+        let metadata = self.get_metadata_mut(handle);
+        metadata.debug_name = Some(debug_name);
+    }
+
+    pub(crate) fn get_debug_name(&mut self, handle: DynAssetHandle) -> Option<&str> {
+        let metadata = self.get_metadata_mut(handle);
+        metadata.debug_name.as_deref()
     }
 
     //

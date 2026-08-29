@@ -141,7 +141,7 @@ impl AssetCache {
             return GetAssetResult::Success(success);
         }
 
-        match self.registry.get_status(&handle.to_dyn()) {
+        match self.registry.get_status(handle.to_dyn()) {
             LoadStatus::Loading => {
                 tracing::info!("waiting for {}", handle);
                 GetAssetResult::Loading
@@ -166,7 +166,7 @@ impl AssetCache {
             return GetAssetResultCloned::Success(success.clone());
         }
 
-        match self.registry.get_status(&handle.to_dyn()) {
+        match self.registry.get_status(handle.to_dyn()) {
             LoadStatus::Loading => GetAssetResultCloned::Loading,
             LoadStatus::Failed => GetAssetResultCloned::Error,
             LoadStatus::Ready => panic!(
@@ -186,7 +186,7 @@ impl AssetCache {
     }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
-        let status = self.registry.get_status(&handle.to_dyn());
+        let status = self.registry.get_status(handle.to_dyn());
         matches!(status, LoadStatus::Ready)
     }
 

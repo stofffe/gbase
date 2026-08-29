@@ -248,7 +248,7 @@ impl AssetCacheConvert {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_convert_handle::<T>(settings);
 
-        if let LoadStatus::NotRegistered = registry.get_status(&handle.to_dyn()) {
+        if let LoadStatus::NotRegistered = registry.get_status(handle.to_dyn()) {
             tracing::info!("register conversion {}", handle);
 
             self.handle_to_converter_type
@@ -437,7 +437,7 @@ impl<'runtime> ConvertContext<'runtime> {
             return GetAssetResult::Success(asset);
         }
 
-        match self.runtime.registry.get_status(&handle.to_dyn()) {
+        match self.runtime.registry.get_status(handle.to_dyn()) {
             LoadStatus::Loading => {
                 self.state.blocking_handle = Some(handle.to_dyn());
                 tracing::info!("{} is not ready, set blocking", handle);
@@ -474,7 +474,7 @@ impl<'runtime> ConvertContext<'runtime> {
                 GetAssetResult::Success(asset)
             }
             None => {
-                match self.runtime.registry.get_status(&handle.to_dyn()) {
+                match self.runtime.registry.get_status(handle.to_dyn()) {
                     LoadStatus::Ready => {
                         panic!("could not get asset from storage but status is ready")
                     }
