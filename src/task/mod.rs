@@ -17,13 +17,12 @@ pub struct TaskContext {
 
 impl TaskContext {
     pub fn new() -> Self {
-        let general_executor = TaskExecutor::new();
-        general_executor.start();
+        let general_executor = TaskExecutor::start();
 
         Self { general_executor }
     }
 
     pub fn spawn_task(&self, task: Task) {
-        self.general_executor.spawn(task);
+        self.general_executor.spawn_task(task);
     }
 }

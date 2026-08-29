@@ -10,44 +10,47 @@ pub struct TaskExecutor {
 }
 
 impl TaskExecutor {
-    pub fn new() -> Self {
+    /// Start the task executor
+    ///
+    /// Native: Spawn a new thread with an executor
+    ///
+    /// Wasm: Attach background loader to JS scheduler
+    pub fn start() -> Self {
         let (task_sender, task_receiver) = async_channel::unbounded();
+
+        let task_receiver_clone = task_receiver.clone();
+
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let result = std::thread::spawn(move || {
+                // TODO: should probably use better executor
+                // pollster::block_on(Self::task_runner(task_receiver));
+
+                // if the thread crashes crash the main program as well
+                match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    pollster::block_on(Self::task_runner(task_receiver_clone));
+                })) {
+                    Ok(_) => {}
+                    Err(_) => std::process::abort(),
+                };
+            });
+        }
+
+        #[cfg(target_arch = "wasm32")]
+        {
+            wasm_bindgen_futures::spawn_local(Self::task_runner(task_receiver_clone));
+        }
+
         Self {
             task_sender,
             task_receiver,
         }
     }
 
-    pub fn spawn(&self, task: Task) {
+    pub fn spawn_task(&self, task: Task) {
         self.task_sender
             .try_send(task)
             .expect("could not send task");
-    }
-
-    /// Start the task executor
-    ///
-    /// Native: Spawn a new thread with an executor
-    ///
-    /// Wasm: Attach background loader to JS scheduler
-    pub(crate) fn start(&self) {
-        let task_receiver = self.task_receiver.clone();
-
-        #[cfg(not(target_arch = "wasm32"))]
-        std::thread::spawn(move || {
-            // TODO: should probably use better executor
-            // pollster::block_on(Self::task_runner(task_receiver));
-
-            // if the thread crashes crash the main program as well
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                pollster::block_on(Self::task_runner(task_receiver));
-            })) {
-                Ok(_) => {}
-                Err(_) => std::process::abort(),
-            };
-        });
-
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(Self::task_runner(task_receiver));
     }
 
     /// Implementation of an asset loader that runs in the background

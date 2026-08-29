@@ -97,10 +97,7 @@ impl AssetCache {
         );
     }
 
-    //
-    // Storage re-exports
-    //
-
+    /// Insert an asset and reuse any handles matching the same key
     pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
         key: impl Into<I::Key>,
@@ -110,6 +107,7 @@ impl AssetCache {
             .insert_asset::<T, I>(&mut self.registry, &mut self.storage, key.into(), asset)
     }
 
+    /// Insert an asset without checking for cached handles
     pub fn insert_asset_force<T: Asset + 'static>(&mut self, asset: T) -> AssetHandle<T> {
         self.inserter.insert_asset_with_new_handle::<T>(
             &mut self.registry,
@@ -118,6 +116,7 @@ impl AssetCache {
         )
     }
 
+    /// Request an asset load
     pub fn load_asset<T: AssetLoader + 'static>(
         &mut self,
         settings: &T::Settings,
@@ -126,6 +125,7 @@ impl AssetCache {
         self.loader.register_load::<T>(&mut self.registry, settings)
     }
 
+    /// Request an asset conversion
     pub fn convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: &T::Settings,
@@ -134,6 +134,7 @@ impl AssetCache {
             .register_conversion::<T>(&mut self.registry, settings)
     }
 
+    /// Get an asset
     pub fn get_asset<T: Asset + 'static>(
         &mut self,
         handle: &AssetHandle<T>,
@@ -163,6 +164,7 @@ impl AssetCache {
         }
     }
 
+    /// Try getting an asset, if it doesnt exist start a new conversion request
     pub fn get_or_convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: &T::Settings,
@@ -171,17 +173,22 @@ impl AssetCache {
         self.get_asset(&handle)
     }
 
+    /// Returns wheter a handle is available for reading
     pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.registry.get_status(handle.to_dyn());
         matches!(status, InternalAssetState::Ready)
     }
 
-    pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
+    pub fn clear_handle<T: Asset>(&mut self, _handle: AssetHandle<T>) {
         todo!()
         // self.storage.clear_handle(&mut self.derived, handle);
     }
 
-    pub fn clear_asset_handles(&mut self) {
+    // TODO:  is this needed?
+    // can check arc strong count
+    // might not work since handles can depend on eachother
+    // maybe use weak references in certain cases
+    pub fn clear_unused_handles(&mut self) {
         todo!()
         // self.storage.clear_unused_handles(&mut self.derived);
     }
@@ -193,11 +200,6 @@ impl AssetCache {
     /// Return if the handle became ready this frame
     pub fn handle_just_available<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
         self.registry.handle_just_available(&handle.to_dyn())
-    }
-
-    pub fn clear_handles(&mut self) {
-        // TODO:
-        // self.derived.clear_unused_handles();
     }
 
     /// Reload an existing asset while reusing the last path and loader

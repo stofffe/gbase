@@ -25,6 +25,7 @@ make conversion async?
 converters allowed to request loads and insert?
 make conversion result be result
 
+fix clear handle
 fix ugly nested conversions and get
 give better debug names
 need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
