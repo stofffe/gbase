@@ -1,8 +1,8 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetConverter, AssetHandle, AssetLoader, ConvertAssetStatus, ConvertContext,
-        EmptyError, LoadContext,
+        self, Asset, AssetConverter, AssetHandle, AssetLoader, AssetState, ConvertAssetStatus,
+        ConvertContext, EmptyError, LoadContext,
     },
     filesystem,
     render::{self, BoundingBox, VertexAttributeId},
@@ -205,15 +205,17 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
         let mesh = match convert_ctx.get_asset(&settings.mesh_lod) {
-            asset::GetAssetResult::Loading => return ConvertAssetStatus::Loading,
-            asset::GetAssetResult::Error => return ConvertAssetStatus::Failed,
-            asset::GetAssetResult::Success(asset) => asset.clone(),
+            Ok(source) => source,
+            Err(state) => match state {
+                AssetState::Loading => return ConvertAssetStatus::Loading,
+                AssetState::Failed => return ConvertAssetStatus::Failed,
+                _ => panic!("invalid state"),
+            },
         };
 
         if mesh.meshes.is_empty() {
             tracing::info!("{:?}", mesh);
-            panic!("meshes for {:?} empty", settings);
-            // tracing::error!("bounding box converter failed, mesh has no meshes");
+            tracing::error!("bounding box converter failed, mesh has no meshes");
             return ConvertAssetStatus::Failed;
         }
 
@@ -222,7 +224,7 @@ impl AssetConverter for LodMeshToBoundingBoxConverter {
         let bounding_box = BoundingBoxWrapper(
             convert_ctx
                 .get_asset(&handle)
-                .unwrap_success()
+                .unwrap()
                 .calculate_bounding_box(),
         );
         ConvertAssetStatus::Success(bounding_box)

@@ -1,7 +1,6 @@
 use gbase::{
     asset::{
-        self, GetAssetResult, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
-        ShaderLoaderSettings,
+        self, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
@@ -46,7 +45,7 @@ impl Tonemap {
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
     ) {
-        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+        let Ok(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             &ShaderGpuConverterSettings::new(self.shader_handle.clone()),
         ) else {
@@ -361,7 +360,7 @@ impl Bloom {
             cache,
             &ShaderGpuConverterSettings::new(self.extract_shader_handle.clone()),
         )
-        .unwrap_success()
+        .unwrap()
         .clone();
         let extract_pipeline = render::RenderPipelineBuilder::new(
             extract_shader,
@@ -400,7 +399,7 @@ impl Bloom {
             cache,
             &ShaderGpuConverterSettings::new(self.downsample_shader_handle.clone()),
         )
-        .unwrap_success()
+        .unwrap()
         .clone();
         let downsample_pipeline = render::RenderPipelineBuilder::new(
             downsample_shader,
@@ -449,7 +448,7 @@ impl Bloom {
             cache,
             &ShaderGpuConverterSettings::new(self.upsample_shader_handle.clone()),
         )
-        .unwrap_success()
+        .unwrap()
         .clone();
         let upsample_pipeline = render::RenderPipelineBuilder::new(
             upsample_shader,
@@ -525,7 +524,7 @@ impl Bloom {
             cache,
             &ShaderGpuConverterSettings::new(self.combine_shader_handle.clone()),
         )
-        .unwrap_success()
+        .unwrap()
         .clone();
         let combine_pipeline = render::RenderPipelineBuilder::new(
             combine_shader,

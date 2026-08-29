@@ -4,7 +4,7 @@ use crate::asset::AssetCacheReload;
 use crate::{
     asset::{
         Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
-        AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, LoadStatus,
+        AssetCacheStorage, AssetHandle, AssetInserter, AssetState, DynAssetHandle,
     },
     filesystem::{self, FileSystemContext},
     task::TaskContext,
@@ -116,7 +116,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 storage.insert_asset(self.handle.clone(), asset);
 
                 // Registry
-                registry.set_status(dyn_handle.clone(), LoadStatus::Ready);
+                registry.set_status(dyn_handle.clone(), AssetState::Ready);
                 registry.set_just_available(dyn_handle.clone());
 
                 // Dependency
@@ -147,7 +147,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 let dyn_handle = self.handle.to_dyn();
 
                 // Registry
-                registry.set_status(dyn_handle.clone(), LoadStatus::Failed);
+                registry.set_status(dyn_handle.clone(), AssetState::Failed);
 
                 // TODO: do we want this?
                 // Dependency
@@ -435,7 +435,7 @@ impl AssetCacheLoad {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_load_handle::<T>(settings);
 
-        if let LoadStatus::NotRegistered = registry.get_status(handle.to_dyn()) {
+        if let AssetState::NotRegistered = registry.get_status(handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -457,7 +457,7 @@ impl AssetCacheLoad {
     pub(crate) fn queue_load(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
         tracing::info!("queue load for {}", handle);
         if self.queued.insert(handle.clone()) {
-            registry.set_status(handle.clone(), LoadStatus::Loading);
+            registry.set_status(handle.clone(), AssetState::Loading);
             self.queue.push_back(handle);
         }
     }

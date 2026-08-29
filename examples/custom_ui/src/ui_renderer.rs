@@ -2,9 +2,9 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetStatus,
-        ConvertContext, EmptyError, GetAssetResult, GetAssetResultCloned, LoadContext,
-        ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
+        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, AssetState,
+        ConvertAssetStatus, ConvertContext, EmptyError, LoadContext, ShaderGpuConverter,
+        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
@@ -115,14 +115,11 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
-        else {
+        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
             return;
         };
 
-        let GetAssetResultCloned::Success(font_atlas) =
-            cache.get_asset_cloned(&self.font_atlas_handle)
-        else {
+        let Ok(font_atlas) = cache.get_asset(&self.font_atlas_handle) else {
             return;
         };
 
@@ -251,7 +248,7 @@ impl UIRenderer {
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
-        let GetAssetResult::Success(font) = self.font_handle.get(cache) else {
+        let Ok(font) = self.font_handle.get(cache) else {
             return TextSizeResult {
                 preferred_width: 0.0,
                 preferred_height: 0.0,
@@ -324,7 +321,7 @@ impl UIRenderer {
         font_size: u32,
         max_width: f32,
     ) -> TextLayoutResult {
-        let GetAssetResultCloned::Success(font) = cache.get_asset_cloned(&self.font_handle) else {
+        let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
@@ -332,9 +329,7 @@ impl UIRenderer {
             };
         };
 
-        let GetAssetResultCloned::Success(font_atlas) =
-            cache.get_asset_cloned(&self.font_atlas_handle)
-        else {
+        let Ok(font_atlas) = cache.get_asset(&self.font_atlas_handle) else {
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
@@ -730,10 +725,14 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.font) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
-            GetAssetResult::Error => return ConvertAssetStatus::Failed,
-            GetAssetResult::Success(source) => source,
+            Ok(source) => source,
+            Err(state) => match state {
+                AssetState::Loading => return ConvertAssetStatus::Loading,
+                AssetState::Failed => return ConvertAssetStatus::Failed,
+                _ => panic!("invalid state"),
+            },
         };
+
         let (lookup, texture) = create_font_atlas(
             ctx,
             &source.font,

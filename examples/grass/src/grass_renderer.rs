@@ -1,8 +1,8 @@
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, GetAssetResultCloned, ShaderGpuConverter, ShaderGpuConverterSettings,
-        ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
+        ShaderLoaderSettings,
     },
     filesystem,
     glam::{vec2, Vec2, Vec3Swizzles},
@@ -351,8 +351,7 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let GetAssetResultCloned::Success(instance_shader) =
-                cache.get_asset_cloned(&self.instance_shader_gpu_handle)
+            let Ok(instance_shader) = cache.get_asset(&self.instance_shader_gpu_handle).cloned()
             else {
                 return;
             };
@@ -393,8 +392,7 @@ impl GrassRenderer {
                     .build(ctx),
             ];
 
-            let GetAssetResultCloned::Success(draw_compute_shader) =
-                cache.get_asset_cloned(&self.draw_shader_gpu_handle)
+            let Ok(draw_compute_shader) = cache.get_asset(&self.draw_shader_gpu_handle).cloned()
             else {
                 return;
             };
@@ -435,8 +433,9 @@ impl GrassRenderer {
                     view_format,
                     depth_buffer,
                 } => {
-                    let GetAssetResultCloned::Success(render_forward_shader) =
-                        cache.get_asset_cloned(&self.render_forward_shader_gpu_handle)
+                    let Ok(render_forward_shader) = cache
+                        .get_asset(&self.render_forward_shader_gpu_handle)
+                        .cloned()
                     else {
                         return;
                     };
@@ -463,8 +462,9 @@ impl GrassRenderer {
                         });
                 }
                 RenderMode::Deferred { buffers } => {
-                    let GetAssetResultCloned::Success(render_deferred_shader) =
-                        cache.get_asset_cloned(&self.render_deferred_shader_gpu_handle)
+                    let Ok(render_deferred_shader) = cache
+                        .get_asset(&self.render_deferred_shader_gpu_handle)
+                        .cloned()
                     else {
                         return;
                     };

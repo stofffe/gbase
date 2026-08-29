@@ -1,8 +1,7 @@
 use gbase::{
     asset::{
-        self, AssetCache, GetAssetResult, GetAssetResultCloned, MeshGpuConverter,
-        MeshGpuConverterSettings, NamedInserter, NamedInserterKey, ShaderGpuConverter,
-        ShaderGpuConverterSettings,
+        self, AssetCache, MeshGpuConverter, MeshGpuConverterSettings, NamedInserter,
+        ShaderGpuConverter, ShaderGpuConverterSettings,
     },
     render::{self, ArcShaderModule, ArcTextureView, GpuMesh, Mesh, Shader},
     wgpu, Context,
@@ -140,11 +139,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
-        else {
+        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
             return;
         };
-        let GetAssetResult::Success(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
+        let Ok(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
             return;
         };
 
@@ -153,9 +151,7 @@ impl TextureRenderer {
             .buffers(mesh.buffer_layout())
             .build(ctx);
 
-        let GetAssetResultCloned::Success(mesh_gpu) =
-            cache.get_asset_cloned(&self.fullscreen_mesh_gpu_handle)
-        else {
+        let Ok(mesh_gpu) = cache.get_asset(&self.fullscreen_mesh_gpu_handle) else {
             return;
         };
 
@@ -219,12 +215,10 @@ impl TextureRenderer {
             ])
             .build(ctx);
 
-        let GetAssetResultCloned::Success(shader) =
-            cache.get_asset_cloned(&self.shader_depth_gpu_handle)
-        else {
+        let Ok(shader) = cache.get_asset(&self.shader_depth_gpu_handle).cloned() else {
             return;
         };
-        let GetAssetResult::Success(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
+        let Ok(mesh) = cache.get_asset(&self.fullscreen_mesh_handle) else {
             return;
         };
 
@@ -233,9 +227,7 @@ impl TextureRenderer {
             .buffers(mesh.buffer_layout())
             .build(ctx);
 
-        let GetAssetResultCloned::Success(mesh_gpu) =
-            cache.get_asset_cloned(&self.fullscreen_mesh_gpu_handle)
-        else {
+        let Ok(mesh_gpu) = cache.get_asset(&self.fullscreen_mesh_gpu_handle) else {
             return;
         };
 

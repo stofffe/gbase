@@ -4,8 +4,8 @@ use crate::{
 };
 use gbase::{
     asset::{
-        self, AssetHandle, GetAssetResult, MeshGpuConverter, MeshGpuConverterSettings,
-        ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
+        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
@@ -113,7 +113,7 @@ impl ShadowPass {
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
-        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+        let Ok(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             &ShaderGpuConverterSettings::new(self.shader_handle.clone()),
         ) else {
@@ -167,12 +167,10 @@ impl ShadowPass {
 
             let mut meshes = meshes.to_vec();
             meshes.retain(|(handle, transform)| {
-                let GetAssetResult::Success(bounds) =
-                    asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                        cache,
-                        &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
-                    )
-                else {
+                let Ok(bounds) = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
+                    cache,
+                    &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
+                ) else {
                     return false;
                 };
                 frustums[i].sphere_inside(bounds, transform)
@@ -186,10 +184,7 @@ impl ShadowPass {
             let mut sorted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
                 // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
-                sorted_meshes.push((
-                    mesh_lod.get(cache).unwrap_success().get_lod_closest(i),
-                    transform,
-                ));
+                sorted_meshes.push((mesh_lod.get(cache).unwrap().get_lod_closest(i), transform));
             }
 
             //
@@ -210,12 +205,10 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let GetAssetResult::Success(gpu_mesh) =
-                    asset::get_or_convert_asset::<MeshGpuConverter>(
-                        cache,
-                        &MeshGpuConverterSettings::new(mesh_handle.clone()),
-                    )
-                else {
+                let Ok(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
+                    cache,
+                    &MeshGpuConverterSettings::new(mesh_handle.clone()),
+                ) else {
                     return;
                 };
                 let gpu_mesh = gpu_mesh.clone();

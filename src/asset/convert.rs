@@ -1,7 +1,7 @@
 use crate::{
     asset::{
         Asset, AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry, AssetCacheStorage,
-        AssetHandle, DynAssetHandle, GetAssetResult, LoadStatus,
+        AssetHandle, AssetState, DynAssetHandle,
     },
     render::ArcHandle,
     Context,
@@ -35,27 +35,6 @@ pub trait AssetConverter {
         convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> ConvertAssetStatus<Self::Asset>;
-}
-
-pub enum ConvertAssetResult<T: Asset> {
-    Loading,
-    Success(ArcHandle<T>),
-    Failed,
-}
-
-impl<T: Asset> ConvertAssetResult<T> {
-    /// Unwrap the result as a success
-    ///
-    /// Panics for other values than
-    pub fn unwrap_success(self) -> ArcHandle<T> {
-        match self {
-            ConvertAssetResult::Loading => {
-                panic!("asset conversion loading: unwrap success failed")
-            }
-            ConvertAssetResult::Failed => panic!("asset conversion failed: unwrap success failed"),
-            ConvertAssetResult::Success(arc_handle) => arc_handle,
-        }
-    }
 }
 
 pub enum ConvertAssetStatus<T: Asset> {
@@ -216,7 +195,7 @@ impl AssetCacheConvert {
                     }
                 }
                 ConversionPollResult::Success => {
-                    registry.set_status(dyn_handle.clone(), LoadStatus::Ready);
+                    registry.set_status(dyn_handle.clone(), AssetState::Ready);
                     registry.set_just_available(dyn_handle.clone());
 
                     // TODO: keep?
@@ -226,7 +205,7 @@ impl AssetCacheConvert {
 
                     self.reload_depending_conversions(dependency, registry, &dyn_handle);
 
-                    registry.set_status(dyn_handle, LoadStatus::Ready);
+                    registry.set_status(dyn_handle, AssetState::Ready);
                 }
             }
         }
@@ -248,7 +227,7 @@ impl AssetCacheConvert {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_convert_handle::<T>(settings);
 
-        if let LoadStatus::NotRegistered = registry.get_status(handle.to_dyn()) {
+        if let AssetState::NotRegistered = registry.get_status(handle.to_dyn()) {
             tracing::info!("register conversion {}", handle);
 
             self.handle_to_converter_type
@@ -272,7 +251,7 @@ impl AssetCacheConvert {
     ) {
         tracing::info!("queue conversion of {}", handle);
         if self.queued.insert(handle.clone()) {
-            registry.set_status(handle.clone(), LoadStatus::Loading);
+            registry.set_status(handle.clone(), AssetState::Loading);
             self.queue.push_back(handle);
         }
     }
@@ -329,6 +308,7 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
         Self { ty: PhantomData }
     }
 
+    // top level conversion
     fn convert_asset<'a>(
         &mut self,
         ctx: &mut Context,
@@ -351,6 +331,9 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
 
         let conversion = T::convert(ctx, &mut convert_ctx, &settings);
         let state = convert_ctx.state;
+
+        // TODO: should blocking be applied here?
+        // dont think so since nested fn in T::conert should handle this
 
         match conversion {
             ConvertAssetStatus::Success(asset) => {
@@ -379,6 +362,7 @@ impl<T: AssetConverter + 'static> TypedAssetConvert<T> {
 // Dyn
 //
 
+#[derive(Debug)]
 enum ConversionPollResult {
     Waiting,
     Failed,
@@ -426,7 +410,7 @@ impl<'runtime> ConvertContext<'runtime> {
         Self { runtime, state }
     }
 
-    pub fn get_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> GetAssetResult<'_, T> {
+    pub fn get_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) -> Result<&T, AssetState> {
         tracing::info!("conversion get {}", handle);
 
         // register deps
@@ -434,29 +418,32 @@ impl<'runtime> ConvertContext<'runtime> {
 
         if let Some(asset) = self.runtime.storage.get_asset(handle) {
             tracing::info!("get {} success", handle);
-            return GetAssetResult::Success(asset);
+            return Ok(asset);
         }
 
-        match self.runtime.registry.get_status(handle.to_dyn()) {
-            LoadStatus::Loading => {
+        let state = self.runtime.registry.get_status(handle.to_dyn());
+        match state {
+            AssetState::Loading => {
                 self.state.blocking_handle = Some(handle.to_dyn());
-                tracing::info!("{} is not ready, set blocking", handle);
-                GetAssetResult::Loading
+                tracing::info!("waiting for {}", handle);
             }
-            LoadStatus::Failed => {
+            AssetState::Failed => {
                 self.state.blocking_handle = Some(handle.to_dyn());
-                tracing::info!("{} failed, set blocking", handle);
-                GetAssetResult::Error
+                tracing::info!("erron in {}", handle);
             }
-            LoadStatus::Ready => panic!("could not get asset from storage but status is ready"),
-            LoadStatus::NotRegistered => panic!("trying to get unregistered asset"),
+            AssetState::Ready => panic!(
+                "could not get asset from storage but status is ready {}",
+                handle
+            ),
+            AssetState::NotRegistered => panic!("trying to get unregistered asset {}", handle),
         }
+        Err(state)
     }
 
     pub fn convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: &T::Settings,
-    ) -> GetAssetResult<'_, T::Asset> {
+    ) -> Result<&T::Asset, AssetState> {
         // get handle from registry
         let handle = self
             .runtime
@@ -468,41 +455,35 @@ impl<'runtime> ConvertContext<'runtime> {
         // register deps
         self.state.dependencies.insert(handle.to_dyn());
 
-        match self.runtime.storage.get_asset(&handle) {
-            Some(asset) => {
-                tracing::info!("conversion of {} success", handle);
-                GetAssetResult::Success(asset)
+        if let Some(asset) = self.runtime.storage.get_asset(&handle) {
+            tracing::info!("get {} success", handle);
+            return Ok(asset);
+        }
+
+        // TODO: move out blocking
+        match self.runtime.registry.get_status(handle.to_dyn()) {
+            AssetState::Loading => {
+                tracing::info!("{} is not ready, set blocking", handle);
+                self.state.blocking_handle = Some(handle.to_dyn());
+                Err(AssetState::Loading)
             }
-            None => {
-                match self.runtime.registry.get_status(handle.to_dyn()) {
-                    LoadStatus::Ready => {
-                        panic!("could not get asset from storage but status is ready")
-                    }
-                    LoadStatus::Loading => {
-                        tracing::info!("{} is not ready, set blocking", handle);
-                        self.state.blocking_handle = Some(handle.to_dyn());
-                        GetAssetResult::Loading
-                    }
-                    LoadStatus::Failed => {
-                        tracing::info!("{} failed, set blocking", handle);
-                        self.state.blocking_handle = Some(handle.to_dyn());
-                        GetAssetResult::Error
-                    }
-                    // TODO: something is not being sent here
-                    LoadStatus::NotRegistered => {
-                        // register new converison
-                        tracing::info!(
-                            "{} is not registered, request new and set blocking",
-                            handle
-                        );
-                        self.state.conversion_request = Some(Box::new(ConvertRequest::<T>::new(
-                            handle.clone(),
-                            settings.clone(),
-                        )));
-                        self.state.blocking_handle = Some(handle.to_dyn());
-                        GetAssetResult::Loading
-                    }
-                }
+            AssetState::Failed => {
+                tracing::info!("{} failed, set blocking", handle);
+                self.state.blocking_handle = Some(handle.to_dyn());
+                Err(AssetState::Failed)
+            }
+            AssetState::NotRegistered => {
+                // register new converison
+                tracing::info!("{} is not registered, request new and set blocking", handle);
+                self.state.conversion_request = Some(Box::new(ConvertRequest::<T>::new(
+                    handle.clone(),
+                    settings.clone(),
+                )));
+                self.state.blocking_handle = Some(handle.to_dyn());
+                Err(AssetState::Loading)
+            }
+            AssetState::Ready => {
+                panic!("could not get asset from storage but status is ready")
             }
         }
     }

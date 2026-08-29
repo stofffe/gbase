@@ -146,12 +146,14 @@ impl CloudRenderer {
             .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
                 self.weather_map_handle.clone(),
             ))
-            .unwrap_success_cloned();
+            .unwrap()
+            .clone();
         let blue_noise = cache
             .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
                 self.blue_noise_handle.clone(),
             ))
-            .unwrap_success();
+            .unwrap()
+            .clone();
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -179,9 +181,9 @@ impl CloudRenderer {
             .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(
                 self.shader_handle.clone(),
             ))
-            .unwrap_success()
+            .unwrap()
             .clone();
-        let mesh = self.mesh_handle.get(cache).unwrap_success();
+        let mesh = self.mesh_handle.get(cache).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")
             .buffers(mesh.buffer_layout())
@@ -193,7 +195,7 @@ impl CloudRenderer {
             .get_or_convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(
                 self.mesh_handle.clone(),
             ))
-            .unwrap_success();
+            .unwrap();
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

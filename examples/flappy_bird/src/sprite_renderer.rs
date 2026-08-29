@@ -1,6 +1,6 @@
 use gbase::asset::{
-    AssetCache, AssetHandle, GetAssetResultCloned, ShaderGpuConverter, ShaderGpuConverterSettings,
-    ShaderLoader, ShaderLoaderSettings,
+    AssetCache, AssetHandle, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
+    ShaderLoaderSettings,
 };
 use gbase::glam::{Vec2, Vec4};
 use gbase::render::{ArcPipelineLayout, ArcShaderModule};
@@ -129,9 +129,7 @@ impl SpriteRenderer {
         self.vertex_buffer.write(ctx, &self.vertices);
         self.index_buffer.write(ctx, &self.indices);
 
-        let GetAssetResultCloned::Success(stencil_shader) =
-            cache.get_asset_cloned(&self.stencil_shader_gpu_handle)
-        else {
+        let Ok(stencil_shader) = cache.get_asset(&self.stencil_shader_gpu_handle).cloned() else {
             return;
         };
 
@@ -210,8 +208,7 @@ impl SpriteRenderer {
         self.vertex_buffer.write(ctx, &self.vertices);
         self.index_buffer.write(ctx, &self.indices);
 
-        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
-        else {
+        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
             return;
         };
 

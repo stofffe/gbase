@@ -12,49 +12,6 @@ pub trait Asset: Any + Send {}
 #[cfg(target_arch = "wasm32")]
 pub trait Asset: Any {}
 
-pub enum GetAssetResult<'a, T: Asset> {
-    Loading,
-    Success(&'a T),
-    Error,
-}
-
-impl<'a, T: Asset> GetAssetResult<'a, T> {
-    pub fn unwrap_success(self) -> &'a T {
-        match self {
-            Self::Success(asset) => asset,
-            Self::Loading => panic!("Asset is still loading"),
-            Self::Error => panic!("Asset failed to load"),
-        }
-    }
-
-    pub fn unwrap_success_cloned(self) -> T
-    where
-        T: Clone,
-    {
-        match self {
-            Self::Success(asset) => asset.clone(),
-            Self::Loading => panic!("Asset is still loading"),
-            Self::Error => panic!("Asset failed to load"),
-        }
-    }
-}
-
-pub enum GetAssetResultCloned<T: Asset> {
-    Loading,
-    Success(T),
-    Error,
-}
-
-impl<T: Asset> GetAssetResultCloned<T> {
-    pub fn unwrap_success(self) -> T {
-        match self {
-            Self::Success(asset) => asset,
-            Self::Loading => panic!("Asset is still loading"),
-            Self::Error => panic!("Asset failed to load"),
-        }
-    }
-}
-
 //
 // Generic
 //

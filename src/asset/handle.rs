@@ -1,4 +1,4 @@
-use crate::asset::{self, Asset, AssetCache, GetAssetResult};
+use crate::asset::{self, Asset, AssetCache, AssetState};
 use std::{
     any::{type_name, TypeId},
     fmt::{Debug, Display},
@@ -41,7 +41,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
         cache.handle_just_loaded(self)
     }
 
-    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> GetAssetResult<'a, T> {
+    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Result<&'a T, AssetState> {
         cache.get_asset(self)
     }
 }

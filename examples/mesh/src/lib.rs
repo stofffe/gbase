@@ -1,11 +1,11 @@
 mod bloom;
 
 use gbase::{
-    asset::{AssetHandle, NamedInserter, NamedInserterKey},
+    asset::AssetHandle,
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
     load_b, profile,
-    render::{self, Mesh},
+    render::{self},
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
@@ -183,17 +183,12 @@ impl Callbacks for App {
     ) -> CallbackResult {
         if self.sponza_gltf.just_loaded(cache) {
             tracing::info!("sponza just loaded");
-            for node in &cache
-                .get_asset(&self.sponza_gltf)
-                .unwrap_success()
-                .clone()
-                .nodes
-            {
+            for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
                 // tracing::info!("node {}", node);
-                let node = node.get(cache).unwrap_success();
+                let node = node.get(cache).unwrap();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
-                    let mesh = mesh.get(cache).unwrap_success();
+                    let mesh = mesh.get(cache).unwrap();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
                     tracing::info!("push {:?}", lod);

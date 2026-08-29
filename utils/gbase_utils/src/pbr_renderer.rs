@@ -6,9 +6,9 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
-        MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings,
-        ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
+        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
+        ShaderLoaderSettings,
     },
     glam::{Mat4, Vec3},
     render::{self, BindGroupBindable, Image, Mesh, RawBuffer},
@@ -190,7 +190,7 @@ impl PbrRenderer {
             return;
         }
 
-        let GetAssetResult::Success(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
+        let Ok(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
             cache,
             &ShaderGpuConverterSettings::new(self.forward_shader_handle.clone()),
         ) else {
@@ -228,12 +228,10 @@ impl PbrRenderer {
             if !mesh_lod.loaded(cache) {
                 return false;
             }
-            let GetAssetResult::Success(bounds) =
-                asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                    cache,
-                    &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
-                )
-            else {
+            let Ok(bounds) = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
+                cache,
+                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
+            ) else {
                 // tracing::info!("bounds not okay");
                 return false;
             };
@@ -250,7 +248,7 @@ impl PbrRenderer {
                 cache,
                 &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
             )
-            .unwrap_success();
+            .unwrap();
             let bounds_sphere = BoundingSphere::new(bounds, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
@@ -276,7 +274,7 @@ impl PbrRenderer {
         let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
-            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap_success();
+            let mesh_lod = mesh_lod_handle.clone().get(cache).unwrap();
             let material = mesh_lod.material.clone();
             let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
             let Material {
@@ -291,7 +289,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = material.get(cache).unwrap_success().clone();
+            } = material.get(cache).unwrap().clone();
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),
@@ -311,7 +309,7 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let GetAssetResult::Success(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
+            let Ok(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
                 cache,
                 &MeshGpuConverterSettings::new(mesh.clone()),
             ) else {
@@ -319,52 +317,42 @@ impl PbrRenderer {
             };
             let gpu_mesh = gpu_mesh.clone();
 
-            let GetAssetResult::Success(base_color_texture) =
-                asset::get_or_convert_asset::<ImageGpuConverter>(
-                    cache,
-                    &ImageGpuConverterOptions::new(base_color_texture),
-                )
-            else {
+            let Ok(base_color_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
+                cache,
+                &ImageGpuConverterOptions::new(base_color_texture),
+            ) else {
                 return;
             };
             let base_color_texture = base_color_texture.clone();
 
-            let GetAssetResult::Success(normal_texture) =
-                asset::get_or_convert_asset::<ImageGpuConverter>(
-                    cache,
-                    &ImageGpuConverterOptions::new(normal_texture),
-                )
-            else {
+            let Ok(normal_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
+                cache,
+                &ImageGpuConverterOptions::new(normal_texture),
+            ) else {
                 return;
             };
             let normal_texture = normal_texture.clone();
 
-            let GetAssetResult::Success(metallic_roughness_texture) =
-                asset::get_or_convert_asset::<ImageGpuConverter>(
-                    cache,
-                    &ImageGpuConverterOptions::new(metallic_roughness_texture),
-                )
-            else {
+            let Ok(metallic_roughness_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
+                cache,
+                &ImageGpuConverterOptions::new(metallic_roughness_texture),
+            ) else {
                 return;
             };
             let metallic_roughness_texture = metallic_roughness_texture.clone();
 
-            let GetAssetResult::Success(occlusion_texture) =
-                asset::get_or_convert_asset::<ImageGpuConverter>(
-                    cache,
-                    &ImageGpuConverterOptions::new(occlusion_texture),
-                )
-            else {
+            let Ok(occlusion_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
+                cache,
+                &ImageGpuConverterOptions::new(occlusion_texture),
+            ) else {
                 return;
             };
             let occlusion_texture = occlusion_texture.clone();
 
-            let GetAssetResult::Success(emissive_texture) =
-                asset::get_or_convert_asset::<ImageGpuConverter>(
-                    cache,
-                    &ImageGpuConverterOptions::new(emissive_texture),
-                )
-            else {
+            let Ok(emissive_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
+                cache,
+                &ImageGpuConverterOptions::new(emissive_texture),
+            ) else {
                 return;
             };
             let emissive_texture = emissive_texture.clone();

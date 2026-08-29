@@ -23,7 +23,10 @@ fixed examples
 
 make conversion async?
 converters allowed to request loads and insert?
+make conversion result be result
 
+fix ugly nested conversions and get
+remove conversion state
 give better debug names
 need to clean up dep graph when reload changes stuff
 cycle detecion
@@ -33,6 +36,7 @@ convert error
 reload queue to avoid same dep being reloaded many times (currently loading)
 handle shutdown of background thread?
 pass asset handle ctx and stuff instead of arcing
+separate asset state api and internal
 
 add get_using_load_settings, insert_key, convert_settings?
 maybe have more states on getasset result, like depency failed?

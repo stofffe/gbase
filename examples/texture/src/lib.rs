@@ -87,7 +87,7 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let asset::GetAssetResult::Success(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
+        let Ok(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
             cache,
             &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
         ) else {
@@ -95,9 +95,7 @@ impl Callbacks for App {
         };
         let mesh = mesh.clone();
 
-        let asset::GetAssetResult::Success(shader) =
-            asset::get_asset(cache, self.shader_gpu.clone())
-        else {
+        let Ok(shader) = asset::get_asset(cache, self.shader_gpu.clone()) else {
             return CallbackResult::Continue;
         };
         let shader = shader.clone();
@@ -112,11 +110,9 @@ impl Callbacks for App {
         // };
         // let shader = mesh.clone();
 
-        let asset::GetAssetResult::Success(texture) = cache
-            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
-                self.texture_handle.clone(),
-            ))
-        else {
+        let Ok(texture) = cache.get_or_convert_asset::<ImageGpuConverter>(
+            &ImageGpuConverterOptions::new(self.texture_handle.clone()),
+        ) else {
             return CallbackResult::Continue;
         };
         let texture = texture.clone();
@@ -132,7 +128,7 @@ impl Callbacks for App {
 
         // TODO: place this on gpumesh instead?
         let buffer_layout = asset::get_asset(cache, self.mesh_handle.clone())
-            .unwrap_success()
+            .unwrap()
             .buffer_layout();
         let pipeline =
             render::RenderPipelineBuilder::new(shader.clone(), self.pipeline_layout.clone())

@@ -14,21 +14,21 @@ use std::{
 //
 
 pub struct AssetMetadata {
-    status: LoadStatus,
+    status: AssetState,
     debug_name: Option<String>,
 }
 
 impl AssetMetadata {
     fn new() -> Self {
         Self {
-            status: LoadStatus::NotRegistered,
+            status: AssetState::NotRegistered,
             debug_name: None,
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum LoadStatus {
+pub enum AssetState {
     Loading,
     Failed,
     Ready,
@@ -274,12 +274,12 @@ impl AssetCacheRegistry {
         self.metadata.entry(handle).or_insert(AssetMetadata::new())
     }
 
-    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: LoadStatus) {
+    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: AssetState) {
         let metadata = self.get_metadata_mut(handle);
         metadata.status = status;
     }
 
-    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> LoadStatus {
+    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> AssetState {
         let metadata = self.get_metadata_mut(handle);
         metadata.status.clone()
     }

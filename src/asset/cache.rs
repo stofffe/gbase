@@ -3,7 +3,7 @@ use crate::{
     asset::{
         self, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
         AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
-        AssetInserter, GetAssetResult, GetAssetResultCloned, LoadStatus,
+        AssetInserter, AssetState,
     },
     filesystem::FileSystemContext,
     Context,
@@ -122,6 +122,7 @@ impl AssetCache {
         &mut self,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
+        tracing::info!("register load {:?}", settings);
         self.loader.register_load::<T>(&mut self.registry, settings)
     }
 
@@ -136,58 +137,39 @@ impl AssetCache {
     pub fn get_asset<T: Asset + 'static>(
         &mut self,
         handle: &AssetHandle<T>,
-    ) -> GetAssetResult<'_, T> {
-        if let Some(success) = self.storage.get_asset(handle) {
-            return GetAssetResult::Success(success);
+    ) -> Result<&T, AssetState> {
+        if let Some(asset) = self.storage.get_asset(handle) {
+            return Ok(asset);
         }
 
-        match self.registry.get_status(handle.to_dyn()) {
-            LoadStatus::Loading => {
+        let state = self.registry.get_status(handle.to_dyn());
+        match state {
+            AssetState::Loading => {
                 tracing::info!("waiting for {}", handle);
-                GetAssetResult::Loading
             }
-            LoadStatus::Failed => {
+            AssetState::Failed => {
                 tracing::info!("erron in {}", handle);
-                GetAssetResult::Error
             }
-            LoadStatus::Ready => panic!(
+            AssetState::Ready => panic!(
                 "could not get asset from storage but status is ready {}",
                 handle
             ),
-            LoadStatus::NotRegistered => panic!("trying to get unregistered asset {}", handle),
+            AssetState::NotRegistered => panic!("trying to get unregistered asset {}", handle),
         }
-    }
-
-    pub fn get_asset_cloned<T: Asset + Clone + 'static>(
-        &mut self,
-        handle: &AssetHandle<T>,
-    ) -> GetAssetResultCloned<T> {
-        if let Some(success) = self.storage.get_asset(handle) {
-            return GetAssetResultCloned::Success(success.clone());
-        }
-
-        match self.registry.get_status(handle.to_dyn()) {
-            LoadStatus::Loading => GetAssetResultCloned::Loading,
-            LoadStatus::Failed => GetAssetResultCloned::Error,
-            LoadStatus::Ready => panic!(
-                "could not get asset from storage but status is ready {}",
-                handle
-            ),
-            LoadStatus::NotRegistered => panic!("trying to get unregistered asset {}", handle),
-        }
+        Err(state)
     }
 
     pub fn get_or_convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: &T::Settings,
-    ) -> GetAssetResult<'_, T::Asset> {
+    ) -> Result<&T::Asset, AssetState> {
         let handle = self.convert_asset::<T>(settings);
         self.get_asset(&handle)
     }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.registry.get_status(handle.to_dyn());
-        matches!(status, LoadStatus::Ready)
+        matches!(status, AssetState::Ready)
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {

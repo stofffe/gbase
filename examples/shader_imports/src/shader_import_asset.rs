@@ -1,8 +1,9 @@
+use gbase::asset::AssetState;
 use gbase::render::ArcHandle;
 use gbase::{
     asset::{
         self, Asset, AssetConverter, AssetHandle, ConvertAssetStatus, ConvertContext, EmptyError,
-        GetAssetResult, LoadContext,
+        LoadContext,
     },
     filesystem,
     render::{self, ArcShaderModule},
@@ -75,7 +76,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
-        // tracing::info!("Loaded {} {:?}", source, imports);
+        tracing::info!("Loaded {} {:?}", source, imports);
 
         Ok(ShaderWithImports { source, imports })
     }
@@ -115,9 +116,12 @@ impl AssetConverter for ShaderWithImportsConverter {
         settings: &Self::Settings,
     ) -> asset::ConvertAssetStatus<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.shader) {
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
-            GetAssetResult::Error => return ConvertAssetStatus::Failed,
-            GetAssetResult::Success(source) => source,
+            Ok(source) => source,
+            Err(state) => match state {
+                AssetState::Loading => return ConvertAssetStatus::Loading,
+                AssetState::Failed => return ConvertAssetStatus::Failed,
+                _ => panic!("invalid state"),
+            },
         }
         .clone();
 
@@ -127,11 +131,13 @@ impl AssetConverter for ShaderWithImportsConverter {
                 &ShaderWithImportsConverterOptions::new(import.clone()),
             );
             match conversion_result {
-                GetAssetResult::Loading => return ConvertAssetStatus::Loading,
-                // TODO: add source failed?
-                GetAssetResult::Error => return ConvertAssetStatus::Failed,
-                GetAssetResult::Success(result) => import_sources.push(result.source.clone()),
-            }
+                Ok(asset) => import_sources.push(asset.source.clone()),
+                Err(state) => match state {
+                    AssetState::Loading => return ConvertAssetStatus::Loading,
+                    AssetState::Failed => return ConvertAssetStatus::Failed,
+                    _ => panic!("invalid state"),
+                },
+            };
         }
 
         let mut resoved_source = String::new();
@@ -173,9 +179,12 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
-            GetAssetResult::Success(arc_handle) => arc_handle,
-            GetAssetResult::Loading => return ConvertAssetStatus::Loading,
-            GetAssetResult::Error => return ConvertAssetStatus::Failed,
+            Ok(source) => source,
+            Err(state) => match state {
+                AssetState::Loading => return ConvertAssetStatus::Loading,
+                AssetState::Failed => return ConvertAssetStatus::Failed,
+                s => panic!("invalid state {:?}", s),
+            },
         };
 
         #[cfg(not(target_arch = "wasm32"))]

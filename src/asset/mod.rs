@@ -86,14 +86,14 @@ pub fn convert_asset<T: AssetConverter + 'static>(
 pub fn get_asset<T: Asset + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T>,
-) -> GetAssetResult<'_, T> {
+) -> Result<&T, AssetState> {
     cache.get_asset(&handle)
 }
 
 pub fn get_or_convert_asset<'a, T: AssetConverter + 'static>(
     cache: &'a mut AssetCache,
     settings: &T::Settings,
-) -> GetAssetResult<'a, T::Asset> {
+) -> Result<&'a T::Asset, AssetState> {
     let handle = cache.convert_asset::<T>(settings);
     cache.get_asset(&handle)
 }

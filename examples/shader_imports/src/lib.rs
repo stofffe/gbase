@@ -1,13 +1,12 @@
 mod shader_import_asset;
-use gbase::asset::GetAssetResultCloned;
-use gbase::render::{ArcShaderModule, GpuImage, GpuMesh};
 pub use shader_import_asset::*;
 
 use gbase::input::{self, KeyCode};
+use gbase::render::{ArcShaderModule, GpuImage, GpuMesh};
 use gbase::{
     asset::{
-        self, AssetHandle, GetAssetResult, ImageGpuConverter, ImageGpuConverterOptions,
-        ImageLoader, ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
+        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     tracing,
@@ -108,19 +107,15 @@ impl Callbacks for App {
             asset::debug_asset_dependency_graph(cache);
         }
 
-        let GetAssetResultCloned::Success(mesh) = cache.get_asset_cloned(&self.mesh_gpu_handle)
-        else {
+        let Ok(mesh) = cache.get_asset(&self.mesh_gpu_handle).cloned() else {
             return CallbackResult::Continue;
         };
 
-        let GetAssetResultCloned::Success(shader) = cache.get_asset_cloned(&self.shader_gpu_handle)
-        else {
+        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
             return CallbackResult::Continue;
         };
 
-        let GetAssetResultCloned::Success(texture) =
-            cache.get_asset_cloned(&self.texture_gpu_handle)
-        else {
+        let Ok(texture) = cache.get_asset(&self.texture_gpu_handle) else {
             return CallbackResult::Continue;
         };
 
@@ -134,8 +129,7 @@ impl Callbacks for App {
             .build(ctx);
 
         // TODO: place this on gpumesh instead?
-        let GetAssetResult::Success(buffer) = asset::get_asset(cache, self.mesh_handle.clone())
-        else {
+        let Ok(buffer) = asset::get_asset(cache, self.mesh_handle.clone()) else {
             return CallbackResult::Continue;
         };
         let buffer_layout = buffer.buffer_layout();
