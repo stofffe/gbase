@@ -1,4 +1,4 @@
-use crate::asset::{self, Asset, AssetCache, AssetState};
+use crate::asset::{self, Asset, AssetCache, GetAssetState, InternalAssetState};
 use std::{
     any::{type_name, TypeId},
     fmt::{Debug, Display},
@@ -15,6 +15,7 @@ pub struct AssetHandle<T: Asset + 'static> {
     pub(crate) ty: PhantomData<T>,
 }
 
+// TODO: remove these
 impl<T: Asset + 'static> AssetHandle<T> {
     pub fn new(asset_handle_ctx: &asset::AssetHandleContext) -> Self {
         let id = asset_handle_ctx.next_id();
@@ -41,7 +42,7 @@ impl<T: Asset + 'static> AssetHandle<T> {
         cache.handle_just_loaded(self)
     }
 
-    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Result<&'a T, AssetState> {
+    pub fn get<'a>(&self, cache: &'a mut AssetCache) -> Result<&'a T, GetAssetState> {
         cache.get_asset(self)
     }
 }

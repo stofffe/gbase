@@ -2,8 +2,8 @@ use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
     asset::{
-        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, AssetState,
-        ConvertAssetStatus, ConvertContext, EmptyError, LoadContext, ShaderGpuConverter,
+        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState,
+        ConvertContext, EmptyError, GetAssetState, LoadContext, ShaderGpuConverter,
         ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
     },
     bytemuck, filesystem,
@@ -723,13 +723,12 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
         ctx: &mut gbase::Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.font) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
 
@@ -740,6 +739,6 @@ impl<'a> AssetConverter for FontAtlasConverter<'a> {
             settings.font_raster_size as f32,
         );
 
-        ConvertAssetStatus::Success(FontAtlas { lookup, texture })
+        ConvertAssetState::Success(FontAtlas { lookup, texture })
     }
 }

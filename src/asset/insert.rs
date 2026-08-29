@@ -1,5 +1,5 @@
 use crate::asset::{
-    Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, AssetState, DynAssetHandle,
+    Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle, InternalAssetState,
 };
 use std::{fmt::Debug, hash::Hash};
 
@@ -81,7 +81,7 @@ impl AssetCacheInsert {
         asset: T,
     ) {
         storage.insert_asset(handle.clone(), asset);
-        registry.set_status(handle.to_dyn(), AssetState::Ready);
+        registry.set_status(handle.to_dyn(), InternalAssetState::Ready);
     }
 }
 

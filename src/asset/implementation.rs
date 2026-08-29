@@ -1,7 +1,8 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
     asset::{
-        AssetConverter, AssetInserter, AssetState, ConvertAssetStatus, ConvertContext, LoadContext,
+        AssetConverter, AssetInserter, ConvertAssetState, ConvertContext, GetAssetState,
+        InternalAssetState, LoadContext,
     },
     filesystem,
     render::{
@@ -10,7 +11,7 @@ use crate::{
     },
     Context,
 };
-use std::{fmt::Debug, hash::Hash, marker::PhantomData, path::PathBuf};
+use std::{fmt::Debug, hash::Hash, path::PathBuf};
 
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}
@@ -84,17 +85,16 @@ impl AssetConverter for MeshGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.mesh) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
         let gpu_mesh = render::GpuMesh::new(ctx, source);
-        ConvertAssetStatus::Success(gpu_mesh)
+        ConvertAssetState::Success(gpu_mesh)
     }
 }
 
@@ -113,18 +113,17 @@ impl AssetConverter for BoundingBoxConverter {
         _ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.mesh) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
 
         let bounding_box = source.calculate_bounding_box();
-        ConvertAssetStatus::Success(bounding_box)
+        ConvertAssetState::Success(bounding_box)
     }
 }
 
@@ -193,13 +192,12 @@ impl AssetConverter for ShaderGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.shader) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
 
@@ -208,18 +206,16 @@ impl AssetConverter for ShaderGpuConverter {
         #[cfg(target_arch = "wasm32")]
         {
             let shader_module = source.config.build_non_arc(ctx, shader_source);
-            crate::asset::ConvertAssetStatus::Success(ArcHandle::new(ctx, shader_module))
+            crate::asset::ConvertAssetState::Success(ArcHandle::new(ctx, shader_module))
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             match source.config.build_err_non_arc(ctx, shader_source) {
-                Ok(shader_module) => {
-                    ConvertAssetStatus::Success(ArcHandle::new(ctx, shader_module))
-                }
+                Ok(shader_module) => ConvertAssetState::Success(ArcHandle::new(ctx, shader_module)),
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);
-                    ConvertAssetStatus::Failed
+                    ConvertAssetState::Failed
                 }
             }
         }
@@ -317,13 +313,12 @@ impl AssetConverter for ImageGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.image) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
 
@@ -332,6 +327,6 @@ impl AssetConverter for ImageGpuConverter {
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
 
         let gpu_image = GpuImage::new(texture, view, sampler);
-        ConvertAssetStatus::Success(gpu_image)
+        ConvertAssetState::Success(gpu_image)
     }
 }

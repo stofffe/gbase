@@ -32,6 +32,7 @@ need to clean up dep graph when reload changes stuff
 cycle detecion
 real async runtime with async file loads (tokio?)
 convert error
+remove methods on asset handle
 
 reload queue to avoid same dep being reloaded many times (currently loading)
 handle shutdown of background thread?
@@ -41,6 +42,8 @@ separate asset state api and internal
 add get_using_load_settings, insert_key, convert_settings?
 maybe have more states on getasset result, like depency failed?
 look at clone vs & for handles
+
+dont track changes in release mode, wait for custom features
 
 next up
     [] return errors to user

@@ -14,25 +14,32 @@ use std::{
 //
 
 pub struct AssetMetadata {
-    status: AssetState,
+    status: InternalAssetState,
     debug_name: Option<String>,
 }
 
 impl AssetMetadata {
     fn new() -> Self {
         Self {
-            status: AssetState::NotRegistered,
+            status: InternalAssetState::NotRegistered,
             debug_name: None,
         }
     }
 }
 
 #[derive(Clone, Debug)]
-pub enum AssetState {
+pub(crate) enum InternalAssetState {
     Loading,
     Failed,
     Ready,
     NotRegistered,
+}
+
+/// Only returned when an asset is not found
+#[derive(Clone, Debug)]
+pub enum GetAssetState {
+    Loading,
+    Failed,
 }
 
 //
@@ -274,12 +281,12 @@ impl AssetCacheRegistry {
         self.metadata.entry(handle).or_insert(AssetMetadata::new())
     }
 
-    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: AssetState) {
+    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: InternalAssetState) {
         let metadata = self.get_metadata_mut(handle);
         metadata.status = status;
     }
 
-    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> AssetState {
+    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> InternalAssetState {
         let metadata = self.get_metadata_mut(handle);
         metadata.status.clone()
     }

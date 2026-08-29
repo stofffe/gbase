@@ -1,8 +1,8 @@
-use gbase::asset::AssetState;
+use gbase::asset::GetAssetState;
 use gbase::render::ArcHandle;
 use gbase::{
     asset::{
-        self, Asset, AssetConverter, AssetHandle, ConvertAssetStatus, ConvertContext, EmptyError,
+        self, Asset, AssetConverter, AssetHandle, ConvertAssetState, ConvertContext, EmptyError,
         LoadContext,
     },
     filesystem,
@@ -114,13 +114,12 @@ impl AssetConverter for ShaderWithImportsConverter {
         _ctx: &mut Context,
         convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
-    ) -> asset::ConvertAssetStatus<Self::Asset> {
+    ) -> asset::ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.shader) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                _ => panic!("invalid state"),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         }
         .clone();
@@ -133,9 +132,8 @@ impl AssetConverter for ShaderWithImportsConverter {
             match conversion_result {
                 Ok(asset) => import_sources.push(asset.source.clone()),
                 Err(state) => match state {
-                    AssetState::Loading => return ConvertAssetStatus::Loading,
-                    AssetState::Failed => return ConvertAssetStatus::Failed,
-                    _ => panic!("invalid state"),
+                    GetAssetState::Loading => return ConvertAssetState::Loading,
+                    GetAssetState::Failed => return ConvertAssetState::Failed,
                 },
             };
         }
@@ -147,7 +145,7 @@ impl AssetConverter for ShaderWithImportsConverter {
         }
         resoved_source.push_str(&source.source);
 
-        ConvertAssetStatus::Success(ShaderWithImportsFinal {
+        ConvertAssetState::Success(ShaderWithImportsFinal {
             source: resoved_source,
         })
     }
@@ -175,15 +173,14 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         ctx: &mut Context,
         convert_ctx: &mut asset::ConvertContext,
         settings: &Self::Settings,
-    ) -> ConvertAssetStatus<Self::Asset> {
+    ) -> ConvertAssetState<Self::Asset> {
         let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
             &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
         ) {
             Ok(source) => source,
             Err(state) => match state {
-                AssetState::Loading => return ConvertAssetStatus::Loading,
-                AssetState::Failed => return ConvertAssetStatus::Failed,
-                s => panic!("invalid state {:?}", s),
+                GetAssetState::Loading => return ConvertAssetState::Loading,
+                GetAssetState::Failed => return ConvertAssetState::Failed,
             },
         };
 
@@ -193,10 +190,10 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
                 render::ShaderBuilder::new().build_err_non_arc(ctx, shader_source.source.clone());
 
             match shader {
-                Ok(shader) => ConvertAssetStatus::Success(ArcHandle::new(ctx, shader)),
+                Ok(shader) => ConvertAssetState::Success(ArcHandle::new(ctx, shader)),
                 Err(err) => {
                     tracing::warn!("could not compile shader:\n{}", err);
-                    ConvertAssetStatus::Failed
+                    ConvertAssetState::Failed
                 }
             }
         }
@@ -204,7 +201,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         {
             let shader =
                 render::ShaderBuilder::new().build_non_arc(ctx, shader_source.source.clone());
-            ConvertAssetStatus::Success(ArcHandle::new(ctx, shader))
+            ConvertAssetState::Success(ArcHandle::new(ctx, shader))
         }
     }
 }

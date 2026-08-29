@@ -3,7 +3,7 @@ use crate::{
     asset::{
         self, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
         AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
-        AssetInserter, AssetState,
+        AssetInserter, GetAssetState, InternalAssetState,
     },
     filesystem::FileSystemContext,
     Context,
@@ -137,39 +137,43 @@ impl AssetCache {
     pub fn get_asset<T: Asset + 'static>(
         &mut self,
         handle: &AssetHandle<T>,
-    ) -> Result<&T, AssetState> {
+    ) -> Result<&T, GetAssetState> {
         if let Some(asset) = self.storage.get_asset(handle) {
             return Ok(asset);
         }
 
-        let state = self.registry.get_status(handle.to_dyn());
-        match state {
-            AssetState::Loading => {
+        match self.registry.get_status(handle.to_dyn()) {
+            InternalAssetState::Loading => {
                 tracing::info!("waiting for {}", handle);
+                Err(GetAssetState::Loading)
             }
-            AssetState::Failed => {
+            InternalAssetState::Failed => {
                 tracing::info!("erron in {}", handle);
+                Err(GetAssetState::Failed)
             }
-            AssetState::Ready => panic!(
-                "could not get asset from storage but status is ready {}",
-                handle
-            ),
-            AssetState::NotRegistered => panic!("trying to get unregistered asset {}", handle),
+            InternalAssetState::Ready => {
+                panic!(
+                    "could not get asset from storage but status is ready {}",
+                    handle
+                );
+            }
+            InternalAssetState::NotRegistered => {
+                panic!("trying to get unregistered asset {}", handle);
+            }
         }
-        Err(state)
     }
 
     pub fn get_or_convert_asset<T: AssetConverter + 'static>(
         &mut self,
         settings: &T::Settings,
-    ) -> Result<&T::Asset, AssetState> {
+    ) -> Result<&T::Asset, GetAssetState> {
         let handle = self.convert_asset::<T>(settings);
         self.get_asset(&handle)
     }
 
     pub fn handle_successfully_loaded<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.registry.get_status(handle.to_dyn());
-        matches!(status, AssetState::Ready)
+        matches!(status, InternalAssetState::Ready)
     }
 
     pub fn clear_asset_handle<T: Asset>(&mut self, handle: AssetHandle<T>) {
