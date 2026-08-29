@@ -56,7 +56,7 @@ pub fn handle_just_loaded<T: Asset>(cache: &AssetCache, handle: &AssetHandle<T>)
 /// If possible the AssetHandle will be reused depeneding on key
 pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
     cache: &mut AssetCache,
-    key: &I::Key,
+    key: impl Into<I::Key>,
     asset: T,
 ) -> AssetHandle<T> {
     cache.insert_asset::<T, I>(key, asset)

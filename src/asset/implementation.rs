@@ -39,6 +39,12 @@ impl AssetInserter for NamedInserter {
     type Key = NamedInserterKey;
 }
 
+impl<T: Into<String>> From<T> for NamedInserterKey {
+    fn from(value: T) -> Self {
+        NamedInserterKey { name: value.into() }
+    }
+}
+
 //
 // Named
 //

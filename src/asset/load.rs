@@ -627,7 +627,7 @@ impl LoadContext {
 
     pub async fn insert_asset<T: Asset, I: AssetInserter + 'static>(
         &mut self,
-        key: I::Key,
+        key: impl Into<I::Key>,
         asset: T,
     ) -> AssetHandle<T> {
         tracing::info!("ASYNC: request nested load request for {}", self.handle());
@@ -637,7 +637,9 @@ impl LoadContext {
         self.runtime
             .insert_request_sender
             .send(Box::new(TypedInsertRequest::<T, I>::new(
-                key, asset, sender,
+                key.into(),
+                asset,
+                sender,
             )))
             .await
             .expect("could not send insert request");

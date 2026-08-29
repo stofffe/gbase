@@ -46,12 +46,12 @@ impl TextureRenderer {
         // ));
 
         let shader_handle = cache.insert_asset::<Shader, NamedInserter>(
-            &NamedInserterKey::new("texture renderer shader"),
+            "texture renderer shader",
             render::Shader::new(include_str!("../assets/shaders/texture.wgsl")),
         );
 
         let shader_depth_handle = cache.insert_asset::<Shader, NamedInserter>(
-            &NamedInserterKey::new("texture renderer depth shader"),
+            "texture renderer depth shader",
             render::Shader::new(include_str!("../assets/shaders/texture_depth.wgsl")),
         );
 
@@ -68,7 +68,7 @@ impl TextureRenderer {
             .build(ctx);
 
         let fullscreen_mesh_handle = cache.insert_asset::<_, NamedInserter>(
-            &NamedInserterKey::new("texture renderer fullscreen mesh"),
+            "texture renderer fullscreen mesh",
             render::Mesh::new(wgpu::PrimitiveTopology::TriangleList)
                 .with_attribute(
                     render::VertexAttributeId::Position,

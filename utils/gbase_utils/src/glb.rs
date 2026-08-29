@@ -153,7 +153,7 @@ async fn parse_gltf_node(
 
     let node_handle = load_ctx
         .insert_asset::<GltfNode, NamedInserter>(
-            NamedInserterKey::new(name.clone()),
+            name.clone(),
             GltfNode {
                 name,
                 mesh,
@@ -204,10 +204,7 @@ async fn parse_gltf_mesh(
     }
 
     let mesh_handle = load_ctx
-        .insert_asset::<GltfMesh, NamedInserter>(
-            NamedInserterKey::new(name.clone()),
-            GltfMesh { name, primitives },
-        )
+        .insert_asset::<GltfMesh, NamedInserter>(name.clone(), GltfMesh { name, primitives })
         .await;
 
     if let Some(name) = mesh.name() {
@@ -363,7 +360,7 @@ async fn parse_gltf_primitive(
     let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material()).await;
 
     let mesh = load_ctx
-        .insert_asset::<Mesh, NamedInserter>(NamedInserterKey::new(name.clone()), mesh)
+        .insert_asset::<Mesh, NamedInserter>(name.clone(), mesh)
         .await;
 
     GltfPrimitive {
@@ -468,7 +465,7 @@ pub async fn parse_gltf_material(
             .unwrap_or_else(|| format!("glb texture {}", texture.index()));
 
         let handle = load_ctx
-            .insert_asset::<Image, NamedInserter>(NamedInserterKey::new(name), image)
+            .insert_asset::<Image, NamedInserter>(name, image)
             .await;
         gltf_cache.images.insert(texture.index(), handle.clone());
         handle
@@ -494,7 +491,7 @@ pub async fn parse_gltf_material(
 
         let name = format!("single pixel rgb {:?}", color);
         let handle = load_ctx
-            .insert_asset::<Image, NamedInserter>(NamedInserterKey::new(name), image)
+            .insert_asset::<Image, NamedInserter>(name, image)
             .await;
         gltf_cache.single_pixel_images.insert(color, handle.clone());
         handle
@@ -613,7 +610,7 @@ pub async fn parse_gltf_material(
     let name = material.name().expect("could not get material name");
     let material_handle = load_ctx
         .insert_asset::<Material, NamedInserter>(
-            NamedInserterKey::new(name),
+            name,
             Material {
                 base_color_texture,
                 color_factor,

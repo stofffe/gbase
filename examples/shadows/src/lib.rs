@@ -148,7 +148,7 @@ impl Callbacks for App {
         let lights_buffer = render::UniformBufferBuilder::new().build(ctx);
 
         let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
-            &NamedInserterKey::new("plane mesh"),
+            "plane mesh",
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),

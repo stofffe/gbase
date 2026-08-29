@@ -103,18 +103,16 @@ impl Callbacks for App {
 
         // Manual plane mesh creation
         let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
-            &NamedInserterKey::new("plane mesh"),
+            "plane mesh",
             render::MeshBuilder::quad()
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         );
         let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material = cache.insert_asset::<Material, NamedInserter>(
-            &NamedInserterKey::new("plane material"),
-            plane_material,
-        );
+        let plane_material =
+            cache.insert_asset::<Material, NamedInserter>("plane material", plane_material);
         let plane_mesh = cache.insert_asset::<MeshLod, NamedInserter>(
-            &NamedInserterKey::new("plane lod mesh"),
+            "plane lod mesh",
             MeshLod::from_single_lod(plane_mesh_handle, plane_material),
         );
 
@@ -285,6 +283,7 @@ impl Callbacks for App {
         });
         self.gui_renderer
             .render(ctx, self.framebuffer.view_ref(), self.framebuffer.format());
+
         self.framebuffer_renderer.render(
             ctx,
             cache,

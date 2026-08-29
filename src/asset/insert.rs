@@ -33,7 +33,7 @@ impl AssetCacheInsert {
         &mut self,
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
-        key: &I::Key,
+        key: &I::Key, // TODO: should this be reference?
         asset: T,
     ) -> AssetHandle<T> {
         let handle = registry.get_or_create_insert_handle::<T, I>(key);
