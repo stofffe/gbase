@@ -1,12 +1,13 @@
 use crate::asset::{
     Asset, AssetConverter, AssetHandle, AssetHandleContext, AssetInserter, AssetLoader,
-    DynAssetHandle,
+    DynAssetHandle, ScopedInsertAssetKey,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::{
-    any::{type_name, Any, TypeId},
+    any::{Any, TypeId},
     fmt::Debug,
-    marker::{PhantomData, PhantomPinned},
+    hash::Hash,
+    marker::PhantomData,
 };
 
 //
@@ -153,10 +154,13 @@ impl AssetCacheRegistry {
     /// Does not queue any conversions
     pub(crate) fn get_or_create_insert_handle<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
-        key: &I::Key,
+        key: I::Key,
+        scope: Option<DynAssetHandle>,
     ) -> AssetHandle<T> {
+        let insert_asset_key = ScopedInsertAssetKey::new(key, scope);
+
         let typed = self.get_or_create_typed_insert_registry_mut::<T, I>();
-        if let Some(handle) = typed.key_to_handle.get(key) {
+        if let Some(handle) = typed.key_to_handle.get(&insert_asset_key) {
             let typed_handle = handle
                 .to_typed()
                 .expect("could not convert to typed handle");
@@ -167,8 +171,12 @@ impl AssetCacheRegistry {
         tracing::info!("create insert handle {}", new_handle);
 
         let typed = self.get_or_create_typed_insert_registry_mut::<T, I>();
-        typed.handle_to_key.insert(new_handle.to_dyn(), key.clone());
-        typed.key_to_handle.insert(key.clone(), new_handle.to_dyn());
+        typed
+            .handle_to_key
+            .insert(new_handle.to_dyn(), insert_asset_key.clone());
+        typed
+            .key_to_handle
+            .insert(insert_asset_key.clone(), new_handle.to_dyn());
 
         new_handle
     }
@@ -191,6 +199,18 @@ impl AssetCacheRegistry {
     pub(crate) fn created_by_loader(&mut self, dyn_handle: &DynAssetHandle) -> bool {
         for typed_load in self.typed_load_registries.values() {
             if typed_load.contains_handle(dyn_handle) {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Checks if a handle was created using a inserter
+    ///
+    /// O(n) where n is types of loaders
+    pub(crate) fn created_by_inserter(&mut self, dyn_handle: &DynAssetHandle) -> bool {
+        for typed_insert in self.typed_insert_registries.values() {
+            if typed_insert.contains_handle(dyn_handle) {
                 return true;
             }
         }
@@ -228,7 +248,7 @@ impl AssetCacheRegistry {
         self.get_or_create_typed_insert_registry_mut::<T, I>()
             .handle_to_key
             .get(handle)
-            .cloned()
+            .map(|insert_asset_key| insert_asset_key.key().clone())
     }
 
     //
@@ -332,8 +352,8 @@ impl<T: AssetLoader + 'static> DynLoadRegistry for TypedLoadRegistry<T> {
 // Insert
 
 struct TypedInsertRegistry<T: Asset, I: AssetInserter> {
-    handle_to_key: FxHashMap<DynAssetHandle, I::Key>,
-    key_to_handle: FxHashMap<I::Key, DynAssetHandle>,
+    handle_to_key: FxHashMap<DynAssetHandle, ScopedInsertAssetKey<I>>,
+    key_to_handle: FxHashMap<ScopedInsertAssetKey<I>, DynAssetHandle>,
 
     inserter_type: PhantomData<T>,
 }

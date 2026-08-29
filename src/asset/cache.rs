@@ -106,17 +106,16 @@ impl AssetCache {
         key: impl Into<I::Key>,
         asset: T,
     ) -> AssetHandle<T> {
-        self.inserter.insert_asset::<T, I>(
-            &mut self.registry,
-            &mut self.storage,
-            &key.into(),
-            asset,
-        )
+        self.inserter
+            .insert_asset::<T, I>(&mut self.registry, &mut self.storage, key.into(), asset)
     }
 
     pub fn insert_asset_force<T: Asset + 'static>(&mut self, asset: T) -> AssetHandle<T> {
-        self.inserter
-            .insert_asset_force::<T>(&mut self.registry, &mut self.storage, asset)
+        self.inserter.insert_asset_with_new_handle::<T>(
+            &mut self.registry,
+            &mut self.storage,
+            asset,
+        )
     }
 
     pub fn load_asset<T: AssetLoader + 'static>(

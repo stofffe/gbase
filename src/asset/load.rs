@@ -241,6 +241,7 @@ pub(crate) trait DynInsertRequest {
 }
 
 struct TypedInsertRequest<T: Asset, I: AssetInserter> {
+    scope: Option<DynAssetHandle>,
     key: I::Key,
     asset: T,
     response_sender: async_channel::Sender<AssetHandle<T>>,
@@ -252,6 +253,21 @@ impl<T: Asset, I: AssetInserter> TypedInsertRequest<T, I> {
             key,
             asset,
             response_sender,
+            scope: None,
+        }
+    }
+
+    fn new_scoped(
+        key: I::Key,
+        asset: T,
+        scope: DynAssetHandle,
+        response_sender: async_channel::Sender<AssetHandle<T>>,
+    ) -> Self {
+        Self {
+            key,
+            asset,
+            response_sender,
+            scope: Some(scope),
         }
     }
 }
@@ -264,7 +280,14 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
         inserter: &mut AssetCacheInsert,
     ) {
         tracing::info!("insert nested asset {:?}", self.key);
-        let handle = inserter.insert_asset::<T, I>(registry, storage, &self.key, self.asset);
+
+        let handle = match self.scope {
+            Some(scope) => {
+                inserter.insert_asset_scoped::<T, I>(registry, storage, self.key, scope, self.asset)
+            }
+            None => inserter.insert_asset::<T, I>(registry, storage, self.key, self.asset),
+        };
+
         self.response_sender
             .try_send(handle)
             .expect("could not send insert asset handle response");
@@ -621,10 +644,51 @@ impl LoadContext {
         Self { runtime, state }
     }
 
-    fn handle(&self) -> DynAssetHandle {
+    pub fn handle(&self) -> DynAssetHandle {
         self.state.handle.clone()
     }
 
+    /// Insert an asset with a specific inserter
+    ///
+    /// Is local to the currently loading handle to avoid global collisions
+    pub async fn insert_asset_scoped<T: Asset, I: AssetInserter + 'static>(
+        &mut self,
+        key: impl Into<I::Key>,
+        asset: T,
+    ) -> AssetHandle<T> {
+        tracing::info!("ASYNC: request nested load request for {}", self.handle());
+
+        let (sender, receiver) = async_channel::bounded(1);
+
+        self.runtime
+            .insert_request_sender
+            .send(Box::new(TypedInsertRequest::<T, I>::new_scoped(
+                key.into(),
+                asset,
+                self.state.handle.clone(),
+                sender,
+            )))
+            .await
+            .expect("could not send insert request");
+
+        let handle = receiver
+            .recv()
+            .await
+            .expect("could not receive insert request");
+        tracing::info!(
+            "ASYNC: receive nested insert request for {} got {}",
+            self.handle(),
+            handle
+        );
+
+        self.state.dependencies.insert(handle.to_dyn());
+
+        handle
+    }
+
+    /// Insert an asset with a specific inserter
+    ///
+    /// Is global and can potentially collide with nested insertions inside loads
     pub async fn insert_asset<T: Asset, I: AssetInserter + 'static>(
         &mut self,
         key: impl Into<I::Key>,

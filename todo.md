@@ -24,7 +24,6 @@ fixed examples
 make conversion async?
 converters allowed to request loads and insert?
 
-use parent insertions in nested
 give better debug names
 need to clean up dep graph when reload changes stuff
 cycle detecion

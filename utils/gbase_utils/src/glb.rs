@@ -1,7 +1,7 @@
 use crate::{texture_source_from_image_bytes, Transform3D};
 use async_recursion::async_recursion;
 use gbase::{
-    asset::{Asset, AssetCache, AssetHandle, LoadContext, NamedInserter, NamedInserterKey},
+    asset::{Asset, AssetCache, AssetHandle, LoadContext, NamedInserter},
     glam::{Quat, Vec3},
     render::{self, Image, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
     tracing, wgpu,
@@ -152,7 +152,7 @@ async fn parse_gltf_node(
     }
 
     let node_handle = load_ctx
-        .insert_asset::<GltfNode, NamedInserter>(
+        .insert_asset_scoped::<GltfNode, NamedInserter>(
             name.clone(),
             GltfNode {
                 name,
@@ -204,7 +204,7 @@ async fn parse_gltf_mesh(
     }
 
     let mesh_handle = load_ctx
-        .insert_asset::<GltfMesh, NamedInserter>(name.clone(), GltfMesh { name, primitives })
+        .insert_asset_scoped::<GltfMesh, NamedInserter>(name.clone(), GltfMesh { name, primitives })
         .await;
 
     if let Some(name) = mesh.name() {
@@ -360,7 +360,7 @@ async fn parse_gltf_primitive(
     let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material()).await;
 
     let mesh = load_ctx
-        .insert_asset::<Mesh, NamedInserter>(name.clone(), mesh)
+        .insert_asset_scoped::<Mesh, NamedInserter>(name.clone(), mesh)
         .await;
 
     GltfPrimitive {
@@ -465,7 +465,7 @@ pub async fn parse_gltf_material(
             .unwrap_or_else(|| format!("glb texture {}", texture.index()));
 
         let handle = load_ctx
-            .insert_asset::<Image, NamedInserter>(name, image)
+            .insert_asset_scoped::<Image, NamedInserter>(name, image)
             .await;
         gltf_cache.images.insert(texture.index(), handle.clone());
         handle
@@ -491,7 +491,7 @@ pub async fn parse_gltf_material(
 
         let name = format!("single pixel rgb {:?}", color);
         let handle = load_ctx
-            .insert_asset::<Image, NamedInserter>(name, image)
+            .insert_asset_scoped::<Image, NamedInserter>(name, image)
             .await;
         gltf_cache.single_pixel_images.insert(color, handle.clone());
         handle
@@ -609,7 +609,7 @@ pub async fn parse_gltf_material(
 
     let name = material.name().expect("could not get material name");
     let material_handle = load_ctx
-        .insert_asset::<Material, NamedInserter>(
+        .insert_asset_scoped::<Material, NamedInserter>(
             name,
             Material {
                 base_color_texture,
