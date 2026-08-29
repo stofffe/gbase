@@ -155,7 +155,7 @@ impl AssetCacheConvert {
             }
 
             // TODO: should this be here?
-            dependency.register_dependencies(&dyn_handle, &state.dependencies);
+            dependency.set_dependencies(&dyn_handle, &state.dependencies);
 
             match result {
                 ConversionPollResult::Waiting => {
@@ -189,8 +189,6 @@ impl AssetCacheConvert {
                             .entry(blocking_handle)
                             .or_default()
                             .insert(dyn_handle);
-                    } else {
-                        // error was caused by the converter itself
                     }
                 }
                 ConversionPollResult::Success => {

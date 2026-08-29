@@ -25,11 +25,25 @@ impl AssetCacheDependency {
         self.dependents.get(handle)
     }
 
-    pub(crate) fn register_dependencies(
+    pub(crate) fn set_dependencies(
         &mut self,
         handle: &DynAssetHandle,
         dependencies: &FxHashSet<DynAssetHandle>,
     ) {
+        // remove old dependencies
+        if let Some(dependencies) = self.dependencies.remove(handle) {
+            for dependency in dependencies {
+                if let Some(dependents) = self.dependents.get_mut(&dependency) {
+                    // remove handle from dependent
+                    dependents.remove(handle);
+                    if dependents.is_empty() {
+                        self.dependents.remove(&dependency);
+                    }
+                }
+            }
+        }
+
+        // set new dependencies
         for dependency in dependencies {
             self.dependencies
                 .entry(handle.clone())

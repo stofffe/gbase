@@ -120,7 +120,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 registry.set_just_available(dyn_handle.clone());
 
                 // Dependency
-                dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
+                dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 // Derived
                 convert.wakeup_waiting_on_handle(registry, &dyn_handle.clone());
@@ -151,7 +151,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
                 // TODO: do we want this?
                 // Dependency
-                dependency.register_dependencies(&dyn_handle.clone(), &self.dependencies);
+                dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
             }
         }
     }
