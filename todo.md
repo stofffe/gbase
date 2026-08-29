@@ -22,43 +22,22 @@ fixed examples
     [x] triangle
 
 make conversion async?
-remove loader/setting separation
-named inserter impl into for str
+converters allowed to request loads and insert?
 
-build in methods for named and parent named inserters?
-add dependencies when using nested inserts
-gat for inserters to avoid double generic param NamedInsert<Asset = Shader>>
-generic args for inserters such as ArcHandle?
-non caching inserter?
-add get_using_load_settings, insert_key, convert_settings?
-try and move functionality from dynrequests to the actual typed loader
-
-converters allowed to request loads?
-maybe have more states on getasset result, like depency failed?
-fix pub in convert and loader
-convert error
-nested inserting?
-
+use parent insertions in nested
 give better debug names
-if it initally fails it does reload correctly
-fix inserting?
 need to clean up dep graph when reload changes stuff
+cycle detecion
+real async runtime with async file loads (tokio?)
+convert error
 
-cache failed conversion to avoid polling it in beginning of program
-a lot of invalidation on start load
-dependency graph for derivde assets
-cycles?
-real async runtime with async file loads
-
-reload queue to avoid same dep being reloaded many times
-
-reuse handles for inserted assets by using some (parent + id (id could be string?) ) 
+reload queue to avoid same dep being reloaded many times (currently loading)
 handle shutdown of background thread?
-own handle cache for asset loading? how to sync? 
-remove arc from assethandle?
-look at clone vs & for handles
 pass asset handle ctx and stuff instead of arcing
-auto implement shadermodule
+
+add get_using_load_settings, insert_key, convert_settings?
+maybe have more states on getasset result, like depency failed?
+look at clone vs & for handles
 
 next up
     [] return errors to user

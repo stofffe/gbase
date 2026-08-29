@@ -1,5 +1,3 @@
-use tracing::Instrument;
-
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
     asset::{
