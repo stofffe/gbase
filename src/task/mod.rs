@@ -15,16 +15,20 @@ impl TaskContext {
         Self { task_executor }
     }
 
+    pub fn spawn_task(&self, task: Task) {
+        self.runtime().spawn_task(task);
+    }
+
     pub fn check(&self) {
         self.task_executor.check();
     }
 
-    pub fn runtime(&self) -> TaskExecutorRuntime {
-        self.task_executor.runtime()
+    pub fn shutdown(self) {
+        self.task_executor.shutdown();
     }
 
-    pub fn spawn_task(&self, task: Task) {
-        self.runtime().spawn_task(task);
+    pub fn runtime(&self) -> TaskExecutorRuntime {
+        self.task_executor.runtime()
     }
 }
 
@@ -45,12 +49,16 @@ impl TaskExecutor {
         self.runtime.spawn_task(task);
     }
 
-    pub fn runtime(&self) -> TaskExecutorRuntime {
-        self.runtime.clone()
+    pub fn shutdown(self) {
+        self.executor.shutdown();
     }
 
     pub fn check(&self) {
         self.executor.check();
+    }
+
+    pub fn runtime(&self) -> TaskExecutorRuntime {
+        self.runtime.clone()
     }
 }
 
@@ -68,37 +76,5 @@ impl TaskExecutorRuntime {
         self.task_sender
             .try_send(task)
             .expect("could not send spawn task request");
-    }
-}
-
-/// Implementation of an asset loader that runs in the background
-///
-/// Should be started using `start_background_loader`
-pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Task>) {
-    let mut running_tasks = futures::stream::FuturesUnordered::new();
-
-    loop {
-        if running_tasks.is_empty() {
-            // when no assets are loading, only await new requests
-            let load_request = task_receiver.recv().await.expect("channel closed");
-            running_tasks.push(load_request);
-            continue;
-        } else {
-            // TODO: should we fuse?
-
-            // when assets are loading, await both assets and new requests
-            futures::select! {
-                task = task_receiver.recv().fuse() => {
-                    let task = task.expect("could not receive task task");
-                    running_tasks.push(task);
-                }
-                result = running_tasks.next().fuse() => {
-                    // TODO : maybe expect here
-                    if result.is_none() {
-                        tracing::info!("finished loading all current load requests");
-                    }
-                }
-            }
-        }
     }
 }

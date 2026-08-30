@@ -60,7 +60,6 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
                         .join(import_relative_path)
                         .with_extension("wgsl");
                     let normalized_full_path = filesystem::normalize_path(full_path);
-                    panic!("aaa");
 
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path;

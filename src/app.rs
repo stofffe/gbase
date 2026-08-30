@@ -360,20 +360,29 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         }
     }
     fn exiting(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {
-        let App::Initialized {
-            ref mut ctx,
-            callbacks,
-            cache,
-            ..
-        } = self
-        else {
+        let App::Initialized { .. } = self else {
             tracing::warn!("app not initialized while receiving exit event -> skipping");
             return;
         };
+    }
+}
 
-        callbacks.shutdown(ctx, cache);
-
-        shutdown(ctx, cache);
+impl<C: Callbacks> App<C> {
+    fn shutdown(self) {
+        match self {
+            App::Uninitialized { .. } => {
+                tracing::info!("shutting down before app was initialized")
+            }
+            App::Initialized {
+                mut ctx,
+                mut cache,
+                mut callbacks,
+                ..
+            } => {
+                callbacks.shutdown(&mut ctx, &mut cache);
+                ctx.task.shutdown();
+            }
+        }
     }
 }
 
@@ -481,8 +490,6 @@ fn update_and_render(
 
     CallbackResult::Continue
 }
-
-fn shutdown(_ctx: &mut Context, _cache: &mut AssetCache) {}
 
 //
 // Context builder
