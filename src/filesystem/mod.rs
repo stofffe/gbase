@@ -58,34 +58,28 @@ impl FileSystemContext {
     }
 
     //
-    // Temporary
+    // Data
     //
 
-    pub async fn load_temporary_bytes(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<Vec<u8>, LoadFileError> {
-        self.runtime.load_temporary_bytes(path).await
+    pub async fn load_data_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        self.runtime.load_data_bytes(path).await
     }
-    pub async fn load_temporary_string(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<String, LoadFileError> {
-        self.runtime.load_temporary_string(path).await
+    pub async fn load_data_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        self.runtime.load_data_string(path).await
     }
-    pub async fn write_temporary_bytes(
+    pub async fn write_data_bytes(
         &self,
         path: impl AsRef<Path>,
         bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
-        self.runtime.write_temporary_bytes(path, bytes).await
+        self.runtime.write_data_bytes(path, bytes).await
     }
-    pub async fn write_temporary_string(
+    pub async fn write_data_string(
         &self,
         path: impl AsRef<Path>,
         string: impl AsRef<str>,
     ) -> Result<(), WriteFileError> {
-        self.runtime.write_temporary_string(path, string).await
+        self.runtime.write_data_string(path, string).await
     }
 }
 
@@ -188,41 +182,41 @@ pub async fn load_asset_string(
 }
 
 //
-// Temporary
+// data
 //
 
-pub async fn load_temporary_bytes(
+pub async fn load_data_bytes(
     ctx: &Context,
     path: impl AsRef<Path>,
 ) -> Result<Vec<u8>, LoadFileError> {
-    ctx.filesystem.load_temporary_bytes(path).await
+    ctx.filesystem.load_data_bytes(path).await
 }
 
-pub async fn load_temporary_string(
+pub async fn load_data_string(
     ctx: &Context,
     path: impl AsRef<Path>,
 ) -> Result<String, LoadFileError> {
-    ctx.filesystem.load_temporary_string(path).await
+    ctx.filesystem.load_data_string(path).await
 }
 
-pub async fn write_temporary_bytes(
+pub async fn write_data_bytes(
     ctx: &Context,
     path: impl AsRef<Path>,
     bytes: impl AsRef<[u8]>,
 ) -> Result<(), WriteFileError> {
-    ctx.filesystem.write_temporary_bytes(path, bytes).await
+    ctx.filesystem.write_data_bytes(path, bytes).await
 }
 
-pub async fn write_temporary_string(
+pub async fn write_data_string(
     ctx: &Context,
     path: impl AsRef<Path>,
     string: impl AsRef<str>,
 ) -> Result<(), WriteFileError> {
-    ctx.filesystem.write_temporary_string(path, string).await
+    ctx.filesystem.write_data_string(path, string).await
 }
 
 // TODO: use filesystem context
-/// Path to temporary storage folder
+/// Path to data storage folder
 pub fn tmp_path() -> &'static str {
     "tmp"
 }

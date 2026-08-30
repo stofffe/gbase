@@ -513,7 +513,7 @@ pub struct ContextBuilder {
 
     // filesystem
     pub(crate) assets_path: PathBuf,
-    pub(crate) temporary_path: PathBuf,
+    pub(crate) data_path: PathBuf,
 }
 
 #[allow(clippy::new_without_default)]
@@ -530,7 +530,7 @@ impl ContextBuilder {
             profiler: profile::ProfilerWrapper::new(),
 
             assets_path: PathBuf::from("assets"),
-            temporary_path: PathBuf::from("tmp"),
+            data_path: PathBuf::from("tmp"),
         }
     }
 
@@ -569,8 +569,8 @@ impl ContextBuilder {
         self
     }
 
-    pub fn temporary_path(mut self, path: impl Into<PathBuf>) -> Self {
-        self.temporary_path = path.into();
+    pub fn data_path(mut self, path: impl Into<PathBuf>) -> Self {
+        self.data_path = path.into();
         self
     }
 }

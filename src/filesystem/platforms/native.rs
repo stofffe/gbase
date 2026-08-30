@@ -1,5 +1,3 @@
-use pollster::FutureExt;
-
 use crate::filesystem::{FileSystemPlatformTrait, LoadFileError, WriteFileError};
 use std::{
     path::{Path, PathBuf},
@@ -16,11 +14,11 @@ pub struct NativeFileSystem {
 #[derive(Clone)]
 pub struct NativeFileSystemConfig {
     asset_folder_path: PathBuf,
-    temporary_folder_path: PathBuf,
+    data_folder_path: PathBuf,
 }
 
 impl FileSystemPlatformTrait for NativeFileSystem {
-    fn new(asset_path: PathBuf, temporary_path: PathBuf) -> Self {
+    fn new(asset_path: PathBuf, data_path: PathBuf) -> Self {
         let asset_folder_path = if asset_path.is_absolute() {
             asset_path
         } else {
@@ -32,21 +30,20 @@ impl FileSystemPlatformTrait for NativeFileSystem {
             std::fs::create_dir_all(&asset_folder_path).expect("could not create asset folder");
         }
 
-        let temporary_folder_path = if temporary_path.is_absolute() {
-            temporary_path
+        let data_folder_path = if data_path.is_absolute() {
+            data_path
         } else {
             std::env::current_dir()
                 .expect("could not get current working dir")
-                .join(&temporary_path)
+                .join(&data_path)
         };
-        if !temporary_folder_path.is_dir() {
-            std::fs::create_dir_all(&temporary_folder_path)
-                .expect("could not create temporary folder");
+        if !data_folder_path.is_dir() {
+            std::fs::create_dir_all(&data_folder_path).expect("could not create data folder");
         }
 
         let config = NativeFileSystemConfig {
             asset_folder_path,
-            temporary_folder_path,
+            data_folder_path,
         };
 
         Self {
@@ -58,8 +55,8 @@ impl FileSystemPlatformTrait for NativeFileSystem {
         self.config.asset_folder_path.join(path)
     }
 
-    fn format_temporary_path(&self, path: impl AsRef<Path>) -> PathBuf {
-        self.config.temporary_folder_path.join(path)
+    fn format_data_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        self.config.data_folder_path.join(path)
     }
 
     //
@@ -107,33 +104,33 @@ impl FileSystemPlatformTrait for NativeFileSystem {
     }
 
     //
-    // Temporary
+    // Data
     //
 
-    async fn load_temporary_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
-        let temporary_path = self.format_temporary_path(path);
-        self.load_bytes(temporary_path).await
+    async fn load_data_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        let data_path = self.format_data_path(path);
+        self.load_bytes(data_path).await
     }
 
-    async fn load_temporary_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
-        let temporary_path = self.format_temporary_path(path);
-        self.load_string(temporary_path).await
+    async fn load_data_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        let data_path = self.format_data_path(path);
+        self.load_string(data_path).await
     }
-    async fn write_temporary_bytes(
+    async fn write_data_bytes(
         &self,
         path: impl AsRef<Path>,
         bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
-        let temporary_path = self.format_temporary_path(path);
-        self.write_bytes(temporary_path, bytes).await
+        let data_path = self.format_data_path(path);
+        self.write_bytes(data_path, bytes).await
     }
 
-    async fn write_temporary_string(
+    async fn write_data_string(
         &self,
         path: impl AsRef<Path>,
         string: impl AsRef<str>,
     ) -> Result<(), WriteFileError> {
-        let temporary_path = self.format_temporary_path(path);
-        self.write_string(temporary_path, string).await
+        let data_path = self.format_data_path(path);
+        self.write_string(data_path, string).await
     }
 }

@@ -375,7 +375,7 @@ impl App {
         // if self.write_param_index {
         //     let content =
         //         serde_json::to_string(&self.cloud_params).expect("could not serialze params");
-        //     match filesystem::write_temporary_string(ctx, &file_name, &content) {
+        //     match filesystem::write_data_string(ctx, &file_name, &content) {
         //         Ok(_) => tracing::info!("Sucessfully updated params {}", index),
         //         Err(err) => tracing::error!("could not write params: {}", err),
         //     }
@@ -386,7 +386,7 @@ impl App {
         // }
         //
         // if self.load_param_index && !self.params_changed {
-        //     match filesystem::load_temporary_string(ctx, &file_name) {
+        //     match filesystem::load_data_string(ctx, &file_name) {
         //         Ok(content) => {
         //             let params = match serde_json::from_str(&content) {
         //                 Ok(params) => params,
@@ -687,7 +687,7 @@ impl App {
         metadata_file
             .write_all(ms.to_string().as_bytes())
             .expect("could not write to metadata file");
-        // filesystem::write_temporary_str(
+        // filesystem::write_data_str(
         //     ctx,
         //     format!(
         //         "image_{}_{}",

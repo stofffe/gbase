@@ -15,7 +15,7 @@ pub struct WasmFileSystem {
 
 pub struct WasmFileSystemConfig {
     asset_folder_path: PathBuf,
-    temporary_folder_path: PathBuf,
+    data_folder_path: PathBuf,
 
     base_url: reqwest::Url,
     client: reqwest::Client,
@@ -24,9 +24,9 @@ pub struct WasmFileSystemConfig {
 }
 
 impl FileSystemPlatformTrait for WasmFileSystem {
-    fn new(asset_path: std::path::PathBuf, temporary_path: std::path::PathBuf) -> Self {
+    fn new(asset_path: std::path::PathBuf, data_path: std::path::PathBuf) -> Self {
         let asset_folder_path = asset_path.to_path_buf();
-        let temporary_folder_path = temporary_path.to_path_buf();
+        let data_folder_path = data_path.to_path_buf();
 
         let window = web_sys::window().expect("could not get window");
         let location = window.location();
@@ -42,7 +42,7 @@ impl FileSystemPlatformTrait for WasmFileSystem {
         Self {
             config: std::sync::Arc::new(WasmFileSystemConfig {
                 asset_folder_path,
-                temporary_folder_path,
+                data_folder_path,
                 base_url,
                 client,
                 local_storage,
@@ -54,8 +54,8 @@ impl FileSystemPlatformTrait for WasmFileSystem {
         self.config.asset_folder_path.join(path)
     }
 
-    fn format_temporary_path(&self, path: impl AsRef<Path>) -> PathBuf {
-        self.config.temporary_folder_path.join(path)
+    fn format_data_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        self.config.data_folder_path.join(path)
     }
 
     //
@@ -127,11 +127,11 @@ impl FileSystemPlatformTrait for WasmFileSystem {
     }
 
     //
-    // Temporary
+    // Data
     //
 
-    async fn load_temporary_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
+    async fn load_data_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        let temp_path = self.config.data_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
 
@@ -148,8 +148,8 @@ impl FileSystemPlatformTrait for WasmFileSystem {
         Ok(decoded)
     }
 
-    async fn load_temporary_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
+    async fn load_data_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        let temp_path = self.config.data_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
 
@@ -163,12 +163,12 @@ impl FileSystemPlatformTrait for WasmFileSystem {
         Ok(data)
     }
 
-    async fn write_temporary_bytes(
+    async fn write_data_bytes(
         &self,
         path: impl AsRef<Path>,
         bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
+        let temp_path = self.config.data_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
 
@@ -185,12 +185,12 @@ impl FileSystemPlatformTrait for WasmFileSystem {
         Ok(())
     }
 
-    async fn write_temporary_string(
+    async fn write_data_string(
         &self,
         path: impl AsRef<Path>,
         string: impl AsRef<str>,
     ) -> Result<(), WriteFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
+        let temp_path = self.config.data_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
 

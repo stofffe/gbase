@@ -5,7 +5,7 @@ use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
     asset::AssetCache,
-    audio, filesystem,
+    audio,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
     random,
@@ -412,7 +412,7 @@ impl Callbacks for App {
 
         let highscore = 0;
         // TODO: need async support
-        // let hightscore = if let Ok(data) = filesystem::load_temporary_string(ctx, HIGHSCORE_PATH) {
+        // let hightscore = if let Ok(data) = filesystem::load_data_string(ctx, HIGHSCORE_PATH) {
         //     data.trim().parse::<u32>().unwrap()
         // } else {
         //     0
@@ -578,7 +578,7 @@ impl Callbacks for App {
                     if self.score > self.highscore {
                         self.highscore = self.score;
                         // TODO: need async support
-                        // filesystem::write_temporary_string(
+                        // filesystem::write_data_string(
                         //     ctx,
                         //     &format!("{}/{}", filesystem::tmp_path(), HIGHSCORE_PATH),
                         //     &self.score.to_string(),
