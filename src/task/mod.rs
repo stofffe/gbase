@@ -15,6 +15,10 @@ impl TaskContext {
         Self { task_executor }
     }
 
+    pub fn check(&self) {
+        self.task_executor.check();
+    }
+
     pub fn runtime(&self) -> TaskExecutorRuntime {
         self.task_executor.runtime()
     }
@@ -43,6 +47,10 @@ impl TaskExecutor {
 
     pub fn runtime(&self) -> TaskExecutorRuntime {
         self.runtime.clone()
+    }
+
+    pub fn check(&self) {
+        self.executor.check();
     }
 }
 

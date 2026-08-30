@@ -471,8 +471,13 @@ fn update_and_render(
     //
 
     cache.poll(ctx);
-
     // cache.clear_unused_handles();
+
+    //
+    // task
+    //
+
+    ctx.task.check();
 
     CallbackResult::Continue
 }

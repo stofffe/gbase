@@ -13,5 +13,6 @@ pub use wasm::*;
 /// Not actually used in the Context
 pub trait TaskExecutorPlatformTrait {
     fn start(task_receiver: async_channel::Receiver<Task>) -> Self;
-    fn shutdown();
+    fn check(&self);
+    fn shutdown(self);
 }
