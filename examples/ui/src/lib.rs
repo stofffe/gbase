@@ -22,7 +22,7 @@ impl Callbacks for App {
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1000,
-            &filesystem::load_b!("fonts/times.ttf").unwrap(),
+            include_bytes!("../assets/fonts/times.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
 

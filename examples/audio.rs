@@ -1,6 +1,5 @@
 use gbase::{
     audio::{self, SoundSource},
-    filesystem,
     input::{self, KeyCode},
     CallbackResult, Callbacks, Context,
 };
@@ -16,7 +15,7 @@ pub struct App {
 impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
-        let sound_bytes = filesystem::load_b!("sounds/boom.mp3").unwrap();
+        let sound_bytes = include_bytes!("../assets/sounds/boom.mp3").to_vec();
         let sound = audio::load_audio_source(ctx, sound_bytes);
         Self { sound }
     }

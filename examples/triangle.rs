@@ -31,7 +31,7 @@ impl Callbacks for App {
         let mesh = vertex_buffer.to_gpu_mesh(ctx);
 
         let shader = render::ShaderBuilder::new()
-            .build(ctx, filesystem::load_s!("shaders/triangle.wgsl").unwrap());
+            .build(ctx, include_str!("../assets/shaders/triangle.wgsl"));
         let pipeline_layout = render::PipelineLayoutBuilder::new().build(ctx);
         let pipeline = render::RenderPipelineBuilder::new(shader.clone(), pipeline_layout.clone())
             .buffers(vertex_buffer.buffer_layout())

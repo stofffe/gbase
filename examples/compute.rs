@@ -49,7 +49,7 @@ impl Callbacks for App {
             ])
             .build(ctx);
 
-        let shader_str = filesystem::load_s!("shaders/compute.wgsl").unwrap();
+        let shader_str = include_str!("../assets/shaders/compute.wgsl");
         let shader = render::ShaderBuilder::new().build(ctx, shader_str);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()

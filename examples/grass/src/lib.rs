@@ -96,7 +96,7 @@ impl Callbacks for App {
         let gui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1024,
-            &filesystem::load_b!("fonts/meslo.ttf").unwrap(),
+            include_bytes!("../assets/fonts/meslo.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);

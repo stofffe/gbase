@@ -8,7 +8,7 @@ use gbase::{
     audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
-    load_b, random,
+    random,
     render::{self, TextureBuilder},
     time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
@@ -404,7 +404,7 @@ impl Callbacks for App {
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1000,
-            &filesystem::load_b!("fonts/font.ttf").unwrap(),
+            include_bytes!("../assets/fonts/font.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
 
@@ -416,10 +416,14 @@ impl Callbacks for App {
             0
         };
 
-        let flap_sound = audio::load_audio_source(ctx, load_b!("sounds/boom.mp3").unwrap());
-        let die_sound = audio::load_audio_source(ctx, load_b!("sounds/die.mp3").unwrap());
-        let hit_sound = audio::load_audio_source(ctx, load_b!("sounds/hit.mp3").unwrap());
-        let point_sound = audio::load_audio_source(ctx, load_b!("sounds/point.mp3").unwrap());
+        let flap_sound =
+            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/boom.mp3").into());
+        let die_sound =
+            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/die.mp3").into());
+        let hit_sound =
+            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/hit.mp3").into());
+        let point_sound =
+            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/point.mp3").into());
 
         let die_timer = time::Timer::new(DIE_TIMER_DURATION);
 

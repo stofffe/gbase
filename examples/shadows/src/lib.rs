@@ -1,10 +1,10 @@
 use gbase::{
-    asset::{self, AssetCache, AssetHandle, NamedInserter, NamedInserterKey},
+    asset::{AssetCache, AssetHandle, NamedInserter},
     egui::{self, load::SizedTexture},
     egui_ui,
     glam::{vec3, Quat, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, profile,
+    profile,
     render::{self, Mesh},
     time,
     tracing::{self, span},
@@ -136,7 +136,7 @@ impl Callbacks for App {
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1024,
-            &load_b!("fonts/font.ttf").unwrap(),
+            include_bytes!("../assets/fonts/font.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);

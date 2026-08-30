@@ -4,7 +4,7 @@ use gbase::{
     asset::AssetHandle,
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed},
-    load_b, profile,
+    profile,
     render::{self},
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
 };
@@ -130,7 +130,7 @@ impl Callbacks for App {
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1024,
-            &load_b!("fonts/font.ttf").unwrap(),
+            include_bytes!("../assets/fonts/font.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS,
         );
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);

@@ -147,7 +147,7 @@ impl gbase::Callbacks for App {
         let ui_renderer = gbase_utils::GUIRenderer::new(
             ctx,
             1024,
-            &filesystem::load_b!("fonts/font.ttf").unwrap(),
+            include_bytes!("../assets/fonts/font.ttf"),
             gbase_utils::DEFAULT_SUPPORTED_CHARS, // TODO: make this an enum?
         );
         let cloud_parameters_buffer = UniformBufferBuilder::new().build(ctx);

@@ -68,9 +68,9 @@ impl Callbacks for App {
             .label("nature")
             .build(
                 ctx,
-                gbase_utils::texture_source_from_image_bytes(
-                    &filesystem::load_b!("textures/nature.jpg").unwrap(),
-                )
+                gbase_utils::texture_source_from_image_bytes(include_bytes!(
+                    "../assets/textures/nature.jpg"
+                ))
                 .unwrap(),
             )
             .with_default_sampler_and_view(ctx);
@@ -79,9 +79,9 @@ impl Callbacks for App {
             .label("city")
             .build(
                 ctx,
-                gbase_utils::texture_source_from_image_bytes(
-                    &filesystem::load_b!("textures/city.jpg").unwrap(),
-                )
+                gbase_utils::texture_source_from_image_bytes(include_bytes!(
+                    "../assets/textures/city.jpg"
+                ))
                 .unwrap(),
             )
             .with_default_sampler_and_view(ctx);
@@ -92,9 +92,9 @@ impl Callbacks for App {
             .label("hellokitty")
             .build(
                 ctx,
-                gbase_utils::texture_source_from_image_bytes(
-                    &filesystem::load_b!("textures/hellokitty.jpg").unwrap(),
-                )
+                gbase_utils::texture_source_from_image_bytes(include_bytes!(
+                    "../assets/textures/hellokitty.jpg"
+                ))
                 .unwrap(),
             )
             .with_default_sampler_and_view(ctx);
@@ -103,9 +103,9 @@ impl Callbacks for App {
             .label("mario")
             .build(
                 ctx,
-                gbase_utils::texture_source_from_image_bytes(
-                    &filesystem::load_b!("textures/mario.jpg").unwrap(),
-                )
+                gbase_utils::texture_source_from_image_bytes(include_bytes!(
+                    "../assets/textures/mario.jpg"
+                ))
                 .unwrap(),
             )
             .with_default_sampler_and_view(ctx);
@@ -114,9 +114,9 @@ impl Callbacks for App {
             .label("antialias")
             .build(
                 ctx,
-                gbase_utils::texture_source_from_image_bytes(
-                    &filesystem::load_b!("textures/antialiasing.png").unwrap(),
-                )
+                gbase_utils::texture_source_from_image_bytes(include_bytes!(
+                    "../assets/textures/antialiasing.png"
+                ))
                 .unwrap(),
             )
             .with_default_sampler_and_view(ctx);

@@ -1,7 +1,6 @@
 use std::f32::consts::PI;
 
 use gbase::{
-    filesystem,
     glam::{vec3, Vec3},
     input,
     render::{self},
@@ -27,7 +26,7 @@ impl Callbacks for App {
     #[no_mangle]
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Shader
-        let shader_str = filesystem::load_s!("shaders/camera.wgsl").unwrap();
+        let shader_str = include_str!("../assets/shaders/camera.wgsl");
         let shader = render::ShaderBuilder::new().build(ctx, shader_str);
 
         // Vertex buffer

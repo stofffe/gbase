@@ -94,7 +94,7 @@ impl GrassRenderer {
         ];
 
         let perlin_noise_texture_source = gbase_utils::texture_source_from_image_bytes(
-            &filesystem::load_b!("textures/perlin_noise.png").unwrap(),
+            include_bytes!("../assets/textures/perlin_noise.png"),
         )
         .unwrap();
         let perlin_noise_texture = TextureBuilder::new()
