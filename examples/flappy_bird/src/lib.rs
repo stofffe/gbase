@@ -410,11 +410,13 @@ impl Callbacks for App {
 
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
-        let highscore = if let Ok(data) = filesystem::load_temporary_string(ctx, HIGHSCORE_PATH) {
-            data.trim().parse::<u32>().unwrap()
-        } else {
-            0
-        };
+        let highscore = 0;
+        // TODO: need async support
+        // let hightscore = if let Ok(data) = filesystem::load_temporary_string(ctx, HIGHSCORE_PATH) {
+        //     data.trim().parse::<u32>().unwrap()
+        // } else {
+        //     0
+        // };
 
         let flap_sound =
             audio::load_audio_source(ctx, include_bytes!("../assets/sounds/boom.mp3").into());
@@ -575,12 +577,13 @@ impl Callbacks for App {
                     self.die_timer.reset();
                     if self.score > self.highscore {
                         self.highscore = self.score;
-                        filesystem::write_temporary_string(
-                            ctx,
-                            HIGHSCORE_PATH,
-                            &self.score.to_string(),
-                        )
-                        .unwrap();
+                        // TODO: need async support
+                        // filesystem::write_temporary_string(
+                        //     ctx,
+                        //     &format!("{}/{}", filesystem::tmp_path(), HIGHSCORE_PATH),
+                        //     &self.score.to_string(),
+                        // )
+                        // .unwrap();
                     }
                     self.player.get_mut(&mut self.entities).renderable = Renderable::Sprite;
                 }

@@ -22,13 +22,13 @@ pub enum CallbackResult {
 }
 
 /// User callbacks
-pub trait Callbacks {
+pub trait Callbacks: Sized {
     /// Use a custom `ContextBuilder`
     fn init_ctx() -> ContextBuilder {
         ContextBuilder::new()
     }
 
-    fn shutdown(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {}
+    fn shutdown(self, _ctx: &mut Context, _cache: &mut AssetCache) {}
 
     /// Called after context initilization and before game/update loop
     fn new(_ctx: &mut Context, cache: &mut AssetCache) -> Self;
@@ -376,7 +376,7 @@ impl<C: Callbacks> App<C> {
             App::Initialized {
                 mut ctx,
                 mut cache,
-                mut callbacks,
+                callbacks,
                 ..
             } => {
                 callbacks.shutdown(&mut ctx, &mut cache);

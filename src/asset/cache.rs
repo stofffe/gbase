@@ -5,13 +5,13 @@ use crate::{
         AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
         AssetInserter, GetAssetState, InternalAssetState,
     },
-    filesystem::FileSystemContext,
+    filesystem::{FileSystemContext, FileSystemRuntime},
     Context,
 };
 
 pub struct AssetCache {
     asset_handle_ctx: AssetHandleContext,
-    filesystem_ctx: FileSystemContext,
+    filesystem_ctx: FileSystemRuntime,
 
     storage: AssetCacheStorage,
 
@@ -29,7 +29,8 @@ pub struct AssetCache {
 impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
-        let filesystem_ctx = ctx.filesystem.clone();
+        let filesystem_ctx = ctx.filesystem.runtime();
+
         let task_executor = ctx.task.runtime();
 
         let storage = AssetCacheStorage::new();

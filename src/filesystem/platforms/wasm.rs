@@ -1,33 +1,38 @@
-use crate::{
-    filesystem::{platforms::LoadFileError, WriteFileError},
-    ContextBuilder,
-};
 use base64::Engine;
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-#[derive(Clone, Debug)]
-pub struct FileSystemContext {
-    config: std::sync::Arc<FileSystemConfig>,
+use crate::filesystem::{FileSystemPlatformTrait, LoadFileError, WriteFileError};
+
+pub type FileSystemPlatform = WasmFileSystem;
+
+#[derive(Clone)]
+pub struct WasmFileSystem {
+    config: Arc<WasmFileSystemConfig>,
 }
 
-#[derive(Debug)]
-pub struct FileSystemConfig {
+pub struct WasmFileSystemConfig {
     asset_folder_path: PathBuf,
     temporary_folder_path: PathBuf,
 
     base_url: reqwest::Url,
+    client: reqwest::Client,
+
     local_storage: web_sys::Storage,
 }
 
-impl FileSystemContext {
-    pub(crate) fn new(builder: &ContextBuilder) -> Self {
-        let asset_folder_path = builder.assets_path.clone();
-        let temporary_folder_path = builder.temporary_path.clone();
+impl FileSystemPlatformTrait for WasmFileSystem {
+    fn new(asset_path: std::path::PathBuf, temporary_path: std::path::PathBuf) -> Self {
+        let asset_folder_path = asset_path.to_path_buf();
+        let temporary_folder_path = temporary_path.to_path_buf();
 
         let window = web_sys::window().expect("could not get window");
         let location = window.location();
         let origin = location.origin().expect("could not get origin");
         let base_url = reqwest::Url::parse(&origin).expect("could not base path");
+        let client = reqwest::Client::new();
 
         let local_storage = window
             .local_storage()
@@ -35,32 +40,34 @@ impl FileSystemContext {
             .expect("local storage is empty");
 
         Self {
-            config: std::sync::Arc::new(FileSystemConfig {
+            config: std::sync::Arc::new(WasmFileSystemConfig {
                 asset_folder_path,
                 temporary_folder_path,
                 base_url,
+                client,
                 local_storage,
             }),
         }
     }
-}
 
-impl FileSystemContext {
-    pub fn format_asset_path(&self, path: impl AsRef<Path>) -> PathBuf {
+    fn format_asset_path(&self, path: impl AsRef<Path>) -> PathBuf {
         self.config.asset_folder_path.join(path)
     }
 
-    pub async fn load_asset_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
-        let path = self.format_asset_path(path);
-        let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
+    fn format_temporary_path(&self, path: impl AsRef<Path>) -> PathBuf {
+        self.config.temporary_folder_path.join(path)
+    }
 
-        let path = self
+    //
+    // Normal
+    //
+
+    async fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        let url = self.resolve_url(path)?;
+        let response = self
             .config
-            .base_url
-            .join(path)
-            .map_err(|_| LoadFileError::InvalidPath)?;
-        let response = reqwest::Client::new()
-            .get(path)
+            .client
+            .get(url)
             .send()
             .await
             .map_err(|err| LoadFileError::Other(Box::new(err)))?;
@@ -72,17 +79,12 @@ impl FileSystemContext {
         Ok(bytes.to_vec())
     }
 
-    pub async fn load_asset_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
-        let path = self.format_asset_path(path);
-        let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
-
-        let path = self
+    async fn load_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        let url = self.resolve_url(path)?;
+        let response = self
             .config
-            .base_url
-            .join(path)
-            .map_err(|_| LoadFileError::InvalidPath)?;
-        let response = reqwest::Client::new()
-            .get(path)
+            .client
+            .get(url)
             .send()
             .await
             .map_err(|err| LoadFileError::Other(Box::new(err)))?;
@@ -94,25 +96,41 @@ impl FileSystemContext {
         Ok(str)
     }
 
-    pub fn write_temporary_bytes(
+    async fn write_bytes(
         &self,
-        path: impl AsRef<std::path::Path>,
-        data: &[u8],
+        _path: impl AsRef<Path>,
+        _bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
-        let path = self.format_asset_path(&temp_path);
-        let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
-
-        let encoded = base64::engine::general_purpose::STANDARD.encode(data);
-        self.config.local_storage.set_item(&path, &encoded);
-
-        Ok(())
+        panic!("writing bytes currently unsupported in wasm");
     }
 
-    pub fn load_temporary_bytes(
+    async fn write_string(
         &self,
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<Vec<u8>, LoadFileError> {
+        _path: impl AsRef<Path>,
+        _string: impl AsRef<str>,
+    ) -> Result<(), WriteFileError> {
+        panic!("writing string currently unsupported in wasm");
+    }
+
+    //
+    // Asset
+    //
+
+    async fn load_asset_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        let asset_path = self.format_asset_path(path);
+        self.load_bytes(asset_path).await
+    }
+
+    async fn load_asset_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        let asset_path = self.format_asset_path(path);
+        self.load_string(asset_path).await
+    }
+
+    //
+    // Temporary
+    //
+
+    async fn load_temporary_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
         let temp_path = self.config.temporary_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
@@ -120,7 +138,7 @@ impl FileSystemContext {
         let data = self
             .config
             .local_storage
-            .get_item(&path)
+            .get_item(path)
             .map_err(|_| LoadFileError::Placeholder)?
             .ok_or(LoadFileError::Placeholder)?;
         let decoded = base64::engine::general_purpose::STANDARD
@@ -130,24 +148,7 @@ impl FileSystemContext {
         Ok(decoded)
     }
 
-    pub fn write_temporary_string(
-        &self,
-        path: impl AsRef<std::path::Path>,
-        data: &str,
-    ) -> Result<(), WriteFileError> {
-        let temp_path = self.config.temporary_folder_path.join(path);
-        let path = self.format_asset_path(&temp_path);
-        let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
-
-        self.config.local_storage.set_item(&path, &data);
-
-        Ok(())
-    }
-
-    pub fn load_temporary_string(
-        &self,
-        path: impl AsRef<std::path::Path>,
-    ) -> Result<String, LoadFileError> {
+    async fn load_temporary_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
         let temp_path = self.config.temporary_folder_path.join(path);
         let path = self.format_asset_path(&temp_path);
         let path = path.to_str().ok_or(LoadFileError::InvalidPath)?;
@@ -155,10 +156,67 @@ impl FileSystemContext {
         let data = self
             .config
             .local_storage
-            .get_item(&path)
+            .get_item(path)
             .map_err(|_| LoadFileError::Placeholder)?
             .ok_or(LoadFileError::Placeholder)?;
 
         Ok(data)
+    }
+
+    async fn write_temporary_bytes(
+        &self,
+        path: impl AsRef<Path>,
+        bytes: impl AsRef<[u8]>,
+    ) -> Result<(), WriteFileError> {
+        let temp_path = self.config.temporary_folder_path.join(path);
+        let path = self.format_asset_path(&temp_path);
+        let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
+
+        let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+        self.config
+            .local_storage
+            .set_item(path, &encoded)
+            .map_err(|err| {
+                WriteFileError::Other(
+                    format!("could not set string in local storage: {:?}", err).into(),
+                )
+            })?;
+
+        Ok(())
+    }
+
+    async fn write_temporary_string(
+        &self,
+        path: impl AsRef<Path>,
+        string: impl AsRef<str>,
+    ) -> Result<(), WriteFileError> {
+        let temp_path = self.config.temporary_folder_path.join(path);
+        let path = self.format_asset_path(&temp_path);
+        let path = path.to_str().ok_or(WriteFileError::InvalidPath)?;
+
+        self.config
+            .local_storage
+            .set_item(path, string.as_ref())
+            .map_err(|err| {
+                WriteFileError::Other(
+                    format!("could not set string in local storage: {:?}", err).into(),
+                )
+            })?;
+
+        Ok(())
+    }
+}
+
+impl WasmFileSystem {
+    fn resolve_url(&self, path: impl AsRef<Path>) -> Result<reqwest::Url, LoadFileError> {
+        let path_str = path.as_ref().to_str().ok_or(LoadFileError::InvalidPath)?;
+
+        // TODO: this might be needed
+        // let path_str = path_str.replace('\\', "/");
+
+        self.config
+            .base_url
+            .join(&path_str)
+            .map_err(|_| LoadFileError::InvalidPath)
     }
 }

@@ -82,7 +82,7 @@ pub use pollster;
 pub struct Context {
     pub(crate) input: input::InputContext,
     pub(crate) time: time::TimeContext,
-    pub filesystem: filesystem::FileSystemContext,
+    pub(crate) filesystem: filesystem::FileSystemContext,
     pub(crate) audio: audio::AudioContext,
     pub render: render::RenderContext,
     pub(crate) random: random::RandomContext,

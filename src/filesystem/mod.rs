@@ -1,7 +1,93 @@
 mod platforms;
-use std::path::{self, PathBuf};
+mod runtime;
 
 pub use platforms::*;
+pub use runtime::*;
+
+use crate::{Context, ContextBuilder};
+use std::path::{self, Path, PathBuf};
+
+pub struct FileSystemContext {
+    runtime: FileSystemRuntime,
+}
+
+impl FileSystemContext {
+    pub fn new(builder: &ContextBuilder) -> Self {
+        let runtime = FileSystemRuntime::new(builder);
+        Self { runtime }
+    }
+
+    pub fn runtime(&self) -> FileSystemRuntime {
+        self.runtime.clone()
+    }
+
+    //
+    // Normal
+    //
+
+    pub async fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        self.runtime.load_bytes(path).await
+    }
+    pub async fn load_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        self.runtime.load_string(path).await
+    }
+    pub async fn write_bytes(
+        &self,
+        path: impl AsRef<Path>,
+        bytes: impl AsRef<[u8]>,
+    ) -> Result<(), WriteFileError> {
+        self.runtime.write_bytes(path, bytes).await
+    }
+    pub async fn write_string(
+        &self,
+        path: impl AsRef<Path>,
+        string: impl AsRef<str>,
+    ) -> Result<(), WriteFileError> {
+        self.runtime.write_string(path, string).await
+    }
+
+    //
+    // Asset
+    //
+
+    pub async fn load_asset_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+        self.runtime.load_asset_bytes(path).await
+    }
+    pub async fn load_asset_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+        self.runtime.load_asset_string(path).await
+    }
+
+    //
+    // Temporary
+    //
+
+    pub async fn load_temporary_bytes(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Vec<u8>, LoadFileError> {
+        self.runtime.load_temporary_bytes(path).await
+    }
+    pub async fn load_temporary_string(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<String, LoadFileError> {
+        self.runtime.load_temporary_string(path).await
+    }
+    pub async fn write_temporary_bytes(
+        &self,
+        path: impl AsRef<Path>,
+        bytes: impl AsRef<[u8]>,
+    ) -> Result<(), WriteFileError> {
+        self.runtime.write_temporary_bytes(path, bytes).await
+    }
+    pub async fn write_temporary_string(
+        &self,
+        path: impl AsRef<Path>,
+        string: impl AsRef<str>,
+    ) -> Result<(), WriteFileError> {
+        self.runtime.write_temporary_string(path, string).await
+    }
+}
 
 pub fn normalize_path(path: impl AsRef<std::path::Path>) -> PathBuf {
     let mut out = PathBuf::new();
@@ -30,45 +116,115 @@ pub fn normalize_path(path: impl AsRef<std::path::Path>) -> PathBuf {
     out
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum LoadFileError {
+    #[error("file not found")]
+    FileNotFound,
+    #[error("invalid path")]
+    InvalidPath,
+    #[error("other error: {0}")]
+    Other(Box<dyn std::error::Error + Send + Sync>),
+
+    #[error("internal")]
+    Placeholder,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum WriteFileError {
+    #[error("invalid path")]
+    InvalidPath,
+    #[error("other error: {0}")]
+    Other(Box<dyn std::error::Error + Send + Sync>),
+}
+
 //
 // Commands
 //
 
-pub fn write_temporary_bytes(
-    ctx: &crate::Context,
-    path: impl AsRef<std::path::Path>,
-    data: &[u8],
-) -> Result<(), WriteFileError> {
-    ctx.filesystem.write_temporary_bytes(path, data)
+//
+// Normal
+//
+
+pub async fn load_bytes(ctx: &Context, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
+    ctx.filesystem.load_bytes(path).await
 }
 
-pub fn load_temporary_bytes(
-    ctx: &crate::Context,
-    path: impl AsRef<std::path::Path>,
+pub async fn load_string(ctx: &Context, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
+    ctx.filesystem.load_string(path).await
+}
+
+pub async fn write_bytes(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+    bytes: impl AsRef<[u8]>,
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_bytes(path, bytes).await
+}
+
+pub async fn write_string(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+    string: impl AsRef<str>,
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_string(path, string).await
+}
+
+//
+// Asset
+//
+
+pub async fn load_asset_bytes(
+    ctx: &Context,
+    path: impl AsRef<Path>,
 ) -> Result<Vec<u8>, LoadFileError> {
-    ctx.filesystem.load_temporary_bytes(path)
+    ctx.filesystem.load_asset_bytes(path).await
 }
 
-pub fn write_temporary_string(
-    ctx: &crate::Context,
-    path: impl AsRef<std::path::Path>,
-    data: &str,
-) -> Result<(), WriteFileError> {
-    ctx.filesystem.write_temporary_string(path, data)
-}
-
-pub fn load_temporary_string(
-    ctx: &crate::Context,
-    path: impl AsRef<std::path::Path>,
+pub async fn load_asset_string(
+    ctx: &Context,
+    path: impl AsRef<Path>,
 ) -> Result<String, LoadFileError> {
-    ctx.filesystem.load_temporary_string(path)
+    ctx.filesystem.load_asset_string(path).await
+}
+
+//
+// Temporary
+//
+
+pub async fn load_temporary_bytes(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+) -> Result<Vec<u8>, LoadFileError> {
+    ctx.filesystem.load_temporary_bytes(path).await
+}
+
+pub async fn load_temporary_string(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+) -> Result<String, LoadFileError> {
+    ctx.filesystem.load_temporary_string(path).await
+}
+
+pub async fn write_temporary_bytes(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+    bytes: impl AsRef<[u8]>,
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_temporary_bytes(path, bytes).await
+}
+
+pub async fn write_temporary_string(
+    ctx: &Context,
+    path: impl AsRef<Path>,
+    string: impl AsRef<str>,
+) -> Result<(), WriteFileError> {
+    ctx.filesystem.write_temporary_string(path, string).await
 }
 
 // TODO: use filesystem context
-
 /// Path to temporary storage folder
 pub fn tmp_path() -> &'static str {
-    "assets/tmp"
+    "tmp"
 }
 
 #[cfg(test)]

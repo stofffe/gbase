@@ -6,7 +6,7 @@ use crate::{
         Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
         AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
-    filesystem::{self, FileSystemContext},
+    filesystem::{self, FileSystemContext, FileSystemRuntime},
     task::{TaskContext, TaskExecutorRuntime},
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -301,7 +301,7 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
 pub(crate) struct AssetCacheLoad {
     typed_load: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
     task_ctx: TaskExecutorRuntime,
-    filesystem_ctx: FileSystemContext,
+    filesystem_ctx: FileSystemRuntime,
 
     queue: VecDeque<DynAssetHandle>,
     queued: FxHashSet<DynAssetHandle>,
@@ -321,7 +321,7 @@ pub(crate) struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new(task_ctx: TaskExecutorRuntime, filesystem_ctx: FileSystemContext) -> Self {
+    pub(crate) fn new(task_ctx: TaskExecutorRuntime, filesystem_ctx: FileSystemRuntime) -> Self {
         let typed_load = FxHashMap::default();
 
         let (response_sender, response_receiver) = async_channel::unbounded();
@@ -469,7 +469,7 @@ impl AssetCacheLoad {
 
 struct TypedAssetLoad<T: AssetLoader> {
     task_ctx: TaskExecutorRuntime,
-    filesystem_ctx: FileSystemContext,
+    filesystem_ctx: FileSystemRuntime,
 
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
@@ -484,7 +484,7 @@ struct TypedAssetLoad<T: AssetLoader> {
 impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     fn new(
         task_ctx: TaskExecutorRuntime,
-        filesystem_ctx: FileSystemContext,
+        filesystem_ctx: FileSystemRuntime,
 
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
@@ -604,7 +604,7 @@ impl LoadState {
 
 #[derive(Clone)]
 struct LoadRuntime {
-    filesystem_ctx: filesystem::FileSystemContext,
+    filesystem_ctx: filesystem::FileSystemRuntime,
 
     // async channel for requesting nested loads
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
@@ -619,7 +619,7 @@ struct LoadRuntime {
 
 impl LoadRuntime {
     fn new(
-        filesystem_ctx: filesystem::FileSystemContext,
+        filesystem_ctx: filesystem::FileSystemRuntime,
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,

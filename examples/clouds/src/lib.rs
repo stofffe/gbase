@@ -367,42 +367,43 @@ impl App {
         //
         // Saving and loading
         //
+        // TODO: need async support
 
-        let index = self.param_index;
-        let file_name = format!("cloud_params_{index}.txt");
-
-        if self.write_param_index {
-            let content =
-                serde_json::to_string(&self.cloud_params).expect("could not serialze params");
-            match filesystem::write_temporary_string(ctx, &file_name, &content) {
-                Ok(_) => tracing::info!("Sucessfully updated params {}", index),
-                Err(err) => tracing::error!("could not write params: {}", err),
-            }
-
-            self.write_param_index = false;
-            self.params_changed = false;
-            println!("aaaaa wrote params {}", self.param_index);
-        }
-
-        if self.load_param_index && !self.params_changed {
-            match filesystem::load_temporary_string(ctx, &file_name) {
-                Ok(content) => {
-                    let params = match serde_json::from_str(&content) {
-                        Ok(params) => params,
-                        Err(err) => {
-                            println!("could not deserialize params: {err}");
-                            return;
-                        }
-                    };
-                    self.cloud_params = params;
-                }
-                Err(err) => tracing::error!("could not load params {}: {}", index, err),
-            }
-
-            self.load_param_index = false;
-            self.params_changed = false;
-            println!("loaded params {}", self.param_index);
-        }
+        // let index = self.param_index;
+        // let file_name = format!("cloud_params_{index}.txt");
+        //
+        // if self.write_param_index {
+        //     let content =
+        //         serde_json::to_string(&self.cloud_params).expect("could not serialze params");
+        //     match filesystem::write_temporary_string(ctx, &file_name, &content) {
+        //         Ok(_) => tracing::info!("Sucessfully updated params {}", index),
+        //         Err(err) => tracing::error!("could not write params: {}", err),
+        //     }
+        //
+        //     self.write_param_index = false;
+        //     self.params_changed = false;
+        //     println!("aaaaa wrote params {}", self.param_index);
+        // }
+        //
+        // if self.load_param_index && !self.params_changed {
+        //     match filesystem::load_temporary_string(ctx, &file_name) {
+        //         Ok(content) => {
+        //             let params = match serde_json::from_str(&content) {
+        //                 Ok(params) => params,
+        //                 Err(err) => {
+        //                     println!("could not deserialize params: {err}");
+        //                     return;
+        //                 }
+        //             };
+        //             self.cloud_params = params;
+        // }
+        //         Err(err) => tracing::error!("could not load params {}: {}", index, err),
+        //     }
+        //
+        //     self.load_param_index = false;
+        //     self.params_changed = false;
+        //     println!("loaded params {}", self.param_index);
+        // }
     }
 
     fn ui(&mut self, ctx: &mut Context) {

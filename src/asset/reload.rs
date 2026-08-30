@@ -1,6 +1,6 @@
 use crate::asset::AssetCacheLoad;
 use crate::asset::{AssetCacheConvert, AssetCacheDependency, AssetCacheRegistry, DynAssetHandle};
-use crate::filesystem::FileSystemContext;
+use crate::filesystem::{FileSystemContext, FileSystemRuntime};
 use core::panic;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
@@ -19,7 +19,7 @@ struct ReloadHandleRequest {
 //
 
 pub struct AssetCacheReload {
-    filesystem_ctx: FileSystemContext,
+    filesystem_ctx: FileSystemRuntime,
 
     // used to track if load responses are from reload or not
     currently_reloading: FxHashSet<DynAssetHandle>,
@@ -36,7 +36,7 @@ pub struct AssetCacheReload {
 }
 
 impl AssetCacheReload {
-    pub(crate) fn new(filesystem_ctx: FileSystemContext) -> Self {
+    pub(crate) fn new(filesystem_ctx: FileSystemRuntime) -> Self {
         let (reload_sender, reload_receiver) = async_channel::unbounded();
 
         let reload_sender_clone = reload_sender.clone();
