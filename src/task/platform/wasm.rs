@@ -1,8 +1,7 @@
-use crate::task::{self, TaskExecutorPlatformTrait};
+use crate::task::{Task, TaskExecutorPlatformTrait, TaskTrait};
 use futures::{FutureExt, StreamExt};
 use std::{future::Future, pin::Pin};
 
-pub type Task = Pin<Box<dyn Future<Output = ()> + 'static>>;
 pub type TaskExecutorPlatform = WasmTaskExecutor;
 
 pub struct WasmTaskExecutor {}

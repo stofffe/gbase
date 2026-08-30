@@ -14,19 +14,37 @@ compile_error!("The 'trace_tracy' feature is not supported on wasm32");
 // Conditional send/sync
 //
 
+/// A trait that conditionally implements Send depending on target arch
+///
+/// Automatically implemented for all types
 #[cfg(not(target_arch = "wasm32"))]
 pub trait ConditionalSend: Send {}
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Send> ConditionalSend for T {}
-#[cfg(target_arch = "wasm32")]
-pub trait ConditionalSend {}
 
+/// A trait that conditionally implements Sync depending on target arch
+///
+/// Automatically implemented for all types
 #[cfg(not(target_arch = "wasm32"))]
 pub trait ConditionalSync: Sync {}
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Sync> ConditionalSync for T {}
+
+/// A trait that conditionally implements Send depending on target arch
+///
+/// Automatically implemented for all types
+#[cfg(target_arch = "wasm32")]
+pub trait ConditionalSend {}
+#[cfg(target_arch = "wasm32")]
+impl<T> ConditionalSend for T {}
+
+/// A trait that conditionally implements Sync depending on target arch
+///
+/// Automatically implemented for all types
 #[cfg(target_arch = "wasm32")]
 pub trait ConditionalSync {}
+#[cfg(target_arch = "wasm32")]
+impl<T> ConditionalSync for T {}
 
 //
 // Modules

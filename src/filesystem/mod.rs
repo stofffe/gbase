@@ -135,6 +135,10 @@ pub enum WriteFileError {
 // Commands
 //
 
+pub fn get_filesystem_runtime(ctx: &Context) -> FileSystemRuntime {
+    ctx.filesystem.runtime()
+}
+
 //
 // Normal
 //

@@ -5,12 +5,12 @@ use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
     asset::AssetCache,
-    audio,
+    audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
     random,
     render::{self, TextureBuilder},
-    time, tracing, wgpu,
+    task, time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     CallbackResult, Callbacks, Context,
 };
@@ -255,7 +255,7 @@ const PIPE_GAP: f32 = 50.0;
 const PIPE_MAX_OFFSET: f32 = 50.0;
 const PIPE_BASE_OFFSET: f32 = 10.0;
 const DIE_TIMER_DURATION: std::time::Duration = std::time::Duration::from_millis(300);
-const HIGHSCORE_PATH: &str = "highscore";
+const HIGHSCORE_FILE_NAME: &str = "highscore.txt";
 const BIRD_ANIMATION_SPEED: Duration = Duration::from_millis(70);
 
 const STENCIL_SKIP: u32 = 0;
@@ -577,13 +577,15 @@ impl Callbacks for App {
                     self.die_timer.reset();
                     if self.score > self.highscore {
                         self.highscore = self.score;
-                        // TODO: need async support
-                        // filesystem::write_data_string(
-                        //     ctx,
-                        //     &format!("{}/{}", filesystem::tmp_path(), HIGHSCORE_PATH),
-                        //     &self.score.to_string(),
-                        // )
-                        // .unwrap();
+
+                        let filesystem_runtime = filesystem::get_filesystem_runtime(ctx);
+                        let score = self.score.to_string();
+                        task::spawn_task(ctx, async move {
+                            filesystem_runtime
+                                .write_data_string(HIGHSCORE_FILE_NAME, &score)
+                                .await
+                                .unwrap();
+                        });
                     }
                     self.player.get_mut(&mut self.entities).renderable = Renderable::Sprite;
                 }

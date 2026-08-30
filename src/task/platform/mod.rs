@@ -8,6 +8,8 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::*;
 
+use crate::task::Task;
+
 /// Trait for keeping platform implementations in check
 ///
 /// Not actually used in the Context

@@ -1,8 +1,10 @@
-use crate::task::TaskExecutorPlatformTrait;
+use crate::{
+    task::{Task, TaskExecutorPlatformTrait, TaskTrait},
+    ConditionalSend,
+};
 use futures::{FutureExt, StreamExt};
-use std::{any::Any, future::Future, pin::Pin};
+use std::{any::Any, future::Future};
 
-pub type Task = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 pub type TaskExecutorPlatform = NativeTaskExecutor;
 
 pub struct NativeTaskExecutor {

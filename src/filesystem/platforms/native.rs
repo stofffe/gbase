@@ -80,6 +80,8 @@ impl FileSystemPlatformTrait for NativeFileSystem {
         path: impl AsRef<Path>,
         bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
+        self.create_dir_if_needed(&path);
+
         std::fs::write(path, bytes).map_err(|err| WriteFileError::Other(Box::new(err)))
     }
     async fn write_string(
@@ -87,6 +89,8 @@ impl FileSystemPlatformTrait for NativeFileSystem {
         path: impl AsRef<Path>,
         string: impl AsRef<str>,
     ) -> Result<(), WriteFileError> {
+        self.create_dir_if_needed(&path);
+
         std::fs::write(path, string.as_ref()).map_err(|err| WriteFileError::Other(Box::new(err)))
     }
 
@@ -132,5 +136,13 @@ impl FileSystemPlatformTrait for NativeFileSystem {
     ) -> Result<(), WriteFileError> {
         let data_path = self.format_data_path(path);
         self.write_string(data_path, string).await
+    }
+}
+
+impl NativeFileSystem {
+    fn create_dir_if_needed(&self, path: impl AsRef<Path>) {
+        if let Some(parent) = path.as_ref().parent() {
+            std::fs::create_dir_all(parent).expect("could not create dir");
+        }
     }
 }
