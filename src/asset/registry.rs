@@ -76,7 +76,7 @@ impl AssetCacheRegistry {
         let entry = self
             .typed_convert_registries
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedConvertRegistry::<T>::new()));
+            .or_insert_with(|| Box::new(TypedConvertRegistry::<T>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedConvertRegistry<T>>()
@@ -89,7 +89,7 @@ impl AssetCacheRegistry {
         let entry = self
             .typed_load_registries
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedLoadRegistry::<T>::new()));
+            .or_insert_with(|| Box::new(TypedLoadRegistry::<T>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedLoadRegistry<T>>()
@@ -102,7 +102,7 @@ impl AssetCacheRegistry {
         let entry = self
             .typed_insert_registries
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedInsertRegistry::<T, I>::new()));
+            .or_insert_with(|| Box::new(TypedInsertRegistry::<T, I>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedInsertRegistry<T, I>>()

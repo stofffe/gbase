@@ -113,7 +113,7 @@ impl AssetCacheConvert {
         let entry = self
             .typed_convert
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedAssetConvert::<T>::new()));
+            .or_insert_with(|| Box::new(TypedAssetConvert::<T>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedAssetConvert<T>>()

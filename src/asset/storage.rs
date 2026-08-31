@@ -1,6 +1,6 @@
 use crate::asset::{AssetCacheRegistry, AssetHandle};
 use rustc_hash::FxHashMap;
-use std::any::{Any, TypeId};
+use std::any::{type_name, Any, TypeId};
 
 //
 // Types
@@ -40,28 +40,15 @@ impl AssetCacheStorage {
         let entry = self
             .typed_storage
             .entry(TypeId::of::<T>())
-            .or_insert(Box::new(TypedAssetStorage::<T>::new()));
+            .or_insert_with(|| Box::new(TypedAssetStorage::<T>::new()));
         entry
             .as_any_mut()
             .downcast_mut::<TypedAssetStorage<T>>()
             .expect("could not downcast typed storage cache")
     }
 
-    // pub(crate) fn insert_asset<T: Asset>(
-    //     &mut self,
-    //     registry: &mut AssetCacheRegistry,
-    //     data: T,
-    // ) -> AssetHandle<T> {
-    //     let handle = registry.crate_insert_handle();
-    //     self.insert_asset_with_handle(handle.clone(), data);
-    //     handle
-    // }
-    //
-    // pub(crate) fn insert_asset_with_handle<T: Asset>(&mut self, handle: AssetHandle<T>, data: T) {
-    //     self.get_typed_cache_mut::<T>().insert(handle, data)
-    // }
-
     pub(crate) fn insert_asset<T: Asset>(&mut self, handle: AssetHandle<T>, asset: T) {
+        tracing::info!("insert into storage {}", handle);
         self.get_typed_cache_mut::<T>().insert(handle, asset);
     }
 
@@ -71,6 +58,10 @@ impl AssetCacheStorage {
         } else {
             None
         }
+    }
+
+    pub(crate) fn clear_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) {
+        self.get_typed_cache_mut::<T>().cache.remove(handle);
     }
 }
 

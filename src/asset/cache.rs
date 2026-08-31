@@ -180,9 +180,11 @@ impl AssetCache {
         matches!(status, InternalAssetState::Ready)
     }
 
-    pub fn clear_handle<T: Asset>(&mut self, _handle: AssetHandle<T>) {
-        todo!()
-        // self.storage.clear_handle(&mut self.derived, handle);
+    pub fn clear_handle<T: Asset>(&mut self, handle: &AssetHandle<T>) {
+        self.storage.clear_asset::<T>(handle);
+        self.registry
+            .set_status(handle.to_dyn(), InternalAssetState::Loading);
+        // TODO: probably more
     }
 
     // TODO:  is this needed?

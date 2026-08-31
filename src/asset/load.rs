@@ -350,16 +350,15 @@ impl AssetCacheLoad {
 
     /// Get mutable typed cache or create if it doesnt exist
     fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetLoad<T> {
-        let entry =
-            self.typed_load
-                .entry(TypeId::of::<T>())
-                .or_insert(Box::new(TypedAssetLoad::<T>::new(
-                    self.task_ctx.clone(),
-                    self.filesystem_ctx.clone(),
-                    self.load_request_sender.clone(),
-                    self.insert_request_sender.clone(),
-                    self.response_sender.clone(),
-                )));
+        let entry = self.typed_load.entry(TypeId::of::<T>()).or_insert_with(|| {
+            Box::new(TypedAssetLoad::<T>::new(
+                self.task_ctx.clone(),
+                self.filesystem_ctx.clone(),
+                self.load_request_sender.clone(),
+                self.insert_request_sender.clone(),
+                self.response_sender.clone(),
+            ))
+        });
         entry
             .as_any_mut()
             .downcast_mut::<TypedAssetLoad<T>>()
