@@ -21,7 +21,7 @@ fixed examples
     [x] time
     [x] triangle
 
-task handle with a receiver that you can poll, for small async tasks
+task and asset cancellation?
 
 make conversion async?
 converters allowed to request loads and insert?

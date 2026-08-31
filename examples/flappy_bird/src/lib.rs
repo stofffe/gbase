@@ -10,7 +10,8 @@ use gbase::{
     input::{self, KeyCode},
     random,
     render::{self, TextureBuilder},
-    task, time, tracing, wgpu,
+    task::{self, TaskHandle},
+    time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     CallbackResult, Callbacks, Context,
 };
@@ -245,6 +246,8 @@ pub struct App {
     die_sound: audio::SoundSource,
     hit_sound: audio::SoundSource,
     point_sound: audio::SoundSource,
+
+    highscore_request_handle: TaskHandle<u32>,
 }
 
 const MAX_SPRITES: u64 = 1000;
@@ -411,12 +414,30 @@ impl Callbacks for App {
         let gizmo_renderer = gbase_utils::GizmoRenderer::new(ctx);
 
         let highscore = 0;
-        // TODO: need async support
-        // let hightscore = if let Ok(data) = filesystem::load_data_string(ctx, HIGHSCORE_PATH) {
-        //     data.trim().parse::<u32>().unwrap()
-        // } else {
-        //     0
-        // };
+        let filesystem_runtime = filesystem::get_filesystem_runtime(ctx);
+        let highscore_request_handle = task::spawn_task(ctx, async move {
+            let file_request = filesystem_runtime
+                .load_data_string(HIGHSCORE_FILE_NAME)
+                .await;
+
+            let highscore = match file_request {
+                Ok(string) => match string.parse::<u32>() {
+                    Ok(highscore) => highscore,
+                    Err(err) => {
+                        tracing::error!(
+                            "could not parse highscore file content to int: {}, using 0 instead",
+                            err
+                        );
+                        0
+                    }
+                },
+                Err(err) => {
+                    tracing::warn!("could not load highscore: {}, using 0 instead", err);
+                    0
+                }
+            };
+            highscore
+        });
 
         let flap_sound =
             audio::load_audio_source(ctx, include_bytes!("../assets/sounds/boom.mp3").into());
@@ -430,6 +451,8 @@ impl Callbacks for App {
         let die_timer = time::Timer::new(DIE_TIMER_DURATION);
 
         Self {
+            highscore_request_handle,
+
             state: GameState::StartMenu,
             score: 0,
 
@@ -464,6 +487,12 @@ impl Callbacks for App {
         cache: &mut AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
+        match self.highscore_request_handle.try_take() {
+            task::TaskHandleState::Loading => return CallbackResult::Continue,
+            task::TaskHandleState::Ready(highscore) => self.highscore = highscore,
+            task::TaskHandleState::Taken => {}
+        }
+
         #[cfg(feature = "hot_reload")]
         if gbase::input::key_just_pressed(ctx, gbase::input::KeyCode::F1) {
             gbase::hot_reload::hot_restart(ctx);
