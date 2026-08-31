@@ -205,7 +205,7 @@ impl AssetCache {
 
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
-    pub fn reload<T: AssetLoader + 'static>(&mut self, handle: AssetHandle<T::Asset>) {
+    pub fn reload<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) {
         self.reloader.reload(
             handle.to_dyn(),
             &mut self.loader,

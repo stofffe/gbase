@@ -34,10 +34,7 @@ pub use reload::*;
 
 // force reload an asset
 #[cfg(not(target_arch = "wasm32"))]
-pub fn reload_asset<T: AssetLoader + 'static>(
-    cache: &mut AssetCache,
-    handle: AssetHandle<T::Asset>,
-) {
+pub fn reload_asset<T: Asset + 'static>(cache: &mut AssetCache, handle: &AssetHandle<T>) {
     cache.reload::<T>(handle)
 }
 

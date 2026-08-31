@@ -3,7 +3,7 @@ use crate::{asset, CallbackResult, Context};
 #[rustfmt::skip]
 type NewFunc<T> = fn(ctx: &mut crate::Context, cache: &mut asset::AssetCache) -> T;
 #[rustfmt::skip]
-type ShutdownFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache);
+type ShutdownFunc<T> = fn(callbacks:  T, ctx: &mut crate::Context, cache: &mut asset::AssetCache);
 #[rustfmt::skip]
 type RenderFunc<T> = fn(callbacks: &mut T, ctx: &mut crate::Context, cache: &mut asset::AssetCache, screen_view: &wgpu::TextureView) -> CallbackResult;
 #[rustfmt::skip]
@@ -62,10 +62,10 @@ impl<T> crate::Callbacks for DllCallbacks<T> {
     }
 
     #[rustfmt::skip]
-    fn shutdown(&mut self, ctx: &mut Context, cache: &mut asset::AssetCache) {
+    fn shutdown( self, ctx: &mut Context, cache: &mut asset::AssetCache) {
         // call user shutdown
         match self.dll.shutdown_callback {
-            Some(shutdown) => shutdown(&mut self.callbacks, ctx, cache),
+            Some(shutdown) => shutdown(self.callbacks, ctx, cache),
             None => (),
         }
 
