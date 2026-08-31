@@ -8,8 +8,9 @@ use gbase::{
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
+    input,
     render::{self, ArcShaderModule, BindGroupBindable},
-    wgpu, Context,
+    tracing, wgpu, Context,
 };
 use std::{collections::HashMap, hash::Hash, path::PathBuf};
 
@@ -23,7 +24,7 @@ pub struct UIRenderer {
     projection: render::UniformBuffer<glam::Mat4>,
 
     font_handle: AssetHandle<Font>,
-    font_atlas_handle: AssetHandle<FontAtlas>,
+    pub font_atlas_handle: AssetHandle<FontAtlas>,
 
     font_atlas_raster_size: f32,
     font_atlas_supported_chars: Vec<char>,
@@ -58,7 +59,6 @@ impl UIRenderer {
                 supported_chars: font_atlas_supported_chars.to_vec(),
                 font_raster_size: font_atlas_raster_size as u32,
             });
-
         //
         // gpu resources
         //
@@ -122,6 +122,10 @@ impl UIRenderer {
         let Ok(font_atlas) = cache.get_asset(&self.font_atlas_handle) else {
             return;
         };
+
+        if input::key_just_pressed(ctx, input::KeyCode::KeyD) {
+            dbg!(&font_atlas.lookup);
+        }
 
         //
         // convert
@@ -229,10 +233,10 @@ impl UIRenderer {
         cache: &mut AssetCache,
         font_path: impl Into<PathBuf>,
     ) {
+        // cache.reload(&self.font_handle);
         // clear handle to not use old data
-        cache.clear_handle(self.font_handle.clone());
+        // cache.clear_handle(self.font_handle.clone());
         // TODO:
-        todo!()
         // self.font = AssetBuilder::load::<FontLoader>()
         //     .handle(self.font.clone())
         //     .build(cache, FontLoaderSettings::new(font_path));
@@ -248,7 +252,8 @@ impl UIRenderer {
         font_size: u32,
         wrap_on_newline: bool,
     ) -> TextSizeResult {
-        let Ok(font) = cache.get_asset(&self.font_handle) else {
+        let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
+            // tracing::error!("could not get font");
             return TextSizeResult {
                 preferred_width: 0.0,
                 preferred_height: 0.0,
@@ -267,11 +272,11 @@ impl UIRenderer {
         let mut y_offset = 0.0f32;
         let mut longest_line = 0.0f32;
         let mut shortest_word = f32::MAX;
-
         // width
         let mut current_word_width = 0.0;
         let mut prev_char = None;
         for letter in text.chars() {
+            // let font_metrics = font.font.metrics(letter, font_size as f32);
             let font_metrics = font.font.metrics(letter, font_size as f32);
 
             // TODO: might be a bit too long due to using advance and not width
@@ -322,12 +327,27 @@ impl UIRenderer {
         max_width: f32,
     ) -> TextLayoutResult {
         let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
+            // tracing::error!("could not get font");
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
                 glyphs: Vec::new(),
             };
         };
+
+        // for c in [' ', 'a', 'b', 'm', 'n', 'y'] {
+        //     let m = font.font.metrics(c, font_size as f32);
+        //     tracing::error!(
+        //         "LAYOUT: handle={:?} char={:?} advance={} width={} height={} xmin={} ymin={}",
+        //         self.font_handle,
+        //         c,
+        //         m.advance_width,
+        //         m.width,
+        //         m.height,
+        //         m.xmin,
+        //         m.ymin,
+        //     );
+        // }
 
         let Ok(font_atlas) = cache.get_asset(&self.font_atlas_handle) else {
             return TextLayoutResult {
@@ -402,12 +422,13 @@ impl UIRenderer {
 
                         if let Some(prev) = prev_char {
                             if let Some(kern) =
-                                font.font.horizontal_kern(prev, letter, font_size as f32)
+                                // font.font.horizontal_kern(prev, letter, font_size as f32)
+                                font.font.horizontal_kern(prev, text_char, font_size as f32)
                             {
                                 x_offset += kern;
                             }
                         }
-                        prev_char = Some(text[text_index]);
+                        prev_char = Some(text_char);
                         x_offset += glyph_metrics.advance_width;
                     }
                 }
@@ -454,7 +475,7 @@ impl UIRenderer {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct AtlasGlyphInfo {
     atlas_offset_x: usize,
     atlas_offset_y: usize,
@@ -699,7 +720,7 @@ impl Asset for FontAtlas {}
 #[derive(Clone)]
 pub struct FontAtlas {
     lookup: HashMap<char, AtlasGlyphInfo>,
-    texture: render::ArcTexture,
+    pub texture: render::ArcTexture,
 }
 
 pub struct FontAtlasConverter<'a> {

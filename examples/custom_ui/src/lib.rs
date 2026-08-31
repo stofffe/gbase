@@ -3,13 +3,14 @@ mod ui_layout;
 mod ui_renderer;
 use crate::{
     ui_layout::{Sizing, UIElement, UILayouter},
-    ui_renderer::UIRenderer,
+    ui_renderer::{FontLoader, UIRenderer},
 };
 use gbase::{
     asset::{self, AssetCache},
+    egui::{self, load::SizedTexture, util::id_type_map::TypeId},
     glam::{vec4, Vec4},
-    render::{self},
-    wgpu, CallbackResult, Callbacks, Context,
+    render::{self, SamplerBuilder},
+    tracing, wgpu, CallbackResult, Callbacks, Context,
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -48,13 +49,19 @@ impl Callbacks for App {
         _cache: &mut asset::AssetCache,
         egui_ctx: &mut gbase::egui_ui::EguiContext,
     ) -> CallbackResult {
-        // let image_view = render::TextureViewBuilder::new(self.renderer.font_atlas.clone());
-        // let texture_id =
-        //     egui_ctx.register_wgpu_texture_cached(ctx, image_view, SamplerBuilder::new());
-        //
-        // egui::Window::new("font atlas").show(egui_ctx.ctx(), |ui| {
-        //     ui.image(SizedTexture::new(texture_id, [512.0, 512.0]));
-        // });
+        // tracing::info!("typeid for font loader {:?}", TypeId::of::<FontLoader>());
+
+        let Ok(font_atlas) = _cache.get_asset(&self.renderer.font_atlas_handle).cloned() else {
+            return CallbackResult::Continue;
+        };
+
+        let image_view = render::TextureViewBuilder::new(font_atlas.texture);
+        let texture_id =
+            egui_ctx.register_wgpu_texture_cached(ctx, image_view, SamplerBuilder::new());
+
+        egui::Window::new("font atlas").show(egui_ctx.ctx(), |ui| {
+            ui.image(SizedTexture::new(texture_id, [512.0, 512.0]));
+        });
 
         CallbackResult::Continue
     }
