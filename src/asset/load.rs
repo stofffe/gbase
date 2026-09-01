@@ -91,17 +91,15 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
                 // Storage
                 storage.insert_asset(self.handle.clone(), asset);
-
-                // Registry
-                registry.set_status(dyn_handle.clone(), InternalAssetState::Ready);
-                registry.set_just_available(dyn_handle.clone());
+                storage.set_asset_state(dyn_handle.clone(), InternalAssetState::Ready);
+                storage.set_just_available(dyn_handle.clone());
 
                 // Dependency
                 dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 // Derived
-                convert.wakeup_waiting_on_handle(registry, &dyn_handle.clone());
-                convert.reload_depending_conversions(dependency, registry, &dyn_handle);
+                convert.wakeup_waiting_on_handle(storage, &dyn_handle.clone());
+                convert.reload_depending_conversions(dependency, storage, &dyn_handle);
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
@@ -114,6 +112,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                             loader,
                             convert,
                             registry,
+                            storage,
                             &dyn_handle,
                         );
                     }
@@ -124,7 +123,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 let dyn_handle = self.handle.to_dyn();
 
                 // Registry
-                registry.set_status(dyn_handle.clone(), InternalAssetState::Failed);
+                storage.set_asset_state(dyn_handle.clone(), InternalAssetState::Failed);
 
                 // TODO: do we want this?
                 // Dependency
@@ -146,6 +145,7 @@ trait DynLoadRequest: ConditionalSend {
         self: Box<Self>,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
     );
 }
 
@@ -171,8 +171,9 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
         self: Box<Self>,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
     ) {
-        let handle = loader.register_load::<T>(registry, &self.settings);
+        let handle = loader.register_load::<T>(registry, storage, &self.settings);
 
         self.response_sender
             .try_send(handle)
@@ -251,6 +252,35 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
 }
 
 //
+// Get request
+//
+
+// enum GetAsset<T> {
+//     Ready(Arc<T>),
+//     Failed(),
+// }
+
+pub(crate) trait DynGetRequest: ConditionalSend {
+    fn get_asset(self: Box<Self>, handle: DynAssetHandle, storage: &mut AssetCacheStorage);
+}
+
+struct TypedGetRequest<T: Asset> {
+    response_sender: async_channel::Sender<T>,
+}
+impl<T: Asset> TypedGetRequest<T> {
+    fn new(response_sender: async_channel::Sender<T>) -> Self {
+        Self { response_sender }
+    }
+}
+
+impl<T: Asset> DynGetRequest for TypedGetRequest<T> {
+    fn get_asset(self: Box<Self>, handle: DynAssetHandle, storage: &mut AssetCacheStorage) {
+        // just adds the sender to
+        todo!()
+    }
+}
+
+//
 // Generic
 //
 
@@ -304,9 +334,8 @@ impl AssetCacheLoad {
         }
     }
 
-    /// Get mutable typed cache or create if it doesnt exist
-    fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> &mut TypedAssetLoad<T> {
-        let entry = self.typed_load.entry(TypeId::of::<T>()).or_insert_with(|| {
+    fn register_loader<T: AssetLoader + 'static>(&mut self) {
+        let dyn_load = self.typed_load.entry(TypeId::of::<T>()).or_insert_with(|| {
             Box::new(TypedAssetLoad::<T>::new(
                 self.task_ctx.clone(),
                 self.filesystem_ctx.clone(),
@@ -315,10 +344,22 @@ impl AssetCacheLoad {
                 self.response_sender.clone(),
             ))
         });
-        entry
+        let typed_load = dyn_load
             .as_any_mut()
             .downcast_mut::<TypedAssetLoad<T>>()
-            .expect("could not downcast typed storage cache")
+            .expect("could not downcast typed storage cache");
+
+        let _ = typed_load;
+    }
+
+    /// Get mutable typed cache or create if it doesnt exist
+    fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> Option<&mut TypedAssetLoad<T>> {
+        self.typed_load.get_mut(&TypeId::of::<T>()).map(|dyn_load| {
+            dyn_load
+                .as_any_mut()
+                .downcast_mut::<TypedAssetLoad<T>>()
+                .expect("could not downcast typed storage cache")
+        })
     }
 
     // check if any files completed loading and update cache and invalidate render cache
@@ -344,9 +385,13 @@ impl AssetCacheLoad {
     }
 
     // check for request of nested loads
-    pub(crate) fn poll_load_requests(&mut self, registry: &mut AssetCacheRegistry) {
+    pub(crate) fn poll_load_requests(
+        &mut self,
+        registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
+    ) {
         while let Ok(request) = self.load_request_receiver.try_recv() {
-            request.get_or_load_asset(self, registry);
+            request.get_or_load_asset(self, registry, storage);
         }
     }
 
@@ -386,33 +431,29 @@ impl AssetCacheLoad {
     pub(crate) fn register_load<T: AssetLoader + 'static>(
         &mut self,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        let handle = registry.get_or_create_load_handle::<T>(settings);
+        let handle = registry.get_or_create_load_handle::<T>(storage, settings);
 
-        if let InternalAssetState::NotRegistered = registry.get_status(handle.to_dyn()) {
+        if let InternalAssetState::Pending = storage.get_asset_state(&handle) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
                 .insert(handle.to_dyn(), TypeId::of::<T>());
 
-            self.get_typed_cache_mut::<T>();
+            self.register_loader::<T>();
 
-            self.queue_load(registry, handle.to_dyn());
-        } else {
-            tracing::info!(
-                "already has status {:?}",
-                registry.get_status(handle.to_dyn())
-            )
+            self.queue_load(storage, handle.to_dyn());
         }
 
         handle
     }
 
-    pub(crate) fn queue_load(&mut self, registry: &mut AssetCacheRegistry, handle: DynAssetHandle) {
+    pub(crate) fn queue_load(&mut self, storage: &mut AssetCacheStorage, handle: DynAssetHandle) {
         tracing::info!("queue load for {}", handle);
         if self.queued.insert(handle.clone()) {
-            registry.set_status(handle.clone(), InternalAssetState::Loading);
+            storage.set_asset_state(handle.clone(), InternalAssetState::Loading);
             self.queue.push_back(handle);
         }
     }

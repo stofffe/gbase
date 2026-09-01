@@ -36,9 +36,9 @@ impl AssetCacheInsert {
         key: I::Key,
         asset: T,
     ) -> AssetHandle<T> {
-        let handle = registry.get_or_create_insert_handle::<T, I>(key, None);
+        let handle = registry.get_or_create_insert_handle::<T, I>(storage, key, None);
 
-        self.insert_asset_with_handle::<T>(registry, storage, handle.clone(), asset);
+        self.insert_asset_with_handle::<T>(storage, handle.clone(), asset);
 
         handle
     }
@@ -51,9 +51,9 @@ impl AssetCacheInsert {
         scope: DynAssetHandle,
         asset: T,
     ) -> AssetHandle<T> {
-        let handle = registry.get_or_create_insert_handle::<T, I>(key, Some(scope));
+        let handle = registry.get_or_create_insert_handle::<T, I>(storage, key, Some(scope));
 
-        self.insert_asset_with_handle::<T>(registry, storage, handle.clone(), asset);
+        self.insert_asset_with_handle::<T>(storage, handle.clone(), asset);
 
         handle
     }
@@ -64,22 +64,21 @@ impl AssetCacheInsert {
         storage: &mut AssetCacheStorage,
         asset: T,
     ) -> AssetHandle<T> {
-        let handle = registry.create_empty_handle::<T>();
+        let handle = registry.create_empty_handle::<T>(storage);
 
-        self.insert_asset_with_handle(registry, storage, handle.clone(), asset);
+        self.insert_asset_with_handle(storage, handle.clone(), asset);
 
         handle
     }
 
     fn insert_asset_with_handle<T: Asset>(
         &mut self,
-        registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
         asset: T,
     ) {
         storage.insert_asset(handle.clone(), asset);
-        registry.set_status(handle.to_dyn(), InternalAssetState::Ready);
+        storage.set_asset_state(handle.to_dyn(), InternalAssetState::Ready);
     }
 }
 

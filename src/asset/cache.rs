@@ -5,7 +5,7 @@ use crate::{
         AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
         AssetInserter, GetAssetState, InternalAssetState,
     },
-    filesystem::{FileSystemContext, FileSystemRuntime},
+    filesystem::FileSystemRuntime,
     Context,
 };
 
@@ -68,14 +68,19 @@ impl AssetCache {
     pub(crate) fn poll(&mut self, ctx: &mut Context) {
         // reload
         #[cfg(not(target_arch = "wasm32"))]
-        self.reloader
-            .poll_reload(&mut self.loader, &mut self.converter, &mut self.registry);
+        self.reloader.poll_reload(
+            &mut self.loader,
+            &mut self.converter,
+            &mut self.registry,
+            &mut self.storage,
+        );
 
         // registry
-        self.registry.clear_just_available();
+        self.storage.clear_just_available();
 
         // loading
-        self.loader.poll_load_requests(&mut self.registry);
+        self.loader
+            .poll_load_requests(&mut self.registry, &mut self.storage);
         self.loader
             .poll_insert_requests(&mut self.registry, &mut self.storage, &mut self.inserter);
         self.loader.poll_loaded(
@@ -123,7 +128,8 @@ impl AssetCache {
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         tracing::info!("register load {:?}", settings);
-        self.loader.register_load::<T>(&mut self.registry, settings)
+        self.loader
+            .register_load::<T>(&mut self.registry, &mut self.storage, settings)
     }
 
     /// Request an asset conversion
@@ -132,7 +138,7 @@ impl AssetCache {
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         self.converter
-            .register_conversion::<T>(&mut self.registry, settings)
+            .register_conversion::<T>(&mut self.registry, &mut self.storage, settings)
     }
 
     /// Get an asset
@@ -144,9 +150,9 @@ impl AssetCache {
             return Ok(asset);
         }
 
-        match self.registry.get_status(handle.to_dyn()) {
+        match self.storage.get_asset_state(handle) {
             InternalAssetState::Loading => {
-                tracing::info!("waiting for {}", handle);
+                tracing::info!("get waiting for {}", handle);
                 Err(GetAssetState::Loading)
             }
             InternalAssetState::Failed => {
@@ -159,8 +165,8 @@ impl AssetCache {
                     handle
                 );
             }
-            InternalAssetState::NotRegistered => {
-                panic!("trying to get unregistered asset {}", handle);
+            InternalAssetState::Pending => {
+                panic!("trying to get pending asset {}", handle);
             }
         }
     }
@@ -176,14 +182,14 @@ impl AssetCache {
 
     /// Returns wheter a handle is available for reading
     pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
-        let status = self.registry.get_status(handle.to_dyn());
+        let status = self.storage.get_asset_state(&handle);
         matches!(status, InternalAssetState::Ready)
     }
 
     pub fn clear_handle<T: Asset>(&mut self, handle: &AssetHandle<T>) {
         self.storage.clear_asset::<T>(handle);
-        self.registry
-            .set_status(handle.to_dyn(), InternalAssetState::Loading);
+        self.storage
+            .set_asset_state(handle.to_dyn(), InternalAssetState::Loading);
         // TODO: probably more
     }
 
@@ -202,7 +208,7 @@ impl AssetCache {
 
     /// Return if the handle became ready this frame
     pub fn handle_just_available<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
-        self.registry.handle_just_available(&handle.to_dyn())
+        self.storage.handle_just_available(&handle.to_dyn())
     }
 
     /// Reload an existing asset while reusing the last path and loader
@@ -213,6 +219,7 @@ impl AssetCache {
             &mut self.loader,
             &mut self.converter,
             &mut self.registry,
+            &mut self.storage,
         );
     }
 }

@@ -1,46 +1,12 @@
 use crate::asset::{
-    Asset, AssetConverter, AssetHandle, AssetHandleContext, AssetInserter, AssetLoader,
-    DynAssetHandle, ScopedInsertAssetKey,
+    Asset, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext, AssetInserter,
+    AssetLoader, DynAssetHandle, ScopedInsertAssetKey,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::{
     any::{Any, TypeId},
-    fmt::Debug,
     marker::PhantomData,
 };
-
-//
-// Metadata
-//
-
-pub struct AssetMetadata {
-    status: InternalAssetState,
-    debug_name: Option<String>,
-}
-
-impl AssetMetadata {
-    fn new() -> Self {
-        Self {
-            status: InternalAssetState::NotRegistered,
-            debug_name: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum InternalAssetState {
-    Loading,
-    Failed,
-    Ready,
-    NotRegistered,
-}
-
-/// Only returned when an asset is not found
-#[derive(Clone, Debug)]
-pub enum GetAssetState {
-    Loading,
-    Failed,
-}
 
 //
 // Genereic
@@ -52,10 +18,6 @@ pub struct AssetCacheRegistry {
     typed_convert_registries: FxHashMap<TypeId, Box<dyn DynConvertRegistry>>,
     typed_load_registries: FxHashMap<TypeId, Box<dyn DynLoadRegistry>>,
     typed_insert_registries: FxHashMap<TypeId, Box<dyn DynInsertRegistry>>,
-
-    metadata: FxHashMap<DynAssetHandle, AssetMetadata>,
-    // handles that became available this frame
-    just_available: FxHashSet<DynAssetHandle>,
 }
 
 impl AssetCacheRegistry {
@@ -64,8 +26,6 @@ impl AssetCacheRegistry {
             typed_convert_registries: FxHashMap::default(),
             typed_load_registries: FxHashMap::default(),
             typed_insert_registries: FxHashMap::default(),
-            just_available: FxHashSet::default(),
-            metadata: FxHashMap::default(),
             asset_handle_ctx,
         }
     }
@@ -109,8 +69,14 @@ impl AssetCacheRegistry {
             .expect("could not downcast typed storage cache")
     }
 
-    pub(crate) fn create_empty_handle<T: Asset + 'static>(&self) -> AssetHandle<T> {
-        AssetHandle::new(&self.asset_handle_ctx)
+    pub(crate) fn create_empty_handle<T: Asset + 'static>(
+        &self,
+        storage: &mut AssetCacheStorage,
+    ) -> AssetHandle<T> {
+        tracing::info!("create new empty handle");
+        let handle = AssetHandle::new(&self.asset_handle_ctx);
+        storage.register_asset(handle.clone());
+        handle
     }
 
     /// Gets an existing or creates a new handle
@@ -118,6 +84,7 @@ impl AssetCacheRegistry {
     /// Does not queue any conversions
     pub(crate) fn get_or_create_convert_handle<T: AssetConverter + 'static>(
         &mut self,
+        storage: &mut AssetCacheStorage,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         let typed = self.get_or_create_typed_convert_registry_mut::<T>();
@@ -139,6 +106,9 @@ impl AssetCacheRegistry {
             .settings_to_handle
             .insert(settings.clone(), new_handle.to_dyn());
 
+        // create empty asset entry in storage
+        storage.register_asset(new_handle.clone());
+
         new_handle
     }
 
@@ -147,6 +117,7 @@ impl AssetCacheRegistry {
     /// Does not queue any conversions
     pub(crate) fn get_or_create_load_handle<T: AssetLoader + 'static>(
         &mut self,
+        storage: &mut AssetCacheStorage,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         let typed = self.get_or_create_typed_load_registry_mut::<T>();
@@ -168,6 +139,9 @@ impl AssetCacheRegistry {
             .settings_to_handle
             .insert(settings.clone(), new_handle.to_dyn());
 
+        // create empty asset entry in storage
+        storage.register_asset(new_handle.clone());
+
         new_handle
     }
 
@@ -176,6 +150,7 @@ impl AssetCacheRegistry {
     /// Does not queue any conversions
     pub(crate) fn get_or_create_insert_handle<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
+        storage: &mut AssetCacheStorage,
         key: I::Key,
         scope: Option<DynAssetHandle>,
     ) -> AssetHandle<T> {
@@ -199,6 +174,9 @@ impl AssetCacheRegistry {
         typed
             .key_to_handle
             .insert(insert_asset_key.clone(), new_handle.to_dyn());
+
+        // create empty asset entry in storage
+        storage.register_asset(new_handle.clone());
 
         new_handle
     }
@@ -271,50 +249,6 @@ impl AssetCacheRegistry {
             .handle_to_key
             .get(handle)
             .map(|insert_asset_key| insert_asset_key.key().clone())
-    }
-
-    //
-    // Metadata
-    //
-
-    fn get_metadata_mut(&mut self, handle: DynAssetHandle) -> &mut AssetMetadata {
-        self.metadata.entry(handle).or_insert(AssetMetadata::new())
-    }
-
-    pub(crate) fn set_status(&mut self, handle: DynAssetHandle, status: InternalAssetState) {
-        let metadata = self.get_metadata_mut(handle);
-        metadata.status = status;
-    }
-
-    pub(crate) fn get_status(&mut self, handle: DynAssetHandle) -> InternalAssetState {
-        let metadata = self.get_metadata_mut(handle);
-        metadata.status.clone()
-    }
-
-    pub(crate) fn set_debug_name(&mut self, handle: DynAssetHandle, debug_name: String) {
-        let metadata = self.get_metadata_mut(handle);
-        metadata.debug_name = Some(debug_name);
-    }
-
-    pub(crate) fn get_debug_name(&mut self, handle: DynAssetHandle) -> Option<&str> {
-        let metadata = self.get_metadata_mut(handle);
-        metadata.debug_name.as_deref()
-    }
-
-    //
-    // Just available
-    //
-
-    pub(crate) fn set_just_available(&mut self, handle: DynAssetHandle) {
-        self.just_available.insert(handle);
-    }
-
-    pub(crate) fn handle_just_available(&self, handle: &DynAssetHandle) -> bool {
-        self.just_available.contains(handle)
-    }
-
-    pub(crate) fn clear_just_available(&mut self) {
-        self.just_available.clear();
     }
 }
 

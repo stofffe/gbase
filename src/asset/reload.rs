@@ -1,10 +1,11 @@
-use crate::asset::AssetCacheLoad;
 use crate::asset::{AssetCacheConvert, AssetCacheDependency, AssetCacheRegistry, DynAssetHandle};
+use crate::asset::{AssetCacheLoad, AssetCacheStorage};
 use crate::filesystem::{FileSystemContext, FileSystemRuntime};
 use core::panic;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashSet;
 use std::path::PathBuf;
+use wgpu::wgc::storage;
 
 //
 // Types
@@ -72,12 +73,13 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
     ) {
         while let Ok(reload_request) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
                     tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle, loader, converter, registry);
+                    self.reload(handle, loader, converter, registry, storage);
                 }
             }
         }
@@ -90,6 +92,7 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
     ) {
         // mark as curretnly reloading
         self.set_currently_reloading(dyn_handle.clone());
@@ -97,8 +100,8 @@ impl AssetCacheReload {
         let created_by_loader = registry.created_by_loader(&dyn_handle);
         let created_by_converter = registry.created_by_converter(&dyn_handle);
         match (created_by_loader, created_by_converter) {
-            (true, false) => loader.queue_load(registry, dyn_handle.clone()),
-            (false, true) => converter.queue_conversion(registry, dyn_handle),
+            (true, false) => loader.queue_load(storage, dyn_handle.clone()),
+            (false, true) => converter.queue_conversion(storage, dyn_handle),
             (true, true) => panic!("a handle cant be both a loader and a converter"),
             (false, false) => panic!("a handle must be either a loader or converter"),
         }
@@ -150,6 +153,7 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
+        storage: &mut AssetCacheStorage,
         handle: &DynAssetHandle,
     ) {
         if let Some(dependents) = dependency.dependents(handle) {
@@ -157,7 +161,7 @@ impl AssetCacheReload {
 
             for dependent in dependents.iter() {
                 tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), loader, converter, registry);
+                self.reload(dependent.clone(), loader, converter, registry, storage);
             }
         }
     }

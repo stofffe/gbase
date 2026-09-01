@@ -42,7 +42,6 @@ pass asset handle ctx and stuff instead of arcing
 maybe have more states on getasset result, like depency failed?
 look at clone vs & for handles
 remove conversion state, probably not since we need loading to be a 
-fix ability to read files using filesystem api
 
 dont track changes in release mode, wait for custom features
 

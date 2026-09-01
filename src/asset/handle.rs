@@ -107,6 +107,10 @@ impl DynAssetHandle {
         *self.id
     }
 
+    pub fn asset_type_id(&self) -> TypeId {
+        self.type_id
+    }
+
     pub fn to_typed<T: Asset + 'static>(&self) -> Option<AssetHandle<T>> {
         if self.type_id != TypeId::of::<T>() {
             tracing::error!(
