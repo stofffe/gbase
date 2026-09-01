@@ -11,7 +11,6 @@ use crate::{
     ConditionalSend,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::fmt::Debug;
 use std::{
     any::{Any, TypeId},
     collections::VecDeque,
@@ -21,6 +20,7 @@ use std::{
     path::PathBuf,
 };
 use std::{error, path::Path};
+use std::{fmt::Debug, sync::Arc};
 
 //
 // Types
@@ -255,28 +255,34 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
 // Get request
 //
 
-// enum GetAsset<T> {
-//     Ready(Arc<T>),
-//     Failed(),
-// }
-
 pub(crate) trait DynGetRequest: ConditionalSend {
-    fn get_asset(self: Box<Self>, handle: DynAssetHandle, storage: &mut AssetCacheStorage);
+    fn get_asset(self: Box<Self>, storage: &mut AssetCacheStorage);
 }
 
-struct TypedGetRequest<T: Asset> {
-    response_sender: async_channel::Sender<T>,
+pub(crate) struct TypedGetRequest<T: Asset> {
+    handle: AssetHandle<T>,
+    response_sender: async_channel::Sender<Arc<T>>,
 }
 impl<T: Asset> TypedGetRequest<T> {
-    fn new(response_sender: async_channel::Sender<T>) -> Self {
-        Self { response_sender }
+    fn new(handle: AssetHandle<T>, response_sender: async_channel::Sender<Arc<T>>) -> Self {
+        Self {
+            handle,
+            response_sender,
+        }
     }
 }
 
 impl<T: Asset> DynGetRequest for TypedGetRequest<T> {
-    fn get_asset(self: Box<Self>, handle: DynAssetHandle, storage: &mut AssetCacheStorage) {
-        // just adds the sender to
-        todo!()
+    fn get_asset(self: Box<Self>, storage: &mut AssetCacheStorage) {
+        if let Some(asset) = storage.get_asset(&self.handle) {
+            tracing::error!("found {} in storage", self.handle);
+            self.response_sender
+                .try_send(asset.clone())
+                .expect("could not send get request response");
+        } else {
+            tracing::error!("could not find {} in storage, request it", self.handle);
+            storage.add_get_request(&self.handle, self.response_sender);
+        }
     }
 }
 
@@ -301,6 +307,10 @@ pub(crate) struct AssetCacheLoad {
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
     insert_request_receiver: async_channel::Receiver<Box<dyn DynInsertRequest>>,
 
+    // get request
+    get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
+    get_request_receiver: async_channel::Receiver<Box<dyn DynGetRequest>>,
+
     // load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
@@ -313,6 +323,7 @@ impl AssetCacheLoad {
         let (response_sender, response_receiver) = async_channel::unbounded();
         let (load_request_sender, load_request_receiver) = async_channel::unbounded();
         let (insert_request_sender, insert_request_receiver) = async_channel::unbounded();
+        let (get_request_sender, get_request_receiver) = async_channel::unbounded();
 
         Self {
             task_ctx,
@@ -329,6 +340,9 @@ impl AssetCacheLoad {
             load_request_sender,
             load_request_receiver,
 
+            get_request_sender,
+            get_request_receiver,
+
             insert_request_sender,
             insert_request_receiver,
         }
@@ -341,6 +355,7 @@ impl AssetCacheLoad {
                 self.filesystem_ctx.clone(),
                 self.load_request_sender.clone(),
                 self.insert_request_sender.clone(),
+                self.get_request_sender.clone(),
                 self.response_sender.clone(),
             ))
         });
@@ -390,8 +405,15 @@ impl AssetCacheLoad {
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
     ) {
-        while let Ok(request) = self.load_request_receiver.try_recv() {
-            request.get_or_load_asset(self, registry, storage);
+        while let Ok(load_request) = self.load_request_receiver.try_recv() {
+            load_request.get_or_load_asset(self, registry, storage);
+        }
+    }
+
+    // check for request of nested gets
+    pub(crate) fn poll_get_requests(&mut self, storage: &mut AssetCacheStorage) {
+        while let Ok(get_request) = self.get_request_receiver.try_recv() {
+            get_request.get_asset(storage);
         }
     }
 
@@ -469,6 +491,7 @@ struct TypedAssetLoad<T: AssetLoader> {
 
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
+    get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
@@ -484,6 +507,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
 
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
+        get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
@@ -493,6 +517,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
 
             load_request_sender,
             insert_request_sender,
+            get_request_sender,
 
             response_sender,
             ty: PhantomData,
@@ -507,6 +532,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
             self.filesystem_ctx.clone(),
             self.load_request_sender.clone(),
             self.insert_request_sender.clone(),
+            self.get_request_sender.clone(),
             self.response_sender.clone(),
         );
 
@@ -608,6 +634,9 @@ struct LoadRuntime {
     // async channel for requesting insertions
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
 
+    // async channel for requesting assets
+    get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
+
     // async channel for returning the result of the load
     // note: not for nested loads
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
@@ -618,6 +647,7 @@ impl LoadRuntime {
         filesystem_ctx: filesystem::FileSystemRuntime,
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
+        get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
@@ -625,6 +655,7 @@ impl LoadRuntime {
             response_sender,
             load_request_sender,
             insert_request_sender,
+            get_request_sender,
         }
     }
 }
@@ -746,6 +777,25 @@ impl LoadContext {
         self.state.dependencies.insert(handle.to_dyn());
 
         handle
+    }
+
+    pub async fn request_get<T: Asset>(&mut self, handle: AssetHandle<T>) -> Arc<T> {
+        tracing::info!("ASYNC: request nested get request for {}", self.handle());
+
+        let (sender, receiver) = async_channel::bounded(1);
+
+        self.runtime
+            .get_request_sender
+            .send(Box::new(TypedGetRequest::new(handle.clone(), sender)))
+            .await
+            .expect("could not send get request");
+
+        let asset = receiver
+            .recv()
+            .await
+            .expect("could not receive get request");
+
+        asset
     }
 
     pub async fn load_bytes(

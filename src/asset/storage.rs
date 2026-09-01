@@ -1,15 +1,18 @@
 use crate::{
     asset::{AssetHandle, DynAssetHandle},
-    ConditionalSend,
+    ConditionalSend, ConditionalSync,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::any::{type_name, Any, TypeId};
+use std::{
+    any::{type_name, Any, TypeId},
+    sync::Arc,
+};
 
 //
 // Types
 //
 
-pub trait Asset: Any + ConditionalSend {}
+pub trait Asset: Any + ConditionalSend + ConditionalSync {}
 
 #[derive(Clone, Debug)]
 pub(crate) enum InternalAssetState {
@@ -68,6 +71,25 @@ impl AssetCacheStorage {
             })
     }
 
+    fn get_asset_entry<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&AssetEntry<T>> {
+        let Some(typed_storage) = self.get_typed_storage_ref::<T>() else {
+            panic!("could not get typed cache {}", type_name::<T>());
+        };
+
+        typed_storage.cache.get(handle)
+    }
+
+    fn get_asset_entry_mut<T: Asset>(
+        &mut self,
+        handle: &AssetHandle<T>,
+    ) -> Option<&mut AssetEntry<T>> {
+        let Some(typed_storage) = self.get_typed_storage_mut::<T>() else {
+            panic!("could not get typed cache {}", type_name::<T>());
+        };
+
+        typed_storage.cache.get_mut(handle)
+    }
+
     pub(crate) fn register_asset<T: Asset>(&mut self, handle: AssetHandle<T>) {
         // get or create the typed storage
         let dyn_storage = self
@@ -86,35 +108,33 @@ impl AssetCacheStorage {
                 asset: None,
                 state: InternalAssetState::Pending, // TODO: add state for invalid/not started
                 debug_name: None,
+                get_requests: Vec::new(),
             },
         );
     }
 
     pub(crate) fn insert_asset<T: Asset>(&mut self, handle: AssetHandle<T>, asset: T) {
         tracing::info!("insert into storage {}", handle);
-        let Some(typed_storage) = self.get_typed_storage_mut::<T>() else {
-            panic!("could not get typed cache {}", type_name::<T>());
+
+        let Some(entry) = self.get_asset_entry_mut(&handle) else {
+            panic!("could not get asset entry for {}", handle);
         };
 
-        typed_storage.cache.insert(
-            handle.clone(),
-            AssetEntry {
-                asset: Some(asset),
-                state: InternalAssetState::Ready,
-                debug_name: None,
-            },
-        );
+        // insert asset
+        let arc_asset = Arc::new(asset);
+        entry.asset = Some(arc_asset.clone());
+        entry.state = InternalAssetState::Ready;
+
+        // notify waiting requests
+        for get_request in entry.get_requests.drain(..) {
+            tracing::error!("respond to get request for {}", handle);
+            get_request
+                .try_send(arc_asset.clone())
+                .expect("could not send get request response");
+        }
     }
 
-    fn get_asset_entry<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&AssetEntry<T>> {
-        let Some(typed_storage) = self.get_typed_storage_ref::<T>() else {
-            panic!("could not get typed cache {}", type_name::<T>());
-        };
-
-        typed_storage.cache.get(handle)
-    }
-
-    pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&T> {
+    pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&Arc<T>> {
         let entry = self
             .get_asset_entry(handle)
             .expect("could not get asset entry");
@@ -149,6 +169,19 @@ impl AssetCacheStorage {
         typed_storage.cache.remove(handle);
     }
 
+    pub(crate) fn add_get_request<T: Asset>(
+        &mut self,
+        handle: &AssetHandle<T>,
+        get_request: async_channel::Sender<Arc<T>>,
+    ) {
+        let Some(entry) = self.get_asset_entry_mut(handle) else {
+            panic!("could not get asset entry for {}", handle);
+        };
+
+        tracing::info!("add get request for {}", handle);
+        entry.get_requests.push(get_request);
+    }
+
     pub(crate) fn set_just_available(&mut self, handle: DynAssetHandle) {
         self.just_available.insert(handle);
     }
@@ -167,10 +200,10 @@ impl AssetCacheStorage {
 //
 
 struct AssetEntry<T: Asset> {
-    asset: Option<T>,
+    asset: Option<Arc<T>>,
     state: InternalAssetState,
     debug_name: Option<String>,
-    // waiting senders
+    get_requests: Vec<async_channel::Sender<Arc<T>>>,
 }
 
 struct TypedAssetStorage<T: Asset> {

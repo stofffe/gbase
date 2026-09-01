@@ -1,4 +1,3 @@
-use core::panic;
 use gbase::asset::GetAssetState;
 use gbase::render::ArcHandle;
 use gbase::{
@@ -67,6 +66,14 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
                         .request_load::<ShaderWithImportsLoader>(settings_with_new_path)
                         .await;
 
+                    tracing::error!("start waiting for get {}", import);
+                    let import_resolved = load_ctx.request_get(import.clone()).await;
+                    tracing::error!(
+                        "done waiting for get {} with value {:#?}",
+                        import,
+                        import_resolved
+                    );
+
                     imports.push(import);
 
                     continue;
@@ -77,7 +84,7 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
-        tracing::info!("Loaded {} {:?}", source, imports);
+        // tracing::info!("Loaded {} {:?}", source, imports);
 
         Ok(ShaderWithImports { source, imports })
     }

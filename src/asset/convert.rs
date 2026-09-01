@@ -231,7 +231,6 @@ impl AssetCacheConvert {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_convert_handle::<T>(storage, settings);
 
-        tracing::info!("register asset convertsion {}", handle);
         if let InternalAssetState::Pending = storage.get_asset_state(&handle) {
             tracing::info!("register conversion {}", handle);
 

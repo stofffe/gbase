@@ -79,6 +79,7 @@ impl AssetCache {
         self.storage.clear_just_available();
 
         // loading
+        self.loader.poll_get_requests(&mut self.storage);
         self.loader
             .poll_load_requests(&mut self.registry, &mut self.storage);
         self.loader
@@ -152,7 +153,7 @@ impl AssetCache {
 
         match self.storage.get_asset_state(handle) {
             InternalAssetState::Loading => {
-                tracing::info!("get waiting for {}", handle);
+                tracing::info!("waiting for {}", handle);
                 Err(GetAssetState::Loading)
             }
             InternalAssetState::Failed => {
