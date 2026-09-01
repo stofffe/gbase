@@ -1,9 +1,6 @@
-use crate::{
-    task::{Task, TaskExecutorPlatformTrait, TaskTrait},
-    ConditionalSend,
-};
+use crate::task::{Task, TaskExecutorPlatformTrait};
 use futures::{FutureExt, StreamExt};
-use std::{any::Any, future::Future};
+use std::any::Any;
 
 pub type TaskExecutorPlatform = NativeTaskExecutor;
 

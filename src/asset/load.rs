@@ -6,8 +6,9 @@ use crate::{
         Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
         AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
-    filesystem::{self, FileSystemContext, FileSystemRuntime},
-    task::{TaskContext, TaskExecutorRuntime},
+    filesystem::{self, FileSystemRuntime},
+    task::TaskExecutorRuntime,
+    ConditionalSend,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::fmt::Debug;
@@ -25,34 +26,24 @@ use std::{error, path::Path};
 // Types
 //
 
+pub trait LoadAssetReturn<T, E>: Future<Output = Result<T, E>> + ConditionalSend {}
+impl<F, T, E> LoadAssetReturn<T, E> for F where F: Future<Output = Result<T, E>> + ConditionalSend {}
+
 pub trait LoadAssetSettings: Debug + Hash + Eq + Clone {}
 impl<T: Debug + Hash + Eq + Clone> LoadAssetSettings for T {}
 
 pub trait AssetError: error::Error {}
 impl<T: error::Error> AssetError for T {}
 
-#[cfg(not(target_arch = "wasm32"))]
-pub trait AssetLoader: Send {
+pub trait AssetLoader: ConditionalSend {
     type Asset: Asset;
-    type Settings: LoadAssetSettings + Send;
-    type Error: AssetError + Send;
+    type Settings: LoadAssetSettings + ConditionalSend;
+    type Error: AssetError + ConditionalSend;
 
     fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
-    ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + Send;
-}
-
-#[cfg(target_arch = "wasm32")]
-pub trait AssetLoader {
-    type Asset: Asset;
-    type Settings: LoadAssetSettings;
-    type Error: AssetError;
-
-    fn load(
-        load_ctx: &mut LoadContext,
-        settings: Self::Settings,
-    ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
+    ) -> impl LoadAssetReturn<Self::Asset, Self::Error>;
 }
 
 //
@@ -71,21 +62,7 @@ struct LoadResponse<T: AssetLoader> {
     watches: FxHashSet<PathBuf>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-trait DynLoadResponse: Send {
-    fn handle_asset_load_response(
-        self: Box<Self>,
-        storage: &mut AssetCacheStorage,
-        loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
-        convert: &mut AssetCacheConvert,
-        dependency: &mut AssetCacheDependency,
-        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    );
-}
-
-#[cfg(target_arch = "wasm32")]
-trait DynLoadResponse {
+trait DynLoadResponse: ConditionalSend {
     fn handle_asset_load_response(
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
@@ -164,17 +141,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 /// Type erased load request
 ///
 /// Is sent using async channels
-#[cfg(not(target_arch = "wasm32"))]
-trait DynLoadRequest: Send {
-    fn get_or_load_asset(
-        self: Box<Self>,
-        loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
-    );
-}
-
-#[cfg(target_arch = "wasm32")]
-trait DynLoadRequest {
+trait DynLoadRequest: ConditionalSend {
     fn get_or_load_asset(
         self: Box<Self>,
         loader: &mut AssetCacheLoad,
@@ -220,18 +187,7 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
 /// Type erased insert request
 ///
 /// Is sent using async channels
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) trait DynInsertRequest: Send {
-    fn insert_asset(
-        self: Box<Self>,
-        registry: &mut AssetCacheRegistry,
-        storage: &mut AssetCacheStorage,
-        inserter: &mut AssetCacheInsert,
-    );
-}
-
-#[cfg(target_arch = "wasm32")]
-pub(crate) trait DynInsertRequest {
+pub(crate) trait DynInsertRequest: ConditionalSend {
     fn insert_asset(
         self: Box<Self>,
         registry: &mut AssetCacheRegistry,

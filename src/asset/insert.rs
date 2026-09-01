@@ -1,5 +1,9 @@
-use crate::asset::{
-    Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle, InternalAssetState,
+use crate::{
+    asset::{
+        Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle,
+        InternalAssetState,
+    },
+    ConditionalSend,
 };
 use std::{fmt::Debug, hash::Hash};
 
@@ -10,14 +14,8 @@ use std::{fmt::Debug, hash::Hash};
 pub trait InsertAssetKey: Debug + Hash + Eq + Clone {}
 impl<T: Debug + Hash + Eq + Clone> InsertAssetKey for T {}
 
-#[cfg(not(target_arch = "wasm32"))]
-pub trait AssetInserter: Send {
-    type Key: InsertAssetKey + Send;
-}
-
-#[cfg(target_arch = "wasm32")]
-pub trait AssetInserter {
-    type Key: InsertAssetKey;
+pub trait AssetInserter: ConditionalSend {
+    type Key: InsertAssetKey + ConditionalSend;
 }
 
 //

@@ -1,16 +1,12 @@
-use crate::asset::{AssetCacheRegistry, AssetHandle};
+use crate::{asset::AssetHandle, ConditionalSend};
 use rustc_hash::FxHashMap;
-use std::any::{type_name, Any, TypeId};
+use std::any::{Any, TypeId};
 
 //
 // Types
 //
 
-#[cfg(not(target_arch = "wasm32"))]
-pub trait Asset: Any + Send {}
-
-#[cfg(target_arch = "wasm32")]
-pub trait Asset: Any {}
+pub trait Asset: Any + ConditionalSend {}
 
 //
 // Generic
