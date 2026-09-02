@@ -1,53 +1,47 @@
-use gbase::asset::GetAssetState;
-use gbase::render::ArcHandle;
 use gbase::{
     asset::{
-        self, Asset, AssetConverter, AssetHandle, ConvertAssetState, ConvertContext, EmptyError,
-        LoadContext,
+        Asset, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState, ConvertContext,
+        EmptyError, GetAssetState, LoadContext,
     },
-    filesystem,
-    render::{self, ArcShaderModule},
+    filesystem::{self, LoadFileError},
+    render::{self, ArcHandle, ArcShaderModule},
     tracing, Context,
 };
 use std::path::PathBuf;
 
 //
-// Asset loading
+// Shader string
 //
 
-#[derive(Debug, Clone)]
-pub struct ShaderWithImports {
-    source: String,
-    imports: Vec<AssetHandle<ShaderWithImports>>,
-}
-
-impl Asset for ShaderWithImports {}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ShaderWithImportsLoaderSettings {
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ShaderStringLoaderSettings {
     path: PathBuf,
 }
-
-impl ShaderWithImportsLoaderSettings {
+impl ShaderStringLoaderSettings {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct ShaderWithImportsLoader {}
+pub struct ShaderString {
+    source: String,
+}
+impl Asset for ShaderString {}
 
-impl asset::AssetLoader for ShaderWithImportsLoader {
-    type Asset = ShaderWithImports;
-    type Settings = ShaderWithImportsLoaderSettings;
-    type Error = filesystem::LoadFileError;
+pub struct ShaderStringLoader;
+
+impl AssetLoader for ShaderStringLoader {
+    type Asset = ShaderString;
+
+    type Settings = ShaderStringLoaderSettings;
+
+    type Error = LoadFileError;
 
     async fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let mut source = String::new();
-        let mut imports = Vec::new();
 
         let source_code = load_ctx.load_string(&settings.path).await?;
 
@@ -62,19 +56,13 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
 
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path;
-                    let import = load_ctx
-                        .request_load::<ShaderWithImportsLoader>(settings_with_new_path)
+
+                    let import_source_handle = load_ctx
+                        .request_load::<ShaderStringLoader>(settings_with_new_path)
                         .await;
+                    let import_source = load_ctx.request_get(import_source_handle).await;
 
-                    tracing::error!("start waiting for get {}", import);
-                    let import_resolved = load_ctx.request_get(import.clone()).await;
-                    tracing::error!(
-                        "done waiting for get {} with value {:#?}",
-                        import,
-                        import_resolved
-                    );
-
-                    imports.push(import);
+                    source.push_str(&import_source.source);
 
                     continue;
                 }
@@ -84,108 +72,44 @@ impl asset::AssetLoader for ShaderWithImportsLoader {
             source.push('\n');
         }
 
-        // tracing::info!("Loaded {} {:?}", source, imports);
+        tracing::info!("Loaded shader string\n{}", source);
 
-        Ok(ShaderWithImports { source, imports })
+        Ok(ShaderString { source })
     }
-}
-
-#[derive(Clone)]
-pub struct ShaderWithImportsFinal {
-    source: String,
 }
 
 //
-// Shader conversion
+// Shader string gpu
 //
 
-impl Asset for ShaderWithImportsFinal {}
-
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct ShaderWithImportsConverterOptions {
-    shader: AssetHandle<ShaderWithImports>,
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ShaderStringGpuConverterSettings {
+    shader_string_handle: AssetHandle<ShaderString>,
 }
-impl ShaderWithImportsConverterOptions {
-    pub fn new(shader: AssetHandle<ShaderWithImports>) -> Self {
-        Self { shader }
+
+impl ShaderStringGpuConverterSettings {
+    pub fn new(shader_string_handle: AssetHandle<ShaderString>) -> Self {
+        Self {
+            shader_string_handle,
+        }
     }
 }
 
-pub struct ShaderWithImportsConverter {}
-
-impl AssetConverter for ShaderWithImportsConverter {
-    type Asset = ShaderWithImportsFinal;
-    type Settings = ShaderWithImportsConverterOptions;
-    type Error = EmptyError;
-
-    fn convert(
-        _ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>,
-        settings: &Self::Settings,
-    ) -> asset::ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.shader) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        }
-        .clone();
-
-        let mut import_sources = Vec::new();
-        for import in source.imports.iter() {
-            let conversion_result = convert_ctx.convert_asset::<ShaderWithImportsConverter>(
-                &ShaderWithImportsConverterOptions::new(import.clone()),
-            );
-            match conversion_result {
-                Ok(asset) => import_sources.push(asset.source.clone()),
-                Err(state) => match state {
-                    GetAssetState::Loading => return ConvertAssetState::Loading,
-                    GetAssetState::Failed => return ConvertAssetState::Failed,
-                },
-            };
-        }
-
-        let mut resoved_source = String::new();
-        for import in import_sources {
-            // TODO: maybe insert on line it was included?
-            resoved_source.push_str(&import);
-        }
-        resoved_source.push_str(&source.source);
-
-        ConvertAssetState::Success(ShaderWithImportsFinal {
-            source: resoved_source,
-        })
-    }
-}
-
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct ShaderWithImportsGpuConverterSettings {
-    shader: AssetHandle<ShaderWithImports>,
-}
-
-impl ShaderWithImportsGpuConverterSettings {
-    pub fn new(shader: AssetHandle<ShaderWithImports>) -> Self {
-        Self { shader }
-    }
-}
-
-pub struct ShaderWithImportsGpuConverter;
-
-impl AssetConverter for ShaderWithImportsGpuConverter {
+pub struct ShaderStringGpuConverter {}
+impl AssetConverter for ShaderStringGpuConverter {
     type Asset = ArcShaderModule;
-    type Settings = ShaderWithImportsGpuConverterSettings;
+
+    type Settings = ShaderStringGpuConverterSettings;
+
     type Error = EmptyError;
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut asset::ConvertContext,
+        convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> ConvertAssetState<Self::Asset> {
-        let shader_source = match convert_ctx.convert_asset::<ShaderWithImportsConverter>(
-            &ShaderWithImportsConverterOptions::new(settings.shader.clone()),
-        ) {
-            Ok(source) => source,
+        let shader_string = match convert_ctx.get_asset(&settings.shader_string_handle) {
+            Ok(shader_string) => shader_string,
             Err(state) => match state {
                 GetAssetState::Loading => return ConvertAssetState::Loading,
                 GetAssetState::Failed => return ConvertAssetState::Failed,
@@ -195,7 +119,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let shader =
-                render::ShaderBuilder::new().build_err_non_arc(ctx, shader_source.source.clone());
+                render::ShaderBuilder::new().build_err_non_arc(ctx, shader_string.source.clone());
 
             match shader {
                 Ok(shader) => ConvertAssetState::Success(ArcHandle::new(ctx, shader)),
@@ -208,7 +132,7 @@ impl AssetConverter for ShaderWithImportsGpuConverter {
         #[cfg(target_arch = "wasm32")]
         {
             let shader =
-                render::ShaderBuilder::new().build_non_arc(ctx, shader_source.source.clone());
+                render::ShaderBuilder::new().build_non_arc(ctx, shader_string.source.clone());
             ConvertAssetState::Success(ArcHandle::new(ctx, shader))
         }
     }

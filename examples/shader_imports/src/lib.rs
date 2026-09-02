@@ -30,7 +30,6 @@ struct App {
     mesh_handle: AssetHandle<render::Mesh>,
     mesh_gpu_handle: AssetHandle<GpuMesh>,
 
-    shader_handle: AssetHandle<ShaderWithImports>,
     shader_gpu_handle: AssetHandle<ArcShaderModule>,
 }
 
@@ -61,13 +60,6 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
-            &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
-        );
-        let shader_gpu_handle = cache.convert_asset::<ShaderWithImportsGpuConverter>(
-            &ShaderWithImportsGpuConverterSettings::new(shader_handle.clone()),
-        );
-
         let texture_handle =
             cache.load_asset::<ImageLoader>(&ImageLoaderSettings::new("textures/texture.jpeg"));
         let texture_gpu_handle = cache.convert_asset::<ImageGpuConverter>(
@@ -84,16 +76,22 @@ impl Callbacks for App {
         let mesh_gpu_handle = cache
             .convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(mesh_handle.clone()));
 
+        let shader_handle = cache.load_asset::<ShaderStringLoader>(
+            &ShaderStringLoaderSettings::new("shaders/texture_import.wgsl"),
+        );
+        let shader_gpu_handle = cache.convert_asset::<ShaderStringGpuConverter>(
+            &ShaderStringGpuConverterSettings::new(shader_handle),
+        );
+
         Self {
             pipeline_layout,
             bindgroup_layout,
 
             texture_handle,
             texture_gpu_handle,
-            shader_handle,
-            shader_gpu_handle,
             mesh_handle,
             mesh_gpu_handle,
+            shader_gpu_handle,
         }
     }
 
