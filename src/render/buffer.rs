@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, next_id, BindGroupBindable},
+    render::{self, BindGroupBindable},
     Context,
 };
 use bytemuck::NoUninit;

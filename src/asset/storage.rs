@@ -127,7 +127,6 @@ impl AssetCacheStorage {
 
         // notify waiting requests
         for get_request in entry.get_requests.drain(..) {
-            tracing::error!("respond to get request for {}", handle);
             get_request
                 .try_send(arc_asset.clone())
                 .expect("could not send get request response");
@@ -153,7 +152,6 @@ impl AssetCacheStorage {
         dyn_handle: DynAssetHandle,
         state: InternalAssetState,
     ) {
-        tracing::info!("SET STATE {} {:?}", dyn_handle, state);
         let Some(dyn_storage) = self.typed_storage.get_mut(&dyn_handle.asset_type_id()) else {
             panic!("could not get typed storage for {}", dyn_handle);
         };

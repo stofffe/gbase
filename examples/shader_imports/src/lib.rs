@@ -76,12 +76,11 @@ impl Callbacks for App {
         let mesh_gpu_handle = cache
             .convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(mesh_handle.clone()));
 
-        let shader_handle = cache.load_asset::<ShaderStringLoader>(
-            &ShaderStringLoaderSettings::new("shaders/texture_import.wgsl"),
+        let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
+            &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
         );
-        let shader_gpu_handle = cache.convert_asset::<ShaderStringGpuConverter>(
-            &ShaderStringGpuConverterSettings::new(shader_handle),
-        );
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
 
         Self {
             pipeline_layout,

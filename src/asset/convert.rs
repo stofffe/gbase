@@ -434,7 +434,7 @@ impl<'runtime> ConvertContext<'runtime> {
             }
             InternalAssetState::Failed => {
                 self.state.blocking_handle = Some(handle.to_dyn());
-                tracing::info!("erron in {}", handle);
+                tracing::info!("error in {}", handle);
                 Err(GetAssetState::Failed)
             }
             InternalAssetState::Ready => panic!(

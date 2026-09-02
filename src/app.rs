@@ -2,6 +2,7 @@
 use crate::hot_reload::{self, DllCallbacks};
 
 use crate::{
+    arc,
     asset::AssetCache,
     audio, filesystem, input,
     profile::{self, ProfilerWrapper},
@@ -202,6 +203,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
             let random = random::RandomContext::new();
             let profile = profile::ProfileContext::new(&builder, &render.device, &render.queue);
             let task = task::TaskContext::new();
+            let arc = arc::ArcContext::new();
 
             let ctx = Context {
                 input,
@@ -212,6 +214,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
                 random,
                 profile,
                 task,
+                arc,
 
                 #[cfg(feature = "hot_reload")]
                 hot_reload: hot_reload::HotReloadContext::new(),

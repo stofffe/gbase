@@ -1,5 +1,6 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
+    arc::{self, ArcHandleRuntime},
     asset::{
         AssetConverter, AssetInserter, ConvertAssetState, ConvertContext, GetAssetState,
         InternalAssetState, LoadContext,
@@ -202,17 +203,20 @@ impl AssetConverter for ShaderGpuConverter {
         };
 
         let shader_source = source.source.clone();
+        let arc_runtime = arc::runtime(ctx);
 
         #[cfg(target_arch = "wasm32")]
         {
             let shader_module = source.config.build_non_arc(ctx, shader_source);
-            crate::asset::ConvertAssetState::Success(ArcHandle::new(ctx, shader_module))
+            crate::asset::ConvertAssetState::Success(ArcHandle::new(arc_runtime, shader_module))
         }
 
         #[cfg(not(target_arch = "wasm32"))]
         {
             match source.config.build_err_non_arc(ctx, shader_source) {
-                Ok(shader_module) => ConvertAssetState::Success(ArcHandle::new(ctx, shader_module)),
+                Ok(shader_module) => {
+                    ConvertAssetState::Success(ArcHandle::new(arc_runtime, shader_module))
+                }
                 Err(err) => {
                     tracing::error!("could not load shader module: {}", err);
                     ConvertAssetState::Failed

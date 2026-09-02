@@ -16,9 +16,6 @@ pub struct RenderCache {
     pub compute_pipelines: FxHashMap<ComputePipelineBuilder, ArcHandle<wgpu::ComputePipeline>>,
     pub samplers: FxHashMap<SamplerBuilder, ArcHandle<wgpu::Sampler>>,
     pub texture_views: FxHashMap<TextureViewBuilder, ArcHandle<wgpu::TextureView>>,
-
-    /// Unique id for each arc handle
-    unique_arc_id: u64,
 }
 
 impl RenderCache {
@@ -31,8 +28,6 @@ impl RenderCache {
             compute_pipelines: FxHashMap::default(),
             samplers: FxHashMap::default(),
             texture_views: FxHashMap::default(),
-
-            unique_arc_id: 0,
         }
     }
 
@@ -62,20 +57,9 @@ impl RenderCache {
         self.texture_views
             .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
     }
-
-    pub(crate) fn next_id(&mut self) -> u64 {
-        let id = self.unique_arc_id;
-        self.unique_arc_id += 1;
-        id
-    }
 }
 
 /// Clear all caches
 pub fn clear_cache(ctx: &mut Context) {
     ctx.render.cache = RenderCache::empty();
-}
-
-// TODO: replace with arc::new to avoid manual creation of arcs
-pub fn next_id(ctx: &mut Context) -> u64 {
-    ctx.render.cache.next_id()
 }

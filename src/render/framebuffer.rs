@@ -1,8 +1,5 @@
 use super::ArcHandle;
-use crate::{
-    render::{self, next_id},
-    Context,
-};
+use crate::{render, Context};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FrameBufferBuilder {
@@ -52,10 +49,14 @@ impl FrameBufferBuilder {
             base_array_layer: 0,
             usage: None,
         });
+
+        let texture = render::ArcTexture::new(&mut *ctx, texture);
+        let view = render::ArcTextureView::new(&mut *ctx, view);
+
         FrameBuffer {
             label: self.label,
-            texture: render::ArcTexture::new(ctx, texture),
-            view: render::ArcTextureView::new(ctx, view),
+            texture,
+            view,
         }
     }
 
@@ -162,7 +163,7 @@ impl FrameBuffer {
         });
         *self = FrameBuffer {
             label: self.label.clone(),
-            texture: ArcHandle::new(ctx, texture),
+            texture: ArcHandle::new(&mut *ctx, texture),
             view: ArcHandle::new(ctx, view),
         }
     }

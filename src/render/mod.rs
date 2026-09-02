@@ -9,6 +9,7 @@ mod render_pass;
 mod shader;
 mod texture;
 mod vertex;
+
 pub use arc::*;
 pub use bind_group::*;
 pub use buffer::*;
@@ -23,6 +24,11 @@ pub use vertex::*;
 
 use crate::{Context, ContextBuilder};
 use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct RenderRuntime {
+    pub device: Arc<wgpu::Device>,
+}
 
 pub struct RenderContext {
     pub(crate) surface: Arc<wgpu::Surface<'static>>,
@@ -60,7 +66,8 @@ impl RenderContext {
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptionsBase {
-                power_preference: wgpu::PowerPreference::default(),
+                // TODO: do high here?
+                power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
             })
@@ -141,6 +148,12 @@ impl RenderContext {
         }
     }
 
+    pub(crate) fn runtime(&self) -> RenderRuntime {
+        RenderRuntime {
+            device: self.device.clone(),
+        }
+    }
+
     /// Resizes the window to a new size
     ///
     /// width and height has to be non zero
@@ -169,7 +182,10 @@ impl RenderContext {
     }
 }
 
-// Getter functions for render and window operations
+//
+// Commands
+//
+
 pub fn aspect_ratio(ctx: &Context) -> f32 {
     ctx.render.aspect_ratio()
 }
@@ -222,4 +238,7 @@ pub fn set_vsync(ctx: &mut Context, vsync: bool) {
     let device = device(ctx);
     let surface = surface(ctx);
     surface.configure(device, &surface_config);
+}
+pub fn runtime(ctx: &Context) -> RenderRuntime {
+    ctx.render.runtime()
 }

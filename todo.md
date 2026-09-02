@@ -21,6 +21,10 @@ fixed examples
     [x] time
     [x] triangle
 
+make shader import loader use async get
+add arc device to loader
+make gpuconvert use loader instead
+
 task and asset cancellation?
 
 make conversion async?
@@ -44,6 +48,7 @@ look at clone vs & for handles
 remove conversion state, probably not since we need loading to be a 
 
 dont track changes in release mode, wait for custom features
+separate typedxxx mut from registering it
 
 next up
     [] return errors to user

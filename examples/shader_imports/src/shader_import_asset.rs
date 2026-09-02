@@ -5,19 +5,19 @@ use gbase::{
     },
     filesystem::{self, LoadFileError},
     render::{self, ArcHandle, ArcShaderModule},
-    tracing, Context,
+    tracing, wgpu, Context,
 };
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 //
 // Shader string
 //
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
-pub struct ShaderStringLoaderSettings {
+pub struct ShaderWithImportsLoaderSettings {
     path: PathBuf,
 }
-impl ShaderStringLoaderSettings {
+impl ShaderWithImportsLoaderSettings {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
@@ -28,12 +28,12 @@ pub struct ShaderString {
 }
 impl Asset for ShaderString {}
 
-pub struct ShaderStringLoader;
+pub struct ShaderWithImportsLoader;
 
-impl AssetLoader for ShaderStringLoader {
+impl AssetLoader for ShaderWithImportsLoader {
     type Asset = ShaderString;
 
-    type Settings = ShaderStringLoaderSettings;
+    type Settings = ShaderWithImportsLoaderSettings;
 
     type Error = LoadFileError;
 
@@ -58,7 +58,7 @@ impl AssetLoader for ShaderStringLoader {
                     settings_with_new_path.path = normalized_full_path;
 
                     let import_source_handle = load_ctx
-                        .request_load::<ShaderStringLoader>(settings_with_new_path)
+                        .request_load::<ShaderWithImportsLoader>(settings_with_new_path)
                         .await;
                     let import_source = load_ctx.request_get(import_source_handle).await;
 
@@ -72,9 +72,62 @@ impl AssetLoader for ShaderStringLoader {
             source.push('\n');
         }
 
-        tracing::info!("Loaded shader string\n{}", source);
+        // tracing::info!("Loaded shader string\n{}", source);
 
         Ok(ShaderString { source })
+    }
+}
+
+//
+// Shader gpu
+//
+
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
+pub struct ShaderGpuLoaderSettings {
+    shader_string_handle: AssetHandle<ShaderString>,
+}
+
+impl ShaderGpuLoaderSettings {
+    pub fn new(shader_string_handle: AssetHandle<ShaderString>) -> Self {
+        Self {
+            shader_string_handle,
+        }
+    }
+}
+
+pub struct ShaderGpuLoader;
+
+impl AssetLoader for ShaderGpuLoader {
+    type Asset = ArcShaderModule;
+
+    type Settings = ShaderGpuLoaderSettings;
+
+    type Error = wgpu::Error;
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let shader_string = load_ctx
+            .request_get(settings.shader_string_handle.clone())
+            .await;
+
+        let arc_runtime = load_ctx.arc_runtime().clone();
+
+        let shader = render::ShaderBuilder::new()
+            .build_err_device(
+                arc_runtime.clone(),
+                &load_ctx.render_runtime().device,
+                shader_string.source.clone(),
+            )
+            .await;
+
+        match shader {
+            Ok(shader) => Ok(shader),
+            Err(err) => {
+                tracing::warn!("could not compile shader:\n{}", err);
+                Err(err)
+            }
+        }
     }
 }
 

@@ -51,6 +51,7 @@ impl<T> ConditionalSync for T {}
 //
 
 mod app;
+pub mod arc;
 pub mod asset;
 pub mod audio;
 pub mod filesystem;
@@ -106,6 +107,7 @@ pub struct Context {
     pub(crate) random: random::RandomContext,
     pub profile: profile::ProfileContext,
     pub(crate) task: task::TaskContext,
+    pub(crate) arc: arc::ArcContext,
 
     #[cfg(feature = "hot_reload")]
     pub(crate) hot_reload: hot_reload::HotReloadContext,

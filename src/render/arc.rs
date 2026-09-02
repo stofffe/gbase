@@ -1,6 +1,6 @@
 // from GGEZ https://github.com/ggez/ggez
 
-use crate::Context;
+use crate::{arc::ArcHandleRuntime, Context};
 use std::{any::Any, sync::Arc};
 
 /// Arc'd WGPU handles are used widely across the graphics module.
@@ -13,11 +13,23 @@ pub struct ArcHandle<T: ?Sized + 'static> {
     id: u64,
 }
 
+impl From<&Context> for ArcHandleRuntime {
+    fn from(val: &Context) -> Self {
+        val.arc.runtime()
+    }
+}
+
+impl From<&mut Context> for ArcHandleRuntime {
+    fn from(val: &mut Context) -> Self {
+        val.arc.runtime()
+    }
+}
+
 impl<T: 'static> ArcHandle<T> {
-    pub fn new(ctx: &mut Context, handle: T) -> Self {
+    pub fn new(arc_runtime: impl Into<ArcHandleRuntime>, handle: T) -> Self {
         ArcHandle {
             handle: Arc::new(handle),
-            id: ctx.render.cache.next_id(),
+            id: arc_runtime.into().next_id(),
         }
     }
 

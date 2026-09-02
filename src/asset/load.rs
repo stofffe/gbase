@@ -2,11 +2,13 @@
 use crate::asset::AssetCacheReload;
 
 use crate::{
+    arc::{self, ArcHandleRuntime},
     asset::{
         Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
         AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
     filesystem::{self, FileSystemRuntime},
+    render::{self, RenderRuntime},
     task::TaskExecutorRuntime,
     ConditionalSend,
 };
@@ -34,6 +36,9 @@ impl<T: Debug + Hash + Eq + Clone> LoadAssetSettings for T {}
 
 pub trait AssetError: error::Error {}
 impl<T: error::Error> AssetError for T {}
+
+pub trait LoadAssetExtraData: Clone {}
+impl<T: Clone> LoadAssetExtraData for T {}
 
 pub trait AssetLoader: ConditionalSend {
     type Asset: Asset;
@@ -96,6 +101,9 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
                 // Dependency
                 dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
+
+                // Loader
+                loader.reload_depending(dependency, storage, &dyn_handle);
 
                 // Derived
                 convert.wakeup_waiting_on_handle(storage, &dyn_handle.clone());
@@ -293,7 +301,9 @@ impl<T: Asset> DynGetRequest for TypedGetRequest<T> {
 pub(crate) struct AssetCacheLoad {
     typed_load: FxHashMap<TypeId, Box<dyn DynAssetLoad>>,
     task_ctx: TaskExecutorRuntime,
-    filesystem_ctx: FileSystemRuntime,
+    filesystem_runtime: FileSystemRuntime,
+    render_runtime: RenderRuntime,
+    arc_runtime: ArcHandleRuntime,
 
     queue: VecDeque<DynAssetHandle>,
     queued: FxHashSet<DynAssetHandle>,
@@ -317,7 +327,12 @@ pub(crate) struct AssetCacheLoad {
 }
 
 impl AssetCacheLoad {
-    pub(crate) fn new(task_ctx: TaskExecutorRuntime, filesystem_ctx: FileSystemRuntime) -> Self {
+    pub(crate) fn new(
+        task_ctx: TaskExecutorRuntime,
+        filesystem_runtime: FileSystemRuntime,
+        render_runtime: RenderRuntime,
+        arc_runtime: ArcHandleRuntime,
+    ) -> Self {
         let typed_load = FxHashMap::default();
 
         let (response_sender, response_receiver) = async_channel::unbounded();
@@ -327,7 +342,10 @@ impl AssetCacheLoad {
 
         Self {
             task_ctx,
-            filesystem_ctx,
+            filesystem_runtime,
+            render_runtime,
+            arc_runtime,
+
             typed_load,
 
             queue: VecDeque::default(),
@@ -352,7 +370,9 @@ impl AssetCacheLoad {
         let dyn_load = self.typed_load.entry(TypeId::of::<T>()).or_insert_with(|| {
             Box::new(TypedAssetLoad::<T>::new(
                 self.task_ctx.clone(),
-                self.filesystem_ctx.clone(),
+                self.filesystem_runtime.clone(),
+                self.render_runtime.clone(),
+                self.arc_runtime.clone(),
                 self.load_request_sender.clone(),
                 self.insert_request_sender.clone(),
                 self.get_request_sender.clone(),
@@ -450,6 +470,21 @@ impl AssetCacheLoad {
     // Load
     //
 
+    pub(crate) fn reload_depending(
+        &mut self,
+        dependency: &mut AssetCacheDependency,
+        storage: &mut AssetCacheStorage,
+        dyn_handle: &DynAssetHandle,
+    ) {
+        if let Some(dependents) = dependency.dependents(dyn_handle) {
+            tracing::info!("reload {:?} due to {}", dependents, dyn_handle,);
+
+            for dependent in dependents.iter() {
+                self.queue_load(storage, dependent.clone());
+            }
+        }
+    }
+
     pub(crate) fn register_load<T: AssetLoader + 'static>(
         &mut self,
         registry: &mut AssetCacheRegistry,
@@ -486,8 +521,10 @@ impl AssetCacheLoad {
 //
 
 struct TypedAssetLoad<T: AssetLoader> {
-    task_ctx: TaskExecutorRuntime,
-    filesystem_ctx: FileSystemRuntime,
+    task_runtime: TaskExecutorRuntime,
+    filesystem_runtime: FileSystemRuntime,
+    render_runtime: RenderRuntime,
+    arc_runtime: ArcHandleRuntime,
 
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
@@ -502,8 +539,10 @@ struct TypedAssetLoad<T: AssetLoader> {
 
 impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     fn new(
-        task_ctx: TaskExecutorRuntime,
-        filesystem_ctx: FileSystemRuntime,
+        task_runtime: TaskExecutorRuntime,
+        filesystem_runtime: FileSystemRuntime,
+        render_runtime: RenderRuntime,
+        arc_runtime: ArcHandleRuntime,
 
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
@@ -512,8 +551,10 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
-            task_ctx,
-            filesystem_ctx,
+            task_runtime,
+            filesystem_runtime,
+            render_runtime,
+            arc_runtime,
 
             load_request_sender,
             insert_request_sender,
@@ -529,7 +570,9 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
 
         let new_asset_state = LoadState::new(handle.to_dyn());
         let new_asset_runtime = LoadRuntime::new(
-            self.filesystem_ctx.clone(),
+            self.filesystem_runtime.clone(),
+            self.render_runtime.clone(),
+            self.arc_runtime.clone(),
             self.load_request_sender.clone(),
             self.insert_request_sender.clone(),
             self.get_request_sender.clone(),
@@ -539,7 +582,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         let mut new_load_ctx = LoadContext::new(new_asset_state, new_asset_runtime);
 
         // spawn load
-        self.task_ctx.spawn_task(Box::pin(async move {
+        self.task_runtime.spawn_task(Box::pin(async move {
             let data = T::load(&mut new_load_ctx, settings).await;
 
             match data {
@@ -626,35 +669,40 @@ impl LoadState {
 
 #[derive(Clone)]
 struct LoadRuntime {
-    filesystem_ctx: filesystem::FileSystemRuntime,
+    filesystem_runtime: filesystem::FileSystemRuntime,
+    render_runtime: render::RenderRuntime,
+    arc_runtime: arc::ArcHandleRuntime,
 
-    // async channel for requesting nested loads
+    // async channel requests
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
-
-    // async channel for requesting insertions
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
-
-    // async channel for requesting assets
     get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
-    // async channel for returning the result of the load
-    // note: not for nested loads
+    // async channel for returning result
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 }
 
 impl LoadRuntime {
     fn new(
-        filesystem_ctx: filesystem::FileSystemRuntime,
+        filesystem_runtime: filesystem::FileSystemRuntime,
+        render_runtime: render::RenderRuntime,
+        arc_runtime: arc::ArcHandleRuntime,
+
         load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
         get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
+
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
-            filesystem_ctx,
+            filesystem_runtime,
+            render_runtime,
+            arc_runtime,
+
             response_sender,
             load_request_sender,
             insert_request_sender,
+
             get_request_sender,
         }
     }
@@ -673,6 +721,14 @@ impl LoadContext {
 
     pub fn handle(&self) -> DynAssetHandle {
         self.state.handle.clone()
+    }
+
+    pub fn render_runtime(&self) -> &RenderRuntime {
+        &self.runtime.render_runtime
+    }
+
+    pub fn arc_runtime(&self) -> &ArcHandleRuntime {
+        &self.runtime.arc_runtime
     }
 
     /// Insert an asset with a specific inserter
@@ -795,6 +851,8 @@ impl LoadContext {
             .await
             .expect("could not receive get request");
 
+        self.state.dependencies.insert(handle.to_dyn());
+
         asset
     }
 
@@ -802,7 +860,11 @@ impl LoadContext {
         &mut self,
         path: impl AsRef<Path>,
     ) -> Result<Vec<u8>, filesystem::LoadFileError> {
-        let result = self.runtime.filesystem_ctx.load_asset_bytes(&path).await;
+        let result = self
+            .runtime
+            .filesystem_runtime
+            .load_asset_bytes(&path)
+            .await;
 
         if let Err(err) = &result {
             tracing::error!(
@@ -824,7 +886,11 @@ impl LoadContext {
         &mut self,
         path: impl AsRef<Path>,
     ) -> Result<String, filesystem::LoadFileError> {
-        let result = self.runtime.filesystem_ctx.load_asset_string(&path).await;
+        let result = self
+            .runtime
+            .filesystem_runtime
+            .load_asset_string(&path)
+            .await;
 
         if let Err(err) = &result {
             tracing::error!(

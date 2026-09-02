@@ -5,14 +5,10 @@ use crate::{
         AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
         AssetInserter, GetAssetState, InternalAssetState,
     },
-    filesystem::FileSystemRuntime,
     Context,
 };
 
 pub struct AssetCache {
-    asset_handle_ctx: AssetHandleContext,
-    filesystem_ctx: FileSystemRuntime,
-
     storage: AssetCacheStorage,
 
     inserter: AssetCacheInsert,
@@ -29,14 +25,21 @@ pub struct AssetCache {
 impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
         let asset_handle_ctx = AssetHandleContext::new();
-        let filesystem_ctx = ctx.filesystem.runtime();
+        let filesystem_runtime = ctx.filesystem.runtime();
+        let render_runtime = ctx.render.runtime();
+        let arc_runtime = ctx.arc.runtime();
 
         let task_executor = ctx.task.runtime();
 
         let storage = AssetCacheStorage::new();
 
         let inserter = AssetCacheInsert::new();
-        let loader = AssetCacheLoad::new(task_executor.clone(), filesystem_ctx.clone());
+        let loader = AssetCacheLoad::new(
+            task_executor.clone(),
+            filesystem_runtime.clone(),
+            render_runtime.clone(),
+            arc_runtime.clone(),
+        );
         let converter = AssetCacheConvert::new();
 
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
@@ -44,12 +47,9 @@ impl AssetCache {
         let dependency = AssetCacheDependency::new();
 
         #[cfg(not(target_arch = "wasm32"))]
-        let reloader = asset::AssetCacheReload::new(filesystem_ctx.clone());
+        let reloader = asset::AssetCacheReload::new(filesystem_runtime.clone());
 
         Self {
-            asset_handle_ctx,
-            filesystem_ctx,
-
             storage,
 
             inserter,
@@ -157,7 +157,7 @@ impl AssetCache {
                 Err(GetAssetState::Loading)
             }
             InternalAssetState::Failed => {
-                tracing::info!("erron in {}", handle);
+                tracing::info!("error in {}", handle);
                 Err(GetAssetState::Failed)
             }
             InternalAssetState::Ready => {

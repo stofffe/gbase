@@ -1,7 +1,7 @@
 use super::{ArcHandle, ArcShaderModule};
 use crate::{
-    render::{self, next_id},
-    Context,
+    arc::{self, ArcHandleRuntime},
+    render, Context,
 };
 
 //
@@ -37,7 +37,8 @@ impl ShaderBuilder {
     ///
     /// panics if source is invalid
     pub fn build(&self, ctx: &mut Context, source: impl Into<String>) -> ArcShaderModule {
-        ArcHandle::new(ctx, self.build_non_arc(ctx, source.into()))
+        let arc_runtime = arc::runtime(ctx);
+        ArcHandle::new(arc_runtime, self.build_non_arc(ctx, source.into()))
     }
 
     /// Create shader module
@@ -51,6 +52,35 @@ impl ShaderBuilder {
     ) -> Result<ArcShaderModule, wgpu::Error> {
         self.build_err_non_arc(ctx, source.into())
             .map(|module| ArcHandle::new(ctx, module))
+    }
+
+    /// Create shader module
+    ///
+    /// Not supported on WASM (blocking call)
+    pub async fn build_err_device(
+        &self,
+        arc_runtime: ArcHandleRuntime,
+        device: &wgpu::Device,
+        source: impl Into<String>,
+    ) -> Result<ArcShaderModule, wgpu::Error> {
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+
+        let source = source.into();
+
+        let mut shader_code = String::with_capacity(source.len());
+
+        shader_code.push_str(&source);
+
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: self.label.as_deref(),
+            source: wgpu::ShaderSource::Wgsl(shader_code.into()),
+        });
+
+        if let Some(err) = device.pop_error_scope().await {
+            Err(err)
+        } else {
+            Ok(ArcHandle::new(arc_runtime, module))
+        }
     }
 
     #[cfg(not(target_arch = "wasm32"))]

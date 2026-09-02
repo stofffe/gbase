@@ -1,7 +1,7 @@
 use std::num::NonZero;
 
 use crate::{
-    render::{self, next_id},
+    render::{self},
     Context,
 };
 use render::{ArcBindGroup, ArcBindGroupLayout, ArcBuffer, ArcSampler, ArcTextureView};

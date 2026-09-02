@@ -1,7 +1,4 @@
-use crate::{
-    render::{self, next_id},
-    Context,
-};
+use crate::{render, Context};
 use render::{
     ArcBindGroupLayout, ArcComputePipeline, ArcPipelineLayout, ArcRenderPipeline, ArcShaderModule,
 };

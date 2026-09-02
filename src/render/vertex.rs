@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, next_id, ArcBuffer},
+    render::{self, ArcBuffer},
     Context,
 };
 use std::{marker::PhantomData, ops::RangeBounds};
