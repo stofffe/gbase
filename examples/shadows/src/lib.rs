@@ -164,7 +164,7 @@ impl Callbacks for App {
             .with_format(wgpu::TextureFormat::Rgba8Unorm)
             .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
             .depth_or_array_layers(gbase_utils::MAX_SHADOW_CASCADES)
-            .build(
+            .build_old(
                 ctx,
                 render::TextureSource::Empty(
                     gbase_utils::SHADOW_MAP_RESOLUTION,

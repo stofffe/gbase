@@ -43,19 +43,19 @@ impl RenderCache {
 
     pub fn clear_unused(&mut self) {
         self.bindgroup_layouts
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.bindgroups
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.pipeline_layouts
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.render_pipelines
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.compute_pipelines
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.samplers
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
         self.texture_views
-            .retain(|_, handle| Arc::strong_count(&handle.handle) > 1);
+            .retain(|_, handle| Arc::strong_count(&handle.value) > 1);
     }
 }
 

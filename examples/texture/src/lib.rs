@@ -1,10 +1,13 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageGpuLoader,
+        ImageGpuLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
         ShaderGpuLoaderSettings,
     },
-    render::{self, ArcPipelineLayout, ArcShaderModule, Image},
+    render::{
+        self, ArcPipelineLayout, ArcShaderModule, ArcTexture, Image, SamplerBuilder,
+        TextureViewBuilder,
+    },
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
@@ -18,7 +21,7 @@ struct App {
     pipeline_layout: ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
-    texture_handle: AssetHandle<Image>,
+    texture_handle: AssetHandle<ArcTexture>,
     mesh_handle: AssetHandle<render::Mesh>,
 
     shader_handle: AssetHandle<ArcShaderModule>,
@@ -53,8 +56,9 @@ impl Callbacks for App {
         let shader_handle = cache.load_asset::<ShaderGpuLoader>(
             &ShaderGpuLoaderSettings::from_path("shaders/texture.wgsl"),
         );
-        let texture_handle = cache
-            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
+        let texture_handle = cache.load_asset::<ImageGpuLoader>(
+            &ImageGpuLoaderSettings::from_path("textures/texture.jpeg"),
+        );
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -103,19 +107,18 @@ impl Callbacks for App {
         // };
         // let shader = mesh.clone();
 
-        let Ok(texture) = cache.get_or_convert_asset::<ImageGpuConverter>(
-            &ImageGpuConverterOptions::new(self.texture_handle.clone()),
-        ) else {
+        let Ok(texture) = cache.get_asset_cloned(&self.texture_handle) else {
             return CallbackResult::Continue;
         };
-        let texture = texture.clone();
 
+        let view = TextureViewBuilder::new(texture.clone()).build(ctx);
+        let sampler = SamplerBuilder::new().build(ctx);
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // texture
-                render::BindGroupEntry::Texture(texture.view()),
+                render::BindGroupEntry::Texture(view),
                 // sampler
-                render::BindGroupEntry::Sampler(texture.sampler()),
+                render::BindGroupEntry::Sampler(sampler),
             ])
             .build(ctx);
 

@@ -616,7 +616,7 @@ fn create_font_atlas(
 
     let font_atlas = render::TextureBuilder::new()
         .with_format(wgpu::TextureFormat::R8Unorm)
-        .build(
+        .build_old(
             ctx,
             render::TextureSource::Data(atlas_side_size as u32, atlas_side_size as u32, atlas_data),
         );
@@ -666,8 +666,6 @@ pub struct Font {
     font: fontdue::Font,
 }
 
-impl gbase::asset::Asset for Font {}
-
 pub struct FontLoader {}
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
@@ -713,8 +711,6 @@ impl AssetLoader for FontLoader {
         Ok(Font { font })
     }
 }
-
-impl Asset for FontAtlas {}
 
 #[derive(Clone)]
 pub struct FontAtlas {

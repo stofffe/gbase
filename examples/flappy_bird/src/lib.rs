@@ -397,7 +397,7 @@ impl Callbacks for App {
                 .expect("could not load texture from image bytes");
         let texture = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
-            .build(ctx, texture_source);
+            .build_old(ctx, texture_source);
         let sampler = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest)
             .build(ctx);

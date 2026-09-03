@@ -58,7 +58,7 @@ impl FontAtlas {
 
         let texture = render::TextureBuilder::new()
             .with_format(wgpu::TextureFormat::R8Unorm)
-            .build(
+            .build_old(
                 ctx,
                 render::TextureSource::Empty(texture_dim.x, texture_dim.y),
             )

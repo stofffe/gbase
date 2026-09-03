@@ -485,6 +485,7 @@ pub async fn parse_gltf_material(
             source: render::TextureSource::Data(1, 1, color.to_vec()),
             texture_config: render::TextureBuilder::new()
                 .with_format(wgpu::TextureFormat::Rgba8Unorm),
+            // TODO: fix
             sampler_config: render::SamplerBuilder::new()
                 .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
         };
@@ -633,12 +634,6 @@ pub async fn parse_gltf_material(
 
     material_handle
 }
-
-impl Asset for Gltf {}
-
-impl Asset for GltfMesh {}
-impl Asset for Material {}
-impl Asset for GltfNode {}
 
 #[derive(Debug, Clone)]
 pub struct Gltf {

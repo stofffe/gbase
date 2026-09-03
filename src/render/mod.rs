@@ -28,6 +28,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct RenderRuntime {
     pub device: Arc<wgpu::Device>,
+    pub queue: Arc<wgpu::Queue>,
 }
 
 pub struct RenderContext {
@@ -151,6 +152,7 @@ impl RenderContext {
     pub(crate) fn runtime(&self) -> RenderRuntime {
         RenderRuntime {
             device: self.device.clone(),
+            queue: self.queue.clone(),
         }
     }
 

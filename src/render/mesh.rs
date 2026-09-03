@@ -317,8 +317,6 @@ impl VertexAttributeValues {
     }
 }
 
-impl Asset for BoundingBox {}
-
 // TODO: temp
 #[derive(Debug, Clone)]
 pub struct BoundingBox {
@@ -337,8 +335,6 @@ impl BoundingBox {
 //
 // GPU
 //
-
-impl Asset for GpuMesh {}
 
 #[derive(Clone, Debug)]
 pub struct GpuMesh {

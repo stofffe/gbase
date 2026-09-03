@@ -30,7 +30,7 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
         .with_format(wgpu::TextureFormat::Rgba8Unorm)
         .dimension(wgpu::TextureDimension::D3)
         .usage(wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING)
-        .build(
+        .build_old(
             ctx,
             render::TextureSource::Empty(NOISE_TEXTURE_DIM, NOISE_TEXTURE_DIM),
         );

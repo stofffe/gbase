@@ -3,11 +3,13 @@ use gbase::asset::{NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings};
 pub use shader_import_asset::*;
 
 use gbase::input::{self, KeyCode};
-use gbase::render::{ArcShaderModule, GpuImage, GpuMesh, Mesh};
+use gbase::render::{
+    ArcShaderModule, ArcTexture, GpuImage, GpuMesh, Mesh, SamplerBuilder, TextureViewBuilder,
+};
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
+        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageGpuLoader,
+        ImageGpuLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
     },
     render::{self, ArcPipelineLayout, Image},
     tracing,
@@ -24,8 +26,7 @@ struct App {
     pipeline_layout: ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
-    texture_handle: AssetHandle<Image>,
-    texture_gpu_handle: AssetHandle<GpuImage>,
+    texture_handle: AssetHandle<ArcTexture>,
 
     mesh_handle: AssetHandle<render::Mesh>,
     mesh_gpu_handle: AssetHandle<GpuMesh>,
@@ -60,10 +61,8 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let texture_handle = cache
-            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
-        let texture_gpu_handle = cache.convert_asset::<ImageGpuConverter>(
-            &ImageGpuConverterOptions::new(texture_handle.clone()),
+        let texture_handle = cache.load_asset::<ImageGpuLoader>(
+            &ImageGpuLoaderSettings::from_path("textures/texture.jpeg"),
         );
 
         let mesh = render::MeshBuilder::quad()
@@ -87,7 +86,6 @@ impl Callbacks for App {
             bindgroup_layout,
 
             texture_handle,
-            texture_gpu_handle,
             mesh_handle,
             mesh_gpu_handle,
             shader_gpu_handle,
@@ -113,16 +111,18 @@ impl Callbacks for App {
             return CallbackResult::Continue;
         };
 
-        let Ok(texture) = cache.get_asset(&self.texture_gpu_handle) else {
+        let Ok(texture) = cache.get_asset_cloned(&self.texture_handle) else {
             return CallbackResult::Continue;
         };
 
+        let view = TextureViewBuilder::new(texture).build(ctx);
+        let sampler = SamplerBuilder::new().build(ctx);
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // texture
-                render::BindGroupEntry::Texture(texture.view()),
+                render::BindGroupEntry::Texture(view),
                 // sampler
-                render::BindGroupEntry::Sampler(texture.sampler()),
+                render::BindGroupEntry::Sampler(sampler),
             ])
             .build(ctx);
 

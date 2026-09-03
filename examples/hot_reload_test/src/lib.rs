@@ -22,8 +22,6 @@ pub struct MyHashMapAsset {
     hashmap: hashbrown::HashMap<char, NonZeroU16>,
 }
 
-impl Asset for MyHashMapAsset {}
-
 impl AssetLoader for HashMapLoader {
     type Asset = MyHashMapAsset;
 

@@ -288,7 +288,7 @@ impl<T: Asset> DynGetRequest for TypedGetRequest<T> {
                 .try_send(asset.clone())
                 .expect("could not send get request response");
         } else {
-            tracing::error!("could not find {} in storage, request it", self.handle);
+            tracing::info!("could not find {} in storage, request it", self.handle);
             storage.add_get_request(&self.handle, self.response_sender);
         }
     }

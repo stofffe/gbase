@@ -9,7 +9,7 @@ use std::{any::Any, sync::Arc};
 /// unique identified via `id` - primarily used when caching (see the other `gpu` modules).
 #[derive(Debug)]
 pub struct ArcHandle<T: ?Sized + 'static> {
-    pub handle: Arc<T>,
+    pub value: Arc<T>,
     id: u64,
 }
 
@@ -26,9 +26,9 @@ impl From<&mut Context> for ArcHandleRuntime {
 }
 
 impl<T: 'static> ArcHandle<T> {
-    pub fn new(arc_runtime: impl Into<ArcHandleRuntime>, handle: T) -> Self {
+    pub fn new(arc_runtime: impl Into<ArcHandleRuntime>, value: T) -> Self {
         ArcHandle {
-            handle: Arc::new(handle),
+            value: Arc::new(value),
             id: arc_runtime.into().next_id(),
         }
     }
@@ -42,7 +42,7 @@ impl<T: 'static> ArcHandle<T> {
 impl<T: ?Sized + 'static> Clone for ArcHandle<T> {
     fn clone(&self) -> Self {
         ArcHandle {
-            handle: Arc::clone(&self.handle),
+            value: Arc::clone(&self.value),
             id: self.id,
         }
     }
@@ -66,13 +66,13 @@ impl<T: 'static> std::ops::Deref for ArcHandle<T> {
     type Target = T;
 
     fn deref(&self) -> &T {
-        self.handle.as_ref()
+        self.value.as_ref()
     }
 }
 
 impl<T: 'static> AsRef<T> for ArcHandle<T> {
     fn as_ref(&self) -> &T {
-        self.handle.as_ref()
+        self.value.as_ref()
     }
 }
 // Convert from and to any
@@ -80,7 +80,7 @@ impl<T: 'static> AsRef<T> for ArcHandle<T> {
 impl<T: Any + Send + Sync + 'static> ArcHandle<T> {
     pub fn upcast(self) -> ArcHandle<dyn Any + Send + Sync> {
         ArcHandle {
-            handle: self.handle as Arc<dyn Any + Send + Sync>,
+            value: self.value as Arc<dyn Any + Send + Sync>,
             id: self.id,
         }
     }
@@ -88,9 +88,9 @@ impl<T: Any + Send + Sync + 'static> ArcHandle<T> {
 
 impl ArcHandle<dyn Any + Send + Sync> {
     pub fn downcast<G: Any + Send + Sync>(&self) -> Option<ArcHandle<G>> {
-        if let Ok(handle) = self.handle.clone().downcast::<G>() {
+        if let Ok(handle) = self.value.clone().downcast::<G>() {
             Some(ArcHandle {
-                handle,
+                value: handle,
                 id: self.id,
             })
         } else {

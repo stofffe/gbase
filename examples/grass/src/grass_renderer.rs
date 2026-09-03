@@ -95,7 +95,7 @@ impl GrassRenderer {
         .unwrap();
         let perlin_noise_texture = TextureBuilder::new()
             .label("perlin noise")
-            .build(ctx, perlin_noise_texture_source)
+            .build_old(ctx, perlin_noise_texture_source)
             .with_default_sampler_and_view(ctx);
 
         let tile_buffer = [

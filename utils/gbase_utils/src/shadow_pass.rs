@@ -72,7 +72,7 @@ impl ShadowPass {
             .with_format(SHADOW_MAP_FORMAT)
             .usage(wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
             .depth_or_array_layers(MAX_SHADOW_CASCADES)
-            .build(
+            .build_old(
                 ctx,
                 render::TextureSource::Empty(SHADOW_MAP_RESOLUTION, SHADOW_MAP_RESOLUTION),
             );

@@ -1,5 +1,5 @@
 use super::{ArcHandle, ArcShaderModule};
-use crate::{arc, Context};
+use crate::{arc, render, Context};
 
 //
 // Shader Builder
@@ -67,18 +67,7 @@ impl ShaderBuilder {
     ///
     /// Invalid wgsl code will cause a panic
     pub fn build_arc_handle(&self, ctx: &Context, source: impl Into<String>) -> ArcShaderModule {
-        let source = source.into();
-
-        let mut shader_code = String::with_capacity(source.len());
-
-        shader_code.push_str(&source);
-
-        let device = &ctx.render.device;
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: self.label.as_deref(),
-            source: wgpu::ShaderSource::Wgsl(shader_code.into()),
-        });
-
+        let module = self.build(&render::device(ctx), source);
         ArcHandle::new(arc::runtime(ctx), module)
     }
 

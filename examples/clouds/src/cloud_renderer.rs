@@ -1,10 +1,12 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
-    ImageGpuConverter, ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings,
-    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
+    ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
+    ShaderGpuLoader, ShaderGpuLoaderSettings,
 };
-use gbase::render::{ArcShaderModule, Image, Mesh, SamplerBuilder, TextureBuilder};
+use gbase::render::{
+    ArcShaderModule, ArcTexture, Mesh, SamplerBuilder, TextureBuilder, TextureViewBuilder,
+};
 use gbase::{asset, tracing};
 use gbase::{
     render::{self},
@@ -15,8 +17,8 @@ use std::collections::BTreeSet;
 pub struct CloudRenderer {
     mesh_handle: asset::AssetHandle<Mesh>,
     shader_handle: asset::AssetHandle<ArcShaderModule>,
-    weather_map_handle: asset::AssetHandle<Image>,
-    blue_noise_handle: asset::AssetHandle<Image>,
+    weather_map_handle: asset::AssetHandle<ArcTexture>,
+    blue_noise_handle: asset::AssetHandle<ArcTexture>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -31,17 +33,15 @@ impl CloudRenderer {
         cache: &mut gbase::asset::AssetCache,
     ) -> Result<Self, wgpu::Error> {
         let noise_texture = generate_cloud_noise(ctx)?;
-        let weather_map_texture = asset::load_asset::<ImageLoader>(
+        let weather_map_handle = asset::load_asset::<ImageGpuLoader>(
             cache,
-            &ImageLoaderSettings::from_path("assets/textures/clouds_weather_map.png")
-                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
-                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
+            &ImageGpuLoaderSettings::from_path("assets/textures/clouds_weather_map.png")
+                .with_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm)),
         );
-        let blue_noise_texture = asset::load_asset::<ImageLoader>(
+        let blue_noise_handle = asset::load_asset::<ImageGpuLoader>(
             cache,
-            &ImageLoaderSettings::from_path("assets/textures/blue_noise.png")
-                .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
-                .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
+            &ImageGpuLoaderSettings::from_path("assets/textures/blue_noise.png")
+                .with_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm)),
         );
 
         let app_info = gbase_utils::AppInfo::new(ctx);
@@ -114,8 +114,8 @@ impl CloudRenderer {
             shader_handle,
 
             noise_texture,
-            weather_map_handle: weather_map_texture,
-            blue_noise_handle: blue_noise_texture,
+            weather_map_handle,
+            blue_noise_handle,
         })
     }
 
@@ -141,18 +141,20 @@ impl CloudRenderer {
 
         self.app_info.update_buffer(ctx);
 
-        let weather_map = cache
-            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
-                self.weather_map_handle.clone(),
-            ))
-            .unwrap()
-            .clone();
-        let blue_noise = cache
-            .get_or_convert_asset::<ImageGpuConverter>(&ImageGpuConverterOptions::new(
-                self.blue_noise_handle.clone(),
-            ))
-            .unwrap()
-            .clone();
+        let Ok(weather_texture) = cache.get_asset_cloned(&self.weather_map_handle) else {
+            return;
+        };
+        let weather_view = TextureViewBuilder::new(weather_texture).build(ctx);
+
+        let Ok(blue_noise_texture) = cache.get_asset_cloned(&self.blue_noise_handle) else {
+            return;
+        };
+        let blue_noise_view = TextureViewBuilder::new(blue_noise_texture).build(ctx);
+
+        let weather_and_blue_noise_sampler = SamplerBuilder::new()
+            .with_address_mode(wgpu::AddressMode::Repeat)
+            .build(ctx);
+
         let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
             .entries(vec![
                 // App info
@@ -166,13 +168,13 @@ impl CloudRenderer {
                 // Noise sampler
                 render::BindGroupEntry::Sampler(self.noise_texture.sampler()),
                 // Weather map texture
-                render::BindGroupEntry::Texture(weather_map.view()),
+                render::BindGroupEntry::Texture(weather_view),
                 // Weather map sampler
-                render::BindGroupEntry::Sampler(weather_map.sampler()),
+                render::BindGroupEntry::Sampler(weather_and_blue_noise_sampler.clone()),
                 // Blue noise texture
-                render::BindGroupEntry::Texture(blue_noise.view()),
+                render::BindGroupEntry::Texture(blue_noise_view),
                 // Blue noise sampler
-                render::BindGroupEntry::Sampler(blue_noise.sampler()),
+                render::BindGroupEntry::Sampler(weather_and_blue_noise_sampler),
             ])
             .build(ctx);
 
@@ -185,11 +187,11 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let mesh_gpu = cache
-            .get_or_convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(
-                self.mesh_handle.clone(),
-            ))
-            .unwrap();
+        let Ok(mesh_gpu) = cache.get_or_convert_asset::<MeshGpuConverter>(
+            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
+        ) else {
+            return;
+        };
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

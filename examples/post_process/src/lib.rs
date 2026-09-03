@@ -66,7 +66,7 @@ impl Callbacks for App {
         let texture1 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .label("nature")
-            .build(
+            .build_old(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(include_bytes!(
                     "../assets/textures/nature.jpg"
@@ -77,7 +77,7 @@ impl Callbacks for App {
         let texture2 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .label("city")
-            .build(
+            .build_old(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(include_bytes!(
                     "../assets/textures/city.jpg"
@@ -90,7 +90,7 @@ impl Callbacks for App {
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .label("hellokitty")
-            .build(
+            .build_old(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(include_bytes!(
                     "../assets/textures/hellokitty.jpg"
@@ -101,7 +101,7 @@ impl Callbacks for App {
         let texture4 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .label("mario")
-            .build(
+            .build_old(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(include_bytes!(
                     "../assets/textures/mario.jpg"
@@ -112,7 +112,7 @@ impl Callbacks for App {
         let texture5 = TextureBuilder::new()
             .with_format(wgpu::TextureFormat::Rgba8UnormSrgb)
             .label("antialias")
-            .build(
+            .build_old(
                 ctx,
                 gbase_utils::texture_source_from_image_bytes(include_bytes!(
                     "../assets/textures/antialiasing.png"

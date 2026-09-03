@@ -1,5 +1,5 @@
 use crate::{
-    render::{self, ArcSampler, ArcTexture, ArcTextureView},
+    render::{self, ArcHandle, ArcSampler, ArcTexture, ArcTextureView},
     Context,
 };
 
@@ -9,6 +9,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Image {
     pub source: TextureSource,
+    // TODO: probably remove and put in loader
     pub texture_config: TextureBuilder,
     pub sampler_config: SamplerBuilder,
 }
@@ -202,7 +203,68 @@ impl TextureBuilder {
         }
     }
 
-    pub fn build(&self, ctx: &mut Context, source: TextureSource) -> render::ArcTexture {
+    pub fn build(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: TextureSource,
+    ) -> wgpu::Texture {
+        match source {
+            TextureSource::Empty(width, height) => {
+                device.create_texture(&wgpu::TextureDescriptor {
+                    label: self.label.as_deref(),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: self.depth_or_array_layers,
+                    },
+                    mip_level_count: self.mip_level_count,
+                    sample_count: self.sample_count,
+                    dimension: self.dimension,
+                    format: self.format,
+                    usage: self.usage,
+                    view_formats: &self.view_formats,
+                })
+            }
+            TextureSource::Data(width, height, ref bytes) => {
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: self.label.as_deref(),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: self.depth_or_array_layers,
+                    },
+                    mip_level_count: self.mip_level_count,
+                    sample_count: self.sample_count,
+                    dimension: self.dimension,
+                    format: self.format,
+                    usage: self.usage,
+                    view_formats: &self.view_formats,
+                });
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo {
+                        texture: &texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    bytes,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: self // TODO check if correct
+                            .format
+                            .block_copy_size(Some(wgpu::TextureAspect::All))
+                            .map(|n| width * n),
+                        rows_per_image: Some(height),
+                    },
+                    texture.size(),
+                );
+                texture
+            }
+        }
+    }
+
+    pub fn build_old(&self, ctx: &mut Context, source: TextureSource) -> render::ArcTexture {
         let device = render::device(ctx);
         let queue = render::queue(ctx);
         match source {
@@ -337,8 +399,26 @@ impl TextureViewBuilder {
         }
     }
 
-    pub fn build_uncached(&self, ctx: &mut Context) -> render::ArcTextureView {
-        let view = self.texture.create_view(&wgpu::TextureViewDescriptor {
+    pub fn build(self, ctx: &mut Context) -> ArcTextureView {
+        if let Some(view) = ctx.render.cache.texture_views.get(&self) {
+            return view.clone();
+        }
+
+        tracing::info!("Create cached texture view");
+
+        let view = self.build_uncached();
+        let view_arc = ArcHandle::new(&mut *ctx, view);
+
+        ctx.render
+            .cache
+            .texture_views
+            .insert(self, view_arc.clone());
+
+        view_arc
+    }
+
+    pub fn build_uncached(&self) -> wgpu::TextureView {
+        self.texture.create_view(&wgpu::TextureViewDescriptor {
             label: self.label.as_deref(),
             format: self.format,
             dimension: self.dimension,
@@ -348,20 +428,7 @@ impl TextureViewBuilder {
             base_array_layer: self.base_array_layer,
             array_layer_count: self.array_layer_count,
             usage: self.usage,
-        });
-
-        render::ArcTextureView::new(ctx, view)
-    }
-
-    pub fn build(self, ctx: &mut Context) -> render::ArcTextureView {
-        if let Some(view) = ctx.render.cache.texture_views.get(&self) {
-            return view.clone();
-        }
-
-        tracing::info!("Create cached texture view");
-        let view = self.build_uncached(ctx);
-        ctx.render.cache.texture_views.insert(self, view.clone());
-        view
+        })
     }
 }
 
@@ -433,7 +500,7 @@ impl GpuImage {
         }
     }
     pub fn from_image(ctx: &mut Context, image: Image) -> Self {
-        let texture = image.texture_config.clone().build(ctx, image.source);
+        let texture = image.texture_config.clone().build_old(ctx, image.source);
         let sampler = image.sampler_config.clone().build(ctx);
         let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
         Self {

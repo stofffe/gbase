@@ -13,6 +13,7 @@ use std::{
 //
 
 pub trait Asset: Any + ConditionalSend + ConditionalSync {}
+impl<T: Any + ConditionalSend + ConditionalSync> Asset for T {}
 
 #[derive(Clone, Debug)]
 pub(crate) enum InternalAssetState {

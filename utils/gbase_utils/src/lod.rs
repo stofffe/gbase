@@ -40,8 +40,6 @@ impl MeshLod {
     }
 }
 
-impl Asset for MeshLod {}
-
 #[derive(Clone)]
 pub struct MeshLodLoader {}
 
@@ -167,8 +165,6 @@ impl AssetLoader for GltfLoader {
         Ok(gltf)
     }
 }
-
-impl Asset for BoundingBoxWrapper {}
 
 #[derive(Clone)]
 pub struct BoundingBoxWrapper(BoundingBox);
