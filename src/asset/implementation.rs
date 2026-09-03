@@ -1,21 +1,51 @@
 use super::{Asset, AssetHandle, AssetLoader};
 use crate::{
-    arc::{self, ArcHandleRuntime},
     asset::{
         AssetConverter, AssetInserter, ConvertAssetState, ConvertContext, GetAssetState,
-        InternalAssetState, LoadContext,
+        LoadContext,
     },
     filesystem,
     render::{
-        self, ArcHandle, GpuImage, Image, Mesh, SamplerBuilder, Shader, ShaderBuilder,
+        self, ArcHandle, ArcShaderModule, GpuImage, Image, Mesh, SamplerBuilder, Shader,
         TextureBuilder,
     },
     Context,
 };
 use std::{fmt::Debug, hash::Hash, path::PathBuf};
 
+//
+// Error
+//
+
 #[derive(thiserror::Error, Debug)]
 pub enum EmptyError {}
+
+//
+// Settings
+//
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct PathSettings {
+    path: PathBuf,
+}
+
+impl PathSettings {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub enum PathOrStringSettings {
+    Path(PathBuf),
+    String(String),
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub enum PathOrBytesSettings {
+    Path(PathBuf),
+    Bytes(Vec<u8>),
+}
 
 //
 // Named inserter
@@ -137,90 +167,75 @@ impl Asset for ArcHandle<wgpu::ShaderModule> {}
 impl Asset for Shader {}
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ShaderLoaderSettings {
-    path: PathBuf,
+pub enum ShaderSource {
+    String(String),
+    Path(PathBuf),
+    Handle(AssetHandle<Shader>),
 }
 
-impl ShaderLoaderSettings {
-    pub fn new(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct ShaderGpuLoaderSettings {
+    source: ShaderSource,
+}
+
+impl ShaderGpuLoaderSettings {
+    pub fn new(source: PathOrStringSettings) -> Self {
+        match source {
+            PathOrStringSettings::Path(path) => Self::from_path(path),
+            PathOrStringSettings::String(string) => Self::from_string(string),
+        }
+    }
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            source: ShaderSource::Path(path.into()),
+        }
+    }
+    pub fn from_string(string: impl Into<String>) -> Self {
+        Self {
+            source: ShaderSource::String(string.into()),
+        }
+    }
+    pub fn from_handle(handle: AssetHandle<Shader>) -> Self {
+        Self {
+            source: ShaderSource::Handle(handle),
+        }
     }
 }
 
-#[derive(Clone)]
-pub struct ShaderLoader {}
-impl AssetLoader for ShaderLoader {
-    type Asset = Shader;
-    type Settings = ShaderLoaderSettings;
-    type Error = filesystem::LoadFileError;
+#[derive(thiserror::Error, Debug)]
+pub enum LoadShaderError {
+    #[error("could not load file")]
+    LoadFileError(#[from] filesystem::LoadFileError),
+    #[error("could not compile shader")]
+    CompileShaderError(#[from] wgpu::Error),
+}
+
+pub struct ShaderGpuLoader {}
+impl AssetLoader for ShaderGpuLoader {
+    type Asset = ArcShaderModule;
+    type Settings = ShaderGpuLoaderSettings;
+    type Error = LoadShaderError;
 
     async fn load(
-        _load_ctx: &mut LoadContext,
+        load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let source = _load_ctx.load_string(&settings.path).await?;
-        let config = ShaderBuilder::new().label(
-            settings
-                .path
-                .to_str()
-                .expect("could not convert path to string")
-                .to_string(),
-        );
-
-        Ok(Self::Asset { source, config })
-    }
-}
-
-pub struct ShaderGpuConverter;
-
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct ShaderGpuConverterSettings {
-    shader: AssetHandle<Shader>,
-}
-impl ShaderGpuConverterSettings {
-    pub fn new(shader: AssetHandle<Shader>) -> Self {
-        Self { shader }
-    }
-}
-impl Asset for wgpu::ShaderModule {}
-
-impl AssetConverter for ShaderGpuConverter {
-    type Asset = ArcHandle<wgpu::ShaderModule>;
-    type Error = wgpu::Error;
-    type Settings = ShaderGpuConverterSettings;
-
-    fn convert(
-        ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.shader) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
+        let source = match settings.source {
+            ShaderSource::Path(path_buf) => load_ctx.load_string(&path_buf).await?,
+            ShaderSource::String(source) => source,
+            ShaderSource::Handle(handle) => load_ctx.request_get(handle).await.source.clone(),
         };
 
-        let shader_source = source.source.clone();
-        let arc_runtime = arc::runtime(ctx);
+        let shader = render::ShaderBuilder::new()
+            .build_err(&load_ctx.render_runtime().device, source)
+            .await;
 
-        #[cfg(target_arch = "wasm32")]
-        {
-            let shader_module = source.config.build_non_arc(ctx, shader_source);
-            crate::asset::ConvertAssetState::Success(ArcHandle::new(arc_runtime, shader_module))
-        }
-
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            match source.config.build_err_non_arc(ctx, shader_source) {
-                Ok(shader_module) => {
-                    ConvertAssetState::Success(ArcHandle::new(arc_runtime, shader_module))
-                }
-                Err(err) => {
-                    tracing::error!("could not load shader module: {}", err);
-                    ConvertAssetState::Failed
-                }
+        let arc_runtime = load_ctx.arc_runtime().clone();
+        match shader {
+            Ok(shader) => Ok(ArcHandle::new(arc_runtime, shader)),
+            Err(err) => {
+                tracing::warn!("could not compile shader:\n{}", err);
+                Err(LoadShaderError::CompileShaderError(err))
             }
         }
     }
@@ -235,17 +250,32 @@ impl Asset for render::Image {}
 
 pub struct ImageLoader {}
 
-#[derive(Hash, PartialEq, Eq, Clone, Default, Debug)]
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ImageLoaderSettings {
-    pub path: PathBuf,
+    pub source: PathOrBytesSettings,
     pub texture_config: Option<TextureBuilder>,
     pub sampler_config: Option<SamplerBuilder>,
 }
 
 impl ImageLoaderSettings {
-    pub fn new(path: impl Into<PathBuf>) -> Self {
+    pub fn new(source: PathOrBytesSettings) -> Self {
+        match source {
+            PathOrBytesSettings::Path(path) => Self::from_path(path),
+            PathOrBytesSettings::Bytes(bytes) => Self::from_bytes(bytes),
+        }
+    }
+
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
         Self {
-            path: path.into(),
+            source: PathOrBytesSettings::Path(path.into()),
+            texture_config: None,
+            sampler_config: None,
+        }
+    }
+
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        Self {
+            source: PathOrBytesSettings::Bytes(bytes.into()),
             texture_config: None,
             sampler_config: None,
         }
@@ -271,7 +301,10 @@ impl AssetLoader for ImageLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let bytes = load_ctx.load_bytes(&settings.path).await?;
+        let bytes = match settings.source {
+            PathOrBytesSettings::Path(path) => load_ctx.load_bytes(&path).await?,
+            PathOrBytesSettings::Bytes(bytes) => bytes,
+        };
 
         let img = image::load_from_memory(&bytes)
             .expect("could not load image")

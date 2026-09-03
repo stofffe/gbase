@@ -7,11 +7,10 @@ use encase::ShaderType;
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings, ShaderLoader,
-        ShaderLoaderSettings,
+        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
     },
     glam::{Mat4, Vec3},
-    render::{self, BindGroupBindable, Image, Mesh, RawBuffer},
+    render::{self, ArcShaderModule, BindGroupBindable, Image, Mesh, RawBuffer},
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -21,8 +20,8 @@ use std::collections::BTreeSet;
 //
 
 pub struct PbrRenderer {
-    forward_shader_handle: asset::AssetHandle<render::Shader>,
-    deferred_shader_handle: asset::AssetHandle<render::Shader>,
+    forward_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    deferred_shader_handle: asset::AssetHandle<ArcShaderModule>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -34,23 +33,20 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let forward_shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
-            "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
-        ));
-        let deferred_shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new(
-            "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
-        ));
+        // let forward_shader_handle = cache.load_asset::<ShaderFromPathLoader>(&PathSettings::new(
+        //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
+        // ));
+        // let deferred_shader_handle = cache.load_asset::<ShaderFromPathLoader>(&PathSettings::new(
+        //     "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
+        // ));
 
-        // let forward_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
-        //     cache,
-        //     &NamedInserterKey::new("forward shader"),
-        //     Shader::new(include_str!("../assets/shaders/mesh.wgsl")),
-        // );
-        // let deferred_shader_handle = asset::insert_asset::<Shader, NamedInserter>(
-        //     cache,
-        //     &NamedInserterKey::new("deferred shader"),
-        //     render::Shader::new(include_str!("../assets/shaders/deferred_mesh.wgsl")),
-        // );
+        let forward_shader_handle = cache.load_asset::<ShaderGpuLoader>(
+            &ShaderGpuLoaderSettings::from_string(include_str!("../assets/shaders/mesh.wgsl")),
+        );
+        let deferred_shader_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::from_string(
+                include_str!("../assets/shaders/deferred_mesh.wgsl"),
+            ));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -190,13 +186,9 @@ impl PbrRenderer {
             return;
         }
 
-        let Ok(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            &ShaderGpuConverterSettings::new(self.forward_shader_handle.clone()),
-        ) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.forward_shader_handle) else {
             return;
         };
-        let shader = shader.clone();
 
         let mut buffers = Vec::new();
         for attr in self.vertex_attributes.iter() {

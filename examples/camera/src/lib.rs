@@ -27,7 +27,7 @@ impl Callbacks for App {
     fn new(ctx: &mut Context, _cache: &mut gbase::asset::AssetCache) -> Self {
         // Shader
         let shader_str = include_str!("../assets/shaders/camera.wgsl");
-        let shader = render::ShaderBuilder::new().build(ctx, shader_str);
+        let shader = render::ShaderBuilder::new().build_arc_handle(ctx, shader_str);
 
         // Vertex buffer
         let vertex_buffer = render::VertexBufferBuilder::new(render::VertexBufferSource::Data(

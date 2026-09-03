@@ -2,10 +2,9 @@ use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
     ImageGpuConverter, ImageGpuConverterOptions, ImageLoader, ImageLoaderSettings,
-    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter, ShaderGpuConverterSettings,
-    ShaderLoader, ShaderLoaderSettings,
+    MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
 };
-use gbase::render::{Image, Mesh, SamplerBuilder, TextureBuilder};
+use gbase::render::{ArcShaderModule, Image, Mesh, SamplerBuilder, TextureBuilder};
 use gbase::{asset, tracing};
 use gbase::{
     render::{self},
@@ -15,7 +14,7 @@ use std::collections::BTreeSet;
 
 pub struct CloudRenderer {
     mesh_handle: asset::AssetHandle<Mesh>,
-    shader_handle: asset::AssetHandle<render::Shader>,
+    shader_handle: asset::AssetHandle<ArcShaderModule>,
     weather_map_handle: asset::AssetHandle<Image>,
     blue_noise_handle: asset::AssetHandle<Image>,
 
@@ -34,13 +33,13 @@ impl CloudRenderer {
         let noise_texture = generate_cloud_noise(ctx)?;
         let weather_map_texture = asset::load_asset::<ImageLoader>(
             cache,
-            &ImageLoaderSettings::new("assets/textures/clouds_weather_map.png")
+            &ImageLoaderSettings::from_path("assets/textures/clouds_weather_map.png")
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         );
         let blue_noise_texture = asset::load_asset::<ImageLoader>(
             cache,
-            &ImageLoaderSettings::new("assets/textures/blue_noise.png")
+            &ImageLoaderSettings::from_path("assets/textures/blue_noise.png")
                 .texture_config(TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm))
                 .sampler_config(SamplerBuilder::new().with_address_mode(wgpu::AddressMode::Repeat)),
         );
@@ -54,9 +53,9 @@ impl CloudRenderer {
             ]));
         let mesh_handle = asset::insert_asset_force(cache, mesh);
 
-        let shader_handle = asset::load_asset::<ShaderLoader>(
+        let shader_handle = asset::load_asset::<ShaderGpuLoader>(
             cache,
-            &ShaderLoaderSettings::new("assets/shaders/clouds.wgsl"),
+            &ShaderGpuLoaderSettings::from_path("assets/shaders/clouds.wgsl"),
         );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -177,12 +176,7 @@ impl CloudRenderer {
             ])
             .build(ctx);
 
-        let shader = cache
-            .get_or_convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(
-                self.shader_handle.clone(),
-            ))
-            .unwrap()
-            .clone();
+        let shader = cache.get_asset(&self.shader_handle).unwrap().clone();
         let mesh = cache.get_asset(&self.mesh_handle).unwrap();
         let pipeline = render::RenderPipelineBuilder::new(shader, self.pipeline_layout.clone())
             .label("cloud renderer")

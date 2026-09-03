@@ -15,7 +15,7 @@ pub struct SobelFilter {
 impl SobelFilter {
     pub fn new(ctx: &mut Context) -> Self {
         let shader = render::ShaderBuilder::new()
-            .build(ctx, include_str!("../../assets/shaders/sobel_filter.wgsl"));
+            .build_arc_handle(ctx, include_str!("../../assets/shaders/sobel_filter.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

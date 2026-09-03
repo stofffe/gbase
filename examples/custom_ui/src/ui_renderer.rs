@@ -3,19 +3,19 @@ use core::f32;
 use gbase::{
     asset::{
         Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState,
-        ConvertContext, EmptyError, GetAssetState, LoadContext, ShaderGpuConverter,
-        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
+        ConvertContext, EmptyError, GetAssetState, LoadContext, ShaderGpuLoader,
+        ShaderGpuLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
     input,
     render::{self, ArcShaderModule, BindGroupBindable},
-    tracing, wgpu, Context,
+    wgpu, Context,
 };
 use std::{collections::HashMap, hash::Hash, path::PathBuf};
 
 pub struct UIRenderer {
-    shader_gpu_handle: AssetHandle<ArcShaderModule>,
+    shader_handle: AssetHandle<ArcShaderModule>,
     bindgroup_layout: render::ArcBindGroupLayout,
     pipeline_layout: render::ArcPipelineLayout,
 
@@ -63,10 +63,9 @@ impl UIRenderer {
         // gpu resources
         //
 
-        let shader_handle =
-            cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("assets/shaders/ui.wgsl"));
-        let shader_gpu_handle = cache
-            .convert_asset::<ShaderGpuConverter>(&ShaderGpuConverterSettings::new(shader_handle));
+        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
+            &ShaderGpuLoaderSettings::from_path("assets/shaders/ui.wgsl"),
+        );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -96,7 +95,7 @@ impl UIRenderer {
         Self {
             pipeline_layout,
             bindgroup_layout,
-            shader_gpu_handle,
+            shader_handle,
             instance_buffer,
             projection,
 
@@ -115,7 +114,7 @@ impl UIRenderer {
         view_format: wgpu::TextureFormat,
         ui_elements: &[UIElement],
     ) {
-        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
+        let Ok(shader) = cache.get_asset(&self.shader_handle).cloned() else {
             return;
         };
 

@@ -142,6 +142,13 @@ impl AssetCache {
             .register_conversion::<T>(&mut self.registry, &mut self.storage, settings)
     }
 
+    pub fn get_asset_cloned<T: Asset + Clone + 'static>(
+        &mut self,
+        handle: &AssetHandle<T>,
+    ) -> Result<T, GetAssetState> {
+        self.get_asset(handle).cloned()
+    }
+
     /// Get an asset
     pub fn get_asset<T: Asset + 'static>(
         &mut self,

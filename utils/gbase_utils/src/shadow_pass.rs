@@ -4,12 +4,13 @@ use crate::{
 };
 use gbase::{
     asset::{
-        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
+        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        ShaderGpuLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
-    render, tracing, wgpu, Context,
+    render::{self, ArcShaderModule},
+    tracing, wgpu, Context,
 };
 
 pub struct ShadowPass {
@@ -17,7 +18,7 @@ pub struct ShadowPass {
     bindgroup_layout: render::ArcBindGroupLayout,
     instances: render::StorageBuffer<Vec<ShadowInstance>>,
 
-    shader_handle: asset::AssetHandle<render::Shader>,
+    shader_handle: asset::AssetHandle<ArcShaderModule>,
     pub shadow_map: render::ArcTexture,
     pub light_matrices_buffer: render::StorageBuffer<Vec<Mat4>>,
     pub light_matrices_index: render::UniformBuffer<u32>,
@@ -36,9 +37,8 @@ const DEPTH_BIAS_STATE_CLAMP: f32 = 0.0; // disable with 0.0
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let shader_handle = asset::load_asset::<ShaderLoader>(
-            cache,
-            &ShaderLoaderSettings::new("assets/shaders/shadow_pass.wgsl"),
+        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
+            &ShaderGpuLoaderSettings::from_path("assets/shaders/shadow_pass.wgsl"),
         );
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
@@ -113,13 +113,9 @@ impl ShadowPass {
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
-        let Ok(shader) = asset::get_or_convert_asset::<ShaderGpuConverter>(
-            cache,
-            &ShaderGpuConverterSettings::new(self.shader_handle.clone()),
-        ) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.shader_handle) else {
             return;
         };
-        let shader = shader.clone();
 
         //
         // early exits

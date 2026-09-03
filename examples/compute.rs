@@ -50,7 +50,7 @@ impl Callbacks for App {
             .build(ctx);
 
         let shader_str = include_str!("../assets/shaders/compute.wgsl");
-        let shader = render::ShaderBuilder::new().build(ctx, shader_str);
+        let shader = render::ShaderBuilder::new().build_arc_handle(ctx, shader_str);
 
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout])

@@ -72,8 +72,8 @@ impl GUIRenderer {
 
         let app_info_buffer = render::UniformBufferBuilder::new().build(ctx);
 
-        let shader =
-            render::ShaderBuilder::new().build(ctx, include_str!("../../assets/shaders/ui.wgsl"));
+        let shader = render::ShaderBuilder::new()
+            .build_arc_handle(ctx, include_str!("../../assets/shaders/ui.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

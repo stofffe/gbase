@@ -56,7 +56,6 @@ fn vs_main(
     out.NORMAL = normalize(model * vec4<f32>(in.normal, 0.0));
 
     return out;
-
 }
 
 // Fragment shader
@@ -69,7 +68,7 @@ struct VertexOutput {
     @location(5) T: vec3f,
     @location(6) B: vec3f,
     @location(7) N: vec3f,
-    @location(8) index: u32,
+    @location(8) @interpolate(flat) index: u32,
     @location(9) NORMAL: vec4f,
 }
 
@@ -119,11 +118,9 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
 struct CameraUniform {
     pos: vec3<f32>,
     facing: vec3<f32>,
-
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     view_proj: mat4x4<f32>,
-
     inv_view: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
     inv_view_proj: mat4x4<f32>,

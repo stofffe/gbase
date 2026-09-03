@@ -17,7 +17,7 @@ pub struct GaussianFilter {
 
 impl GaussianFilter {
     pub fn new(ctx: &mut Context) -> Self {
-        let shader = render::ShaderBuilder::new().build(
+        let shader = render::ShaderBuilder::new().build_arc_handle(
             ctx,
             include_str!("../../assets/shaders/gaussian_filter.wgsl"),
         );

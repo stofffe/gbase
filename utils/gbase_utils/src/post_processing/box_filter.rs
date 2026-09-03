@@ -18,7 +18,7 @@ pub struct BoxFilter {
 impl BoxFilter {
     pub fn new(ctx: &mut Context) -> Self {
         let shader = render::ShaderBuilder::new()
-            .build(ctx, include_str!("../../assets/shaders/box_filter.wgsl"));
+            .build_arc_handle(ctx, include_str!("../../assets/shaders/box_filter.wgsl"));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![

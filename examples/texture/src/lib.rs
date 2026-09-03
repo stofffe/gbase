@@ -1,10 +1,10 @@
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuConverter,
-        ShaderGpuConverterSettings, ShaderLoader, ShaderLoaderSettings,
+        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        ShaderGpuLoaderSettings,
     },
-    render::{self, ArcHandle, ArcPipelineLayout, Image},
+    render::{self, ArcPipelineLayout, ArcShaderModule, Image},
     wgpu::{self},
     CallbackResult, Callbacks, Context,
 };
@@ -21,8 +21,7 @@ struct App {
     texture_handle: AssetHandle<Image>,
     mesh_handle: AssetHandle<render::Mesh>,
 
-    shader_handle: AssetHandle<render::Shader>,
-    shader_gpu: AssetHandle<ArcHandle<wgpu::ShaderModule>>,
+    shader_handle: AssetHandle<ArcShaderModule>,
 }
 
 impl Callbacks for App {
@@ -51,10 +50,11 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let shader_handle =
-            cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::new("shaders/texture.wgsl"));
-        let texture_handle =
-            cache.load_asset::<ImageLoader>(&ImageLoaderSettings::new("textures/texture.jpeg"));
+        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
+            &ShaderGpuLoaderSettings::from_path("shaders/texture.wgsl"),
+        );
+        let texture_handle = cache
+            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -64,19 +64,13 @@ impl Callbacks for App {
             ]);
         let mesh_handle = cache.insert_asset_force(mesh);
 
-        let shader_gpu = cache.convert_asset::<ShaderGpuConverter>(
-            &ShaderGpuConverterSettings::new(shader_handle.clone()),
-        );
-
         Self {
             pipeline_layout,
             bindgroup_layout,
 
             texture_handle,
-            shader_handle,
             mesh_handle,
-
-            shader_gpu,
+            shader_handle,
         }
     }
 
@@ -95,10 +89,9 @@ impl Callbacks for App {
         };
         let mesh = mesh.clone();
 
-        let Ok(shader) = asset::get_asset(cache, self.shader_gpu.clone()) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.shader_handle) else {
             return CallbackResult::Continue;
         };
-        let shader = shader.clone();
 
         // NOTE: alternative way of loading shader
         // let asset::GetAssetResult::Success(shader) =

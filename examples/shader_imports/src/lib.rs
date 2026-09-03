@@ -1,5 +1,5 @@
 mod shader_import_asset;
-use gbase::asset::NamedInserter;
+use gbase::asset::{NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings};
 pub use shader_import_asset::*;
 
 use gbase::input::{self, KeyCode};
@@ -60,8 +60,8 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let texture_handle =
-            cache.load_asset::<ImageLoader>(&ImageLoaderSettings::new("textures/texture.jpeg"));
+        let texture_handle = cache
+            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
         let texture_gpu_handle = cache.convert_asset::<ImageGpuConverter>(
             &ImageGpuConverterOptions::new(texture_handle.clone()),
         );
@@ -79,8 +79,8 @@ impl Callbacks for App {
         let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
             &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
         );
-        let shader_gpu_handle =
-            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
+        let shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::from_handle(shader_handle));
 
         Self {
             pipeline_layout,

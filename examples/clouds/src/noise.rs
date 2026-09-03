@@ -48,7 +48,7 @@ pub fn generate_cloud_noise(ctx: &mut Context) -> Result<render::GpuImage, wgpu:
     #[cfg(feature = "hot_reload")]
     let shader = render::ShaderBuilder::new(shader_str).build_err(ctx)?;
     #[cfg(not(feature = "hot_reload"))]
-    let shader = render::ShaderBuilder::new().build(ctx, shader_str);
+    let shader = render::ShaderBuilder::new().build_arc_handle(ctx, shader_str);
 
     let bindgroup_layout = render::BindGroupLayoutBuilder::new()
         .entries(vec![

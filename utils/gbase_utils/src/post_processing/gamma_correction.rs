@@ -9,7 +9,7 @@ pub struct GammaCorrection {
 
 impl GammaCorrection {
     pub fn new(ctx: &mut Context) -> Self {
-        let shader = render::ShaderBuilder::new().build(
+        let shader = render::ShaderBuilder::new().build_arc_handle(
             ctx,
             include_str!("../../assets/shaders/gamma_correction.wgsl"),
         );

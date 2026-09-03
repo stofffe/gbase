@@ -21,6 +21,7 @@ fixed examples
     [x] time
     [x] triangle
 
+archandle instead of arc?
 make shader import loader use async get
 add arc device to loader
 make gpuconvert use loader instead
