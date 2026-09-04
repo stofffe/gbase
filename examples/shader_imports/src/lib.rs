@@ -4,14 +4,14 @@ pub use shader_import_asset::*;
 
 use gbase::input::{self, KeyCode};
 use gbase::render::{
-    ArcShaderModule, ArcTexture, GpuImage, GpuMesh, Mesh, SamplerBuilder, TextureViewBuilder,
+    ArcShaderModule, ArcTexture, GpuMesh, Mesh, SamplerBuilder, TextureViewBuilder,
 };
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageGpuLoader,
-        ImageGpuLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings,
+        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
+        MeshGpuConverterSettings,
     },
-    render::{self, ArcPipelineLayout, Image},
+    render::{self, ArcPipelineLayout},
     tracing,
     wgpu::{self},
     CallbackResult, Callbacks, Context,

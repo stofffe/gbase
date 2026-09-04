@@ -1,16 +1,18 @@
 use crate::{
     BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
     LodMeshToBoundingBoxConverter, LodMeshToBoundingBoxConverterOptions, Material, MeshLod,
-    PixelCache, Transform3D, THRESHOLDS,
+    Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, MeshGpuConverter,
+        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
         MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
     },
     glam::{Mat4, Vec3},
-    render::{self, ArcShaderModule, BindGroupBindable, Image, Mesh, RawBuffer},
+    render::{
+        self, ArcShaderModule, BindGroupBindable, Image, Mesh, RawBuffer, TextureViewBuilder,
+    },
     tracing, wgpu, Context,
 };
 use std::collections::BTreeSet;
@@ -306,45 +308,66 @@ impl PbrRenderer {
             };
             let gpu_mesh = gpu_mesh.clone();
 
-            let Ok(base_color_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(base_color_texture),
-            ) else {
+            // Base color
+            let base_color_texture_handle = cache.load_asset::<ImageGpuLoader>(
+                &ImageGpuLoaderSettings::from_handle(base_color_texture.image_handle)
+                    .with_config(base_color_texture.texture_config),
+            );
+            let Ok(base_color_texture_gpu) = cache.get_asset_cloned(&base_color_texture_handle)
+            else {
                 return;
             };
-            let base_color_texture = base_color_texture.clone();
+            let base_color_sampler = base_color_texture.sampler_config.build(ctx);
+            let base_color_view =
+                TextureViewBuilder::new(base_color_texture_gpu.clone()).build(ctx);
 
-            let Ok(normal_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(normal_texture),
-            ) else {
+            // Normal
+            let normal_texture_handle = cache.load_asset::<ImageGpuLoader>(
+                &ImageGpuLoaderSettings::from_handle(normal_texture.image_handle)
+                    .with_config(normal_texture.texture_config),
+            );
+            let Ok(normal_texture_gpu) = cache.get_asset_cloned(&normal_texture_handle) else {
                 return;
             };
-            let normal_texture = normal_texture.clone();
+            let normal_sampler = normal_texture.sampler_config.build(ctx);
+            let normal_view = TextureViewBuilder::new(normal_texture_gpu.clone()).build(ctx);
 
-            let Ok(metallic_roughness_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(metallic_roughness_texture),
-            ) else {
+            // Metallic roughness
+            let metallic_roughness_texture_handle = cache.load_asset::<ImageGpuLoader>(
+                &ImageGpuLoaderSettings::from_handle(metallic_roughness_texture.image_handle)
+                    .with_config(metallic_roughness_texture.texture_config),
+            );
+            let Ok(metallic_roughness_texture_gpu) =
+                cache.get_asset_cloned(&metallic_roughness_texture_handle)
+            else {
                 return;
             };
-            let metallic_roughness_texture = metallic_roughness_texture.clone();
+            let metallic_roughness_sampler = metallic_roughness_texture.sampler_config.build(ctx);
+            let metallic_roughness_view =
+                TextureViewBuilder::new(metallic_roughness_texture_gpu.clone()).build(ctx);
 
-            let Ok(occlusion_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(occlusion_texture),
-            ) else {
+            // Occlusion
+            let occlusion_texture_handle = cache.load_asset::<ImageGpuLoader>(
+                &ImageGpuLoaderSettings::from_handle(occlusion_texture.image_handle)
+                    .with_config(occlusion_texture.texture_config),
+            );
+            let Ok(occlusion_texture_gpu) = cache.get_asset_cloned(&occlusion_texture_handle)
+            else {
                 return;
             };
-            let occlusion_texture = occlusion_texture.clone();
+            let occlusion_sampler = occlusion_texture.sampler_config.build(ctx);
+            let occlusion_view = TextureViewBuilder::new(occlusion_texture_gpu.clone()).build(ctx);
 
-            let Ok(emissive_texture) = asset::get_or_convert_asset::<ImageGpuConverter>(
-                cache,
-                &ImageGpuConverterOptions::new(emissive_texture),
-            ) else {
+            // Emissive
+            let emissive_texture_handle = cache.load_asset::<ImageGpuLoader>(
+                &ImageGpuLoaderSettings::from_handle(emissive_texture.image_handle)
+                    .with_config(emissive_texture.texture_config),
+            );
+            let Ok(emissive_texture_gpu) = cache.get_asset_cloned(&emissive_texture_handle) else {
                 return;
             };
-            let emissive_texture = emissive_texture.clone();
+            let emissive_sampler = emissive_texture.sampler_config.build(ctx);
+            let emissive_view = TextureViewBuilder::new(emissive_texture_gpu.clone()).build(ctx);
 
             // TODO: enable linear/nearest depending on soft shadows
             let shadow_map_sampler_comparison = render::SamplerBuilder::new()
@@ -362,25 +385,25 @@ impl PbrRenderer {
                     // instances
                     render::BindGroupEntry::Buffer(self.instances.buffer()),
                     // base color texture
-                    render::BindGroupEntry::Texture(base_color_texture.view()),
+                    render::BindGroupEntry::Texture(base_color_view),
                     // base color sampler
-                    render::BindGroupEntry::Sampler(base_color_texture.sampler()),
+                    render::BindGroupEntry::Sampler(base_color_sampler),
                     // normal texture
-                    render::BindGroupEntry::Texture(normal_texture.view()),
+                    render::BindGroupEntry::Texture(normal_view),
                     // normal sampler
-                    render::BindGroupEntry::Sampler(normal_texture.sampler()),
+                    render::BindGroupEntry::Sampler(normal_sampler),
                     // metallic roughness texture
-                    render::BindGroupEntry::Texture(metallic_roughness_texture.view()),
+                    render::BindGroupEntry::Texture(metallic_roughness_view),
                     // metallic roughness sampler
-                    render::BindGroupEntry::Sampler(metallic_roughness_texture.sampler()),
+                    render::BindGroupEntry::Sampler(metallic_roughness_sampler),
                     // occlusion roughness texture
-                    render::BindGroupEntry::Texture(occlusion_texture.view()),
+                    render::BindGroupEntry::Texture(occlusion_view),
                     // occlusion roughness sampler
-                    render::BindGroupEntry::Sampler(occlusion_texture.sampler()),
+                    render::BindGroupEntry::Sampler(occlusion_sampler),
                     // emissive roughness texture
-                    render::BindGroupEntry::Texture(emissive_texture.view()),
+                    render::BindGroupEntry::Texture(emissive_view),
                     // emissive roughness sampler
-                    render::BindGroupEntry::Sampler(emissive_texture.sampler()),
+                    render::BindGroupEntry::Sampler(emissive_sampler),
                     // shadow map texture
                     render::BindGroupEntry::Texture(
                         render::TextureViewBuilder::new(shadow_map.clone())
@@ -484,89 +507,89 @@ pub struct GpuMaterial {
     pub emissive_factor: [f32; 3],
 }
 
-// TODO: shoudl use handles for textures to reuse
-// TODO: emissive
-#[derive(Debug, Clone)]
-pub struct PbrMaterial {
-    pub base_color_texture: Option<Image>,
-    pub color_factor: [f32; 4],
-
-    pub metallic_roughness_texture: Option<Image>,
-    pub roughness_factor: f32,
-    pub metallic_factor: f32,
-
-    pub occlusion_texture: Option<Image>,
-    pub occlusion_strength: f32,
-
-    pub normal_texture: Option<Image>,
-    pub normal_scale: f32,
-
-    pub emissive_texture: Option<Image>,
-    pub emissive_factor: [f32; 3],
-}
-
-impl PbrMaterial {
-    // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-    pub fn to_material(
-        self,
-        cache: &mut gbase::asset::AssetCache,
-        // TODO: part of context?
-        // image_cache: &mut AssetCache<Image, GpuImage>,
-        pixel_cache: &mut PixelCache,
-    ) -> GpuMaterial {
-        const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
-        const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
-        const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
-        const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
-        const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
-        fn alloc(
-            cache: &mut gbase::asset::AssetCache,
-            pixel_cache: &mut PixelCache,
-            tex: Option<Image>,
-            default: [u8; 4],
-        ) -> asset::AssetHandle<Image> {
-            if let Some(tex) = tex {
-                cache.insert_asset_force(tex)
-            } else {
-                pixel_cache.allocate(cache, default)
-            }
-        }
-        let base_color_texture = alloc(
-            cache,
-            pixel_cache,
-            self.base_color_texture,
-            BASE_COLOR_DEFAULT,
-        );
-        let normal_texture = alloc(cache, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
-        let metallic_roughness_texture = alloc(
-            cache,
-            pixel_cache,
-            self.metallic_roughness_texture,
-            METALLIC_ROUGHNESS_DEFAULT,
-        );
-        let occlusion_texture = alloc(
-            cache,
-            pixel_cache,
-            self.occlusion_texture,
-            OCCLUSION_DEFAULT,
-        );
-        let emissive_texture = alloc(cache, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
-
-        GpuMaterial {
-            base_color_texture,
-            color_factor: self.color_factor,
-            metallic_roughness_texture,
-            roughness_factor: self.roughness_factor,
-            metallic_factor: self.metallic_factor,
-            occlusion_texture,
-            occlusion_strength: self.occlusion_strength,
-            normal_texture,
-            normal_scale: self.normal_scale,
-            emissive_texture,
-            emissive_factor: self.emissive_factor,
-        }
-    }
-}
+// // TODO: shoudl use handles for textures to reuse
+// // TODO: emissive
+// #[derive(Debug, Clone)]
+// pub struct PbrMaterial {
+//     pub base_color_texture: Option<Image>,
+//     pub color_factor: [f32; 4],
+//
+//     pub metallic_roughness_texture: Option<Image>,
+//     pub roughness_factor: f32,
+//     pub metallic_factor: f32,
+//
+//     pub occlusion_texture: Option<Image>,
+//     pub occlusion_strength: f32,
+//
+//     pub normal_texture: Option<Image>,
+//     pub normal_scale: f32,
+//
+//     pub emissive_texture: Option<Image>,
+//     pub emissive_factor: [f32; 3],
+// }
+//
+// impl PbrMaterial {
+//     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
+//     pub fn to_material(
+//         self,
+//         cache: &mut gbase::asset::AssetCache,
+//         // TODO: part of context?
+//         // image_cache: &mut AssetCache<Image, GpuImage>,
+//         pixel_cache: &mut PixelCache,
+//     ) -> GpuMaterial {
+//         const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
+//         const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
+//         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
+//         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
+//         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
+//         fn alloc(
+//             cache: &mut gbase::asset::AssetCache,
+//             pixel_cache: &mut PixelCache,
+//             tex: Option<Image>,
+//             default: [u8; 4],
+//         ) -> asset::AssetHandle<Image> {
+//             if let Some(tex) = tex {
+//                 cache.insert_asset_force(tex)
+//             } else {
+//                 pixel_cache.allocate(cache, default)
+//             }
+//         }
+//         let base_color_texture = alloc(
+//             cache,
+//             pixel_cache,
+//             self.base_color_texture,
+//             BASE_COLOR_DEFAULT,
+//         );
+//         let normal_texture = alloc(cache, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
+//         let metallic_roughness_texture = alloc(
+//             cache,
+//             pixel_cache,
+//             self.metallic_roughness_texture,
+//             METALLIC_ROUGHNESS_DEFAULT,
+//         );
+//         let occlusion_texture = alloc(
+//             cache,
+//             pixel_cache,
+//             self.occlusion_texture,
+//             OCCLUSION_DEFAULT,
+//         );
+//         let emissive_texture = alloc(cache, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
+//
+//         GpuMaterial {
+//             base_color_texture,
+//             color_factor: self.color_factor,
+//             metallic_roughness_texture,
+//             roughness_factor: self.roughness_factor,
+//             metallic_factor: self.metallic_factor,
+//             occlusion_texture,
+//             occlusion_strength: self.occlusion_strength,
+//             normal_texture,
+//             normal_scale: self.normal_scale,
+//             emissive_texture,
+//             emissive_factor: self.emissive_factor,
+//         }
+//     }
+// }
 
 //
 // lights

@@ -21,6 +21,7 @@ fixed examples
     [x] time
     [x] triangle
 
+fix named inserts
 rename builder with cache build_cached
 archandle instead of arc?
 make shader import loader use async get

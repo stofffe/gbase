@@ -128,7 +128,6 @@ impl AssetCache {
         &mut self,
         settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
-        tracing::info!("register load {:?}", settings);
         self.loader
             .register_load::<T>(&mut self.registry, &mut self.storage, settings)
     }

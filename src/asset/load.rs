@@ -283,7 +283,6 @@ impl<T: Asset> TypedGetRequest<T> {
 impl<T: Asset> DynGetRequest for TypedGetRequest<T> {
     fn get_asset(self: Box<Self>, storage: &mut AssetCacheStorage) {
         if let Some(asset) = storage.get_asset(&self.handle) {
-            tracing::error!("found {} in storage", self.handle);
             self.response_sender
                 .try_send(asset.clone())
                 .expect("could not send get request response");

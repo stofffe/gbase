@@ -1,20 +1,17 @@
-use image::{load, ImageBuffer, Rgba};
-use tracing::Instrument;
-
-use super::{Asset, AssetHandle, AssetLoader};
+use super::{AssetHandle, AssetLoader};
 use crate::{
     asset::{
         AssetConverter, AssetInserter, ConvertAssetState, ConvertContext, GetAssetState,
-        ImageGpuSource::ImageSettings, LoadContext,
+        LoadContext,
     },
     filesystem::{self, LoadFileError},
     render::{
-        self, ArcHandle, ArcShaderModule, ArcTexture, GpuImage, Image, Mesh, SamplerBuilder,
-        Shader, TextureBuilder, TextureSource,
+        self, ArcHandle, ArcShaderModule, ArcTexture, Mesh, Shader, TextureBuilder, TextureSource,
     },
     Context,
 };
-use std::{fmt::Debug, hash::Hash, io::Read, path::PathBuf};
+use image::{ImageBuffer, Rgba, RgbaImage};
+use std::{fmt::Debug, hash::Hash, path::PathBuf};
 
 //
 // Error
@@ -245,6 +242,7 @@ impl AssetLoader for ShaderGpuLoader {
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub enum ImageSource {
+    // TODO: probably wanna remove
     Bytes(Vec<u8>),
     Path(PathBuf),
 }
@@ -257,7 +255,7 @@ pub struct ImageLoaderSettings {
 pub struct ImageLoader {}
 
 impl AssetLoader for ImageLoader {
-    type Asset = ImageBuffer<Rgba<u8>, Vec<u8>>;
+    type Asset = RgbaImage;
     type Settings = ImageLoaderSettings;
     type Error = LoadFileError;
 
@@ -277,8 +275,6 @@ impl AssetLoader for ImageLoader {
     }
 }
 
-pub struct ImageGpuLoader {}
-
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub enum ImageGpuSource {
     ImageSettings(ImageLoaderSettings),
@@ -292,11 +288,13 @@ pub struct ImageGpuLoaderSettings {
 }
 
 impl ImageGpuLoaderSettings {
-    pub fn new(source: ImageGpuSource) -> Self {
-        match source {
+    pub fn new(source: ImageGpuSource, texture_config: Option<TextureBuilder>) -> Self {
+        let mut settings = match source {
             ImageGpuSource::ImageSettings(settings) => Self::from_image_settings(settings),
             ImageGpuSource::Handle(handle) => Self::from_handle(handle),
-        }
+        };
+        settings.texture_config = texture_config;
+        settings
     }
 
     pub fn from_image_settings(settings: ImageLoaderSettings) -> Self {
@@ -326,6 +324,8 @@ impl ImageGpuLoaderSettings {
         self
     }
 }
+
+pub struct ImageGpuLoader {}
 
 impl AssetLoader for ImageGpuLoader {
     type Asset = ArcTexture;
@@ -358,46 +358,5 @@ impl AssetLoader for ImageGpuLoader {
             );
 
         Ok(ArcHandle::new(load_ctx.arc_runtime().clone(), image))
-    }
-}
-
-// TODO: remove
-
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct ImageGpuConverterOptions {
-    image: AssetHandle<Image>,
-}
-
-impl ImageGpuConverterOptions {
-    pub fn new(image: AssetHandle<Image>) -> Self {
-        Self { image }
-    }
-}
-
-pub struct ImageGpuConverter;
-impl AssetConverter for ImageGpuConverter {
-    type Asset = render::GpuImage;
-    type Error = EmptyError;
-    type Settings = ImageGpuConverterOptions;
-
-    fn convert(
-        ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.image) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        };
-
-        let sampler = SamplerBuilder::new().build(ctx);
-        let texture = source.texture_config.build_old(ctx, source.source.clone());
-        let view = render::TextureViewBuilder::new(texture.clone()).build(ctx);
-
-        let gpu_image = GpuImage::new(texture, view, sampler);
-        ConvertAssetState::Success(gpu_image)
     }
 }

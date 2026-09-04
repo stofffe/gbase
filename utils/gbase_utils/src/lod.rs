@@ -1,11 +1,11 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
     asset::{
-        self, Asset, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState, ConvertContext,
+        self, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState, ConvertContext,
         EmptyError, GetAssetState, LoadContext,
     },
     filesystem,
-    render::{self, BoundingBox, VertexAttributeId},
+    render::{self, BoundingBox, Mesh, VertexAttributeId},
     tracing,
 };
 use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
@@ -14,7 +14,7 @@ use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 pub struct MeshLod {
     /// lod ordererd from highest quality to lowest
     /// TODO: move threshold out of here?
-    pub meshes: Vec<(AssetHandle<render::Mesh>, f32)>,
+    pub meshes: Vec<(AssetHandle<Mesh>, f32)>,
     pub material: AssetHandle<Material>,
 }
 

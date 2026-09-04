@@ -1,11 +1,13 @@
-use crate::{texture_source_from_image_bytes, Transform3D};
+use crate::Transform3D;
 use async_recursion::async_recursion;
 use gbase::{
-    asset::{Asset, AssetCache, AssetHandle, LoadContext, NamedInserter},
+    asset::{AssetCache, AssetHandle, LoadContext, NamedInserter},
     glam::{Quat, Vec3},
-    render::{self, Image, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
-    tracing, wgpu,
+    render::{self, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
+    tracing,
+    wgpu::{self},
 };
+use image::RgbaImage;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub struct GltfLoadCache {
@@ -17,8 +19,8 @@ pub struct GltfLoadCache {
 
     materials: HashMap<usize, AssetHandle<Material>>,
 
-    images: HashMap<usize, AssetHandle<Image>>,
-    single_pixel_images: HashMap<[u8; 4], AssetHandle<Image>>,
+    images: HashMap<usize, TextureRef>,
+    single_pixel_images: HashMap<[u8; 4], TextureRef>,
 }
 
 impl GltfLoadCache {
@@ -34,8 +36,6 @@ impl GltfLoadCache {
         }
     }
 }
-
-// TODO: have local cache for duplicate materials/primitives
 
 pub async fn parse_gltf_primitives(
     load_ctx: &mut LoadContext,
@@ -383,13 +383,13 @@ pub async fn parse_gltf_material(
         }
     }
 
-    async fn load_image(
+    async fn load_texture(
         load_ctx: &mut LoadContext,
         gltf_cache: &mut GltfLoadCache,
         buffer: &[u8],
         texture: &gltf::texture::Texture<'_>,
         format: wgpu::TextureFormat, // TODO: why is this unused
-    ) -> AssetHandle<Image> {
+    ) -> TextureRef {
         if let Some(image) = gltf_cache.images.get(&texture.index()) {
             tracing::info!("Loaded {:?} from gltf image cache", texture.index());
             return image.clone();
@@ -412,8 +412,20 @@ pub async fn parse_gltf_material(
         let texture_buffer = &buffer[offset..offset + length];
         let sampler = texture.sampler();
 
-        let texture_source =
-            texture_source_from_image_bytes(texture_buffer).expect("could not load");
+        // TODO: use insert instead
+
+        let name = texture
+            .name()
+            .map(String::from)
+            .unwrap_or_else(|| format!("glb texture {}", texture.index()));
+        let image_buffer = image::load_from_memory(texture_buffer)
+            .expect("could not load image")
+            .to_rgba8();
+        let image_handle = load_ctx
+            .insert_asset_scoped::<RgbaImage, NamedInserter>(name, image_buffer)
+            .await;
+
+        // TODO: can you get the format from the gltf file?
         let texture_config =
             TextureBuilder::new().with_format(gbase::wgpu::TextureFormat::Rgba8Unorm);
         let sampler_config = SamplerBuilder::new()
@@ -452,50 +464,52 @@ pub async fn parse_gltf_material(
                 wgpu::AddressMode::default(),
             );
 
-        let image = Image {
-            source: texture_source,
-            texture_config,
+        let texture_ref = TextureRef {
+            image_handle,
             sampler_config,
+            texture_config,
         };
 
-        // TODO: temp probably want something else
-        let name = texture
-            .name()
-            .map(String::from)
-            .unwrap_or_else(|| format!("glb texture {}", texture.index()));
+        gltf_cache
+            .images
+            .insert(texture.index(), texture_ref.clone());
 
-        let handle = load_ctx
-            .insert_asset_scoped::<Image, NamedInserter>(name, image)
-            .await;
-        gltf_cache.images.insert(texture.index(), handle.clone());
-        handle
+        texture_ref
     }
 
     // TODO: use cache here aswell
-    async fn single_pixel_image(
+    async fn create_single_pixel_texture(
         load_ctx: &mut LoadContext,
         gltf_cache: &mut GltfLoadCache,
         color: [u8; 4],
-    ) -> AssetHandle<Image> {
+    ) -> TextureRef {
         if let Some(image) = gltf_cache.single_pixel_images.get(&color) {
             tracing::info!("Loaded {:?} from gltf single pixel cache", color);
             return image.clone();
         }
-        let image = Image {
-            source: render::TextureSource::Data(1, 1, color.to_vec()),
-            texture_config: render::TextureBuilder::new()
-                .with_format(wgpu::TextureFormat::Rgba8Unorm),
-            // TODO: fix
-            sampler_config: render::SamplerBuilder::new()
-                .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
-        };
 
         let name = format!("single pixel rgb {:?}", color);
-        let handle = load_ctx
-            .insert_asset_scoped::<Image, NamedInserter>(name, image)
+        let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
+        let image_handle = load_ctx
+            .insert_asset_scoped::<RgbaImage, NamedInserter>(name, pixel_image)
             .await;
-        gltf_cache.single_pixel_images.insert(color, handle.clone());
-        handle
+
+        let sampler_config = render::SamplerBuilder::new()
+            .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest);
+        let texture_config =
+            render::TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm);
+
+        let texture_ref = TextureRef {
+            image_handle,
+            sampler_config,
+            texture_config,
+        };
+
+        gltf_cache
+            .single_pixel_images
+            .insert(color, texture_ref.clone());
+
+        texture_ref
     }
 
     const BASE_COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
@@ -519,7 +533,7 @@ pub async fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (albedo)"
             );
-            load_image(
+            load_texture(
                 load_ctx,
                 gltf_cache,
                 buffer,
@@ -528,7 +542,7 @@ pub async fn parse_gltf_material(
             )
             .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, BASE_COLOR_DEFAULT).await,
+        None => create_single_pixel_texture(load_ctx, gltf_cache, BASE_COLOR_DEFAULT).await,
     };
 
     let roughness_factor = pbr.roughness_factor();
@@ -539,7 +553,7 @@ pub async fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (metallic roughness)"
             );
-            load_image(
+            load_texture(
                 load_ctx,
                 gltf_cache,
                 buffer,
@@ -548,7 +562,7 @@ pub async fn parse_gltf_material(
             )
             .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, METALLIC_ROUGHNESS_DEFAULT).await,
+        None => create_single_pixel_texture(load_ctx, gltf_cache, METALLIC_ROUGHNESS_DEFAULT).await,
     };
 
     let (occlusion_texture, occlusion_strength) = match material.occlusion_texture() {
@@ -557,7 +571,7 @@ pub async fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (occlusion)"
             );
-            let image = load_image(
+            let image = load_texture(
                 load_ctx,
                 gltf_cache,
                 buffer,
@@ -568,7 +582,7 @@ pub async fn parse_gltf_material(
             (image, info.strength())
         }
         None => {
-            let image = single_pixel_image(load_ctx, gltf_cache, OCCLUSION_DEFAULT).await;
+            let image = create_single_pixel_texture(load_ctx, gltf_cache, OCCLUSION_DEFAULT).await;
             (image, 1.0)
         }
     };
@@ -580,11 +594,11 @@ pub async fn parse_gltf_material(
                 "non 0 TEXCOORD not supported (normal)"
             );
             let image =
-                load_image(load_ctx, gltf_cache, buffer, &info.texture(), NORMAL_FORMAT).await;
+                load_texture(load_ctx, gltf_cache, buffer, &info.texture(), NORMAL_FORMAT).await;
             (image, info.scale())
         }
         None => {
-            let image = single_pixel_image(load_ctx, gltf_cache, NORMAL_DEFAULT).await;
+            let image = create_single_pixel_texture(load_ctx, gltf_cache, NORMAL_DEFAULT).await;
             (image, 1.0)
         }
     };
@@ -596,7 +610,7 @@ pub async fn parse_gltf_material(
                 info.tex_coord() == 0,
                 "non 0 TEXCOORD not supported (emissive)"
             );
-            load_image(
+            load_texture(
                 load_ctx,
                 gltf_cache,
                 buffer,
@@ -605,7 +619,7 @@ pub async fn parse_gltf_material(
             )
             .await
         }
-        None => single_pixel_image(load_ctx, gltf_cache, EMISSIVE_DEFAULT).await,
+        None => create_single_pixel_texture(load_ctx, gltf_cache, EMISSIVE_DEFAULT).await,
     };
 
     let name = material.name().expect("could not get material name");
@@ -664,23 +678,30 @@ pub struct GltfPrimitive {
     pub material: AssetHandle<Material>,
 }
 
+#[derive(Hash, Clone, Debug)]
+pub struct TextureRef {
+    pub image_handle: AssetHandle<RgbaImage>,
+    pub sampler_config: SamplerBuilder,
+    pub texture_config: TextureBuilder,
+}
+
 // TODO: make textures optional
 #[derive(Debug, Clone)]
 pub struct Material {
-    pub base_color_texture: AssetHandle<Image>,
+    pub base_color_texture: TextureRef,
     pub color_factor: [f32; 4],
 
-    pub metallic_roughness_texture: AssetHandle<Image>,
+    pub metallic_roughness_texture: TextureRef,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub occlusion_texture: AssetHandle<Image>,
+    pub occlusion_texture: TextureRef,
     pub occlusion_strength: f32,
 
-    pub normal_texture: AssetHandle<Image>,
+    pub normal_texture: TextureRef,
     pub normal_scale: f32,
 
-    pub emissive_texture: AssetHandle<Image>,
+    pub emissive_texture: TextureRef,
     pub emissive_factor: [f32; 3],
 }
 
@@ -691,14 +712,30 @@ impl Material {
         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
-        let base_color_texture =
-            cache.insert_asset_force(Image::new_pixel_texture(BASE_COLOR_DEFAULT));
-        let metallic_roughness_texture =
-            cache.insert_asset_force(Image::new_pixel_texture(METALLIC_ROUGHNESS_DEFAULT));
-        let occlusion_texture =
-            cache.insert_asset_force(Image::new_pixel_texture(OCCLUSION_DEFAULT));
-        let normal_texture = cache.insert_asset_force(Image::new_pixel_texture(NORMAL_DEFAULT));
-        let emissive_texture = cache.insert_asset_force(Image::new_pixel_texture(EMISSIVE_DEFAULT));
+
+        fn create_texture(cache: &mut AssetCache, color: [u8; 4], name: &str) -> TextureRef {
+            let base_color_texture_image = cache.insert_asset::<RgbaImage, NamedInserter>(
+                name,
+                RgbaImage::from_pixel(1, 1, image::Rgba(color)),
+            );
+            TextureRef {
+                image_handle: base_color_texture_image,
+                texture_config: TextureBuilder::new().with_format(wgpu::TextureFormat::Rgba8Unorm),
+                sampler_config: SamplerBuilder::new()
+                    .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest),
+            }
+        }
+
+        let base_color_texture = create_texture(cache, BASE_COLOR_DEFAULT, "default base color");
+        let normal_texture = create_texture(cache, NORMAL_DEFAULT, "default normal");
+        let metallic_roughness_texture = create_texture(
+            cache,
+            METALLIC_ROUGHNESS_DEFAULT,
+            "default metallic roughness",
+        );
+        let occlusion_texture = create_texture(cache, OCCLUSION_DEFAULT, "default base occlusion");
+        let emissive_texture = create_texture(cache, EMISSIVE_DEFAULT, "default base emissive");
+
         Self {
             color_factor: [1.0, 1.0, 1.0, 1.0],
             base_color_texture,

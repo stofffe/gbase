@@ -1,12 +1,10 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuConverter, ImageGpuConverterOptions, ImageGpuLoader,
-        ImageGpuLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
-        ShaderGpuLoaderSettings,
+        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
+        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
     },
     render::{
-        self, ArcPipelineLayout, ArcShaderModule, ArcTexture, Image, SamplerBuilder,
-        TextureViewBuilder,
+        self, ArcPipelineLayout, ArcShaderModule, ArcTexture, SamplerBuilder, TextureViewBuilder,
     },
     wgpu::{self},
     CallbackResult, Callbacks, Context,
