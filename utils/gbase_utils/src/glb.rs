@@ -11,11 +11,11 @@ use image::RgbaImage;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 pub struct GltfLoadCache {
-    nodes: HashMap<usize, AssetHandle<GltfNode>>,
-    named_nodes: HashMap<Box<str>, AssetHandle<GltfNode>>,
+    nodes: HashMap<usize, GltfNode>,
+    named_nodes: HashMap<Box<str>, GltfNode>,
 
-    meshes: HashMap<usize, AssetHandle<GltfMesh>>,
-    named_meshes: HashMap<Box<str>, AssetHandle<GltfMesh>>,
+    meshes: HashMap<usize, GltfMesh>,
+    named_meshes: HashMap<Box<str>, GltfMesh>,
 
     materials: HashMap<usize, AssetHandle<Material>>,
 
@@ -119,7 +119,7 @@ async fn parse_gltf_node(
     gltf_cache: &mut GltfLoadCache,
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
     node: gltf::Node<'async_recursion>,
-) -> AssetHandle<GltfNode> {
+) -> GltfNode {
     if let Some(node_handle) = gltf_cache.nodes.get(&node.index()) {
         // tracing::error!("REUSE NODE {}", node.index());
         return node_handle.clone();
@@ -151,25 +151,22 @@ async fn parse_gltf_node(
         children.push(child_node_handle);
     }
 
-    let node_handle = load_ctx
-        .insert_asset_scoped::<GltfNode, NamedInserter>(
-            name.clone(),
-            GltfNode {
-                name,
-                mesh,
-                transform,
-                children,
-            },
-        )
-        .await;
+    let gltf_node = GltfNode {
+        name,
+        mesh,
+        transform,
+        children,
+    };
 
-    gltf_cache.nodes.insert(node.index(), node_handle.clone());
+    gltf_cache.nodes.insert(node.index(), gltf_node.clone());
+
     if let Some(name) = node.name() {
         gltf_cache
             .named_nodes
-            .insert(Box::from(name), node_handle.clone());
+            .insert(Box::from(name), gltf_node.clone());
     }
-    node_handle
+
+    gltf_node
 }
 
 async fn parse_gltf_mesh(
@@ -178,7 +175,7 @@ async fn parse_gltf_mesh(
     gltf_cache: &mut GltfLoadCache,
     required_attributes: Option<&BTreeSet<VertexAttributeId>>,
     mesh: gltf::Mesh<'_>,
-) -> AssetHandle<GltfMesh> {
+) -> GltfMesh {
     if let Some(mesh_handle) = gltf_cache.meshes.get(&mesh.index()) {
         tracing::error!("REUSE MESH {}", mesh.index());
         return mesh_handle.clone();
@@ -203,19 +200,17 @@ async fn parse_gltf_mesh(
         primitives.push(primitive);
     }
 
-    let mesh_handle = load_ctx
-        .insert_asset_scoped::<GltfMesh, NamedInserter>(name.clone(), GltfMesh { name, primitives })
-        .await;
+    let gltf_mesh = GltfMesh { name, primitives };
 
     if let Some(name) = mesh.name() {
         gltf_cache
             .named_meshes
-            .insert(Box::from(name), mesh_handle.clone());
+            .insert(Box::from(name), gltf_mesh.clone());
     }
 
-    gltf_cache.meshes.insert(mesh.index(), mesh_handle.clone());
+    gltf_cache.meshes.insert(mesh.index(), gltf_mesh.clone());
 
-    mesh_handle
+    gltf_mesh
 }
 
 async fn parse_gltf_primitive(
@@ -651,18 +646,18 @@ pub async fn parse_gltf_material(
 
 #[derive(Debug, Clone)]
 pub struct Gltf {
-    pub nodes: Vec<AssetHandle<GltfNode>>,
-    pub named_nodes: HashMap<Box<str>, AssetHandle<GltfNode>>,
-    pub meshes: Vec<AssetHandle<GltfMesh>>,
-    pub named_meshes: HashMap<Box<str>, AssetHandle<GltfMesh>>,
+    pub nodes: Vec<GltfNode>,
+    pub named_nodes: HashMap<Box<str>, GltfNode>,
+    pub meshes: Vec<GltfMesh>,
+    pub named_meshes: HashMap<Box<str>, GltfMesh>,
 }
 
 #[derive(Debug, Clone)]
 pub struct GltfNode {
     pub name: String,
-    pub mesh: Option<AssetHandle<GltfMesh>>,
+    pub mesh: Option<GltfMesh>,
     pub transform: Transform3D,
-    pub children: Vec<AssetHandle<GltfNode>>,
+    pub children: Vec<GltfNode>,
 }
 
 #[derive(Debug, Clone)]
@@ -678,6 +673,7 @@ pub struct GltfPrimitive {
     pub material: AssetHandle<Material>,
 }
 
+// TODO: should not be defined here
 #[derive(Hash, Clone, Debug)]
 pub struct TextureRef {
     pub image_handle: AssetHandle<RgbaImage>,
@@ -686,6 +682,7 @@ pub struct TextureRef {
 }
 
 // TODO: make textures optional
+// TODO: should not be defined here
 #[derive(Debug, Clone)]
 pub struct Material {
     pub base_color_texture: TextureRef,

@@ -184,11 +184,8 @@ impl Callbacks for App {
         if cache.handle_just_available(&self.sponza_gltf) {
             tracing::info!("sponza just loaded");
             for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
-                // tracing::info!("node {}", node);
-                let node = cache.get_asset(node).unwrap();
                 let transform = node.transform.clone();
                 if let Some(mesh) = node.mesh.clone() {
-                    let mesh = cache.get_asset(&mesh).unwrap();
                     let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
                     let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
                     tracing::info!("push {:?}", lod);
