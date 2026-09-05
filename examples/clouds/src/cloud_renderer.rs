@@ -1,12 +1,13 @@
 use crate::noise::generate_cloud_noise;
 use crate::CloudParameters;
 use gbase::asset::{
-    ImageGpuLoader, ImageGpuLoaderSettings, ImageLoader, ImageLoaderSettings, MeshGpuConverter,
-    MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
+    ImageGpuLoader, ImageGpuLoaderSettings, ImageLoader, ImageLoaderSettings, MeshGpuLoader,
+    MeshGpuLoaderSettings, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
     ShaderLoaderSettings,
 };
 use gbase::render::{
-    ArcShaderModule, ArcTexture, Mesh, SamplerBuilder, TextureBuilder, TextureViewBuilder,
+    ArcShaderModule, ArcTexture, GpuImage, GpuMesh, Mesh, SamplerBuilder, TextureBuilder,
+    TextureViewBuilder,
 };
 use gbase::{asset, tracing};
 use gbase::{
@@ -17,6 +18,7 @@ use std::collections::BTreeSet;
 
 pub struct CloudRenderer {
     mesh_handle: asset::AssetHandle<Mesh>,
+    mesh_gpu_handle: asset::AssetHandle<GpuMesh>,
     shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
     weather_map_handle: asset::AssetHandle<ArcTexture>,
     blue_noise_handle: asset::AssetHandle<ArcTexture>,
@@ -61,6 +63,8 @@ impl CloudRenderer {
                 render::VertexAttributeId::Uv(0),
             ]));
         let mesh_handle = asset::insert_asset_force(cache, mesh);
+        let mesh_gpu_handle =
+            cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
 
         let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path(
             "assets/shaders/clouds.wgsl",
@@ -119,6 +123,7 @@ impl CloudRenderer {
         Ok(Self {
             app_info,
             mesh_handle,
+            mesh_gpu_handle,
             pipeline_layout,
             bindgroup_layout,
             shader_gpu_handle,
@@ -197,11 +202,10 @@ impl CloudRenderer {
             .depth_stencil(depth_buffer.depth_stencil_state())
             .build(ctx);
 
-        let Ok(mesh_gpu) = cache.get_or_convert_asset::<MeshGpuConverter>(
-            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-        ) else {
+        let Ok(mesh_gpu) = cache.get_asset_cloned(&self.mesh_gpu_handle) else {
             return;
         };
+
         let mut encoder = render::EncoderBuilder::new().build(ctx);
         render::RenderPassBuilder::new()
             .color_attachments(&[Some(render::RenderPassColorAttachment::new(view))])

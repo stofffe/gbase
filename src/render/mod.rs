@@ -31,6 +31,24 @@ pub struct RenderRuntime {
     pub queue: Arc<wgpu::Queue>,
 }
 
+impl AsRef<RenderRuntime> for &RenderRuntime {
+    fn as_ref(&self) -> &RenderRuntime {
+        self
+    }
+}
+
+impl AsRef<RenderRuntime> for &Context {
+    fn as_ref(&self) -> &RenderRuntime {
+        &self.render.runtime
+    }
+}
+
+impl AsRef<RenderRuntime> for &mut Context {
+    fn as_ref(&self) -> &RenderRuntime {
+        &self.render.runtime
+    }
+}
+
 pub struct RenderContext {
     pub(crate) surface: Arc<wgpu::Surface<'static>>,
     pub device: Arc<wgpu::Device>,
@@ -42,6 +60,8 @@ pub struct RenderContext {
     pub(crate) window_size: winit::dpi::PhysicalSize<u32>,
 
     pub(crate) cache: RenderCache,
+
+    pub(crate) runtime: RenderRuntime,
 }
 
 impl RenderContext {
@@ -135,10 +155,18 @@ impl RenderContext {
 
         let cache = RenderCache::empty();
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+
+        let runtime = RenderRuntime {
+            device: device.clone(),
+            queue: queue.clone(),
+        };
+
         Self {
-            device: Arc::new(device),
+            device,
+            queue,
             adapter: Arc::new(adapter),
-            queue: Arc::new(queue),
             surface: Arc::new(surface),
 
             surface_config,
@@ -146,14 +174,13 @@ impl RenderContext {
             window,
 
             cache,
+
+            runtime,
         }
     }
 
-    pub(crate) fn runtime(&self) -> RenderRuntime {
-        RenderRuntime {
-            device: self.device.clone(),
-            queue: self.queue.clone(),
-        }
+    pub(crate) fn runtime(&self) -> &RenderRuntime {
+        &self.runtime
     }
 
     /// Resizes the window to a new size
@@ -241,6 +268,6 @@ pub fn set_vsync(ctx: &mut Context, vsync: bool) {
     let surface = surface(ctx);
     surface.configure(device, &surface_config);
 }
-pub fn runtime(ctx: &Context) -> RenderRuntime {
-    ctx.render.runtime()
+pub fn runtime(ctx: &Context) -> &RenderRuntime {
+    &ctx.render.runtime
 }

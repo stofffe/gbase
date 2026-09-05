@@ -6,8 +6,8 @@ use crate::{
 use encase::ShaderType;
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
+        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuLoader,
+        MeshGpuLoaderSettings, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
         ShaderLoaderSettings,
     },
     glam::{Mat4, Vec3},
@@ -306,13 +306,11 @@ impl PbrRenderer {
             }
             prev_mesh = Some(mesh.clone());
 
-            let Ok(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
-                cache,
-                &MeshGpuConverterSettings::new(mesh.clone()),
-            ) else {
+            let gpu_mesh_handle =
+                cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh.clone()));
+            let Ok(gpu_mesh) = cache.get_asset_cloned(&gpu_mesh_handle) else {
                 return;
             };
-            let gpu_mesh = gpu_mesh.clone();
 
             // Base color
             let base_color_texture_handle = cache.load_asset::<ImageGpuLoader>(

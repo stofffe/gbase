@@ -6,11 +6,12 @@ use crate::{
     },
     filesystem::{self, LoadFileError},
     render::{
-        self, ArcHandle, ArcShaderModule, ArcTexture, Mesh, Shader, TextureBuilder, TextureSource,
+        self, ArcHandle, ArcShaderModule, ArcTexture, GpuMesh, Mesh, Shader, TextureBuilder,
+        TextureSource,
     },
     Context,
 };
-use image::{ImageBuffer, Rgba, RgbaImage};
+use image::RgbaImage;
 use std::{fmt::Debug, hash::Hash, path::PathBuf};
 
 //
@@ -93,72 +94,34 @@ impl AssetInserter for IdInserter {
 // Mesh
 //
 
-// pub struct MeshGpuLoaderSettingd {
-//     mesh: AssetHandle,
-// }
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
+pub struct MeshGpuLoaderSettings {
+    mesh: AssetHandle<Mesh>,
+}
+
+impl MeshGpuLoaderSettings {
+    pub fn new(handle: AssetHandle<Mesh>) -> Self {
+        Self { mesh: handle }
+    }
+}
 
 pub struct MeshGpuLoader;
 
-#[derive(Clone, Hash, Eq, PartialEq, Debug)]
-pub struct MeshGpuConverterSettings {
-    mesh: AssetHandle<Mesh>,
-}
-
-impl MeshGpuConverterSettings {
-    pub fn new(mesh: AssetHandle<Mesh>) -> Self {
-        Self { mesh }
-    }
-}
-
-pub struct MeshGpuConverter;
-impl AssetConverter for MeshGpuConverter {
-    type Asset = render::GpuMesh;
+impl AssetLoader for MeshGpuLoader {
+    type Asset = GpuMesh;
+    type Settings = MeshGpuLoaderSettings;
     type Error = EmptyError;
-    type Settings = MeshGpuConverterSettings;
 
-    fn convert(
-        ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>,
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.mesh) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        };
-        let gpu_mesh = render::GpuMesh::new(ctx, source);
-        ConvertAssetState::Success(gpu_mesh)
-    }
-}
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mesh = load_ctx.request_get(settings.mesh).await;
 
-#[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct BoundingBoxConverterOptions {
-    mesh: AssetHandle<Mesh>,
-}
+        let gpu_mesh =
+            render::GpuMesh::new(load_ctx.render_runtime(), load_ctx.arc_runtime(), &mesh);
 
-pub struct BoundingBoxConverter;
-impl AssetConverter for BoundingBoxConverter {
-    type Asset = render::BoundingBox;
-    type Error = EmptyError;
-    type Settings = BoundingBoxConverterOptions;
-
-    fn convert(
-        _ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>,
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.mesh) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        };
-
-        let bounding_box = source.calculate_bounding_box();
-        ConvertAssetState::Success(bounding_box)
+        Ok(gpu_mesh)
     }
 }
 
@@ -246,7 +209,7 @@ impl AssetLoader for ShaderGpuLoader {
 
         let arc_runtime = load_ctx.arc_runtime().clone();
         match shader {
-            Ok(shader) => Ok(ArcHandle::new(arc_runtime, shader)),
+            Ok(shader) => Ok(ArcHandle::new(load_ctx.arc_runtime(), shader)),
             Err(err) => {
                 tracing::warn!("could not compile shader:\n{}", err);
                 Err(LoadShaderError::CompileShaderError(err))
@@ -349,6 +312,6 @@ impl AssetLoader for ImageGpuLoader {
                 source,
             );
 
-        Ok(ArcHandle::new(load_ctx.arc_runtime().clone(), image))
+        Ok(ArcHandle::new(load_ctx.arc_runtime(), image))
     }
 }

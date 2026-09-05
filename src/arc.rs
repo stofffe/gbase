@@ -40,6 +40,6 @@ impl ArcHandleRuntime {
 // Commands
 //
 
-pub fn runtime(ctx: &Context) -> ArcHandleRuntime {
-    ctx.arc.runtime()
+pub fn runtime(ctx: &Context) -> &ArcHandleRuntime {
+    &ctx.arc.runtime
 }

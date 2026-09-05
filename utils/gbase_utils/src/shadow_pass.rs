@@ -4,7 +4,7 @@ use crate::{
 };
 use gbase::{
     asset::{
-        self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        self, AssetHandle, MeshGpuLoader, MeshGpuLoaderSettings, ShaderGpuLoader,
         ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
@@ -206,13 +206,11 @@ impl ShadowPass {
                 }
                 prev_mesh = Some(mesh_handle.clone());
 
-                let Ok(gpu_mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
-                    cache,
-                    &MeshGpuConverterSettings::new(mesh_handle.clone()),
-                ) else {
+                let gpu_mesh_handle = cache
+                    .load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
+                let Ok(gpu_mesh) = cache.get_asset_cloned(&gpu_mesh_handle) else {
                     return;
                 };
-                let gpu_mesh = gpu_mesh.clone();
 
                 draws.push(gpu_mesh);
                 ranges.push(index);

@@ -1,7 +1,7 @@
 use gbase::{
     asset::{
-        self, AssetCache, MeshGpuConverter, MeshGpuConverterSettings, NamedInserter,
-        ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
+        self, AssetCache, MeshGpuLoader, MeshGpuLoaderSettings, NamedInserter, ShaderGpuLoader,
+        ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcShaderModule, ArcTextureView, GpuMesh, Mesh},
     wgpu, Context,
@@ -89,8 +89,8 @@ impl TextureRenderer {
                 ),
         );
 
-        let fullscreen_mesh_gpu_handle = cache.convert_asset::<MeshGpuConverter>(
-            &MeshGpuConverterSettings::new(fullscreen_mesh_handle.clone()),
+        let fullscreen_mesh_gpu_handle = cache.load_asset::<MeshGpuLoader>(
+            &MeshGpuLoaderSettings::new(fullscreen_mesh_handle.clone()),
         );
 
         Self {

@@ -1,5 +1,6 @@
 use crate::{
-    render::{self, BindGroupBindable},
+    arc::ArcHandleRuntime,
+    render::{self, BindGroupBindable, RenderRuntime},
     Context,
 };
 use bytemuck::NoUninit;
@@ -42,6 +43,27 @@ impl<T: NoUninit> RawBufferBuilder<T> {
             ty: PhantomData::<T>,
         }
     }
+
+    pub fn build_runtime(
+        self,
+        render_runtime: impl AsRef<RenderRuntime>,
+        arc_runtime: impl AsRef<ArcHandleRuntime>,
+    ) -> RawBuffer<T> {
+        let buffer = render_runtime
+            .as_ref()
+            .device
+            .create_buffer(&wgpu::BufferDescriptor {
+                label: self.label.as_deref(),
+                size: self.size,
+                usage: self.usage,
+                mapped_at_creation: false,
+            });
+
+        RawBuffer {
+            buffer: ArcBuffer::new(arc_runtime, buffer),
+            ty: PhantomData::<T>,
+        }
+    }
 }
 
 impl<T: NoUninit> RawBufferBuilder<T> {
@@ -67,6 +89,17 @@ impl<T: bytemuck::NoUninit> RawBuffer<T> {
     }
     pub fn write_offset(&self, ctx: &Context, offset: u64, buffer: &[impl bytemuck::NoUninit]) {
         render::queue(ctx).write_buffer(&self.buffer, offset, bytemuck::cast_slice(buffer));
+    }
+
+    pub fn write_runtime(
+        &self,
+        render_runtime: impl AsRef<RenderRuntime>,
+        buffer: &[impl bytemuck::NoUninit],
+    ) {
+        render_runtime
+            .as_ref()
+            .queue
+            .write_buffer(&self.buffer, 0, bytemuck::cast_slice(buffer));
     }
 }
 

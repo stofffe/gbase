@@ -1,11 +1,12 @@
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, ImageLoader,
-        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        ImageLoaderSettings, MeshGpuLoader, MeshGpuLoaderSettings, NamedInserter, ShaderGpuLoader,
         ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{
-        self, ArcPipelineLayout, ArcShaderModule, ArcTexture, SamplerBuilder, TextureViewBuilder,
+        self, ArcPipelineLayout, ArcShaderModule, ArcTexture, GpuMesh, Mesh, SamplerBuilder,
+        TextureViewBuilder,
     },
     wgpu::{self},
     CallbackResult, Callbacks, Context,
@@ -22,6 +23,7 @@ struct App {
 
     texture_gpu_handle: AssetHandle<ArcTexture>,
     mesh_handle: AssetHandle<render::Mesh>,
+    mesh_gpu_handle: AssetHandle<GpuMesh>,
 
     shader_gpu_handle: AssetHandle<ArcShaderModule>,
 }
@@ -68,7 +70,9 @@ impl Callbacks for App {
                 render::VertexAttributeId::Position,
                 render::VertexAttributeId::Uv(0),
             ]);
-        let mesh_handle = cache.insert_asset_force(mesh);
+        let mesh_handle = cache.insert_asset::<Mesh, NamedInserter>("quad mesh", mesh);
+        let mesh_gpu_handle =
+            cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
 
         Self {
             pipeline_layout,
@@ -76,6 +80,7 @@ impl Callbacks for App {
 
             texture_gpu_handle,
             mesh_handle,
+            mesh_gpu_handle,
             shader_gpu_handle,
         }
     }
@@ -87,13 +92,9 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        let Ok(mesh) = asset::get_or_convert_asset::<MeshGpuConverter>(
-            cache,
-            &MeshGpuConverterSettings::new(self.mesh_handle.clone()),
-        ) else {
+        let Ok(gpu_mesh) = cache.get_asset_cloned(&self.mesh_gpu_handle) else {
             return CallbackResult::Continue;
         };
-        let mesh = mesh.clone();
 
         let Ok(shader) = cache.get_asset_cloned(&self.shader_gpu_handle) else {
             return CallbackResult::Continue;
@@ -141,10 +142,10 @@ impl Callbacks for App {
             .build_run_submit(ctx, |mut render_pass| {
                 render_pass.set_pipeline(&pipeline);
 
-                mesh.bind_to_render_pass(&mut render_pass);
+                gpu_mesh.bind_to_render_pass(&mut render_pass);
 
                 render_pass.set_bind_group(0, Some(bindgroup.as_ref()), &[]);
-                render_pass.draw_indexed(0..mesh.index_count.unwrap(), 0, 0..1);
+                render_pass.draw_indexed(0..gpu_mesh.index_count.unwrap(), 0, 0..1);
             });
 
         CallbackResult::Continue

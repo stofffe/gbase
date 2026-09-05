@@ -1,7 +1,8 @@
 use crate::{
+    arc::ArcHandleRuntime,
     asset::Asset,
     glam::Vec3,
-    render::{self, VertexBufferLayout},
+    render::{self, RenderRuntime, VertexBufferLayout},
     wgpu, Context,
 };
 use std::collections::{BTreeMap, BTreeSet};
@@ -231,7 +232,7 @@ impl Mesh {
     }
 
     pub fn to_gpu_mesh(&self, ctx: &mut Context) -> GpuMesh {
-        GpuMesh::new(ctx, self)
+        GpuMesh::new(&ctx.render.runtime, &ctx.arc.runtime, self)
     }
 }
 
@@ -336,6 +337,7 @@ impl BoundingBox {
 // GPU
 //
 
+// TODO: probably remove some of the fields here since they are on mesh
 #[derive(Clone, Debug)]
 pub struct GpuMesh {
     pub attribute_buffer: render::ArcBuffer,
@@ -346,7 +348,11 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
-    pub fn new(ctx: &mut Context, mesh: &Mesh) -> Self {
+    pub fn new(
+        render_runtime: impl AsRef<RenderRuntime>,
+        arc_runtime: impl AsRef<ArcHandleRuntime>,
+        mesh: &Mesh,
+    ) -> Self {
         // layout attributes sequentially in the buffer
         let mut cursor = 0;
         let mut combined_bytes = Vec::new();
@@ -366,16 +372,16 @@ impl GpuMesh {
             let buffer =
                 render::RawBufferBuilder::<u32>::new((size_of::<u32>() * indices.len()) as u64)
                     .usage(wgpu::BufferUsages::INDEX | wgpu::BufferUsages::COPY_DST)
-                    .build(ctx);
-            buffer.write(ctx, indices);
+                    .build_runtime(&render_runtime, &arc_runtime);
+            buffer.write_runtime(&render_runtime, indices);
             index_buffer = Some(buffer.buffer());
         }
 
         let attribute_buffer =
             render::RawBufferBuilder::<u8>::new((size_of::<u8>() * combined_bytes.len()) as u64)
                 .label("mesh")
-                .build(ctx);
-        attribute_buffer.write(ctx, &combined_bytes);
+                .build_runtime(&render_runtime, &arc_runtime);
+        attribute_buffer.write_runtime(&render_runtime, &combined_bytes);
 
         let vertex_count = mesh.vertex_count().expect("must have at least one vertex");
         let index_count = mesh.index_count();

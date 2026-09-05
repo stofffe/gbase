@@ -1,6 +1,7 @@
 mod shader_import_asset;
 use gbase::asset::{
-    ImageLoader, ImageLoaderSettings, NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings,
+    ImageLoader, ImageLoaderSettings, MeshGpuLoader, MeshGpuLoaderSettings, NamedInserter,
+    ShaderGpuLoader, ShaderGpuLoaderSettings,
 };
 pub use shader_import_asset::*;
 
@@ -9,10 +10,7 @@ use gbase::render::{
     ArcShaderModule, ArcTexture, GpuMesh, Mesh, SamplerBuilder, TextureViewBuilder,
 };
 use gbase::{
-    asset::{
-        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings,
-    },
+    asset::{self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings},
     render::{self, ArcPipelineLayout},
     tracing,
     wgpu::{self},
@@ -75,8 +73,8 @@ impl Callbacks for App {
                 render::VertexAttributeId::Uv(0),
             ]);
         let mesh_handle = cache.insert_asset::<Mesh, NamedInserter>("quad mesh", mesh);
-        let mesh_gpu_handle = cache
-            .convert_asset::<MeshGpuConverter>(&MeshGpuConverterSettings::new(mesh_handle.clone()));
+        let mesh_gpu_handle =
+            cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
 
         let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
             &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),

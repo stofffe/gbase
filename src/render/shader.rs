@@ -67,8 +67,8 @@ impl ShaderBuilder {
     ///
     /// Invalid wgsl code will cause a panic
     pub fn build_arc_handle(&self, ctx: &Context, source: impl Into<String>) -> ArcShaderModule {
-        let module = self.build(&render::device(ctx), source);
-        ArcHandle::new(arc::runtime(ctx), module)
+        let module = self.build(render::device(ctx), source);
+        ArcHandle::new(&ctx.arc.runtime, module)
     }
 
     /// Create shader module

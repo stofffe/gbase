@@ -13,23 +13,29 @@ pub struct ArcHandle<T: ?Sized + 'static> {
     id: u64,
 }
 
-impl From<&Context> for ArcHandleRuntime {
-    fn from(val: &Context) -> Self {
-        val.arc.runtime()
+impl AsRef<ArcHandleRuntime> for &ArcHandleRuntime {
+    fn as_ref(&self) -> &ArcHandleRuntime {
+        self
     }
 }
 
-impl From<&mut Context> for ArcHandleRuntime {
-    fn from(val: &mut Context) -> Self {
-        val.arc.runtime()
+impl AsRef<ArcHandleRuntime> for &Context {
+    fn as_ref(&self) -> &ArcHandleRuntime {
+        &self.arc.runtime
+    }
+}
+
+impl AsRef<ArcHandleRuntime> for &mut Context {
+    fn as_ref(&self) -> &ArcHandleRuntime {
+        &self.arc.runtime
     }
 }
 
 impl<T: 'static> ArcHandle<T> {
-    pub fn new(arc_runtime: impl Into<ArcHandleRuntime>, value: T) -> Self {
+    pub fn new(arc_runtime: impl AsRef<ArcHandleRuntime>, value: T) -> Self {
         ArcHandle {
             value: Arc::new(value),
-            id: arc_runtime.into().next_id(),
+            id: arc_runtime.as_ref().next_id(),
         }
     }
 

@@ -1,8 +1,7 @@
 mod grass_renderer;
 
 use gbase::{
-    asset::{self, AssetHandle, NamedInserter, NamedInserterKey},
-    filesystem,
+    asset::{AssetHandle, NamedInserter},
     glam::{vec2, vec3, vec4, Quat, Vec3},
     input, profile,
     render::{self, Mesh},
