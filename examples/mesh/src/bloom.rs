@@ -1,5 +1,5 @@
 use gbase::{
-    asset::{self, ShaderGpuLoader, ShaderGpuLoaderSettings},
+    asset::{self, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings},
     render::{self, ArcShaderModule, FrameBuffer, FrameBufferBuilder},
     wgpu, Context,
 };
@@ -7,7 +7,7 @@ use gbase::{
 pub struct Tonemap {
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
-    shader_handle: asset::AssetHandle<ArcShaderModule>,
+    shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 }
 
 impl Tonemap {
@@ -27,13 +27,17 @@ impl Tonemap {
         let pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![bindgroup_layout.clone()])
             .build(ctx);
-        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/tonemap.wgsl"),
-        );
+
+        let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path(
+            "assets/shaders/tonemap.wgsl",
+        ));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
+
         Self {
             pipeline_layout,
             bindgroup_layout,
-            shader_handle,
+            shader_gpu_handle,
         }
     }
 
@@ -44,7 +48,7 @@ impl Tonemap {
         hdr_framebuffer: &render::FrameBuffer,
         ldr_framebuffer: &render::FrameBuffer,
     ) {
-        let Ok(shader) = cache.get_asset_cloned(&self.shader_handle) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.shader_gpu_handle) else {
             return;
         };
 
@@ -77,19 +81,19 @@ impl Tonemap {
 pub struct Bloom {
     extract_pipeline_layout: render::ArcPipelineLayout,
     extract_bindgroup_layout: render::ArcBindGroupLayout,
-    extract_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    extract_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 
     downsample_pipeline_layout: render::ArcPipelineLayout,
     downsample_bindgroup_layout: render::ArcBindGroupLayout,
-    downsample_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    downsample_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 
     upsample_pipeline_layout: render::ArcPipelineLayout,
     upsample_bindgroup_layout: render::ArcBindGroupLayout,
-    upsample_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    upsample_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 
     combine_pipeline_layout: render::ArcPipelineLayout,
     combine_bindgroup_layout: render::ArcBindGroupLayout,
-    combine_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    combine_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 
     downsampling_buffer: FrameBuffer,
     upsampling_buffer: FrameBuffer,
@@ -154,10 +158,12 @@ impl Bloom {
         let extract_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![extract_bindgroup_layout.clone()])
             .build(ctx);
-        let extract_shader_handle = asset::load_asset::<ShaderGpuLoader>(
-            cache,
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/bloom_extract.wgsl"),
+
+        let extract_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_path("assets/shaders/bloom_extract.wgsl"),
         );
+        let extract_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(extract_shader_handle));
 
         //
         // Downsample
@@ -178,10 +184,11 @@ impl Bloom {
         let downsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![downsample_bindgroup_layout.clone()])
             .build(ctx);
-        let downsample_shader_handle = asset::load_asset::<ShaderGpuLoader>(
-            cache,
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/bloom_downsample.wgsl"),
+        let downsample_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_path("assets/shaders/bloom_downsample.wgsl"),
         );
+        let downsample_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(downsample_shader_handle));
 
         //
         // Upsample
@@ -206,10 +213,11 @@ impl Bloom {
         let upsample_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![upsample_bindgroup_layout.clone()])
             .build(ctx);
-        let upsample_shader_handle = asset::load_asset::<ShaderGpuLoader>(
-            cache,
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/bloom_upsample.wgsl"),
+        let upsample_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_path("assets/shaders/bloom_upsample.wgsl"),
         );
+        let upsample_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(upsample_shader_handle));
 
         //
         // Combine
@@ -250,10 +258,11 @@ impl Bloom {
         let combine_pipeline_layout = render::PipelineLayoutBuilder::new()
             .bind_groups(vec![combine_bindgroup_layout.clone()])
             .build(ctx);
-        let combine_shader_handle = asset::load_asset::<ShaderGpuLoader>(
-            cache,
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/bloom_combine.wgsl"),
+        let combine_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_path("assets/shaders/bloom_combine.wgsl"),
         );
+        let combine_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(combine_shader_handle));
 
         let downsampling_buffer = FrameBufferBuilder::new()
             .label("downsampling")
@@ -276,19 +285,19 @@ impl Bloom {
         Self {
             extract_pipeline_layout,
             extract_bindgroup_layout,
-            extract_shader_handle,
+            extract_shader_gpu_handle,
 
             downsample_pipeline_layout,
             downsample_bindgroup_layout,
-            downsample_shader_handle,
+            downsample_shader_gpu_handle,
 
             upsample_pipeline_layout,
             upsample_bindgroup_layout,
-            upsample_shader_handle,
+            upsample_shader_gpu_handle,
 
             combine_pipeline_layout,
             combine_bindgroup_layout,
-            combine_shader_handle,
+            combine_shader_gpu_handle,
 
             downsampling_buffer,
             upsampling_buffer,
@@ -306,10 +315,10 @@ impl Bloom {
         input_buffer: &render::FrameBuffer,
         output_buffer: &render::FrameBuffer,
     ) {
-        if !asset::handle_available(cache, &self.extract_shader_handle)
-            || !asset::handle_available(cache, &self.combine_shader_handle)
-            || !asset::handle_available(cache, &self.upsample_shader_handle)
-            || !asset::handle_available(cache, &self.downsample_shader_handle)
+        if !asset::handle_available(cache, &self.extract_shader_gpu_handle)
+            || !asset::handle_available(cache, &self.combine_shader_gpu_handle)
+            || !asset::handle_available(cache, &self.upsample_shader_gpu_handle)
+            || !asset::handle_available(cache, &self.downsample_shader_gpu_handle)
         {
             return;
         }
@@ -352,7 +361,7 @@ impl Bloom {
                 .build(ctx);
 
         let extract_shader = cache
-            .get_asset(&self.extract_shader_handle)
+            .get_asset(&self.extract_shader_gpu_handle)
             .unwrap()
             .clone();
         let extract_pipeline = render::RenderPipelineBuilder::new(
@@ -389,7 +398,7 @@ impl Bloom {
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
         let downsample_shader = cache
-            .get_asset(&self.downsample_shader_handle)
+            .get_asset(&self.downsample_shader_gpu_handle)
             .unwrap()
             .clone();
         let downsample_pipeline = render::RenderPipelineBuilder::new(
@@ -436,7 +445,7 @@ impl Bloom {
             .with_address_mode(wgpu::AddressMode::ClampToEdge)
             .build(ctx);
         let upsample_shader = cache
-            .get_asset(&self.upsample_shader_handle)
+            .get_asset(&self.upsample_shader_gpu_handle)
             .unwrap()
             .clone();
         let upsample_pipeline = render::RenderPipelineBuilder::new(
@@ -510,7 +519,7 @@ impl Bloom {
                 .build(ctx);
 
         let combine_shader = cache
-            .get_asset(&self.combine_shader_handle)
+            .get_asset(&self.combine_shader_gpu_handle)
             .unwrap()
             .clone();
         let combine_pipeline = render::RenderPipelineBuilder::new(

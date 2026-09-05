@@ -21,14 +21,14 @@ fixed examples
     [x] time
     [x] triangle
 
+unused meshes in mesh example (xcode debug)
 fix named inserts
 rename builder with cache build_cached
+use insert asset scoped by default
 archandle instead of arc?
-make shader import loader use async get
-add arc device to loader
-make gpuconvert use loader instead
 
 task and asset cancellation?
+remove converters
 
 make conversion async?
 converters allowed to request loads and insert?

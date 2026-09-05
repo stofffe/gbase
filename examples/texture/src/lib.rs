@@ -1,7 +1,8 @@
 use gbase::{
     asset::{
-        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
+        self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, ImageLoader,
+        ImageLoaderSettings, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
+        ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{
         self, ArcPipelineLayout, ArcShaderModule, ArcTexture, SamplerBuilder, TextureViewBuilder,
@@ -19,10 +20,10 @@ struct App {
     pipeline_layout: ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
-    texture_handle: AssetHandle<ArcTexture>,
+    texture_gpu_handle: AssetHandle<ArcTexture>,
     mesh_handle: AssetHandle<render::Mesh>,
 
-    shader_handle: AssetHandle<ArcShaderModule>,
+    shader_gpu_handle: AssetHandle<ArcShaderModule>,
 }
 
 impl Callbacks for App {
@@ -51,12 +52,15 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_path("shaders/texture.wgsl"),
-        );
-        let texture_handle = cache.load_asset::<ImageGpuLoader>(
-            &ImageGpuLoaderSettings::from_path("textures/texture.jpeg"),
-        );
+        let shader_handle = cache
+            .load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path("shaders/texture.wgsl"));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
+
+        let texture_handle = cache
+            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
+        let texture_gpu_handle =
+            cache.load_asset::<ImageGpuLoader>(&ImageGpuLoaderSettings::new(texture_handle));
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -70,9 +74,9 @@ impl Callbacks for App {
             pipeline_layout,
             bindgroup_layout,
 
-            texture_handle,
+            texture_gpu_handle,
             mesh_handle,
-            shader_handle,
+            shader_gpu_handle,
         }
     }
 
@@ -91,7 +95,7 @@ impl Callbacks for App {
         };
         let mesh = mesh.clone();
 
-        let Ok(shader) = cache.get_asset_cloned(&self.shader_handle) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.shader_gpu_handle) else {
             return CallbackResult::Continue;
         };
 
@@ -105,7 +109,7 @@ impl Callbacks for App {
         // };
         // let shader = mesh.clone();
 
-        let Ok(texture) = cache.get_asset_cloned(&self.texture_handle) else {
+        let Ok(texture) = cache.get_asset_cloned(&self.texture_gpu_handle) else {
             return CallbackResult::Continue;
         };
 

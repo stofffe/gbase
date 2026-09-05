@@ -1,5 +1,7 @@
 mod shader_import_asset;
-use gbase::asset::{NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings};
+use gbase::asset::{
+    ImageLoader, ImageLoaderSettings, NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings,
+};
 pub use shader_import_asset::*;
 
 use gbase::input::{self, KeyCode};
@@ -26,7 +28,7 @@ struct App {
     pipeline_layout: ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
 
-    texture_handle: AssetHandle<ArcTexture>,
+    texture_gpu_handle: AssetHandle<ArcTexture>,
 
     mesh_handle: AssetHandle<render::Mesh>,
     mesh_gpu_handle: AssetHandle<GpuMesh>,
@@ -61,9 +63,10 @@ impl Callbacks for App {
             .bind_groups(vec![bindgroup_layout.clone()])
             .build_uncached(ctx);
 
-        let texture_handle = cache.load_asset::<ImageGpuLoader>(
-            &ImageGpuLoaderSettings::from_path("textures/texture.jpeg"),
-        );
+        let texture_handle = cache
+            .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
+        let texture_gpu_handle =
+            cache.load_asset::<ImageGpuLoader>(&ImageGpuLoaderSettings::new(texture_handle));
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -78,14 +81,14 @@ impl Callbacks for App {
         let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
             &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
         );
-        let shader_gpu_handle = cache
-            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::from_handle(shader_handle));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
 
         Self {
             pipeline_layout,
             bindgroup_layout,
 
-            texture_handle,
+            texture_gpu_handle,
             mesh_handle,
             mesh_gpu_handle,
             shader_gpu_handle,
@@ -111,7 +114,7 @@ impl Callbacks for App {
             return CallbackResult::Continue;
         };
 
-        let Ok(texture) = cache.get_asset_cloned(&self.texture_handle) else {
+        let Ok(texture) = cache.get_asset_cloned(&self.texture_gpu_handle) else {
             return CallbackResult::Continue;
         };
 

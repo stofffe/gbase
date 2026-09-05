@@ -25,6 +25,18 @@ pub enum EmptyError {}
 //
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub enum BytesOrPathSettings {
+    Bytes(Vec<u8>),
+    Path(PathBuf),
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub enum StringOrPathSettings {
+    Path(PathBuf),
+    String(String),
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct PathSettings {
     path: PathBuf,
 }
@@ -33,18 +45,6 @@ impl PathSettings {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self { path: path.into() }
     }
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum PathOrStringSettings {
-    Path(PathBuf),
-    String(String),
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum PathOrBytesSettings {
-    Path(PathBuf),
-    Bytes(Vec<u8>),
 }
 
 //
@@ -93,6 +93,12 @@ impl AssetInserter for IdInserter {
 // Mesh
 //
 
+// pub struct MeshGpuLoaderSettingd {
+//     mesh: AssetHandle,
+// }
+
+pub struct MeshGpuLoader;
+
 #[derive(Clone, Hash, Eq, PartialEq, Debug)]
 pub struct MeshGpuConverterSettings {
     mesh: AssetHandle<Mesh>,
@@ -112,7 +118,7 @@ impl AssetConverter for MeshGpuConverter {
 
     fn convert(
         ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.mesh) {
@@ -140,7 +146,7 @@ impl AssetConverter for BoundingBoxConverter {
 
     fn convert(
         _ctx: &mut Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
+        convert_ctx: &mut ConvertContext<'_>,
         settings: &Self::Settings,
     ) -> ConvertAssetState<Self::Asset> {
         let source = match convert_ctx.get_asset(&settings.mesh) {
@@ -160,39 +166,57 @@ impl AssetConverter for BoundingBoxConverter {
 // Shader
 //
 
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum ShaderSource {
-    String(String),
-    Path(PathBuf),
-    Handle(AssetHandle<Shader>),
+#[derive(Clone, Hash, Eq, PartialEq, Debug)]
+pub struct ShaderLoaderSettings {
+    source: StringOrPathSettings,
+}
+
+impl ShaderLoaderSettings {
+    pub fn new(source: StringOrPathSettings) -> Self {
+        Self { source }
+    }
+
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            source: StringOrPathSettings::Path(path.into()),
+        }
+    }
+
+    pub fn from_string(string: impl Into<String>) -> Self {
+        Self {
+            source: StringOrPathSettings::String(string.into()),
+        }
+    }
+}
+
+pub struct ShaderLoader;
+
+impl AssetLoader for ShaderLoader {
+    type Asset = Shader;
+    type Settings = ShaderLoaderSettings;
+    type Error = LoadFileError;
+
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let source = match settings.source {
+            StringOrPathSettings::Path(path_buf) => load_ctx.load_string(path_buf).await?,
+            StringOrPathSettings::String(string) => string,
+        };
+
+        Ok(Shader::new(source))
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ShaderGpuLoaderSettings {
-    source: ShaderSource,
+    source: AssetHandle<Shader>,
 }
 
 impl ShaderGpuLoaderSettings {
-    pub fn new(source: PathOrStringSettings) -> Self {
-        match source {
-            PathOrStringSettings::Path(path) => Self::from_path(path),
-            PathOrStringSettings::String(string) => Self::from_string(string),
-        }
-    }
-    pub fn from_path(path: impl Into<PathBuf>) -> Self {
-        Self {
-            source: ShaderSource::Path(path.into()),
-        }
-    }
-    pub fn from_string(string: impl Into<String>) -> Self {
-        Self {
-            source: ShaderSource::String(string.into()),
-        }
-    }
-    pub fn from_handle(handle: AssetHandle<Shader>) -> Self {
-        Self {
-            source: ShaderSource::Handle(handle),
-        }
+    pub fn new(source: AssetHandle<Shader>) -> Self {
+        Self { source }
     }
 }
 
@@ -214,14 +238,10 @@ impl AssetLoader for ShaderGpuLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let source = match settings.source {
-            ShaderSource::Path(path_buf) => load_ctx.load_string(&path_buf).await?,
-            ShaderSource::String(source) => source,
-            ShaderSource::Handle(handle) => load_ctx.request_get(handle).await.source.clone(),
-        };
+        let source = load_ctx.request_get(settings.source).await;
 
         let shader = render::ShaderBuilder::new()
-            .build_err(&load_ctx.render_runtime().device, source)
+            .build_err(&load_ctx.render_runtime().device, source.source.clone())
             .await;
 
         let arc_runtime = load_ctx.arc_runtime().clone();
@@ -241,15 +261,26 @@ impl AssetLoader for ShaderGpuLoader {
 //
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum ImageSource {
-    // TODO: probably wanna remove
-    Bytes(Vec<u8>),
-    Path(PathBuf),
+pub struct ImageLoaderSettings {
+    pub source: BytesOrPathSettings,
 }
 
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub struct ImageLoaderSettings {
-    pub source: ImageSource,
+impl ImageLoaderSettings {
+    pub fn new(source: BytesOrPathSettings) -> Self {
+        Self { source }
+    }
+
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            source: BytesOrPathSettings::Path(path.into()),
+        }
+    }
+
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        Self {
+            source: BytesOrPathSettings::Bytes(bytes.into()),
+        }
+    }
 }
 
 pub struct ImageLoader {}
@@ -264,8 +295,8 @@ impl AssetLoader for ImageLoader {
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
         let bytes = match settings.source {
-            ImageSource::Path(path) => load_ctx.load_bytes(&path).await?,
-            ImageSource::Bytes(bytes) => bytes,
+            BytesOrPathSettings::Path(path) => load_ctx.load_bytes(&path).await?,
+            BytesOrPathSettings::Bytes(bytes) => bytes,
         };
         let image_buffer = image::load_from_memory(&bytes)
             .expect("could not load image")
@@ -276,49 +307,19 @@ impl AssetLoader for ImageLoader {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
-pub enum ImageGpuSource {
-    ImageSettings(ImageLoaderSettings),
-    Handle(AssetHandle<ImageBuffer<Rgba<u8>, Vec<u8>>>),
-}
-
-#[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ImageGpuLoaderSettings {
-    pub source: ImageGpuSource,
+    pub source: AssetHandle<RgbaImage>,
     pub texture_config: Option<TextureBuilder>,
 }
 
 impl ImageGpuLoaderSettings {
-    pub fn new(source: ImageGpuSource, texture_config: Option<TextureBuilder>) -> Self {
-        let mut settings = match source {
-            ImageGpuSource::ImageSettings(settings) => Self::from_image_settings(settings),
-            ImageGpuSource::Handle(handle) => Self::from_handle(handle),
-        };
-        settings.texture_config = texture_config;
-        settings
-    }
-
-    pub fn from_image_settings(settings: ImageLoaderSettings) -> Self {
+    pub fn new(source: AssetHandle<RgbaImage>) -> Self {
         Self {
-            source: ImageGpuSource::ImageSettings(settings),
+            source,
             texture_config: None,
         }
     }
 
-    pub fn from_handle(handle: AssetHandle<ImageBuffer<Rgba<u8>, Vec<u8>>>) -> Self {
-        Self {
-            source: ImageGpuSource::Handle(handle),
-            texture_config: None,
-        }
-    }
-
-    pub fn from_path(path: impl Into<PathBuf>) -> Self {
-        Self {
-            source: ImageGpuSource::ImageSettings(ImageLoaderSettings {
-                source: ImageSource::Path(path.into()),
-            }),
-            texture_config: None,
-        }
-    }
     pub fn with_config(mut self, config: TextureBuilder) -> Self {
         self.texture_config = Some(config);
         self
@@ -336,16 +337,7 @@ impl AssetLoader for ImageGpuLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let image_handle = match settings.source {
-            ImageGpuSource::Handle(asset_handle) => asset_handle,
-            ImageGpuSource::ImageSettings(image_loader_settings) => {
-                load_ctx
-                    .request_load::<ImageLoader>(image_loader_settings)
-                    .await
-            }
-        };
-
-        let image = load_ctx.request_get(image_handle).await;
+        let image = load_ctx.request_get(settings.source).await;
 
         let source = TextureSource::Data(image.width(), image.height(), image.clone().to_vec());
         let image = settings

@@ -1,7 +1,7 @@
 use gbase::{
     asset::{
         self, AssetCache, MeshGpuConverter, MeshGpuConverterSettings, NamedInserter,
-        ShaderGpuLoader, ShaderGpuLoaderSettings,
+        ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     render::{self, ArcShaderModule, ArcTextureView, GpuMesh, Mesh},
     wgpu, Context,
@@ -44,13 +44,18 @@ impl TextureRenderer {
         //     "../../utils/gbase_utils/assets/shaders/texture_depth.wgsl",
         // ));
 
-        let shader_gpu_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_string(include_str!("../assets/shaders/texture.wgsl")),
-        );
+        let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_string(
+            include_str!("../assets/shaders/texture.wgsl"),
+        ));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
+
+        let shader_depth_handle =
+            cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_string(include_str!(
+                "../assets/shaders/texture_depth.wgsl"
+            )));
         let shader_depth_gpu_handle =
-            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::from_string(
-                include_str!("../assets/shaders/texture_depth.wgsl"),
-            ));
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_depth_handle));
 
         let sampler = render::SamplerBuilder::new()
             .mip_map_filer(wgpu::FilterMode::Nearest)

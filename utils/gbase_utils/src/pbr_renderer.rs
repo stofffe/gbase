@@ -7,7 +7,8 @@ use encase::ShaderType;
 use gbase::{
     asset::{
         self, AssetHandle, ImageGpuLoader, ImageGpuLoaderSettings, MeshGpuConverter,
-        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings,
+        MeshGpuConverterSettings, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
+        ShaderLoaderSettings,
     },
     glam::{Mat4, Vec3},
     render::{
@@ -22,8 +23,8 @@ use std::collections::BTreeSet;
 //
 
 pub struct PbrRenderer {
-    forward_shader_handle: asset::AssetHandle<ArcShaderModule>,
-    deferred_shader_handle: asset::AssetHandle<ArcShaderModule>,
+    forward_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
+    deferred_shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
 
     pipeline_layout: render::ArcPipelineLayout,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -42,13 +43,18 @@ impl PbrRenderer {
         //     "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
         // ));
 
-        let forward_shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_string(include_str!("../assets/shaders/mesh.wgsl")),
+        let forward_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_string(include_str!("../assets/shaders/mesh.wgsl")),
         );
+        let forward_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(forward_shader_handle));
+
         let deferred_shader_handle =
-            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::from_string(
-                include_str!("../assets/shaders/deferred_mesh.wgsl"),
-            ));
+            cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_string(include_str!(
+                "../assets/shaders/deferred_mesh.wgsl"
+            )));
+        let deferred_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(deferred_shader_handle));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -148,8 +154,8 @@ impl PbrRenderer {
         .build(ctx);
 
         Self {
-            forward_shader_handle,
-            deferred_shader_handle,
+            forward_shader_gpu_handle,
+            deferred_shader_gpu_handle,
 
             pipeline_layout,
             bindgroup_layout,
@@ -177,8 +183,8 @@ impl PbrRenderer {
         shadow_matrices: &render::StorageBuffer<Vec<Mat4>>,
         shadow_matrices_distances: &render::StorageBuffer<Vec<f32>>,
     ) {
-        if !cache.handle_available(&self.forward_shader_handle)
-            || !cache.handle_available(&self.deferred_shader_handle)
+        if !cache.handle_available(&self.forward_shader_gpu_handle)
+            || !cache.handle_available(&self.deferred_shader_gpu_handle)
         {
             return;
         }
@@ -188,7 +194,7 @@ impl PbrRenderer {
             return;
         }
 
-        let Ok(shader) = cache.get_asset_cloned(&self.forward_shader_handle) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.forward_shader_gpu_handle) else {
             return;
         };
 
@@ -262,7 +268,7 @@ impl PbrRenderer {
         // TODO: sort by material also?
         final_meshes.sort_by_key(|(_, mesh, _)| mesh.clone());
 
-        let mut prev_mesh: Option<asset::AssetHandle<Mesh>> = None;
+        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
         for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
         {
             let mesh_lod = cache.get_asset(mesh_lod_handle).unwrap();
@@ -310,7 +316,7 @@ impl PbrRenderer {
 
             // Base color
             let base_color_texture_handle = cache.load_asset::<ImageGpuLoader>(
-                &ImageGpuLoaderSettings::from_handle(base_color_texture.image_handle)
+                &ImageGpuLoaderSettings::new(base_color_texture.image_handle)
                     .with_config(base_color_texture.texture_config),
             );
             let Ok(base_color_texture_gpu) = cache.get_asset_cloned(&base_color_texture_handle)
@@ -323,7 +329,7 @@ impl PbrRenderer {
 
             // Normal
             let normal_texture_handle = cache.load_asset::<ImageGpuLoader>(
-                &ImageGpuLoaderSettings::from_handle(normal_texture.image_handle)
+                &ImageGpuLoaderSettings::new(normal_texture.image_handle)
                     .with_config(normal_texture.texture_config),
             );
             let Ok(normal_texture_gpu) = cache.get_asset_cloned(&normal_texture_handle) else {
@@ -334,7 +340,7 @@ impl PbrRenderer {
 
             // Metallic roughness
             let metallic_roughness_texture_handle = cache.load_asset::<ImageGpuLoader>(
-                &ImageGpuLoaderSettings::from_handle(metallic_roughness_texture.image_handle)
+                &ImageGpuLoaderSettings::new(metallic_roughness_texture.image_handle)
                     .with_config(metallic_roughness_texture.texture_config),
             );
             let Ok(metallic_roughness_texture_gpu) =
@@ -348,7 +354,7 @@ impl PbrRenderer {
 
             // Occlusion
             let occlusion_texture_handle = cache.load_asset::<ImageGpuLoader>(
-                &ImageGpuLoaderSettings::from_handle(occlusion_texture.image_handle)
+                &ImageGpuLoaderSettings::new(occlusion_texture.image_handle)
                     .with_config(occlusion_texture.texture_config),
             );
             let Ok(occlusion_texture_gpu) = cache.get_asset_cloned(&occlusion_texture_handle)
@@ -360,7 +366,7 @@ impl PbrRenderer {
 
             // Emissive
             let emissive_texture_handle = cache.load_asset::<ImageGpuLoader>(
-                &ImageGpuLoaderSettings::from_handle(emissive_texture.image_handle)
+                &ImageGpuLoaderSettings::new(emissive_texture.image_handle)
                     .with_config(emissive_texture.texture_config),
             );
             let Ok(emissive_texture_gpu) = cache.get_asset_cloned(&emissive_texture_handle) else {

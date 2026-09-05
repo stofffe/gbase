@@ -5,7 +5,7 @@ use crate::{
 use gbase::{
     asset::{
         self, AssetHandle, MeshGpuConverter, MeshGpuConverterSettings, ShaderGpuLoader,
-        ShaderGpuLoaderSettings,
+        ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
@@ -18,7 +18,7 @@ pub struct ShadowPass {
     bindgroup_layout: render::ArcBindGroupLayout,
     instances: render::StorageBuffer<Vec<ShadowInstance>>,
 
-    shader_handle: asset::AssetHandle<ArcShaderModule>,
+    shader_gpu_handle: asset::AssetHandle<ArcShaderModule>,
     pub shadow_map: render::ArcTexture,
     pub light_matrices_buffer: render::StorageBuffer<Vec<Mat4>>,
     pub light_matrices_index: render::UniformBuffer<u32>,
@@ -37,9 +37,11 @@ const DEPTH_BIAS_STATE_CLAMP: f32 = 0.0; // disable with 0.0
 
 impl ShadowPass {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_path("assets/shaders/shadow_pass.wgsl"),
-        );
+        let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path(
+            "assets/shaders/shadow_pass.wgsl",
+        ));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -95,7 +97,7 @@ impl ShadowPass {
         Self {
             pipeline_layout,
             bindgroup_layout,
-            shader_handle,
+            shader_gpu_handle,
             shadow_map,
             instances,
             light_matrices_index,
@@ -113,7 +115,7 @@ impl ShadowPass {
         camera: &Camera,
         main_light_dir: Vec3,
     ) {
-        let Ok(shader) = cache.get_asset_cloned(&self.shader_handle) else {
+        let Ok(shader) = cache.get_asset_cloned(&self.shader_gpu_handle) else {
             return;
         };
 
@@ -122,7 +124,7 @@ impl ShadowPass {
         //
 
         let mut assets_loaded = true;
-        assets_loaded &= asset::handle_available(cache, &self.shader_handle);
+        assets_loaded &= asset::handle_available(cache, &self.shader_gpu_handle);
         if !assets_loaded {
             tracing::info!("early exit");
             return;

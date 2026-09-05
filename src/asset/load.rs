@@ -28,8 +28,8 @@ use std::{fmt::Debug, sync::Arc};
 // Types
 //
 
-pub trait LoadAssetReturn<T, E>: Future<Output = Result<T, E>> + ConditionalSend {}
-impl<F, T, E> LoadAssetReturn<T, E> for F where F: Future<Output = Result<T, E>> + ConditionalSend {}
+// pub trait LoadAssetReturn<T, E>: Future<Output = Result<T, E>> + ConditionalSend {}
+// impl<F, T, E> LoadAssetReturn<T, E> for F where F: Future<Output = Result<T, E>> + ConditionalSend {}
 
 pub trait LoadAssetSettings: Debug + Hash + Eq + Clone {}
 impl<T: Debug + Hash + Eq + Clone> LoadAssetSettings for T {}
@@ -48,7 +48,7 @@ pub trait AssetLoader: ConditionalSend {
     fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
-    ) -> impl LoadAssetReturn<Self::Asset, Self::Error>;
+    ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + ConditionalSend;
 }
 
 //

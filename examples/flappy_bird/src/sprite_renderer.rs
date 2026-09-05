@@ -1,4 +1,7 @@
-use gbase::asset::{AssetCache, AssetHandle, ShaderGpuLoader, ShaderGpuLoaderSettings};
+use gbase::asset::{
+    AssetCache, AssetHandle, ShaderGpuLoader, ShaderGpuLoaderSettings, ShaderLoader,
+    ShaderLoaderSettings,
+};
 use gbase::glam::{Vec2, Vec4};
 use gbase::render::{ArcPipelineLayout, ArcShaderModule};
 use gbase::winit::dpi::PhysicalSize;
@@ -17,7 +20,7 @@ pub struct SpriteRenderer {
     vertex_buffer: render::VertexBuffer<VertexSprite>,
     index_buffer: render::IndexBuffer,
 
-    shader_handle: AssetHandle<ArcShaderModule>,
+    shader_gpu_handle: AssetHandle<ArcShaderModule>,
 
     bindgroup_layout: render::ArcBindGroupLayout,
 
@@ -28,7 +31,7 @@ pub struct SpriteRenderer {
 
     stencil_buffer: render::FrameBuffer,
     stencil_bindgroup_layout: render::ArcBindGroupLayout,
-    stencil_shader_handle: AssetHandle<ArcShaderModule>,
+    stencil_shader_gpu_handle: AssetHandle<ArcShaderModule>,
     stencil_pipeline_layout: render::ArcPipelineLayout,
 }
 
@@ -44,9 +47,11 @@ impl SpriteRenderer {
             render::IndexBufferBuilder::new(render::IndexBufferSource::Empty(max_sprites * 6))
                 .build(ctx);
 
-        let shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_path("shaders/sprite_renderer.wgsl"),
-        );
+        let shader_handle = cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path(
+            "shaders/sprite_renderer.wgsl",
+        ));
+        let shader_gpu_handle =
+            cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
 
         let bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![
@@ -79,9 +84,11 @@ impl SpriteRenderer {
 
         // Stencil
 
-        let stencil_shader_handle = cache.load_asset::<ShaderGpuLoader>(
-            &ShaderGpuLoaderSettings::from_path("../assets/shaders/stencil.wgsl"),
+        let stencil_shader_handle = cache.load_asset::<ShaderLoader>(
+            &ShaderLoaderSettings::from_path("../assets/shaders/stencil.wgsl"),
         );
+        let stencil_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(stencil_shader_handle));
 
         let stencil_bindgroup_layout = render::BindGroupLayoutBuilder::new()
             .entries(vec![render::BindGroupLayoutEntry::new().uniform().vertex()])
@@ -97,12 +104,12 @@ impl SpriteRenderer {
             vertex_buffer,
             index_buffer,
 
-            shader_handle,
+            shader_gpu_handle,
             bindgroup_layout,
             pipeline_layout,
             sampler,
 
-            stencil_shader_handle,
+            stencil_shader_gpu_handle,
             stencil_buffer,
             stencil_bindgroup_layout,
             stencil_pipeline_layout,
@@ -121,7 +128,7 @@ impl SpriteRenderer {
         self.vertex_buffer.write(ctx, &self.vertices);
         self.index_buffer.write(ctx, &self.indices);
 
-        let Ok(stencil_shader) = cache.get_asset(&self.stencil_shader_handle).cloned() else {
+        let Ok(stencil_shader) = cache.get_asset(&self.stencil_shader_gpu_handle).cloned() else {
             return;
         };
 
@@ -200,7 +207,7 @@ impl SpriteRenderer {
         self.vertex_buffer.write(ctx, &self.vertices);
         self.index_buffer.write(ctx, &self.indices);
 
-        let Ok(shader) = cache.get_asset(&self.shader_handle).cloned() else {
+        let Ok(shader) = cache.get_asset(&self.shader_gpu_handle).cloned() else {
             return;
         };
 
