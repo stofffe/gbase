@@ -28,9 +28,6 @@ use std::{fmt::Debug, sync::Arc};
 // Types
 //
 
-// pub trait LoadAssetReturn<T, E>: Future<Output = Result<T, E>> + ConditionalSend {}
-// impl<F, T, E> LoadAssetReturn<T, E> for F where F: Future<Output = Result<T, E>> + ConditionalSend {}
-
 pub trait LoadAssetSettings: Debug + Hash + Eq + Clone {}
 impl<T: Debug + Hash + Eq + Clone> LoadAssetSettings for T {}
 
@@ -72,7 +69,6 @@ trait DynLoadResponse: ConditionalSend {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
@@ -83,7 +79,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         self: Box<Self>,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -109,13 +104,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                     reloader.register_watches(dyn_handle.clone(), &self.watches);
 
                     if reloader.is_currently_reloading(&dyn_handle) {
-                        reloader.reload_dependents(
-                            dependency,
-                            loader,
-                            registry,
-                            storage,
-                            &dyn_handle,
-                        );
+                        reloader.reload_dependents(dependency, loader, storage, &dyn_handle);
                     }
                 }
             }
@@ -350,11 +339,11 @@ impl AssetCacheLoad {
             load_request_sender,
             load_request_receiver,
 
-            get_request_sender,
-            get_request_receiver,
-
             insert_request_sender,
             insert_request_receiver,
+
+            get_request_sender,
+            get_request_receiver,
         }
     }
 
@@ -393,7 +382,6 @@ impl AssetCacheLoad {
     pub(crate) fn poll_loaded(
         &mut self,
         storage: &mut AssetCacheStorage,
-        registry: &mut AssetCacheRegistry,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -401,7 +389,6 @@ impl AssetCacheLoad {
             response.handle_asset_load_response(
                 storage,
                 self,
-                registry,
                 dependency,
                 #[cfg(not(target_arch = "wasm32"))]
                 reloader,
@@ -642,7 +629,6 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
 #[derive(Clone)]
 struct LoadState {
     pub(crate) handle: DynAssetHandle,
-    // TODO: not being used rn
     pub(crate) dependencies: FxHashSet<DynAssetHandle>,
     pub(crate) watches: FxHashSet<PathBuf>,
 }

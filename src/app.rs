@@ -482,7 +482,7 @@ fn update_and_render(
     // cache
     //
 
-    cache.poll(ctx);
+    cache.poll();
     // cache.clear_unused_handles();
 
     //

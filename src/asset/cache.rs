@@ -62,24 +62,21 @@ impl AssetCache {
         }
     }
 
-    pub(crate) fn poll(&mut self, ctx: &mut Context) {
-        // reload
+    pub(crate) fn poll(&mut self) {
         #[cfg(not(target_arch = "wasm32"))]
         self.reloader
-            .poll_reload(&mut self.loader, &mut self.registry, &mut self.storage);
+            .poll_reload(&mut self.loader, &mut self.storage);
 
-        // registry
         self.storage.clear_just_available();
 
-        // loading
         self.loader.poll_get_requests(&mut self.storage);
         self.loader
             .poll_load_requests(&mut self.registry, &mut self.storage);
         self.loader
             .poll_insert_requests(&mut self.registry, &mut self.storage, &mut self.inserter);
+
         self.loader.poll_loaded(
             &mut self.storage,
-            &mut self.registry,
             &mut self.dependency,
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
@@ -154,7 +151,7 @@ impl AssetCache {
 
     /// Returns wheter a handle is available for reading
     pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
-        let status = self.storage.get_asset_state(&handle);
+        let status = self.storage.get_asset_state(handle);
         matches!(status, InternalAssetState::Ready)
     }
 
@@ -186,11 +183,7 @@ impl AssetCache {
     /// Reload an existing asset while reusing the last path and loader
     #[cfg(not(target_arch = "wasm32"))]
     pub fn reload<T: Asset + 'static>(&mut self, handle: &AssetHandle<T>) {
-        self.reloader.reload(
-            handle.to_dyn(),
-            &mut self.loader,
-            &mut self.registry,
-            &mut self.storage,
-        );
+        self.reloader
+            .reload(handle.to_dyn(), &mut self.loader, &mut self.storage);
     }
 }

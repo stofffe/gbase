@@ -71,14 +71,13 @@ impl AssetCacheReload {
     pub(crate) fn poll_reload(
         &mut self,
         loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
     ) {
         while let Ok(reload_request) = self.reload_receiver.try_recv() {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
                     tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle, loader, registry, storage);
+                    self.reload(handle, loader, storage);
                 }
             }
         }
@@ -89,7 +88,6 @@ impl AssetCacheReload {
         &mut self,
         dyn_handle: DynAssetHandle,
         loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
     ) {
         // mark as curretnly reloading
@@ -137,11 +135,10 @@ impl AssetCacheReload {
         handles.insert(handle);
     }
 
-    pub fn reload_dependents(
+    pub(crate) fn reload_dependents(
         &mut self,
         dependency: &mut AssetCacheDependency,
         loader: &mut AssetCacheLoad,
-        registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         handle: &DynAssetHandle,
     ) {
@@ -150,7 +147,7 @@ impl AssetCacheReload {
 
             for dependent in dependents.iter() {
                 tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), loader, registry, storage);
+                self.reload(dependent.clone(), loader, storage);
             }
         }
     }
@@ -159,7 +156,7 @@ impl AssetCacheReload {
         self.currently_reloading.insert(handle);
     }
 
-    pub fn is_currently_reloading(&mut self, handle: &DynAssetHandle) -> bool {
+    pub(crate) fn is_currently_reloading(&mut self, handle: &DynAssetHandle) -> bool {
         self.currently_reloading.remove(handle)
     }
 }
