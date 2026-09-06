@@ -21,6 +21,7 @@ fixed examples
     [x] time
     [x] triangle
 
+mesh lod should have material in vec (maybe define limits outside?)
 unused meshes in mesh example (xcode debug)
 fix named inserts
 rename builder with cache build_cached

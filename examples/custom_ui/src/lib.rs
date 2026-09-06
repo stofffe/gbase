@@ -3,14 +3,14 @@ mod ui_layout;
 mod ui_renderer;
 use crate::{
     ui_layout::{Sizing, UIElement, UILayouter},
-    ui_renderer::{FontLoader, UIRenderer},
+    ui_renderer::UIRenderer,
 };
 use gbase::{
     asset::{self, AssetCache},
-    egui::{self, load::SizedTexture, util::id_type_map::TypeId},
+    egui::{self, load::SizedTexture},
     glam::{vec4, Vec4},
     render::{self, SamplerBuilder},
-    tracing, wgpu, CallbackResult, Callbacks, Context,
+    wgpu, CallbackResult, Callbacks, Context,
 };
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen::prelude::wasm_bindgen)]
@@ -37,7 +37,7 @@ impl Callbacks for App {
     }
     #[no_mangle]
     fn new(ctx: &mut Context, cache: &mut asset::AssetCache) -> Self {
-        let renderer = UIRenderer::new(ctx, cache, "assets/fonts/font.ttf", 256.0, 4 * 4096);
+        let renderer = UIRenderer::new(ctx, cache, "assets/fonts/font.ttf", 256, 4 * 4096);
         let layouter = UILayouter::new();
         Self { renderer, layouter }
     }

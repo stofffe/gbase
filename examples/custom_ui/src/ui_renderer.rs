@@ -1,15 +1,15 @@
 use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
 use core::f32;
 use gbase::{
+    arc::ArcHandleRuntime,
     asset::{
-        Asset, AssetCache, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState,
-        ConvertContext, EmptyError, GetAssetState, LoadContext, ShaderGpuLoader,
+        AssetCache, AssetHandle, AssetLoader, EmptyError, LoadContext, ShaderGpuLoader,
         ShaderGpuLoaderSettings, ShaderLoader, ShaderLoaderSettings,
     },
     bytemuck, filesystem,
     glam::{self, Mat4},
     input,
-    render::{self, ArcShaderModule, BindGroupBindable},
+    render::{self, ArcHandle, ArcShaderModule, BindGroupBindable, RenderRuntime},
     wgpu, Context,
 };
 use std::{collections::HashMap, hash::Hash, path::PathBuf};
@@ -26,7 +26,8 @@ pub struct UIRenderer {
     font_handle: AssetHandle<Font>,
     pub font_atlas_handle: AssetHandle<FontAtlas>,
 
-    font_atlas_raster_size: f32,
+    // TODO: should this be some hashable f32 instead?
+    font_atlas_raster_size: u32,
     font_atlas_supported_chars: Vec<char>,
 }
 
@@ -35,7 +36,7 @@ impl UIRenderer {
         ctx: &mut gbase::Context,
         cache: &mut AssetCache,
         font_path: impl Into<PathBuf>,
-        font_atlas_raster_size: f32,
+        font_atlas_raster_size: u32,
         max_elements: u64,
     ) -> Self {
         let mut font_atlas_supported_chars = Vec::new();
@@ -53,12 +54,12 @@ impl UIRenderer {
         }
 
         let font_handle = cache.load_asset::<FontLoader>(&FontLoaderSettings::new(font_path));
-        let font_atlas_handle =
-            cache.convert_asset::<FontAtlasConverter>(&FontAtlasConverterSettings {
-                font: font_handle.clone(),
-                supported_chars: font_atlas_supported_chars.to_vec(),
-                font_raster_size: font_atlas_raster_size as u32,
-            });
+        let font_atlas_handle = cache.load_asset::<FontAtlasLoader>(&FontAtlasLoaderSettings::new(
+            font_handle.clone(),
+            font_atlas_supported_chars.clone(),
+            font_atlas_raster_size,
+        ));
+
         //
         // gpu resources
         //
@@ -408,7 +409,7 @@ impl UIRenderer {
                         let text_char = text[text_index];
                         let glyph_metrics = font.font.metrics(text_char, font_size as f32);
                         let glyph_info = font_atlas.lookup.get(&text_char).unwrap();
-                        let scale = font_size as f32 / self.font_atlas_raster_size;
+                        let scale = font_size as f32 / self.font_atlas_raster_size as f32;
                         glyphs.push(Glyph {
                             character: text_char,
                             x: x_offset,
@@ -437,7 +438,7 @@ impl UIRenderer {
 
                 if letter == ' ' {
                     let glyph_info = font_atlas.lookup.get(&letter).unwrap();
-                    let scale = font_size as f32 / self.font_atlas_raster_size;
+                    let scale = font_size as f32 / self.font_atlas_raster_size as f32;
                     glyphs.push(Glyph {
                         character: letter,
                         x: x_offset,
@@ -484,7 +485,8 @@ struct AtlasGlyphInfo {
 }
 
 fn create_font_atlas(
-    ctx: &mut gbase::Context,
+    render_runtime: impl AsRef<RenderRuntime>,
+    arc_runtime: impl AsRef<ArcHandleRuntime>,
     font: &fontdue::Font,
     supported_chars: &[char],
     font_raster_size: f32,
@@ -617,12 +619,14 @@ fn create_font_atlas(
 
     let font_atlas = render::TextureBuilder::new()
         .with_format(wgpu::TextureFormat::R8Unorm)
-        .build_old(
-            ctx,
+        .build(
+            &render_runtime.as_ref().device,
+            &render_runtime.as_ref().queue,
             render::TextureSource::Data(atlas_side_size as u32, atlas_side_size as u32, atlas_data),
         );
+    let arc_font_atlas = ArcHandle::new(arc_runtime, font_atlas);
 
-    (atlas_glyph_lookup, font_atlas)
+    (atlas_glyph_lookup, arc_font_atlas)
 }
 
 const ELEMENT_TYPE_CONTAINER: u32 = 0;
@@ -713,49 +717,54 @@ impl AssetLoader for FontLoader {
     }
 }
 
+// TODO: no cpu representation currently, directly to gpu instead
 #[derive(Clone)]
 pub struct FontAtlas {
     lookup: HashMap<char, AtlasGlyphInfo>,
     pub texture: render::ArcTexture,
 }
 
-pub struct FontAtlasConverter<'a> {
-    supported_chars: &'a [char],
-    font_raster_size: f32,
-}
-
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct FontAtlasConverterSettings {
-    pub font: AssetHandle<Font>,
-    pub supported_chars: Vec<char>,
-    pub font_raster_size: u32,
+pub struct FontAtlasLoaderSettings {
+    font_handle: AssetHandle<Font>,
+    supported_chars: Vec<char>,
+    font_raster_size: u32,
+}
+impl FontAtlasLoaderSettings {
+    fn new(
+        font_handle: AssetHandle<Font>,
+        supported_chars: Vec<char>,
+        font_raster_size: u32,
+    ) -> Self {
+        Self {
+            font_handle,
+            supported_chars,
+            font_raster_size,
+        }
+    }
 }
 
-impl<'a> AssetConverter for FontAtlasConverter<'a> {
-    type Asset = FontAtlas;
-    type Error = EmptyError;
-    type Settings = FontAtlasConverterSettings;
+pub struct FontAtlasLoader;
 
-    fn convert(
-        ctx: &mut gbase::Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let source = match convert_ctx.get_asset(&settings.font) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        };
+impl AssetLoader for FontAtlasLoader {
+    type Asset = FontAtlas;
+    type Settings = FontAtlasLoaderSettings;
+    type Error = EmptyError;
+
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let font = load_ctx.request_get(settings.font_handle).await;
 
         let (lookup, texture) = create_font_atlas(
-            ctx,
-            &source.font,
+            load_ctx.render_runtime(),
+            load_ctx.arc_runtime(),
+            &font.font,
             &settings.supported_chars,
             settings.font_raster_size as f32,
         );
 
-        ConvertAssetState::Success(FontAtlas { lookup, texture })
+        Ok(FontAtlas { lookup, texture })
     }
 }
