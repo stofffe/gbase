@@ -1,6 +1,6 @@
 use crate::{
-    Camera, CameraFrustum, LodMeshToBoundingBoxConverter, LodMeshToBoundingBoxConverterOptions,
-    MeshLod, Plane, Transform3D,
+    BoundingBoxLoader, BoundingBoxLoaderSettings, Camera, CameraFrustum, MeshLod, Plane,
+    Transform3D,
 };
 use gbase::{
     asset::{
@@ -9,7 +9,7 @@ use gbase::{
     },
     encase::ShaderType,
     glam::{vec4, Mat4, Vec3, Vec4Swizzles},
-    render::{self, ArcShaderModule},
+    render::{self, ArcShaderModule, Mesh},
     tracing, wgpu, Context,
 };
 
@@ -138,24 +138,29 @@ impl ShadowPass {
         let mut frustums = Vec::new();
 
         // let planes = [0.01, 3.0, 10.0, 30.0];
-        let planes = [0.01, 10.0, 30.0, 100.0];
-        for plane in planes.windows(2) {
-            let (light_matrix, frustum) =
-                calculate_light_matrix(main_light_dir, camera.clone(), plane[0], plane[1]);
+        let lod_planes = [0.01, 10.0, 30.0, 100.0];
+        for lod_plane in lod_planes.windows(2) {
+            let (current_lod_plane, next_lod_plane) = (lod_plane[0], lod_plane[1]);
+            let (light_matrix, frustum) = calculate_light_matrix(
+                main_light_dir,
+                camera.clone(),
+                current_lod_plane,
+                next_lod_plane,
+            );
             light_matrices.push(light_matrix);
             frustums.push(frustum);
         }
 
         self.light_matrices_buffer.write(ctx, &light_matrices);
         self.light_matrices_distances
-            .write(ctx, &planes[1..].to_vec()); // ignore first
+            .write(ctx, &lod_planes[1..].to_vec()); // ignore first
 
         //
         // meshes
         //
 
         #[allow(clippy::needless_range_loop)]
-        for i in 0..planes.len() - 1 {
+        for lod_plane_index in 0..lod_planes.len() - 1 {
             let mut instances = Vec::new();
             let mut draws = Vec::new();
 
@@ -164,14 +169,20 @@ impl ShadowPass {
             //
 
             let mut meshes = meshes.to_vec();
-            meshes.retain(|(handle, transform)| {
-                let Ok(bounds) = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                    cache,
-                    &LodMeshToBoundingBoxConverterOptions::new(handle.clone()),
-                ) else {
+            meshes.retain(|(mesh_lod, transform)| {
+                let Ok(mesh_lod) = cache.get_asset(mesh_lod) else {
                     return false;
                 };
-                frustums[i].sphere_inside(bounds, transform)
+
+                let mesh_handle = mesh_lod.get_lod_closest(lod_plane_index);
+                let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
+                    &BoundingBoxLoaderSettings::new(mesh_handle.clone()),
+                );
+                let Ok(bounds) = cache.get_asset(&bounding_box_handle) else {
+                    tracing::warn!("could not get bounds, return false in shadow cull");
+                    return false;
+                };
+                frustums[lod_plane_index].sphere_inside(bounds, transform)
             });
             let mut ranges = Vec::new();
 
@@ -179,22 +190,21 @@ impl ShadowPass {
             // lod
             //
 
-            let mut sorted_meshes = Vec::new();
+            let mut extracted_meshes = Vec::new();
             for (mesh_lod, transform) in meshes.iter() {
-                // let mesh = mesh_lod.convert::<MeshWrapper>(ctx, cache, &i).unwrap();
-                sorted_meshes.push((
-                    cache.get_asset(mesh_lod).unwrap().get_lod_closest(i),
-                    transform,
-                ));
+                let Ok(mesh_lod) = cache.get_asset(mesh_lod) else {
+                    continue;
+                };
+                extracted_meshes.push((mesh_lod.get_lod_closest(lod_plane_index), transform));
             }
+            extracted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
 
             //
             // batching
             //
 
-            sorted_meshes.sort_by_key(|(mesh, ..)| mesh.clone());
-            let mut prev_mesh: Option<asset::AssetHandle<render::Mesh>> = None;
-            for (index, (mesh_handle, transform)) in sorted_meshes.iter().enumerate() {
+            let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
+            for (index, (mesh_handle, transform)) in extracted_meshes.iter().enumerate() {
                 instances.push(ShadowInstance {
                     model: transform.matrix(),
                 });
@@ -215,14 +225,15 @@ impl ShadowPass {
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
-            ranges.push(sorted_meshes.len());
+            ranges.push(extracted_meshes.len());
 
             //
             // update data & render meshes
             //
 
             self.instances.write(ctx, &instances);
-            self.light_matrices_index.write(ctx, &(i as u32));
+            self.light_matrices_index
+                .write(ctx, &(lod_plane_index as u32));
 
             // setup state
             let bindgroup = render::BindGroupBuilder::new(self.bindgroup_layout.clone())
@@ -263,7 +274,7 @@ impl ShadowPass {
                 .label("shadow_pass")
                 .depth_stencil_attachment(wgpu::RenderPassDepthStencilAttachment {
                     view: &render::TextureViewBuilder::new(self.shadow_map.clone())
-                        .base_array_layer(i as u32)
+                        .base_array_layer(lod_plane_index as u32)
                         .dimension(wgpu::TextureViewDimension::D2)
                         .build(ctx),
                     depth_ops: Some(wgpu::Operations {

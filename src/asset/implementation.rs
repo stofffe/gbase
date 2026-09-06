@@ -1,15 +1,11 @@
 use super::{AssetHandle, AssetLoader};
 use crate::{
-    asset::{
-        AssetConverter, AssetInserter, ConvertAssetState, ConvertContext, GetAssetState,
-        LoadContext,
-    },
+    asset::{AssetInserter, LoadContext},
     filesystem::{self, LoadFileError},
     render::{
         self, ArcHandle, ArcShaderModule, ArcTexture, GpuMesh, Mesh, Shader, TextureBuilder,
         TextureSource,
     },
-    Context,
 };
 use image::RgbaImage;
 use std::{fmt::Debug, hash::Hash, path::PathBuf};

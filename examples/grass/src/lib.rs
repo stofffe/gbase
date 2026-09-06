@@ -36,7 +36,8 @@ pub struct App {
     gizmo_renderer: gbase_utils::GizmoRenderer,
     pbr_renderer: gbase_utils::PbrRenderer,
 
-    plane_mesh: AssetHandle<MeshLod>,
+    plane_mesh_handle: AssetHandle<MeshLod>,
+    plane_material_handle: AssetHandle<Material>,
 
     paused: bool,
 
@@ -107,12 +108,12 @@ impl Callbacks for App {
                 .build()
                 .with_extracted_attributes(pbr_renderer.required_attributes().clone()),
         );
-        let plane_material = gbase_utils::Material::default(cache).with_color_factor(PLANE_COLOR);
-        let plane_material =
-            cache.insert_asset::<Material, NamedInserter>("plane material", plane_material);
-        let plane_mesh = cache.insert_asset::<MeshLod, NamedInserter>(
-            "plane lod mesh",
-            MeshLod::from_single_lod(plane_mesh_handle, plane_material),
+        let material = Material::default(cache).with_color_factor(PLANE_COLOR);
+        let plane_material_handle =
+            cache.insert_asset::<Material, NamedInserter>("plane material", material);
+        let plane_mesh_handle = cache.insert_asset::<MeshLod, NamedInserter>(
+            "plane mesh lod",
+            MeshLod::from_single_lod(plane_mesh_handle.clone(), plane_material_handle.clone()),
         );
 
         let shadow_pass = gbase_utils::ShadowPass::new(ctx, cache);
@@ -134,7 +135,8 @@ impl Callbacks for App {
             gui_renderer,
             gizmo_renderer,
             pbr_renderer,
-            plane_mesh,
+            plane_mesh_handle,
+            plane_material_handle,
             light,
             depth_buffer,
             grass_renderer,
@@ -193,7 +195,7 @@ impl Callbacks for App {
 
         // Render
         let meshes = vec![(
-            self.plane_mesh.clone(),
+            self.plane_mesh_handle.clone(),
             Transform3D::default()
                 .with_pos(vec3(self.camera.pos.x, 0.0, self.camera.pos.z))
                 .with_rot(Quat::from_rotation_x(-PI / 2.0))

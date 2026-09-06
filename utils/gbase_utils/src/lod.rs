@@ -1,15 +1,12 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
-    asset::{
-        self, AssetConverter, AssetHandle, AssetLoader, ConvertAssetState, ConvertContext,
-        EmptyError, GetAssetState, LoadContext,
-    },
+    asset::{self, AssetHandle, AssetLoader, EmptyError, LoadContext},
     filesystem,
     render::{self, BoundingBox, Mesh, VertexAttributeId},
-    tracing,
 };
-use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
+use std::{collections::BTreeSet, path::PathBuf};
 
+// TODO: should probably store material wth mesh
 #[derive(Debug, Clone)]
 pub struct MeshLod {
     /// lod ordererd from highest quality to lowest
@@ -37,6 +34,16 @@ impl MeshLod {
     pub fn get_lod_closest(&self, level: usize) -> asset::AssetHandle<render::Mesh> {
         let index = usize::min(level, self.meshes.len() - 1);
         self.meshes[index].0.clone()
+    }
+
+    pub fn highest_lod(&self) -> &AssetHandle<Mesh> {
+        let (mesh, _) = self.meshes.first().expect("could not get first mesh lod");
+        mesh
+    }
+
+    pub fn lowest_lod(&self) -> &AssetHandle<Mesh> {
+        let (mesh, _) = self.meshes.last().expect("could not get last mesh lod");
+        mesh
     }
 }
 
@@ -166,62 +173,35 @@ impl AssetLoader for GltfLoader {
     }
 }
 
-#[derive(Clone)]
-pub struct BoundingBoxWrapper(BoundingBox);
-
-impl Deref for BoundingBoxWrapper {
-    type Target = BoundingBox;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+//
+// Bounding box
+//
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct LodMeshToBoundingBoxConverterOptions {
-    mesh_lod: AssetHandle<MeshLod>,
+pub struct BoundingBoxLoaderSettings {
+    mesh: AssetHandle<Mesh>,
 }
-
-impl LodMeshToBoundingBoxConverterOptions {
-    pub fn new(mesh_lod: AssetHandle<MeshLod>) -> Self {
-        Self { mesh_lod }
+impl BoundingBoxLoaderSettings {
+    pub(crate) fn new(mesh: AssetHandle<Mesh>) -> Self {
+        Self { mesh }
     }
 }
 
-pub struct LodMeshToBoundingBoxConverter;
+pub struct BoundingBoxLoader;
 
-impl AssetConverter for LodMeshToBoundingBoxConverter {
+impl AssetLoader for BoundingBoxLoader {
+    type Asset = BoundingBox;
+    type Settings = BoundingBoxLoaderSettings;
     type Error = EmptyError;
-    type Asset = BoundingBoxWrapper;
-    type Settings = LodMeshToBoundingBoxConverterOptions;
 
-    fn convert(
-        _ctx: &mut gbase::Context,
-        convert_ctx: &mut ConvertContext<'_>, // TODO: should this be mutable reference?
-        settings: &Self::Settings,
-    ) -> ConvertAssetState<Self::Asset> {
-        let mesh = match convert_ctx.get_asset(&settings.mesh_lod) {
-            Ok(source) => source,
-            Err(state) => match state {
-                GetAssetState::Loading => return ConvertAssetState::Loading,
-                GetAssetState::Failed => return ConvertAssetState::Failed,
-            },
-        };
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let mesh = load_ctx.request_get(settings.mesh).await;
 
-        if mesh.meshes.is_empty() {
-            tracing::info!("{:?}", mesh);
-            tracing::error!("bounding box converter failed, mesh has no meshes");
-            return ConvertAssetState::Failed;
-        }
+        let bounding_box = mesh.calculate_bounding_box();
 
-        let handle = mesh.meshes[0].0.clone();
-
-        let bounding_box = BoundingBoxWrapper(
-            convert_ctx
-                .get_asset(&handle)
-                .unwrap()
-                .calculate_bounding_box(),
-        );
-        ConvertAssetState::Success(bounding_box)
+        Ok(bounding_box)
     }
 }

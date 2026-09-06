@@ -1,7 +1,6 @@
 use crate::{
-    BoundingSphere, Camera, CameraFrustum, CameraProjection, CameraUniform,
-    LodMeshToBoundingBoxConverter, LodMeshToBoundingBoxConverterOptions, Material, MeshLod,
-    Transform3D, THRESHOLDS,
+    BoundingBoxLoader, BoundingBoxLoaderSettings, BoundingSphere, Camera, CameraFrustum,
+    CameraProjection, CameraUniform, Material, MeshLod, Transform3D, THRESHOLDS,
 };
 use encase::ShaderType;
 use gbase::{
@@ -16,6 +15,7 @@ use gbase::{
     },
     tracing, wgpu, Context,
 };
+use gltf::json::extensions::{material, mesh};
 use std::collections::BTreeSet;
 
 //
@@ -224,15 +224,24 @@ impl PbrRenderer {
         // Culling
         //
 
-        frame_meshes.retain(|(mesh_lod, transform)| {
-            let Ok(bounds) = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                cache,
-                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
-            ) else {
-                // tracing::info!("bounds not okay");
+        frame_meshes.retain(|(mesh_lod_handle, transform)| {
+            let Ok(mesh_lod) = cache.get_asset_cloned(mesh_lod_handle) else {
+                tracing::warn!("could not get mesh lod, returning false for bounding box check");
                 return false;
             };
-            frustum.sphere_inside(bounds, transform)
+
+            let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
+                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().clone()),
+            );
+
+            let Ok(bounding_box) = cache.get_asset_cloned(&bounding_box_handle) else {
+                tracing::warn!(
+                    "could not get bounding box, returning false for bounding box check"
+                );
+                return false;
+            };
+
+            frustum.sphere_inside(&bounding_box, transform)
         });
 
         //
@@ -240,13 +249,20 @@ impl PbrRenderer {
         //
 
         let mut final_meshes = Vec::new();
-        for (mesh_lod, transform) in frame_meshes {
-            let bounds = asset::get_or_convert_asset::<LodMeshToBoundingBoxConverter>(
-                cache,
-                &LodMeshToBoundingBoxConverterOptions::new(mesh_lod.clone()),
-            )
-            .unwrap();
-            let bounds_sphere = BoundingSphere::new(bounds, &transform);
+        for (mesh_lod_handle, transform) in frame_meshes {
+            let Ok(mesh_lod) = cache.get_asset_cloned(&mesh_lod_handle) else {
+                continue;
+            };
+            let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
+                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().clone()),
+            );
+
+            let Ok(bounding_box) = cache.get_asset_cloned(&bounding_box_handle) else {
+                tracing::warn!("could not get mesh asset, skip adding frame mesh");
+                continue;
+            };
+
+            let bounds_sphere = BoundingSphere::new(&bounding_box, &transform);
             let screen_coverage = screen_space_vertical_coverage(&bounds_sphere, camera);
 
             // TODO: hardcoded
@@ -258,7 +274,10 @@ impl PbrRenderer {
                 2
             };
 
-            final_meshes.push((lod, mesh_lod, transform));
+            let mesh = mesh_lod.get_lod_closest(lod);
+            let material = mesh_lod.material;
+
+            final_meshes.push((mesh, material, transform));
         }
 
         //
@@ -266,14 +285,19 @@ impl PbrRenderer {
         //
 
         // TODO: sort by material also?
-        final_meshes.sort_by_key(|(_, mesh, _)| mesh.clone());
+        final_meshes.sort_by_key(|(mesh, _, _)| mesh.clone());
 
-        let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
-        for (index, (mesh_lod_level, mesh_lod_handle, transform)) in final_meshes.iter().enumerate()
+        let final_meshes_len = final_meshes.len();
+
+        let mut prev_mesh_handle: Option<AssetHandle<Mesh>> = None;
+        for (index, (mesh_handle, material_handle, transform)) in
+            final_meshes.into_iter().enumerate()
         {
-            let mesh_lod = cache.get_asset(mesh_lod_handle).unwrap();
-            let material = mesh_lod.material.clone();
-            let mesh = mesh_lod.get_lod_closest(*mesh_lod_level);
+            let Ok(material) = cache.get_asset_cloned(&material_handle) else {
+                tracing::warn!("could not get material, skip draw");
+                continue;
+            };
+
             let Material {
                 base_color_texture,
                 color_factor,
@@ -286,7 +310,7 @@ impl PbrRenderer {
                 normal_scale,
                 emissive_texture,
                 emissive_factor,
-            } = cache.get_asset(&material).unwrap().clone();
+            } = material;
 
             instances.push(Instance {
                 model: transform.matrix().to_cols_array_2d(),
@@ -299,15 +323,17 @@ impl PbrRenderer {
                 pad: 0.0,
             });
 
-            if let Some(prev) = &prev_mesh {
-                if *prev == mesh {
+            if let Some(prev_mesh_handle) = &prev_mesh_handle {
+                if *prev_mesh_handle == mesh_handle {
                     continue;
                 }
             }
-            prev_mesh = Some(mesh.clone());
+
+            prev_mesh_handle = Some(mesh_handle.clone());
 
             let gpu_mesh_handle =
-                cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh.clone()));
+                cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
+
             let Ok(gpu_mesh) = cache.get_asset_cloned(&gpu_mesh_handle) else {
                 return;
             };
@@ -427,7 +453,8 @@ impl PbrRenderer {
             draws.push((gpu_mesh, bindgroup));
             ranges.push(index);
         }
-        ranges.push(final_meshes.len());
+        // push final index?
+        ranges.push(final_meshes_len);
 
         self.instances.write(ctx, &instances);
 
