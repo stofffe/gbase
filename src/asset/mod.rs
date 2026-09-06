@@ -3,7 +3,6 @@
 //
 
 mod cache;
-mod convert;
 mod dependency;
 mod handle;
 mod implementation;
@@ -16,7 +15,6 @@ mod storage;
 mod reload;
 
 pub use cache::*;
-pub use convert::*;
 pub use dependency::*;
 pub use handle::*;
 pub use implementation::*;
@@ -73,25 +71,10 @@ pub fn load_asset<T: AssetLoader + 'static>(
     cache.load_asset::<T>(settings)
 }
 
-pub fn convert_asset<T: AssetConverter + 'static>(
-    cache: &mut AssetCache,
-    settings: &T::Settings,
-) -> AssetHandle<T::Asset> {
-    cache.convert_asset::<T>(settings)
-}
-
 pub fn get_asset<T: Asset + 'static>(
     cache: &mut AssetCache,
     handle: AssetHandle<T>,
 ) -> Result<&T, GetAssetState> {
-    cache.get_asset(&handle)
-}
-
-pub fn get_or_convert_asset<'a, T: AssetConverter + 'static>(
-    cache: &'a mut AssetCache,
-    settings: &T::Settings,
-) -> Result<&'a T::Asset, GetAssetState> {
-    let handle = cache.convert_asset::<T>(settings);
     cache.get_asset(&handle)
 }
 

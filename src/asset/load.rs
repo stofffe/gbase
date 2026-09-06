@@ -4,8 +4,8 @@ use crate::asset::AssetCacheReload;
 use crate::{
     arc::{self, ArcHandleRuntime},
     asset::{
-        Asset, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
-        AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
+        Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry, AssetCacheStorage,
+        AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
     filesystem::{self, FileSystemRuntime},
     render::{self, RenderRuntime},
@@ -73,7 +73,6 @@ trait DynLoadResponse: ConditionalSend {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
-        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     );
@@ -85,7 +84,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         registry: &mut AssetCacheRegistry,
-        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -105,10 +103,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 // Loader
                 loader.reload_depending(dependency, storage, &dyn_handle);
 
-                // Derived
-                convert.wakeup_waiting_on_handle(storage, &dyn_handle.clone());
-                convert.reload_depending_conversions(dependency, storage, &dyn_handle);
-
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -118,7 +112,6 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                         reloader.reload_dependents(
                             dependency,
                             loader,
-                            convert,
                             registry,
                             storage,
                             &dyn_handle,
@@ -401,7 +394,6 @@ impl AssetCacheLoad {
         &mut self,
         storage: &mut AssetCacheStorage,
         registry: &mut AssetCacheRegistry,
-        convert: &mut AssetCacheConvert,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) {
@@ -410,7 +402,6 @@ impl AssetCacheLoad {
                 storage,
                 self,
                 registry,
-                convert,
                 dependency,
                 #[cfg(not(target_arch = "wasm32"))]
                 reloader,
@@ -458,7 +449,7 @@ impl AssetCacheLoad {
             };
 
             let Some(typed_load) = self.typed_load.get_mut(type_id) else {
-                panic!("could not get typed converter");
+                panic!("could not get typed loader");
             };
 
             typed_load.load(registry, dyn_handle);

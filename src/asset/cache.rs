@@ -1,9 +1,9 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        self, AssetCacheConvert, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
-        AssetCacheRegistry, AssetCacheStorage, AssetConverter, AssetHandle, AssetHandleContext,
-        AssetInserter, GetAssetState, InternalAssetState,
+        self, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad, AssetCacheRegistry,
+        AssetCacheStorage, AssetHandle, AssetHandleContext, AssetInserter, GetAssetState,
+        InternalAssetState,
     },
     Context,
 };
@@ -13,7 +13,6 @@ pub struct AssetCache {
 
     inserter: AssetCacheInsert,
     loader: AssetCacheLoad,
-    converter: AssetCacheConvert,
     registry: AssetCacheRegistry,
 
     dependency: AssetCacheDependency,
@@ -40,7 +39,6 @@ impl AssetCache {
             render_runtime.clone(),
             arc_runtime.clone(),
         );
-        let converter = AssetCacheConvert::new();
 
         let registry = AssetCacheRegistry::new(asset_handle_ctx.clone());
 
@@ -54,7 +52,6 @@ impl AssetCache {
 
             inserter,
             loader,
-            converter,
 
             registry,
 
@@ -68,12 +65,8 @@ impl AssetCache {
     pub(crate) fn poll(&mut self, ctx: &mut Context) {
         // reload
         #[cfg(not(target_arch = "wasm32"))]
-        self.reloader.poll_reload(
-            &mut self.loader,
-            &mut self.converter,
-            &mut self.registry,
-            &mut self.storage,
-        );
+        self.reloader
+            .poll_reload(&mut self.loader, &mut self.registry, &mut self.storage);
 
         // registry
         self.storage.clear_just_available();
@@ -87,21 +80,11 @@ impl AssetCache {
         self.loader.poll_loaded(
             &mut self.storage,
             &mut self.registry,
-            &mut self.converter,
             &mut self.dependency,
             #[cfg(not(target_arch = "wasm32"))]
             &mut self.reloader,
         );
         self.loader.poll_queue_loads(&mut self.registry);
-
-        // convert
-        self.converter.poll_conversions(
-            ctx,
-            &mut self.storage,
-            &mut self.loader,
-            &mut self.dependency,
-            &mut self.registry,
-        );
     }
 
     /// Insert an asset and reuse any handles matching the same key
@@ -130,15 +113,6 @@ impl AssetCache {
     ) -> AssetHandle<T::Asset> {
         self.loader
             .register_load::<T>(&mut self.registry, &mut self.storage, settings)
-    }
-
-    /// Request an asset conversion
-    pub fn convert_asset<T: AssetConverter + 'static>(
-        &mut self,
-        settings: &T::Settings,
-    ) -> AssetHandle<T::Asset> {
-        self.converter
-            .register_conversion::<T>(&mut self.registry, &mut self.storage, settings)
     }
 
     pub fn get_asset_cloned<T: Asset + Clone + 'static>(
@@ -178,15 +152,6 @@ impl AssetCache {
         }
     }
 
-    /// Try getting an asset, if it doesnt exist start a new conversion request
-    pub fn get_or_convert_asset<T: AssetConverter + 'static>(
-        &mut self,
-        settings: &T::Settings,
-    ) -> Result<&T::Asset, GetAssetState> {
-        let handle = self.convert_asset::<T>(settings);
-        self.get_asset(&handle)
-    }
-
     /// Returns wheter a handle is available for reading
     pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
         let status = self.storage.get_asset_state(&handle);
@@ -224,7 +189,6 @@ impl AssetCache {
         self.reloader.reload(
             handle.to_dyn(),
             &mut self.loader,
-            &mut self.converter,
             &mut self.registry,
             &mut self.storage,
         );

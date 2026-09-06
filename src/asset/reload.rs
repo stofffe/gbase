@@ -1,11 +1,11 @@
-use crate::asset::{AssetCacheConvert, AssetCacheDependency, AssetCacheRegistry, DynAssetHandle};
-use crate::asset::{AssetCacheLoad, AssetCacheStorage};
-use crate::filesystem::{FileSystemContext, FileSystemRuntime};
-use core::panic;
+use crate::{
+    asset::{
+        AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry, AssetCacheStorage, DynAssetHandle,
+    },
+    filesystem::FileSystemRuntime,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::HashSet;
-use std::path::PathBuf;
-use wgpu::wgc::storage;
+use std::{collections::HashSet, path::PathBuf};
 
 //
 // Types
@@ -71,7 +71,6 @@ impl AssetCacheReload {
     pub(crate) fn poll_reload(
         &mut self,
         loader: &mut AssetCacheLoad,
-        converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
     ) {
@@ -79,7 +78,7 @@ impl AssetCacheReload {
             if let Some(handles) = self.reload_handles.get(&reload_request.path) {
                 for handle in handles.clone() {
                     tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle, loader, converter, registry, storage);
+                    self.reload(handle, loader, registry, storage);
                 }
             }
         }
@@ -90,21 +89,12 @@ impl AssetCacheReload {
         &mut self,
         dyn_handle: DynAssetHandle,
         loader: &mut AssetCacheLoad,
-        converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
     ) {
         // mark as curretnly reloading
         self.set_currently_reloading(dyn_handle.clone());
-
-        let created_by_loader = registry.created_by_loader(&dyn_handle);
-        let created_by_converter = registry.created_by_converter(&dyn_handle);
-        match (created_by_loader, created_by_converter) {
-            (true, false) => loader.queue_load(storage, dyn_handle.clone()),
-            (false, true) => converter.queue_conversion(storage, dyn_handle),
-            (true, true) => panic!("a handle cant be both a loader and a converter"),
-            (false, false) => panic!("a handle must be either a loader or converter"),
-        }
+        loader.queue_load(storage, dyn_handle.clone());
     }
 
     pub(crate) fn register_watches(
@@ -151,7 +141,6 @@ impl AssetCacheReload {
         &mut self,
         dependency: &mut AssetCacheDependency,
         loader: &mut AssetCacheLoad,
-        converter: &mut AssetCacheConvert,
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         handle: &DynAssetHandle,
@@ -161,7 +150,7 @@ impl AssetCacheReload {
 
             for dependent in dependents.iter() {
                 tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), loader, converter, registry, storage);
+                self.reload(dependent.clone(), loader, registry, storage);
             }
         }
     }

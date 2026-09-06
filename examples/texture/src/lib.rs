@@ -100,16 +100,6 @@ impl Callbacks for App {
             return CallbackResult::Continue;
         };
 
-        // NOTE: alternative way of loading shader
-        // let asset::GetAssetResult::Success(shader) =
-        // asset::get_or_convert_asset::<ShaderGpuConverter>(
-        //     cache,
-        //     ShaderGpuConverterSettings::new(self.shader_handle.clone()),
-        // ) else {
-        //     return CallbackResult::Continue;
-        // };
-        // let shader = mesh.clone();
-
         let Ok(texture) = cache.get_asset_cloned(&self.texture_gpu_handle) else {
             return CallbackResult::Continue;
         };
