@@ -72,8 +72,12 @@ impl AssetCache {
         self.loader.poll_get_requests(&mut self.storage);
         self.loader
             .poll_load_requests(&mut self.registry, &mut self.storage);
-        self.loader
-            .poll_insert_requests(&mut self.registry, &mut self.storage, &mut self.inserter);
+        self.loader.poll_insert_requests(
+            &mut self.registry,
+            &mut self.storage,
+            &mut self.inserter,
+            &mut self.dependency,
+        );
 
         self.loader.poll_loaded(
             &mut self.storage,
@@ -158,7 +162,7 @@ impl AssetCache {
     pub fn clear_handle<T: Asset>(&mut self, handle: &AssetHandle<T>) {
         self.storage.clear_asset::<T>(handle);
         self.storage
-            .set_asset_state(handle.to_dyn(), InternalAssetState::Loading);
+            .set_asset_state(handle.to_dyn(), InternalAssetState::Pending);
         // TODO: probably more
     }
 

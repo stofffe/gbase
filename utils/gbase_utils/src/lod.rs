@@ -1,54 +1,58 @@
 use crate::{parse_gltf_file, parse_gltf_primitives, Gltf, Material};
 use gbase::{
-    asset::{self, AssetHandle, AssetLoader, EmptyError, LoadContext},
+    asset::{AssetHandle, AssetLoader, EmptyError, LoadContext},
     filesystem,
-    render::{self, BoundingBox, Mesh, VertexAttributeId},
+    render::{BoundingBox, Mesh, VertexAttributeId},
 };
 use std::{collections::BTreeSet, path::PathBuf};
+
+pub struct MeshWithMaterial {
+    mesh: AssetHandle<MeshLod>,
+    material: AssetHandle<Material>,
+}
 
 // TODO: should probably store material wth mesh
 #[derive(Debug, Clone)]
 pub struct MeshLod {
     /// lod ordererd from highest quality to lowest
     /// TODO: move threshold out of here?
-    pub meshes: Vec<(AssetHandle<Mesh>, f32)>,
-    pub material: AssetHandle<Material>,
+    pub meshes: Vec<(AssetHandle<Mesh>, AssetHandle<Material>, f32)>,
 }
 
 pub const THRESHOLDS: [f32; 3] = [0.25, 0.125, 0.0];
 
 impl MeshLod {
-    pub fn from_single_lod(
-        mesh: AssetHandle<render::Mesh>,
-        material: AssetHandle<Material>,
-    ) -> Self {
+    pub fn from_single_lod(mesh: AssetHandle<Mesh>, material: AssetHandle<Material>) -> Self {
         Self {
-            meshes: vec![(mesh, 0.0)],
-            material,
+            meshes: vec![(mesh, material, 0.0)],
         }
     }
 
-    pub fn get_lod_exact(&self, level: usize) -> Option<asset::AssetHandle<render::Mesh>> {
-        self.meshes.get(level).map(|e| e.0.clone())
+    pub fn get_lod_exact(
+        &self,
+        level: usize,
+    ) -> Option<(AssetHandle<Mesh>, AssetHandle<Material>)> {
+        self.meshes
+            .get(level)
+            .map(|(mesh, material, _)| (mesh.clone(), material.clone()))
     }
-    pub fn get_lod_closest(&self, level: usize) -> asset::AssetHandle<render::Mesh> {
+
+    pub fn get_lod_closest(&self, level: usize) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
         let index = usize::min(level, self.meshes.len() - 1);
-        self.meshes[index].0.clone()
+        let (mesh, material, _) = &self.meshes[index];
+        (mesh.clone(), material.clone())
     }
 
-    pub fn highest_lod(&self) -> &AssetHandle<Mesh> {
-        let (mesh, _) = self.meshes.first().expect("could not get first mesh lod");
-        mesh
+    pub fn highest_lod(&self) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
+        let (mesh, material, _) = self.meshes.first().expect("could not get first mesh lod");
+        (mesh.clone(), material.clone())
     }
 
-    pub fn lowest_lod(&self) -> &AssetHandle<Mesh> {
-        let (mesh, _) = self.meshes.last().expect("could not get last mesh lod");
-        mesh
+    pub fn lowest_lod(&self) -> (AssetHandle<Mesh>, AssetHandle<Material>) {
+        let (mesh, material, _) = self.meshes.last().expect("could not get last mesh lod");
+        (mesh.clone(), material.clone())
     }
 }
-
-#[derive(Clone)]
-pub struct MeshLodLoader {}
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct MeshLodLoaderSettings {
@@ -77,6 +81,9 @@ impl MeshLodLoaderSettings {
     }
 }
 
+#[derive(Clone)]
+pub struct MeshLodLoader;
+
 impl AssetLoader for MeshLodLoader {
     type Asset = MeshLod;
     type Settings = MeshLodLoaderSettings;
@@ -93,27 +100,33 @@ impl AssetLoader for MeshLodLoader {
         // panic!("PRIMS {:#?}", primitives);
 
         // extract material from LOD0
-        let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
+        // let material = primitives[0].material.clone(); // TODO: using material of LOD0 currently
 
         // extract lod levels
         let mut parsed_primitives = Vec::new();
         match &settings.node_name {
             Some(node_name) => {
                 for prim in primitives.iter() {
-                    if let Some(a) = prim.name.strip_prefix(node_name) {
-                        if let Some(a) = a.strip_prefix("_LOD") {
-                            let lod_level = a.parse::<usize>().expect("could not parse lod level");
-                            parsed_primitives.push((lod_level, prim.mesh.clone()));
+                    if let Some(lod_suffix) = prim.name.strip_prefix(node_name) {
+                        if let Some(lod_number_str) = lod_suffix.strip_prefix("_LOD") {
+                            let lod_level = lod_number_str
+                                .parse::<usize>()
+                                .expect("could not parse lod level");
+                            parsed_primitives.push((
+                                lod_level,
+                                prim.mesh.clone(),
+                                prim.material.clone(),
+                            ));
                         }
                     }
                 }
-                parsed_primitives.sort_by_key(|(lod_level, _)| *lod_level);
+                parsed_primitives.sort_by_key(|(lod_level, _, _)| *lod_level);
             }
             None => {
                 parsed_primitives = primitives
                     .into_iter()
                     .enumerate()
-                    .map(|(i, prim)| (i, prim.mesh))
+                    .map(|(i, primitive)| (i, primitive.mesh, primitive.material))
                     .collect::<Vec<_>>();
             }
         }
@@ -128,10 +141,10 @@ impl AssetLoader for MeshLodLoader {
         let meshes = parsed_primitives
             .into_iter()
             .enumerate()
-            .map(|(i, (_, mesh))| (mesh, THRESHOLDS[i]))
+            .map(|(i, (_, mesh, material))| (mesh, material, THRESHOLDS[i]))
             .collect::<Vec<_>>();
 
-        Ok(MeshLod { meshes, material })
+        Ok(MeshLod { meshes })
     }
 }
 

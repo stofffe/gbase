@@ -174,7 +174,7 @@ impl ShadowPass {
                     return false;
                 };
 
-                let mesh_handle = mesh_lod.get_lod_closest(lod_plane_index);
+                let (mesh_handle, _) = mesh_lod.get_lod_closest(lod_plane_index);
                 let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
                     &BoundingBoxLoaderSettings::new(mesh_handle.clone()),
                 );
@@ -204,13 +204,14 @@ impl ShadowPass {
             //
 
             let mut prev_mesh: Option<AssetHandle<Mesh>> = None;
-            for (index, (mesh_handle, transform)) in extracted_meshes.iter().enumerate() {
+            let extracted_meshes_len = extracted_meshes.len();
+            for (index, ((mesh_handle, _), transform)) in extracted_meshes.into_iter().enumerate() {
                 instances.push(ShadowInstance {
                     model: transform.matrix(),
                 });
 
                 if let Some(prev) = &prev_mesh {
-                    if prev == mesh_handle {
+                    if *prev == mesh_handle {
                         continue;
                     }
                 }
@@ -225,7 +226,7 @@ impl ShadowPass {
                 draws.push(gpu_mesh);
                 ranges.push(index);
             }
-            ranges.push(extracted_meshes.len());
+            ranges.push(extracted_meshes_len);
 
             //
             // update data & render meshes

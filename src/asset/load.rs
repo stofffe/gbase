@@ -4,8 +4,8 @@ use crate::asset::AssetCacheReload;
 use crate::{
     arc::{self, ArcHandleRuntime},
     asset::{
-        Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry, AssetCacheStorage,
-        AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
+        dependency, Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
+        AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
     filesystem::{self, FileSystemRuntime},
     render::{self, RenderRuntime},
@@ -89,23 +89,24 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 
                 // Storage
                 storage.insert_asset(self.handle.clone(), asset);
-                storage.set_asset_state(dyn_handle.clone(), InternalAssetState::Ready);
                 storage.set_just_available(dyn_handle.clone());
 
                 // Dependency
                 dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 // Loader
-                loader.reload_depending(dependency, storage, &dyn_handle);
+                loader.reload_depending(dependency, storage, &dyn_handle, None);
 
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     reloader.register_watches(dyn_handle.clone(), &self.watches);
 
-                    if reloader.is_currently_reloading(&dyn_handle) {
-                        reloader.reload_dependents(dependency, loader, storage, &dyn_handle);
-                    }
+                    // TODO: doesnt seem like this needed anymore due to reload above
+                    // keep for now in case problems occur
+                    // if reloader.is_currently_reloading(&dyn_handle) {
+                    //     reloader.reload_dependents(dependency, loader, storage, &dyn_handle);
+                    // }
                 }
             }
             LoadAssetResult::Error => {
@@ -184,10 +185,13 @@ pub(crate) trait DynInsertRequest: ConditionalSend {
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         inserter: &mut AssetCacheInsert,
+        loader: &mut AssetCacheLoad,
+        dependency: &mut AssetCacheDependency,
     );
 }
 
 struct TypedInsertRequest<T: Asset, I: AssetInserter> {
+    // TODO: make it always scoped
     scope: Option<DynAssetHandle>,
     key: I::Key,
     asset: T,
@@ -225,15 +229,25 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         inserter: &mut AssetCacheInsert,
+        loader: &mut AssetCacheLoad,
+        dependency: &mut AssetCacheDependency,
     ) {
         tracing::info!("insert nested asset {:?}", self.key);
 
-        let handle = match self.scope {
-            Some(scope) => {
-                inserter.insert_asset_scoped::<T, I>(registry, storage, self.key, scope, self.asset)
-            }
+        let handle = match &self.scope {
+            Some(scope) => inserter.insert_asset_scoped::<T, I>(
+                registry,
+                storage,
+                self.key,
+                scope.clone(),
+                self.asset,
+            ),
             None => inserter.insert_asset::<T, I>(registry, storage, self.key, self.asset),
         };
+
+        let dyn_handle = handle.to_dyn();
+        loader.reload_depending(dependency, storage, &dyn_handle, self.scope);
+        storage.set_just_available(dyn_handle);
 
         self.response_sender
             .try_send(handle)
@@ -420,9 +434,10 @@ impl AssetCacheLoad {
         registry: &mut AssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         inserter: &mut AssetCacheInsert,
+        dependency: &mut AssetCacheDependency,
     ) {
         while let Ok(request) = self.insert_request_receiver.try_recv() {
-            request.insert_asset(registry, storage, inserter);
+            request.insert_asset(registry, storage, inserter, self, dependency);
         }
     }
 
@@ -447,16 +462,23 @@ impl AssetCacheLoad {
     // Load
     //
 
+    // TODO: maybe this should only be called when reloading is enabled?
     pub(crate) fn reload_depending(
         &mut self,
         dependency: &mut AssetCacheDependency,
         storage: &mut AssetCacheStorage,
         dyn_handle: &DynAssetHandle,
+        ignore_handle: Option<DynAssetHandle>,
     ) {
         if let Some(dependents) = dependency.dependents(dyn_handle) {
             tracing::info!("reload {:?} due to {}", dependents, dyn_handle,);
 
             for dependent in dependents.iter() {
+                if let Some(ignore_handle) = &ignore_handle {
+                    if ignore_handle == dependent {
+                        continue;
+                    }
+                }
                 self.queue_load(storage, dependent.clone());
             }
         }
@@ -725,43 +747,6 @@ impl LoadContext {
                 key.into(),
                 asset,
                 self.state.handle.clone(),
-                sender,
-            )))
-            .await
-            .expect("could not send insert request");
-
-        let handle = receiver
-            .recv()
-            .await
-            .expect("could not receive insert request");
-        tracing::info!(
-            "ASYNC: receive nested insert request for {} got {}",
-            self.handle(),
-            handle
-        );
-
-        self.state.dependencies.insert(handle.to_dyn());
-
-        handle
-    }
-
-    /// Insert an asset with a specific inserter
-    ///
-    /// Is global and can potentially collide with nested insertions inside loads
-    pub async fn insert_asset<T: Asset, I: AssetInserter + 'static>(
-        &mut self,
-        key: impl Into<I::Key>,
-        asset: T,
-    ) -> AssetHandle<T> {
-        tracing::info!("ASYNC: request nested load request for {}", self.handle());
-
-        let (sender, receiver) = async_channel::bounded(1);
-
-        self.runtime
-            .insert_request_sender
-            .send(Box::new(TypedInsertRequest::<T, I>::new(
-                key.into(),
-                asset,
                 sender,
             )))
             .await

@@ -78,7 +78,6 @@ impl AssetCacheInsert {
         asset: T,
     ) {
         storage.insert_asset(handle.clone(), asset);
-        storage.set_asset_state(handle.to_dyn(), InternalAssetState::Ready);
     }
 }
 

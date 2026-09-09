@@ -15,7 +15,6 @@ use gbase::{
     },
     tracing, wgpu, Context,
 };
-use gltf::json::extensions::{material, mesh};
 use std::collections::BTreeSet;
 
 //
@@ -230,8 +229,9 @@ impl PbrRenderer {
                 return false;
             };
 
+            // TODO: should we use highest lod here?
             let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
-                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().clone()),
+                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().0.clone()),
             );
 
             let Ok(bounding_box) = cache.get_asset_cloned(&bounding_box_handle) else {
@@ -254,7 +254,7 @@ impl PbrRenderer {
                 continue;
             };
             let bounding_box_handle = cache.load_asset::<BoundingBoxLoader>(
-                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().clone()),
+                &BoundingBoxLoaderSettings::new(mesh_lod.highest_lod().0.clone()),
             );
 
             let Ok(bounding_box) = cache.get_asset_cloned(&bounding_box_handle) else {
@@ -274,10 +274,9 @@ impl PbrRenderer {
                 2
             };
 
-            let mesh = mesh_lod.get_lod_closest(lod);
-            let material = mesh_lod.material;
+            let (mesh, material) = mesh_lod.get_lod_closest(lod);
 
-            final_meshes.push((mesh, material, transform));
+            final_meshes.push((mesh.clone(), material.clone(), transform));
         }
 
         //
@@ -537,90 +536,6 @@ pub struct GpuMaterial {
     pub emissive_texture: asset::AssetHandle<Image>,
     pub emissive_factor: [f32; 3],
 }
-
-// // TODO: shoudl use handles for textures to reuse
-// // TODO: emissive
-// #[derive(Debug, Clone)]
-// pub struct PbrMaterial {
-//     pub base_color_texture: Option<Image>,
-//     pub color_factor: [f32; 4],
-//
-//     pub metallic_roughness_texture: Option<Image>,
-//     pub roughness_factor: f32,
-//     pub metallic_factor: f32,
-//
-//     pub occlusion_texture: Option<Image>,
-//     pub occlusion_strength: f32,
-//
-//     pub normal_texture: Option<Image>,
-//     pub normal_scale: f32,
-//
-//     pub emissive_texture: Option<Image>,
-//     pub emissive_factor: [f32; 3],
-// }
-//
-// impl PbrMaterial {
-//     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#materials-overview
-//     pub fn to_material(
-//         self,
-//         cache: &mut gbase::asset::AssetCache,
-//         // TODO: part of context?
-//         // image_cache: &mut AssetCache<Image, GpuImage>,
-//         pixel_cache: &mut PixelCache,
-//     ) -> GpuMaterial {
-//         const BASE_COLOR_DEFAULT: [u8; 4] = [255, 255, 255, 255];
-//         const NORMAL_DEFAULT: [u8; 4] = [128, 128, 255, 0];
-//         const METALLIC_ROUGHNESS_DEFAULT: [u8; 4] = [0, 255, 0, 0];
-//         const OCCLUSION_DEFAULT: [u8; 4] = [255, 0, 0, 0];
-//         const EMISSIVE_DEFAULT: [u8; 4] = [0, 0, 0, 0];
-//         fn alloc(
-//             cache: &mut gbase::asset::AssetCache,
-//             pixel_cache: &mut PixelCache,
-//             tex: Option<Image>,
-//             default: [u8; 4],
-//         ) -> asset::AssetHandle<Image> {
-//             if let Some(tex) = tex {
-//                 cache.insert_asset_force(tex)
-//             } else {
-//                 pixel_cache.allocate(cache, default)
-//             }
-//         }
-//         let base_color_texture = alloc(
-//             cache,
-//             pixel_cache,
-//             self.base_color_texture,
-//             BASE_COLOR_DEFAULT,
-//         );
-//         let normal_texture = alloc(cache, pixel_cache, self.normal_texture, NORMAL_DEFAULT);
-//         let metallic_roughness_texture = alloc(
-//             cache,
-//             pixel_cache,
-//             self.metallic_roughness_texture,
-//             METALLIC_ROUGHNESS_DEFAULT,
-//         );
-//         let occlusion_texture = alloc(
-//             cache,
-//             pixel_cache,
-//             self.occlusion_texture,
-//             OCCLUSION_DEFAULT,
-//         );
-//         let emissive_texture = alloc(cache, pixel_cache, self.emissive_texture, EMISSIVE_DEFAULT);
-//
-//         GpuMaterial {
-//             base_color_texture,
-//             color_factor: self.color_factor,
-//             metallic_roughness_texture,
-//             roughness_factor: self.roughness_factor,
-//             metallic_factor: self.metallic_factor,
-//             occlusion_texture,
-//             occlusion_strength: self.occlusion_strength,
-//             normal_texture,
-//             normal_scale: self.normal_scale,
-//             emissive_texture,
-//             emissive_factor: self.emissive_factor,
-//         }
-//     }
-// }
 
 //
 // lights

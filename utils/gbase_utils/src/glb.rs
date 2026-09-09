@@ -465,6 +465,7 @@ pub async fn parse_gltf_material(
             texture_config,
         };
 
+        tracing::info!("Insert {:?} into gltf image cache", texture.index());
         gltf_cache
             .images
             .insert(texture.index(), texture_ref.clone());

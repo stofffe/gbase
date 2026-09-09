@@ -38,9 +38,8 @@ struct App {
 
     helmet_mesh: AssetHandle<MeshLod>,
 
-    sponza_gltf: AssetHandle<Gltf>,
-    sponza_lod_meshes: Vec<(AssetHandle<MeshLod>, Transform3D)>,
-
+    // sponza_gltf: AssetHandle<Gltf>,
+    // sponza_lod_meshes: Vec<(AssetHandle<MeshLod>, Transform3D)>,
     tonemap: bloom::Tonemap,
     bloom: bloom::Bloom,
 
@@ -52,7 +51,7 @@ impl Callbacks for App {
     fn init_ctx() -> gbase::ContextBuilder {
         gbase::ContextBuilder::new()
             .log_level(tracing::Level::INFO)
-            .vsync(false)
+            .vsync(true)
             .device_features(
                 wgpu::Features::POLYGON_MODE_LINE
                     | wgpu::Features::TIMESTAMP_QUERY
@@ -114,10 +113,10 @@ impl Callbacks for App {
         // let plane_material = cache.insert_asset_force(plane_material);
         // let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
-        let sponza_gltf = cache.load_asset::<GltfLoader>(
-            &GltfLoaderSettings::new("assets/models/sponza.glb")
-                .required_attributes(pbr_renderer.required_attributes().clone()),
-        );
+        // let sponza_gltf = cache.load_asset::<GltfLoader>(
+        //     &GltfLoaderSettings::new("assets/models/sponza.glb")
+        //         .required_attributes(pbr_renderer.required_attributes().clone()),
+        // );
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -163,14 +162,12 @@ impl Callbacks for App {
             camera_buffer,
 
             helmet_mesh,
-            sponza_gltf,
-
             shadow_pass,
 
             framebuffer_renderer,
             depth_buffer,
-
-            sponza_lod_meshes: Vec::new(),
+            // sponza_gltf,
+            // sponza_lod_meshes: Vec::new(),
         }
     }
 
@@ -181,22 +178,23 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        if cache.handle_just_available(&self.sponza_gltf) {
-            tracing::info!("sponza just loaded");
-            for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
-                // tracing::info!("node {}", node);
-                // let node = cache.get_asset(node).unwrap();
-                let transform = node.transform.clone();
-                if let Some(mesh) = node.mesh.clone() {
-                    // let mesh = cache.get_asset(&mesh).unwrap();
-                    let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
-                    let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
-                    tracing::info!("push {:?}", lod);
-                    self.sponza_lod_meshes
-                        .push((cache.insert_asset_force(lod), transform));
-                }
-            }
-        }
+        if cache.handle_just_available(&self.helmet_mesh) {}
+        // if cache.handle_just_available(&self.sponza_gltf) {
+        //     tracing::info!("sponza just loaded");
+        //     for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
+        //         // tracing::info!("node {}", node);
+        //         // let node = cache.get_asset(node).unwrap();
+        //         let transform = node.transform.clone();
+        //         if let Some(mesh) = node.mesh.clone() {
+        //             // let mesh = cache.get_asset(&mesh).unwrap();
+        //             let prim = mesh.primitives[0].clone(); // Assume 1 mesh = 1 prim
+        //             let lod = MeshLod::from_single_lod(prim.mesh, prim.material);
+        //             tracing::info!("push {:?}", lod);
+        //             self.sponza_lod_meshes
+        //                 .push((cache.insert_asset_force(lod), transform));
+        //         }
+        //     }
+        // }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
@@ -218,9 +216,9 @@ impl Callbacks for App {
                 .with_pos(vec3(0.0, 5.0, 0.0))
                 .with_scale(Vec3::ONE * 5.0),
         )];
-        for (mesh, transform) in self.sponza_lod_meshes.iter() {
-            meshes.push((mesh.clone(), transform.clone()));
-        }
+        // for (mesh, transform) in self.sponza_lod_meshes.iter() {
+        //     meshes.push((mesh.clone(), transform.clone()));
+        // }
 
         self.shadow_pass.render(
             ctx,

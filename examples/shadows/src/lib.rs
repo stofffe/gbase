@@ -56,8 +56,7 @@ fn mesh_to_lod_mesh(
     material: AssetHandle<Material>,
 ) -> AssetHandle<MeshLod> {
     cache.insert_asset_force(MeshLod {
-        meshes: vec![(mesh, 0.0)],
-        material,
+        meshes: vec![(mesh, material, 0.0)],
     })
 }
 

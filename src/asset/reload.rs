@@ -100,6 +100,11 @@ impl AssetCacheReload {
         handle: DynAssetHandle,
         watches: &FxHashSet<PathBuf>,
     ) {
+        // TODO: we should clear the previous watches
+        // its not that problematic since we removce the dependecy on this, but we are still
+        // updating this asset when noone depends on it, could be part of a clear unused handles
+        // maybe?
+
         for watch in watches.iter() {
             self.register_watch(watch.to_path_buf(), handle.clone());
         }

@@ -6,3 +6,4 @@ fn lerp(a: vec3f, b: vec3f, p: f32) -> vec3f {
     // return vec3f(0.0,0.0,0.0);
     return a * (1 - p) + b * p;
 }
+
