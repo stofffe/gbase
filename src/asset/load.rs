@@ -191,24 +191,14 @@ pub(crate) trait DynInsertRequest: ConditionalSend {
 }
 
 struct TypedInsertRequest<T: Asset, I: AssetInserter> {
-    // TODO: make it always scoped
-    scope: Option<DynAssetHandle>,
+    scope: DynAssetHandle,
     key: I::Key,
     asset: T,
     response_sender: async_channel::Sender<AssetHandle<T>>,
 }
 
 impl<T: Asset, I: AssetInserter> TypedInsertRequest<T, I> {
-    fn new(key: I::Key, asset: T, response_sender: async_channel::Sender<AssetHandle<T>>) -> Self {
-        Self {
-            key,
-            asset,
-            response_sender,
-            scope: None,
-        }
-    }
-
-    fn new_scoped(
+    fn new(
         key: I::Key,
         asset: T,
         scope: DynAssetHandle,
@@ -218,7 +208,7 @@ impl<T: Asset, I: AssetInserter> TypedInsertRequest<T, I> {
             key,
             asset,
             response_sender,
-            scope: Some(scope),
+            scope,
         }
     }
 }
@@ -234,19 +224,18 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
     ) {
         tracing::info!("insert nested asset {:?}", self.key);
 
-        let handle = match &self.scope {
-            Some(scope) => inserter.insert_asset_scoped::<T, I>(
-                registry,
-                storage,
-                self.key,
-                scope.clone(),
-                self.asset,
-            ),
-            None => inserter.insert_asset::<T, I>(registry, storage, self.key, self.asset),
-        };
+        let handle = inserter.insert_asset_scoped::<T, I>(
+            registry,
+            storage,
+            self.key,
+            self.scope.clone(),
+            self.asset,
+        );
 
         let dyn_handle = handle.to_dyn();
-        loader.reload_depending(dependency, storage, &dyn_handle, self.scope);
+        // Reload all dependents while ignoring the one making the insertion
+        // TODO: maybe could just remove dependencies before starting parent load?
+        loader.reload_depending(dependency, storage, &dyn_handle, Some(self.scope));
         storage.set_just_available(dyn_handle);
 
         self.response_sender
@@ -743,7 +732,7 @@ impl LoadContext {
 
         self.runtime
             .insert_request_sender
-            .send(Box::new(TypedInsertRequest::<T, I>::new_scoped(
+            .send(Box::new(TypedInsertRequest::<T, I>::new(
                 key.into(),
                 asset,
                 self.state.handle.clone(),

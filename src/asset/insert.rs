@@ -1,8 +1,5 @@
 use crate::{
-    asset::{
-        Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle,
-        InternalAssetState,
-    },
+    asset::{Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle},
     ConditionalSend,
 };
 use std::{fmt::Debug, hash::Hash};
