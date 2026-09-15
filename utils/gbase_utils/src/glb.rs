@@ -357,6 +357,7 @@ async fn parse_gltf_primitive(
     let mesh = load_ctx
         .insert_asset_scoped::<Mesh, NamedInserter>(name.clone(), mesh)
         .await;
+    load_ctx.set_debug_name(mesh.clone(), name.clone()).await;
 
     GltfPrimitive {
         name,
@@ -417,8 +418,9 @@ pub async fn parse_gltf_material(
             .expect("could not load image")
             .to_rgba8();
         let image_handle = load_ctx
-            .insert_asset_scoped::<RgbaImage, NamedInserter>(name, image_buffer)
+            .insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), image_buffer)
             .await;
+        load_ctx.set_debug_name(image_handle.clone(), name).await;
 
         // TODO: can you get the format from the gltf file?
         let texture_config =
@@ -487,8 +489,9 @@ pub async fn parse_gltf_material(
         let name = format!("single pixel rgb {:?}", color);
         let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
         let image_handle = load_ctx
-            .insert_asset_scoped::<RgbaImage, NamedInserter>(name, pixel_image)
+            .insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), pixel_image)
             .await;
+        load_ctx.set_debug_name(image_handle.clone(), name).await;
 
         let sampler_config = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest);
@@ -637,6 +640,7 @@ pub async fn parse_gltf_material(
             },
         )
         .await;
+    load_ctx.set_debug_name(material_handle.clone(), name).await;
 
     if let Some(index) = material.index() {
         gltf_cache.materials.insert(index, material_handle.clone());

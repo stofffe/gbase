@@ -63,8 +63,10 @@ impl Callbacks for App {
 
         let texture_handle = cache
             .load_asset::<ImageLoader>(&ImageLoaderSettings::from_path("textures/texture.jpeg"));
+        cache.set_debug_name(&texture_handle, "texture");
         let texture_gpu_handle =
             cache.load_asset::<ImageGpuLoader>(&ImageGpuLoaderSettings::new(texture_handle));
+        cache.set_debug_name(&texture_gpu_handle, "texture gpu");
 
         let mesh = render::MeshBuilder::quad()
             .build()
@@ -73,14 +75,18 @@ impl Callbacks for App {
                 render::VertexAttributeId::Uv(0),
             ]);
         let mesh_handle = cache.insert_asset::<Mesh, NamedInserter>("quad mesh", mesh);
+        cache.set_debug_name(&mesh_handle, "quad mesh");
         let mesh_gpu_handle =
             cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
+        cache.set_debug_name(&mesh_gpu_handle, "quad mesh gpu");
 
         let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
             &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
         );
+        cache.set_debug_name(&shader_handle, "shader");
         let shader_gpu_handle =
             cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));
+        cache.set_debug_name(&shader_gpu_handle, "shader gpu");
 
         Self {
             pipeline_layout,
@@ -101,7 +107,8 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         if input::key_just_pressed(ctx, KeyCode::KeyD) {
-            asset::debug_asset_dependency_graph(cache);
+            // asset::debug_asset_dependency_graph(cache);
+            cache.debug_assets(true, true);
         }
 
         let Ok(mesh) = cache.get_asset(&self.mesh_gpu_handle).cloned() else {
@@ -153,5 +160,12 @@ impl Callbacks for App {
             });
 
         CallbackResult::Continue
+    }
+}
+
+impl App {
+    #[no_mangle]
+    fn hot_reload(&mut self, ctx: &mut Context) {
+        Self::init_ctx().init_logging();
     }
 }

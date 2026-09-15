@@ -133,6 +133,18 @@ impl Display for DynAssetHandle {
     }
 }
 
+impl PartialOrd for DynAssetHandle {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DynAssetHandle {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
 //
 // Asset handle context
 //

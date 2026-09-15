@@ -35,23 +35,25 @@ pub struct PbrRenderer {
 
 impl PbrRenderer {
     pub fn new(ctx: &mut Context, cache: &mut gbase::asset::AssetCache) -> Self {
-        // let forward_shader_handle = cache.load_asset::<ShaderFromPathLoader>(&PathSettings::new(
-        //     "../../utils/gbase_utils/assets/shaders/mesh.wgsl",
-        // ));
-        // let deferred_shader_handle = cache.load_asset::<ShaderFromPathLoader>(&PathSettings::new(
-        //     "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
-        // ));
+        // let forward_shader_handle = cache.load_asset::<ShaderLoader>(
+        //     &ShaderLoaderSettings::from_path("../../utils/gbase_utils/assets/shaders/mesh.wgsl"),
+        // );
+        // let deferred_shader_handle =
+        //     cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_path(
+        //         "../../utils/gbase_utils/assets/shaders/deferred.wgsl",
+        //     ));
 
         let forward_shader_handle = cache.load_asset::<ShaderLoader>(
             &ShaderLoaderSettings::from_string(include_str!("../assets/shaders/mesh.wgsl")),
         );
-        let forward_shader_gpu_handle = cache
-            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(forward_shader_handle));
 
         let deferred_shader_handle =
             cache.load_asset::<ShaderLoader>(&ShaderLoaderSettings::from_string(include_str!(
                 "../assets/shaders/deferred_mesh.wgsl"
             )));
+
+        let forward_shader_gpu_handle = cache
+            .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(forward_shader_handle));
         let deferred_shader_gpu_handle = cache
             .load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(deferred_shader_handle));
 

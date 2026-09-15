@@ -21,51 +21,25 @@ fixed examples
     [x] time
     [x] triangle
 
-mesh lod should have material in vec (maybe define limits outside?)
-unused meshes in mesh example (xcode debug)
-fix named inserts
+real async runtime with async file loads (tokio?)
+run more of asset system in background thread to avoid main loop polling (send neccesary state to main thread)
+
 rename builder with cache build_cached
-use insert asset scoped by default
 archandle instead of arc?
-
-task and asset cancellation?
-remove converters
-
-make conversion async?
-converters allowed to request loads and insert?
-make conversion result be result
-
-fix clear handle
-fix ugly nested conversions and get
-give better debug names
 need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
 cycle detecion
-real async runtime with async file loads (tokio?)
-convert error
-
-reload queue to avoid same dep being reloaded many times (currently loading)
-handle shutdown of background thread?
-pass asset handle ctx and stuff instead of arcing
-
+fix clear handle
 maybe have more states on getasset result, like depency failed?
-look at clone vs & for handles
-remove conversion state, probably not since we need loading to be a 
-
-dont track changes in release mode, wait for custom features
+task and asset cancellation?
 separate typedxxx mut from registering it
+unused meshes in mesh example (xcode debug)
+
+release mode perf NOTE: wait for custom features
+    dont track changes
+    dont set debug names?
 
 next up
-    [] return errors to user
-    [] all assets are being watched, make it a context builder option
-        [] remove watch from builder and 
-    [] remove watch from builder and 
-    [] decide between derived or converter
-    [] implement traversable dependency graph
-        [] asset_loaded() must track deps
-        [] reload on sub assets changed
-    [] when loading sub dependecy its not inserted into the currently loading, maybe bring back sending load response but handle derived assets better when loading is received
     [] investigate if asset cache can be put in ctx
-    [] cache path -> assethandle to reuse now that its immutable
     [] put image crate behind feature flag
     [] create debug mode feature flag instead of checking if not wasm
     [] move egui from core to utils

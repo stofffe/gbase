@@ -31,12 +31,20 @@ pub enum GetAssetState {
     Failed,
 }
 
+pub struct AssetMetadata {
+    state: InternalAssetState,
+    debug_name: Option<String>,
+}
+
 //
 // Generic
 //
 
 pub(crate) struct AssetCacheStorage {
     typed_storage: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
+
+    metadata: FxHashMap<DynAssetHandle, AssetMetadata>,
+
     just_available: FxHashSet<DynAssetHandle>,
 }
 
@@ -44,6 +52,7 @@ impl AssetCacheStorage {
     pub(crate) fn new() -> Self {
         Self {
             typed_storage: FxHashMap::default(),
+            metadata: FxHashMap::default(),
             just_available: FxHashSet::default(),
         }
     }
@@ -91,6 +100,14 @@ impl AssetCacheStorage {
         typed_storage.cache.get_mut(handle)
     }
 
+    fn get_asset_metadata(&self, handle: &DynAssetHandle) -> Option<&AssetMetadata> {
+        self.metadata.get(handle)
+    }
+
+    fn get_asset_metadata_mut(&mut self, handle: &DynAssetHandle) -> Option<&mut AssetMetadata> {
+        self.metadata.get_mut(handle)
+    }
+
     pub(crate) fn register_asset<T: Asset>(&mut self, handle: AssetHandle<T>) {
         // get or create the typed storage
         let dyn_storage = self
@@ -102,13 +119,20 @@ impl AssetCacheStorage {
             .downcast_mut::<TypedAssetStorage<T>>()
             .expect("could not downcast typed storage cache");
 
+        // insert metadata
+        self.metadata.insert(
+            handle.to_dyn(),
+            AssetMetadata {
+                state: InternalAssetState::Pending,
+                debug_name: None,
+            },
+        );
+
         // insert into storage
         typed_storage.cache.insert(
             handle,
             AssetEntry {
                 asset: None,
-                state: InternalAssetState::Pending, // TODO: add state for invalid/not started
-                debug_name: None,
                 get_requests: Vec::new(),
             },
         );
@@ -124,7 +148,6 @@ impl AssetCacheStorage {
         // insert asset
         let arc_asset = Arc::new(asset);
         entry.asset = Some(arc_asset.clone());
-        entry.state = InternalAssetState::Ready;
 
         // notify waiting requests
         for get_request in entry.get_requests.drain(..) {
@@ -132,6 +155,12 @@ impl AssetCacheStorage {
                 .try_send(arc_asset.clone())
                 .expect("could not send get request response");
         }
+
+        // update metadata
+        let Some(metadata) = self.metadata.get_mut(&handle.to_dyn()) else {
+            panic!("could not get asset entry for {}", handle);
+        };
+        metadata.state = InternalAssetState::Ready;
     }
 
     pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&Arc<T>> {
@@ -139,25 +168,6 @@ impl AssetCacheStorage {
             .get_asset_entry(handle)
             .expect("could not get asset entry");
         entry.asset.as_ref()
-    }
-
-    pub(crate) fn get_asset_state<T: Asset>(&self, handle: &AssetHandle<T>) -> InternalAssetState {
-        let entry = self
-            .get_asset_entry(handle)
-            .expect("could not get asset entry");
-        entry.state.clone()
-    }
-
-    pub(crate) fn set_asset_state(
-        &mut self,
-        dyn_handle: DynAssetHandle,
-        state: InternalAssetState,
-    ) {
-        let Some(dyn_storage) = self.typed_storage.get_mut(&dyn_handle.asset_type_id()) else {
-            panic!("could not get typed storage for {}", dyn_handle);
-        };
-
-        dyn_storage.set_asset_state(dyn_handle, state);
     }
 
     pub(crate) fn clear_asset<T: Asset>(&mut self, handle: &AssetHandle<T>) {
@@ -181,6 +191,24 @@ impl AssetCacheStorage {
         entry.get_requests.push(get_request);
     }
 
+    pub(crate) fn get_asset_state(&self, dyn_handle: &DynAssetHandle) -> InternalAssetState {
+        let Some(metadata) = self.get_asset_metadata(dyn_handle) else {
+            panic!("could not get asset metadata for {}", dyn_handle);
+        };
+        metadata.state.clone()
+    }
+
+    pub(crate) fn set_asset_state(
+        &mut self,
+        dyn_handle: &DynAssetHandle,
+        state: InternalAssetState,
+    ) {
+        let Some(metadata) = self.get_asset_metadata_mut(dyn_handle) else {
+            panic!("could not get asset metadata for {}", dyn_handle);
+        };
+        metadata.state = state;
+    }
+
     pub(crate) fn set_just_available(&mut self, handle: DynAssetHandle) {
         self.just_available.insert(handle);
     }
@@ -192,6 +220,26 @@ impl AssetCacheStorage {
     pub(crate) fn clear_just_available(&mut self) {
         self.just_available.clear();
     }
+
+    pub(crate) fn set_debug_name(&mut self, handle: &DynAssetHandle, name: impl Into<String>) {
+        let Some(metadata) = self.get_asset_metadata_mut(handle) else {
+            panic!("could not get asset entry for {}", handle);
+        };
+
+        metadata.debug_name = Some(name.into());
+    }
+
+    pub(crate) fn get_debug_name(&self, handle: &DynAssetHandle) -> Option<&str> {
+        let Some(metadata) = self.get_asset_metadata(handle) else {
+            panic!("could not get asset entry for {}", handle);
+        };
+
+        metadata.debug_name.as_deref()
+    }
+
+    pub(crate) fn get_all_assets(&self) -> Vec<DynAssetHandle> {
+        self.metadata.keys().cloned().collect()
+    }
 }
 
 //
@@ -200,8 +248,6 @@ impl AssetCacheStorage {
 
 struct AssetEntry<T: Asset> {
     asset: Option<Arc<T>>,
-    state: InternalAssetState,
-    debug_name: Option<String>,
     get_requests: Vec<async_channel::Sender<Arc<T>>>,
 }
 
@@ -220,7 +266,6 @@ impl<T: Asset> TypedAssetStorage<T> {
 trait DynAssetStorage {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn set_asset_state(&mut self, dyn_handle: DynAssetHandle, state: InternalAssetState);
 }
 
 impl<T: Asset> DynAssetStorage for TypedAssetStorage<T> {
@@ -230,16 +275,5 @@ impl<T: Asset> DynAssetStorage for TypedAssetStorage<T> {
 
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
-    }
-
-    fn set_asset_state(&mut self, dyn_handle: DynAssetHandle, state: InternalAssetState) {
-        let handle = dyn_handle
-            .to_typed::<T>()
-            .expect("could not convert dyn handle to typed");
-
-        self.cache
-            .get_mut(&handle)
-            .expect("could not get asset entry")
-            .state = state;
     }
 }

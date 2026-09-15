@@ -64,6 +64,18 @@ pub fn insert_asset_force<T: Asset + 'static>(cache: &mut AssetCache, asset: T) 
     cache.insert_asset_force::<T>(asset)
 }
 
+/// Add a debug name to an asset handle
+pub fn set_debug_name<T: Asset>(
+    cache: &mut AssetCache,
+    handle: &AssetHandle<T>,
+    name: impl Into<String>,
+) {
+    cache.set_debug_name(handle, name);
+}
+
+/// Load a new asset using the settings
+///
+/// Uses cached handle if available
 pub fn load_asset<T: AssetLoader + 'static>(
     cache: &mut AssetCache,
     settings: &T::Settings,

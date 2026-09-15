@@ -1,4 +1,4 @@
-use crate::asset::DynAssetHandle;
+use crate::asset::{AssetCacheStorage, DynAssetHandle};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub(crate) struct AssetCacheDependency {
@@ -56,13 +56,22 @@ impl AssetCacheDependency {
         }
     }
 
-    pub(crate) fn debug_graph(&self) {
+    pub(crate) fn debug_dependencies(&self, storage: &AssetCacheStorage) {
         // normal
         tracing::info!("--- dependencies ---");
         for (handle, deps) in self.dependencies.iter() {
-            tracing::info!("{}:", handle);
+            if let Some(debug_name) = storage.get_debug_name(handle) {
+                tracing::info!("{} \"{}\":", handle, debug_name);
+            } else {
+                tracing::info!("{}:", handle);
+            }
+
             for dep in deps.iter() {
-                tracing::info!("  ->{}", dep);
+                if let Some(debug_name) = storage.get_debug_name(dep) {
+                    tracing::info!("  -> {} \"{}\"", dep, debug_name);
+                } else {
+                    tracing::info!("  -> {}", dep);
+                }
             }
         }
         tracing::info!("--- ----------- ---");

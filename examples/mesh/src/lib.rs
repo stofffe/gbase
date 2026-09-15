@@ -3,7 +3,7 @@ mod bloom;
 use gbase::{
     asset::AssetHandle,
     glam::{vec3, vec4, Vec3},
-    input::{self, mouse_button_pressed},
+    input::{self, mouse_button_pressed, KeyCode},
     profile,
     render::{self},
     time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
@@ -197,6 +197,10 @@ impl Callbacks for App {
             }
         }
 
+        if input::key_just_pressed(ctx, KeyCode::KeyD) {
+            cache.debug_assets(true, true);
+        }
+
         if mouse_button_pressed(ctx, input::MouseButton::Left) {
             self.camera.flying_controls(ctx);
         }
@@ -258,16 +262,16 @@ impl Callbacks for App {
         });
 
         // let start = std::time::Instant::now();
-        // self.bloom
-        //     .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
+        self.bloom
+            .render(ctx, cache, &self.hdr_framebuffer_1, &self.hdr_framebuffer_2);
         // if input::key_pressed(ctx, input::KeyCode::KeyB) {
         //     time::profiler(ctx).add_cpu_sample("bloom", start.elapsed().as_secs_f32());
         // }
-        // self.tonemap
-        //     .tonemap(ctx, cache, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
-
         self.tonemap
-            .tonemap(ctx, cache, &self.hdr_framebuffer_1, &self.ldr_framebuffer);
+            .tonemap(ctx, cache, &self.hdr_framebuffer_2, &self.ldr_framebuffer);
+
+        // self.tonemap
+        //     .tonemap(ctx, cache, &self.hdr_framebuffer_1, &self.ldr_framebuffer);
 
         {
             let _guard = tracing::span!(tracing::Level::TRACE, "ui update").entered();

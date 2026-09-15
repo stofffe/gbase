@@ -4,8 +4,8 @@ use crate::asset::AssetCacheReload;
 use crate::{
     arc::{self, ArcHandleRuntime},
     asset::{
-        dependency, Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry,
-        AssetCacheStorage, AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
+        Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheRegistry, AssetCacheStorage,
+        AssetHandle, AssetInserter, DynAssetHandle, InternalAssetState,
     },
     filesystem::{self, FileSystemRuntime},
     render::{self, RenderRuntime},
@@ -114,7 +114,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 let dyn_handle = self.handle.to_dyn();
 
                 // Registry
-                storage.set_asset_state(dyn_handle.clone(), InternalAssetState::Failed);
+                storage.set_asset_state(&dyn_handle, InternalAssetState::Failed);
 
                 // TODO: do we want this?
                 // Dependency
@@ -305,6 +305,10 @@ pub(crate) struct AssetCacheLoad {
     get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
     get_request_receiver: async_channel::Receiver<Box<dyn DynGetRequest>>,
 
+    // set debug name
+    set_debug_name_sender: async_channel::Sender<(DynAssetHandle, String)>,
+    set_debug_name_receiver: async_channel::Receiver<(DynAssetHandle, String)>,
+
     // load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     response_receiver: async_channel::Receiver<Box<dyn DynLoadResponse>>,
@@ -323,6 +327,7 @@ impl AssetCacheLoad {
         let (load_request_sender, load_request_receiver) = async_channel::unbounded();
         let (insert_request_sender, insert_request_receiver) = async_channel::unbounded();
         let (get_request_sender, get_request_receiver) = async_channel::unbounded();
+        let (set_debug_name_sender, set_debug_name_receiver) = async_channel::unbounded();
 
         Self {
             task_ctx,
@@ -347,6 +352,9 @@ impl AssetCacheLoad {
 
             get_request_sender,
             get_request_receiver,
+
+            set_debug_name_sender,
+            set_debug_name_receiver,
         }
     }
 
@@ -360,6 +368,7 @@ impl AssetCacheLoad {
                 self.load_request_sender.clone(),
                 self.insert_request_sender.clone(),
                 self.get_request_sender.clone(),
+                self.set_debug_name_sender.clone(),
                 self.response_sender.clone(),
             ))
         });
@@ -447,6 +456,12 @@ impl AssetCacheLoad {
         }
     }
 
+    pub(crate) fn poll_set_debug_name(&mut self, storage: &mut AssetCacheStorage) {
+        while let Ok((dyn_handle, debug_name)) = self.set_debug_name_receiver.try_recv() {
+            storage.set_debug_name(&dyn_handle, debug_name);
+        }
+    }
+
     //
     // Load
     //
@@ -481,7 +496,7 @@ impl AssetCacheLoad {
     ) -> AssetHandle<T::Asset> {
         let handle = registry.get_or_create_load_handle::<T>(storage, settings);
 
-        if let InternalAssetState::Pending = storage.get_asset_state(&handle) {
+        if let InternalAssetState::Pending = storage.get_asset_state(&handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -495,11 +510,15 @@ impl AssetCacheLoad {
         handle
     }
 
-    pub(crate) fn queue_load(&mut self, storage: &mut AssetCacheStorage, handle: DynAssetHandle) {
-        tracing::info!("queue load for {}", handle);
-        if self.queued.insert(handle.clone()) {
-            storage.set_asset_state(handle.clone(), InternalAssetState::Loading);
-            self.queue.push_back(handle);
+    pub(crate) fn queue_load(
+        &mut self,
+        storage: &mut AssetCacheStorage,
+        dyn_handle: DynAssetHandle,
+    ) {
+        tracing::info!("queue load for {}", dyn_handle);
+        if self.queued.insert(dyn_handle.clone()) {
+            storage.set_asset_state(&dyn_handle, InternalAssetState::Loading);
+            self.queue.push_back(dyn_handle);
         }
     }
 }
@@ -517,6 +536,8 @@ struct TypedAssetLoad<T: AssetLoader> {
     load_request_sender: async_channel::Sender<Box<dyn DynLoadRequest>>,
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
     get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
+
+    set_debug_name_sender: async_channel::Sender<(DynAssetHandle, String)>,
 
     // Load response
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
@@ -536,6 +557,8 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
         get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
+        set_debug_name_sender: async_channel::Sender<(DynAssetHandle, String)>,
+
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
@@ -547,6 +570,8 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
             load_request_sender,
             insert_request_sender,
             get_request_sender,
+
+            set_debug_name_sender,
 
             response_sender,
             ty: PhantomData,
@@ -564,6 +589,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
             self.load_request_sender.clone(),
             self.insert_request_sender.clone(),
             self.get_request_sender.clone(),
+            self.set_debug_name_sender.clone(),
             self.response_sender.clone(),
         );
 
@@ -665,6 +691,9 @@ struct LoadRuntime {
     insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
     get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
+    // TODO: maybe create type to send
+    set_debug_name_sender: async_channel::Sender<(DynAssetHandle, String)>,
+
     // async channel for returning result
     response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
 }
@@ -679,6 +708,8 @@ impl LoadRuntime {
         insert_request_sender: async_channel::Sender<Box<dyn DynInsertRequest>>,
         get_request_sender: async_channel::Sender<Box<dyn DynGetRequest>>,
 
+        set_debug_name_sender: async_channel::Sender<(DynAssetHandle, String)>,
+
         response_sender: async_channel::Sender<Box<dyn DynLoadResponse>>,
     ) -> Self {
         Self {
@@ -689,6 +720,8 @@ impl LoadRuntime {
             response_sender,
             load_request_sender,
             insert_request_sender,
+
+            set_debug_name_sender,
 
             get_request_sender,
         }
@@ -856,5 +889,17 @@ impl LoadContext {
         }
 
         result
+    }
+
+    pub async fn set_debug_name<T: Asset>(
+        &mut self,
+        handle: AssetHandle<T>,
+        debug_name: impl Into<String>,
+    ) {
+        self.runtime
+            .set_debug_name_sender
+            .send((handle.to_dyn(), debug_name.into()))
+            .await
+            .expect("could not send set debug name request");
     }
 }
