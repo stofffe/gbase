@@ -354,10 +354,8 @@ async fn parse_gltf_primitive(
 
     let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material()).await;
 
-    let mesh = load_ctx
-        .insert_asset_scoped::<Mesh, NamedInserter>(name.clone(), mesh)
-        .await;
-    load_ctx.set_debug_name(mesh.clone(), name.clone()).await;
+    let mesh = load_ctx.insert_asset_scoped::<Mesh, NamedInserter>(name.clone(), mesh);
+    load_ctx.set_debug_name(mesh.clone(), name.clone());
 
     GltfPrimitive {
         name,
@@ -417,10 +415,9 @@ pub async fn parse_gltf_material(
         let image_buffer = image::load_from_memory(texture_buffer)
             .expect("could not load image")
             .to_rgba8();
-        let image_handle = load_ctx
-            .insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), image_buffer)
-            .await;
-        load_ctx.set_debug_name(image_handle.clone(), name).await;
+        let image_handle =
+            load_ctx.insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), image_buffer);
+        load_ctx.set_debug_name(image_handle.clone(), name);
 
         // TODO: can you get the format from the gltf file?
         let texture_config =
@@ -488,10 +485,9 @@ pub async fn parse_gltf_material(
 
         let name = format!("single pixel rgb {:?}", color);
         let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
-        let image_handle = load_ctx
-            .insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), pixel_image)
-            .await;
-        load_ctx.set_debug_name(image_handle.clone(), name).await;
+        let image_handle =
+            load_ctx.insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), pixel_image);
+        load_ctx.set_debug_name(image_handle.clone(), name);
 
         let sampler_config = render::SamplerBuilder::new()
             .min_mag_filter(wgpu::FilterMode::Nearest, wgpu::FilterMode::Nearest);
@@ -622,25 +618,23 @@ pub async fn parse_gltf_material(
     };
 
     let name = material.name().expect("could not get material name");
-    let material_handle = load_ctx
-        .insert_asset_scoped::<Material, NamedInserter>(
-            name,
-            Material {
-                base_color_texture,
-                color_factor,
-                metallic_roughness_texture,
-                roughness_factor,
-                metallic_factor,
-                occlusion_texture,
-                occlusion_strength,
-                normal_texture,
-                normal_scale,
-                emissive_texture,
-                emissive_factor,
-            },
-        )
-        .await;
-    load_ctx.set_debug_name(material_handle.clone(), name).await;
+    let material_handle = load_ctx.insert_asset_scoped::<Material, NamedInserter>(
+        name,
+        Material {
+            base_color_texture,
+            color_factor,
+            metallic_roughness_texture,
+            roughness_factor,
+            metallic_factor,
+            occlusion_texture,
+            occlusion_strength,
+            normal_texture,
+            normal_scale,
+            emissive_texture,
+            emissive_factor,
+        },
+    );
+    load_ctx.set_debug_name(material_handle.clone(), name);
 
     if let Some(index) = material.index() {
         gltf_cache.materials.insert(index, material_handle.clone());

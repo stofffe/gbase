@@ -2,7 +2,7 @@ mod platform;
 
 pub use platform::*;
 
-use crate::{task::TaskHandleState::Taken, ConditionalSend, Context};
+use crate::{ConditionalSend, Context};
 use std::{future::Future, pin::Pin};
 
 //

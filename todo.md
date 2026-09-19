@@ -23,6 +23,7 @@ fixed examples
 
 real async runtime with async file loads (tokio?)
 run more of asset system in background thread to avoid main loop polling (send neccesary state to main thread)
+special debug feature flags
 
 rename builder with cache build_cached
 archandle instead of arc?
@@ -45,7 +46,7 @@ next up
     [] move egui from core to utils
     [] fix all asset paths in examples
     [] fix hot reload looping if fps is low
-    [] (asset + builder caching)?
+    [] (asset + builder caching) for render types?
     [] finish ui
     [] go over pub and pub(crate)
     [] have default clear color if no render commands are sent (stop pink flashing)

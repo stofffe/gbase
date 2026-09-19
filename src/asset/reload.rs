@@ -1,6 +1,7 @@
 use crate::{
     asset::{
-        AssetCacheDependency, AssetCacheLoad, AssetCacheRegistry, AssetCacheStorage, DynAssetHandle,
+        ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheLoad, AssetCacheStorage,
+        BackendToBackendMessage, DynAssetHandle,
     },
     filesystem::FileSystemRuntime,
 };
@@ -11,8 +12,8 @@ use std::{collections::HashSet, path::PathBuf};
 // Types
 //
 
-struct ReloadHandleRequest {
-    path: PathBuf,
+pub(crate) struct ReloadHandleRequest {
+    pub(crate) path: PathBuf,
 }
 
 //
@@ -28,26 +29,25 @@ pub struct AssetCacheReload {
     /// which handles depend to a certain path
     reload_handles: FxHashMap<PathBuf, HashSet<DynAssetHandle>>,
 
-    // channel for requesting reloads
-    reload_receiver: async_channel::Receiver<ReloadHandleRequest>,
-
     // keep watcher handle alive
     reload_watcher:
         notify_debouncer_mini::Debouncer<notify_debouncer_mini::notify::RecommendedWatcher>,
 }
 
 impl AssetCacheReload {
-    pub(crate) fn new(filesystem_ctx: FileSystemRuntime) -> Self {
-        let (reload_sender, reload_receiver) = async_channel::unbounded();
-
-        let reload_sender_clone = reload_sender.clone();
+    pub(crate) fn new(
+        filesystem_ctx: FileSystemRuntime,
+        backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+    ) -> Self {
         let reload_watcher = notify_debouncer_mini::new_debouncer(
             std::time::Duration::from_millis(100),
             move |res: notify_debouncer_mini::DebounceEventResult| match res {
                 Ok(events) => {
                     for event in events {
-                        reload_sender_clone
-                            .try_send(ReloadHandleRequest { path: event.path })
+                        backend_message_sender
+                            .try_send(BackendToBackendMessage::Reload(ReloadHandleRequest {
+                                path: event.path,
+                            }))
                             .expect("could not send");
                     }
                 }
@@ -60,25 +60,37 @@ impl AssetCacheReload {
             filesystem_ctx,
             currently_reloading: FxHashSet::default(),
             reload_watcher,
-
-            reload_receiver,
-
             reload_handles: FxHashMap::default(),
         }
     }
 
-    // checks if any files changed and spawns a thread which reloads the data
-    pub(crate) fn poll_reload(
+    // // checks if any files changed and spawns a thread which reloads the data
+    // pub(crate) fn poll_reload(
+    //     &mut self,
+    //     loader: &mut AssetCacheLoad,
+    //     storage: &mut AssetCacheStorage,
+    // ) {
+    //     while let Ok(reload_request) = self.reload_receiver.try_recv() {
+    //         if let Some(handles) = self.reload_handles.get(&reload_request.path) {
+    //             for handle in handles.clone() {
+    //                 tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
+    //                 self.reload(handle, loader, storage);
+    //             }
+    //         }
+    //     }
+    // }
+
+    pub(crate) fn handle_path_changed(
         &mut self,
+        path: &PathBuf,
+        registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
-        while let Ok(reload_request) = self.reload_receiver.try_recv() {
-            if let Some(handles) = self.reload_handles.get(&reload_request.path) {
-                for handle in handles.clone() {
-                    tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-                    self.reload(handle, loader, storage);
-                }
+        if let Some(handles) = self.reload_handles.get(path) {
+            for handle in handles.clone() {
+                tracing::info!("POLL RELOAD FOR {:?}", path);
+                self.reload(handle, registry, loader, storage);
             }
         }
     }
@@ -87,12 +99,13 @@ impl AssetCacheReload {
     pub(crate) fn reload(
         &mut self,
         dyn_handle: DynAssetHandle,
+        registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
         // mark as curretnly reloading
         self.set_currently_reloading(dyn_handle.clone());
-        loader.queue_load(storage, dyn_handle.clone());
+        loader.queue_load(registry, storage, dyn_handle.clone());
     }
 
     pub(crate) fn register_watches(
@@ -143,6 +156,7 @@ impl AssetCacheReload {
     pub(crate) fn reload_dependents(
         &mut self,
         dependency: &mut AssetCacheDependency,
+        registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
         handle: &DynAssetHandle,
@@ -152,7 +166,7 @@ impl AssetCacheReload {
 
             for dependent in dependents.iter() {
                 tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), loader, storage);
+                self.reload(dependent.clone(), registry, loader, storage);
             }
         }
     }

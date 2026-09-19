@@ -1,5 +1,8 @@
 use crate::{
-    asset::{Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle, DynAssetHandle},
+    asset::{
+        ArcAssetCacheRegistry, Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle,
+        BackendToFrontendMessage, DynAssetHandle,
+    },
     ConditionalSend,
 };
 use std::{fmt::Debug, hash::Hash};
@@ -28,53 +31,67 @@ impl AssetCacheInsert {
 
     pub(crate) fn insert_asset<T: Asset, I: AssetInserter + 'static>(
         &mut self,
-        registry: &mut AssetCacheRegistry,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         key: I::Key,
         asset: T,
     ) -> AssetHandle<T> {
-        let handle = registry.get_or_create_insert_handle::<T, I>(storage, key, None);
+        let handle = registry.get_insert_handle::<T, I>(key, None);
+        storage.register_asset_if_needed(handle.clone());
 
-        self.insert_asset_with_handle::<T>(storage, handle.clone(), asset);
+        self.insert_asset_with_handle::<T>(
+            backend_to_frontend_sender,
+            storage,
+            handle.clone(),
+            asset,
+        );
 
         handle
     }
 
     pub(crate) fn insert_asset_scoped<T: Asset, I: AssetInserter + 'static>(
         &mut self,
-        registry: &mut AssetCacheRegistry,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         storage: &mut AssetCacheStorage,
-        key: I::Key,
-        scope: DynAssetHandle,
+        handle: AssetHandle<T>,
+        // TODO: why unused
+        scope: Option<DynAssetHandle>,
         asset: T,
     ) -> AssetHandle<T> {
-        let handle = registry.get_or_create_insert_handle::<T, I>(storage, key, Some(scope));
+        storage.register_asset_if_needed(handle.clone());
 
-        self.insert_asset_with_handle::<T>(storage, handle.clone(), asset);
+        self.insert_asset_with_handle::<T>(
+            backend_to_frontend_sender,
+            storage,
+            handle.clone(),
+            asset,
+        );
 
         handle
     }
 
-    pub(crate) fn insert_asset_with_new_handle<T: Asset>(
-        &mut self,
-        registry: &mut AssetCacheRegistry,
-        storage: &mut AssetCacheStorage,
-        asset: T,
-    ) -> AssetHandle<T> {
-        let handle = registry.create_empty_handle::<T>(storage);
-
-        self.insert_asset_with_handle(storage, handle.clone(), asset);
-
-        handle
-    }
+    // pub(crate) fn insert_asset_with_new_handle<T: Asset>(
+    //     &mut self,
+    //     registry: &mut AssetCacheRegistry,
+    //     storage: &mut AssetCacheStorage,
+    //     asset: T,
+    // ) -> AssetHandle<T> {
+    //     let handle = registry.create_empty_handle::<T>(storage);
+    //
+    //     self.insert_asset_with_handle(storage, handle.clone(), asset);
+    //
+    //     handle
+    // }
 
     fn insert_asset_with_handle<T: Asset>(
         &mut self,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
         asset: T,
     ) {
-        storage.insert_asset(handle.clone(), asset);
+        storage.insert_asset(backend_to_frontend_sender, handle.clone(), asset);
     }
 }
 

@@ -48,14 +48,11 @@ impl AssetLoader for ShaderWithImportsLoader {
                     let mut settings_with_new_path = settings.clone();
                     settings_with_new_path.path = normalized_full_path.clone();
 
-                    let import_source_handle = load_ctx
-                        .request_load::<ShaderWithImportsLoader>(settings_with_new_path)
-                        .await;
+                    let import_source_handle =
+                        load_ctx.request_load::<ShaderWithImportsLoader>(settings_with_new_path);
 
                     let debug_name = format!("shader: {}", normalized_full_path.to_str().unwrap(),);
-                    load_ctx
-                        .set_debug_name(import_source_handle.clone(), debug_name)
-                        .await;
+                    load_ctx.set_debug_name(import_source_handle.clone(), debug_name);
 
                     let import_source = load_ctx.request_get(import_source_handle).await;
 

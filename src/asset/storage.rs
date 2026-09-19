@@ -1,5 +1,5 @@
 use crate::{
-    asset::{AssetHandle, DynAssetHandle},
+    asset::{AssetHandle, BackendToFrontendMessage, DynAssetHandle, TypedFrontendAssetLoaded},
     ConditionalSend, ConditionalSync,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -24,16 +24,9 @@ pub(crate) enum InternalAssetState {
     Ready,
 }
 
-/// Only returned when an asset is not found
-#[derive(Clone, Debug)]
-pub enum GetAssetState {
-    Loading,
-    Failed,
-}
-
 pub struct AssetMetadata {
-    state: InternalAssetState,
-    debug_name: Option<String>,
+    pub(crate) state: InternalAssetState,
+    pub(crate) debug_name: Option<String>,
 }
 
 //
@@ -108,7 +101,7 @@ impl AssetCacheStorage {
         self.metadata.get_mut(handle)
     }
 
-    pub(crate) fn register_asset<T: Asset>(&mut self, handle: AssetHandle<T>) {
+    pub(crate) fn register_asset_if_needed<T: Asset>(&mut self, handle: AssetHandle<T>) {
         // get or create the typed storage
         let dyn_storage = self
             .typed_storage
@@ -120,26 +113,27 @@ impl AssetCacheStorage {
             .expect("could not downcast typed storage cache");
 
         // insert metadata
-        self.metadata.insert(
-            handle.to_dyn(),
-            AssetMetadata {
+        self.metadata
+            .entry(handle.to_dyn())
+            .or_insert(AssetMetadata {
                 state: InternalAssetState::Pending,
                 debug_name: None,
-            },
-        );
+            });
 
         // insert into storage
-        typed_storage.cache.insert(
-            handle,
-            AssetEntry {
-                asset: None,
-                get_requests: Vec::new(),
-            },
-        );
+        typed_storage.cache.entry(handle).or_insert(AssetEntry {
+            asset: None,
+            get_requests: Vec::new(),
+        });
     }
 
-    pub(crate) fn insert_asset<T: Asset>(&mut self, handle: AssetHandle<T>, asset: T) {
-        tracing::info!("insert into storage {}", handle);
+    pub(crate) fn insert_asset<T: Asset>(
+        &mut self,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        handle: AssetHandle<T>,
+        asset: T,
+    ) {
+        tracing::warn!("insert into storage {}", handle);
 
         let Some(entry) = self.get_asset_entry_mut(&handle) else {
             panic!("could not get asset entry for {}", handle);
@@ -155,6 +149,13 @@ impl AssetCacheStorage {
                 .try_send(arc_asset.clone())
                 .expect("could not send get request response");
         }
+
+        // notify frontend
+        backend_to_frontend_sender
+            .try_send(BackendToFrontendMessage::AssetUpdate(Box::new(
+                TypedFrontendAssetLoaded::new(handle.clone(), arc_asset),
+            )))
+            .expect("could not send asset update message");
 
         // update metadata
         let Some(metadata) = self.metadata.get_mut(&handle.to_dyn()) else {
@@ -222,6 +223,7 @@ impl AssetCacheStorage {
     }
 
     pub(crate) fn set_debug_name(&mut self, handle: &DynAssetHandle, name: impl Into<String>) {
+        tracing::warn!("set debug name {}", handle);
         let Some(metadata) = self.get_asset_metadata_mut(handle) else {
             panic!("could not get asset entry for {}", handle);
         };
@@ -263,7 +265,7 @@ impl<T: Asset> TypedAssetStorage<T> {
     }
 }
 
-trait DynAssetStorage {
+trait DynAssetStorage: ConditionalSend {
     fn as_any(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
