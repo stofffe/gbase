@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     asset::{
         Asset, AssetCacheFrontendStorage, AssetHandle, AssetMetadata, DynAssetHandle,
-        DynGetRequest, DynInsertRequest, DynLoadRequest, DynLoadResponse, ReloadHandleRequest,
+        DynGetRequest, DynInsertRequest, DynLoadRequest, DynLoadResponse,
     },
     ConditionalSend,
 };
@@ -37,7 +37,8 @@ pub(crate) enum BackendToBackendMessage {
     },
     // TODO: this should maybe not live in here
     // more of a path changed message as well
-    Reload(ReloadHandleRequest),
+    #[cfg(not(target_arch = "wasm32"))]
+    Reload(crate::asset::ReloadHandleRequest),
 }
 
 pub(crate) trait DynFrontendAssetLoaded: ConditionalSend {

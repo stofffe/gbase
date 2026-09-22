@@ -2,7 +2,7 @@ use super::{Asset, AssetLoader};
 use crate::{
     asset::{
         start_asset_background_thread, ArcAssetCacheRegistry, AssetCacheFrontendStorage,
-        AssetHandle, AssetHandleContext, AssetInserter, BackendToFrontendMessage, DynAssetHandle,
+        AssetHandle, AssetHandleContext, AssetInserter, BackendToFrontendMessage,
         FrontendToBackendMessage, GetAssetState, InternalAssetState, TypedInsertRequest,
         TypedLoadRequest,
     },
@@ -24,8 +24,7 @@ pub struct AssetCache {
 
 impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
-        let asset_handle_ctx = AssetHandleContext::new(); // TODO: could probably be moved into registry now
-        let registry = ArcAssetCacheRegistry::new(asset_handle_ctx);
+        let registry = ArcAssetCacheRegistry::new();
         let (frontend_to_backend_sender, backend_to_frontend_receiver) =
             start_asset_background_thread(ctx, registry.clone());
         let storage = AssetCacheFrontendStorage::new();
@@ -37,6 +36,7 @@ impl AssetCache {
         }
     }
 
+    #[tracing::instrument(name = "frontend poll", skip_all)]
     // TODO: move these
     pub(crate) fn poll(&mut self) {
         while let Ok(backend_to_frontend_message) = self.backend_to_frontend_receiver.try_recv() {
@@ -55,6 +55,7 @@ impl AssetCache {
         // self.storage.clear_just_available();
     }
 
+    #[tracing::instrument(name = "frontend insert", skip_all)]
     /// Insert an asset and reuse any handles matching the same key
     pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
@@ -83,6 +84,7 @@ impl AssetCache {
         // )
     }
 
+    #[tracing::instrument(name = "frontend load", skip_all)]
     /// Request an asset load
     pub fn load_asset<T: AssetLoader + 'static>(
         &mut self,
@@ -108,6 +110,7 @@ impl AssetCache {
         self.get_asset(handle).cloned()
     }
 
+    #[tracing::instrument(name = "frontend get", skip_all)]
     /// Get an asset
     pub fn get_asset<T: Asset + 'static>(
         &mut self,
@@ -118,7 +121,10 @@ impl AssetCache {
         }
 
         let Some(metadata) = self.storage.get_metadata(&handle.to_dyn()) else {
-            tracing::warn!("trying to get metadata which doesnt exist, returning loading");
+            tracing::warn!(
+                "trying to get metadata which doesnt exist for {}, returning loading",
+                handle
+            );
             return Err(GetAssetState::Loading);
         };
 
@@ -167,6 +173,7 @@ impl AssetCache {
         // self.storage.clear_unused_handles(&mut self.derived);
     }
 
+    #[tracing::instrument(name = "frontend set debug", skip_all)]
     pub fn set_debug_name<T: Asset>(&mut self, handle: &AssetHandle<T>, name: impl Into<String>) {
         let name = name.into();
         tracing::info!("send set debug name request {}: {}", handle, name);

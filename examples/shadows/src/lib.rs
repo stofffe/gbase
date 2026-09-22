@@ -204,8 +204,6 @@ impl Callbacks for App {
         cache: &mut gbase::asset::AssetCache,
         screen_view: &gbase::wgpu::TextureView,
     ) -> CallbackResult {
-        let _render_span = span!(tracing::Level::INFO, "render").entered();
-
         if input::key_just_pressed(ctx, input::KeyCode::F1) {
             profile::enable_gpu_profiling(ctx, true);
         }
@@ -227,6 +225,7 @@ impl Callbacks for App {
         self.camera_buffer.write(ctx, &self.camera.uniform());
         self.lights_buffer.write(ctx, &self.lights);
 
+        let _render_span = span!(tracing::Level::INFO, "render").entered();
         // clear textures
         // TODO: clear in some other pass
         self.hdr_framebuffer_1.clear(ctx, wgpu::Color::BLACK);

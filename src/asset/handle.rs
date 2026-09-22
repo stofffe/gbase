@@ -1,4 +1,4 @@
-use crate::asset::{self, Asset};
+use crate::asset::Asset;
 use std::{
     any::{type_name, TypeId},
     fmt::{Debug, Display},
@@ -17,8 +17,7 @@ pub struct AssetHandle<T: Asset + 'static> {
 
 // TODO: remove these
 impl<T: Asset + 'static> AssetHandle<T> {
-    pub fn new(asset_handle_ctx: &asset::AssetHandleContext) -> Self {
-        let id = asset_handle_ctx.next_id();
+    pub(crate) fn new(id: u64) -> Self {
         Self {
             id: Arc::new(id),
             ty: PhantomData,

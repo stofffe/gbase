@@ -161,7 +161,6 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
-        tracing::warn!("register load {}", self.handle);
         storage.register_asset_if_needed(self.handle.clone());
         loader.register_load_if_needed::<T>(storage, registry, self.handle.clone());
     }
@@ -466,7 +465,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
     }
 
     fn load_asset_with_handle(&mut self, handle: AssetHandle<T::Asset>, settings: T::Settings) {
-        tracing::info!("spawn load {}", handle);
+        tracing::info!("spawn loader task for {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
         let new_asset_runtime = LoadRuntime::new(
@@ -494,7 +493,6 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
                             dependencies: new_load_ctx.state.dependencies,
                             watches: new_load_ctx.state.watches,
                         })))
-                        // TODO: await or try send
                         .await
                         .expect("could not send load success response");
                 }
@@ -618,15 +616,16 @@ impl LoadContext {
         &self.runtime.arc_runtime
     }
 
+    #[tracing::instrument(name = "nested insert", skip_all)]
     /// Insert an asset with a specific inserter
     ///
     /// Is local to the currently loading handle to avoid global collisions
-    pub fn insert_asset_scoped<T: Asset, I: AssetInserter + 'static>(
+    pub fn request_insert<T: Asset, I: AssetInserter + 'static>(
         &mut self,
         key: impl Into<I::Key>,
         asset: T,
     ) -> AssetHandle<T> {
-        tracing::info!("ASYNC: request nested load request for {}", self.handle());
+        tracing::info!("request load request for {}", self.handle());
         let key = key.into();
 
         let handle = self
@@ -645,23 +644,18 @@ impl LoadContext {
             )))
             .expect("could not send insert request");
 
-        tracing::info!(
-            "ASYNC: receive nested insert request for {} got {}",
-            self.handle(),
-            handle
-        );
-
         self.state.dependencies.insert(handle.to_dyn());
 
         handle
     }
 
+    #[tracing::instrument(name = "nested load", skip_all)]
     // nested
     pub fn request_load<T: AssetLoader + 'static>(
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        tracing::info!("ASYNC: request nested load request for {}", self.handle());
+        tracing::info!("request load request for {}", self.handle());
 
         // TODO: check if you need to load again
         let handle = self.runtime.registry.get_load_handle::<T>(&settings);
@@ -673,19 +667,14 @@ impl LoadContext {
             )))
             .expect("could not send load request");
 
-        tracing::info!(
-            "ASYNC: receive nested load request for {} got {}",
-            self.handle(),
-            handle
-        );
-
         self.state.dependencies.insert(handle.to_dyn());
 
         handle
     }
 
+    #[tracing::instrument(name = "nested get", skip_all)]
     pub async fn request_get<T: Asset>(&mut self, handle: AssetHandle<T>) -> Arc<T> {
-        tracing::info!("ASYNC: request nested get request for {}", self.handle());
+        tracing::info!("await start: request get request for {}", self.handle());
 
         let (sender, receiver) = async_channel::bounded(1);
 
@@ -701,11 +690,14 @@ impl LoadContext {
             panic!("could not receive get request for {}", handle);
         };
 
+        tracing::info!("await done: recieve get request for {}", self.handle());
+
         self.state.dependencies.insert(handle.to_dyn());
 
         asset
     }
 
+    #[tracing::instrument(name = "nested load bytes", skip_all)]
     pub async fn load_bytes(
         &mut self,
         path: impl AsRef<Path>,
@@ -732,6 +724,7 @@ impl LoadContext {
         result
     }
 
+    #[tracing::instrument(name = "nested load string", skip_all)]
     pub async fn load_string(
         &mut self,
         path: impl AsRef<Path>,
@@ -758,6 +751,7 @@ impl LoadContext {
         result
     }
 
+    #[tracing::instrument(name = "nested set debug", skip_all)]
     pub fn set_debug_name<T: Asset>(
         &mut self,
         handle: AssetHandle<T>,

@@ -22,12 +22,8 @@ pub struct ArcAssetCacheRegistry {
 }
 
 impl ArcAssetCacheRegistry {
-    pub(crate) fn new(asset_handle_ctx: AssetHandleContext) -> Self {
-        let registry = AssetCacheRegistry {
-            typed_load_registries: FxHashMap::default(),
-            typed_insert_registries: FxHashMap::default(),
-            asset_handle_ctx,
-        };
+    pub(crate) fn new() -> Self {
+        let registry = AssetCacheRegistry::new();
         Self {
             registry: Arc::new(Mutex::new(registry)),
         }
@@ -68,19 +64,25 @@ impl ArcAssetCacheRegistry {
 }
 
 pub struct AssetCacheRegistry {
-    asset_handle_ctx: AssetHandleContext,
+    id: u64,
 
     typed_load_registries: FxHashMap<TypeId, Box<dyn DynLoadRegistry>>,
     typed_insert_registries: FxHashMap<TypeId, Box<dyn DynInsertRegistry>>,
 }
 
 impl AssetCacheRegistry {
-    pub(crate) fn new(asset_handle_ctx: AssetHandleContext) -> Self {
+    pub(crate) fn new() -> Self {
         Self {
+            id: 0,
             typed_load_registries: FxHashMap::default(),
             typed_insert_registries: FxHashMap::default(),
-            asset_handle_ctx,
         }
+    }
+
+    fn next_id(&mut self) -> u64 {
+        let id = self.id;
+        self.id += 1;
+        id
     }
 
     fn get_or_create_typed_load_registry_mut<T: AssetLoader + 'static>(
@@ -109,16 +111,6 @@ impl AssetCacheRegistry {
             .expect("could not downcast typed storage cache")
     }
 
-    pub(crate) fn create_empty_handle<T: Asset + 'static>(
-        &self,
-        storage: &mut AssetCacheStorage,
-    ) -> AssetHandle<T> {
-        tracing::info!("create new empty handle");
-        let handle = AssetHandle::new(&self.asset_handle_ctx);
-        storage.register_asset_if_needed(handle.clone());
-        handle
-    }
-
     /// Gets an existing or creates a new handle
     ///
     /// Does not queue any conversions
@@ -135,7 +127,7 @@ impl AssetCacheRegistry {
             return typed_handle;
         }
 
-        let new_handle = AssetHandle::<T::Asset>::new(&self.asset_handle_ctx);
+        let new_handle = AssetHandle::<T::Asset>::new(self.next_id());
         tracing::info!("create load handle {}", new_handle);
 
         let typed = self.get_or_create_typed_load_registry_mut::<T>();
@@ -172,7 +164,7 @@ impl AssetCacheRegistry {
             return typed_handle;
         }
 
-        let new_handle = AssetHandle::<T>::new(&self.asset_handle_ctx);
+        let new_handle = AssetHandle::<T>::new(self.next_id());
         tracing::info!("create insert handle {}", new_handle);
 
         let typed = self.get_or_create_typed_insert_registry_mut::<T, I>();
@@ -190,30 +182,6 @@ impl AssetCacheRegistry {
         new_handle
     }
 
-    /// Checks if a handle was created using a loader
-    ///
-    /// O(n) where n is types of loaders
-    pub(crate) fn created_by_loader(&mut self, dyn_handle: &DynAssetHandle) -> bool {
-        for typed_load in self.typed_load_registries.values() {
-            if typed_load.contains_handle(dyn_handle) {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Checks if a handle was created using a inserter
-    ///
-    /// O(n) where n is types of loaders
-    pub(crate) fn created_by_inserter(&mut self, dyn_handle: &DynAssetHandle) -> bool {
-        for typed_insert in self.typed_insert_registries.values() {
-            if typed_insert.contains_handle(dyn_handle) {
-                return true;
-            }
-        }
-        false
-    }
-
     //
     // Get settings/keys
     //
@@ -228,7 +196,7 @@ impl AssetCacheRegistry {
             .cloned()
     }
 
-    pub(crate) fn get_insert_settings_from_handle<T: Asset, I: AssetInserter + 'static>(
+    pub(crate) fn get_insert_key_from_handle<T: Asset, I: AssetInserter + 'static>(
         &mut self,
         handle: &DynAssetHandle,
     ) -> Option<I::Key> {
@@ -261,16 +229,11 @@ impl<T: AssetLoader + 'static> TypedLoadRegistry<T> {
 
 trait DynLoadRegistry: ConditionalSend {
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
 impl<T: AssetLoader + 'static> DynLoadRegistry for TypedLoadRegistry<T> {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
-    }
-
-    fn contains_handle(&self, handle: &DynAssetHandle) -> bool {
-        self.handle_to_settings.contains_key(handle)
     }
 }
 
@@ -295,7 +258,6 @@ impl<T: Asset + 'static, I: AssetInserter + 'static> TypedInsertRegistry<T, I> {
 
 trait DynInsertRegistry: ConditionalSend {
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn contains_handle(&self, handle: &DynAssetHandle) -> bool;
 }
 
 impl<T: Asset + 'static, I: AssetInserter + 'static> DynInsertRegistry
@@ -303,9 +265,5 @@ impl<T: Asset + 'static, I: AssetInserter + 'static> DynInsertRegistry
 {
     fn as_any_mut(&mut self) -> &mut dyn Any {
         self as &mut dyn Any
-    }
-
-    fn contains_handle(&self, handle: &DynAssetHandle) -> bool {
-        self.handle_to_key.contains_key(handle)
     }
 }

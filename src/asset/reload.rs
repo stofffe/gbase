@@ -64,22 +64,7 @@ impl AssetCacheReload {
         }
     }
 
-    // // checks if any files changed and spawns a thread which reloads the data
-    // pub(crate) fn poll_reload(
-    //     &mut self,
-    //     loader: &mut AssetCacheLoad,
-    //     storage: &mut AssetCacheStorage,
-    // ) {
-    //     while let Ok(reload_request) = self.reload_receiver.try_recv() {
-    //         if let Some(handles) = self.reload_handles.get(&reload_request.path) {
-    //             for handle in handles.clone() {
-    //                 tracing::info!("POLL RELOAD FOR {:?}", reload_request.path);
-    //                 self.reload(handle, loader, storage);
-    //             }
-    //         }
-    //     }
-    // }
-
+    #[tracing::instrument(name = "reload", skip_all)]
     pub(crate) fn handle_path_changed(
         &mut self,
         path: &PathBuf,
@@ -87,9 +72,10 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
+        tracing::info!("Path changed {:?}", path);
         if let Some(handles) = self.reload_handles.get(path) {
+            tracing::info!("reload {:?}", handles);
             for handle in handles.clone() {
-                tracing::info!("POLL RELOAD FOR {:?}", path);
                 self.reload(handle, registry, loader, storage);
             }
         }
@@ -103,7 +89,9 @@ impl AssetCacheReload {
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
+        tracing::info!("reload {}", dyn_handle);
         // mark as curretnly reloading
+        // TODO: still needed?
         self.set_currently_reloading(dyn_handle.clone());
         loader.queue_load(registry, storage, dyn_handle.clone());
     }

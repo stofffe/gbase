@@ -24,6 +24,7 @@ pub(crate) enum InternalAssetState {
     Ready,
 }
 
+#[derive(Debug, Clone)]
 pub struct AssetMetadata {
     pub(crate) state: InternalAssetState,
     pub(crate) debug_name: Option<String>,
@@ -133,7 +134,7 @@ impl AssetCacheStorage {
         handle: AssetHandle<T>,
         asset: T,
     ) {
-        tracing::warn!("insert into storage {}", handle);
+        tracing::info!("insert into storage {}", handle);
 
         let Some(entry) = self.get_asset_entry_mut(&handle) else {
             panic!("could not get asset entry for {}", handle);
@@ -162,6 +163,16 @@ impl AssetCacheStorage {
             panic!("could not get asset entry for {}", handle);
         };
         metadata.state = InternalAssetState::Ready;
+
+        // TODO: maybe these should be merged?
+        backend_to_frontend_sender
+            .try_send(BackendToFrontendMessage::AssetMetadataUpdate(
+                crate::asset::MetadataChanged {
+                    handle: handle.to_dyn(),
+                    metadata: metadata.clone(),
+                },
+            ))
+            .expect("could not send metadata update message");
     }
 
     pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&Arc<T>> {
@@ -223,7 +234,7 @@ impl AssetCacheStorage {
     }
 
     pub(crate) fn set_debug_name(&mut self, handle: &DynAssetHandle, name: impl Into<String>) {
-        tracing::warn!("set debug name {}", handle);
+        tracing::info!("set debug name {}", handle);
         let Some(metadata) = self.get_asset_metadata_mut(handle) else {
             panic!("could not get asset entry for {}", handle);
         };

@@ -3,6 +3,7 @@ use crate::asset::{
 };
 use crate::Context;
 use futures::{select, FutureExt};
+use tracing::{Instrument, span};
 
 /// This is the owner of the asset cache state on the background thread
 pub struct AssetCacheBackend {
@@ -157,11 +158,11 @@ impl AssetCacheBackend {
     }
 }
 
-
 pub(crate) fn start_asset_background_thread(
     ctx: &Context,
     registry: ArcAssetCacheRegistry,
 ) -> (async_channel::Sender<FrontendToBackendMessage>, async_channel::Receiver<BackendToFrontendMessage>) {
+
     let (frontend_to_backend_sender, frontend_to_backend_receiver) = async_channel::unbounded();
     let (backend_to_backend_sender, backend_to_backend_receiver) = async_channel::unbounded();
     let (backend_to_frontend_sender, backend_to_frontend_receiver) = async_channel::unbounded();
@@ -239,9 +240,14 @@ pub(crate) fn start_asset_background_thread(
                                 &mut cache.storage,
                                 &mut cache.loader,
                                 &mut cache.dependency,
+                                #[cfg(not(target_arch = "wasm32"))] 
                                 &mut cache.reloader,
                             );
                         },
+                        BackendToBackendMessage::SetDebugName{handle, name} => {
+                            cache.storage.set_debug_name(&handle, name);
+                        },
+                        #[cfg(not(target_arch = "wasm32"))] 
                         BackendToBackendMessage::Reload(reload_request) => {
                             cache.reloader.handle_path_changed(
                                 &reload_request.path,
@@ -250,14 +256,12 @@ pub(crate) fn start_asset_background_thread(
                                 &mut cache.storage
                             );
                         },
-                        BackendToBackendMessage::SetDebugName{handle, name} => {
-                            cache.storage.set_debug_name(&handle, name);
-                        },
                     }
                 }
             }
         }
-    });
+    }.instrument(tracing::info_span!("backend"))
+    );
 
     (frontend_to_backend_sender, backend_to_frontend_receiver)
 }

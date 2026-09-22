@@ -354,7 +354,7 @@ async fn parse_gltf_primitive(
 
     let material = parse_gltf_material(load_ctx, buffer, gltf_cache, primitive.material()).await;
 
-    let mesh = load_ctx.insert_asset_scoped::<Mesh, NamedInserter>(name.clone(), mesh);
+    let mesh = load_ctx.request_insert::<Mesh, NamedInserter>(name.clone(), mesh);
     load_ctx.set_debug_name(mesh.clone(), name.clone());
 
     GltfPrimitive {
@@ -416,7 +416,7 @@ pub async fn parse_gltf_material(
             .expect("could not load image")
             .to_rgba8();
         let image_handle =
-            load_ctx.insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), image_buffer);
+            load_ctx.request_insert::<RgbaImage, NamedInserter>(name.clone(), image_buffer);
         load_ctx.set_debug_name(image_handle.clone(), name);
 
         // TODO: can you get the format from the gltf file?
@@ -486,7 +486,7 @@ pub async fn parse_gltf_material(
         let name = format!("single pixel rgb {:?}", color);
         let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
         let image_handle =
-            load_ctx.insert_asset_scoped::<RgbaImage, NamedInserter>(name.clone(), pixel_image);
+            load_ctx.request_insert::<RgbaImage, NamedInserter>(name.clone(), pixel_image);
         load_ctx.set_debug_name(image_handle.clone(), name);
 
         let sampler_config = render::SamplerBuilder::new()
@@ -618,7 +618,7 @@ pub async fn parse_gltf_material(
     };
 
     let name = material.name().expect("could not get material name");
-    let material_handle = load_ctx.insert_asset_scoped::<Material, NamedInserter>(
+    let material_handle = load_ctx.request_insert::<Material, NamedInserter>(
         name,
         Material {
             base_color_texture,
