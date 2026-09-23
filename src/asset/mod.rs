@@ -5,13 +5,13 @@
 mod backend;
 mod dependency;
 mod frontend;
-mod frontend_storage;
 mod handle;
 mod implementation;
 mod insert;
 mod load;
 mod messages;
 mod registry;
+mod snapshot;
 mod storage;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -20,13 +20,13 @@ mod reload;
 pub use backend::*;
 pub use dependency::*;
 pub use frontend::*;
-pub use frontend_storage::*;
 pub use handle::*;
 pub use implementation::*;
 pub use insert::*;
 pub use load::*;
 pub use messages::*;
 pub use registry::*;
+pub use snapshot::*;
 pub use storage::*;
 
 #[cfg(not(target_arch = "wasm32"))]

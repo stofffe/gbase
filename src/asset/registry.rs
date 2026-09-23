@@ -1,8 +1,5 @@
 use crate::{
-    asset::{
-        Asset, AssetCacheStorage, AssetHandle, AssetHandleContext, AssetInserter, AssetLoader,
-        DynAssetHandle, ScopedInsertAssetKey,
-    },
+    asset::{Asset, AssetHandle, AssetInserter, AssetLoader, DynAssetHandle, ScopedInsertAssetKey},
     ConditionalSend,
 };
 use rustc_hash::FxHashMap;

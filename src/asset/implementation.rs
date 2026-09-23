@@ -203,7 +203,6 @@ impl AssetLoader for ShaderGpuLoader {
             .build_err(&load_ctx.render_runtime().device, source.source.clone())
             .await;
 
-        let arc_runtime = load_ctx.arc_runtime().clone();
         match shader {
             Ok(shader) => Ok(ArcHandle::new(load_ctx.arc_runtime(), shader)),
             Err(err) => {

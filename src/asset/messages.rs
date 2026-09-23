@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use crate::{
     asset::{
-        Asset, AssetCacheFrontendStorage, AssetHandle, AssetMetadata, DynAssetHandle,
-        DynGetRequest, DynInsertRequest, DynLoadRequest, DynLoadResponse,
+        Asset, AssetCacheSnapshot, AssetHandle, AssetMetadata, DynAssetHandle, DynGetRequest,
+        DynInsertRequest, DynLoadRequest, DynLoadResponse,
     },
     ConditionalSend,
 };
@@ -42,7 +42,7 @@ pub(crate) enum BackendToBackendMessage {
 }
 
 pub(crate) trait DynFrontendAssetLoaded: ConditionalSend {
-    fn insert(self: Box<Self>, storage: &mut AssetCacheFrontendStorage);
+    fn insert(self: Box<Self>, storage: &mut AssetCacheSnapshot);
 }
 
 pub(crate) struct TypedFrontendAssetLoaded<T: Asset> {
@@ -57,7 +57,7 @@ impl<T: Asset> TypedFrontendAssetLoaded<T> {
 }
 
 impl<T: Asset> DynFrontendAssetLoaded for TypedFrontendAssetLoaded<T> {
-    fn insert(self: Box<Self>, storage: &mut AssetCacheFrontendStorage) {
+    fn insert(self: Box<Self>, storage: &mut AssetCacheSnapshot) {
         tracing::info!("SNAPSHOT insert asset {}", self.handle);
         storage.set_asset(self.handle, self.asset);
     }

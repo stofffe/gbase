@@ -143,28 +143,3 @@ impl Ord for DynAssetHandle {
         self.id.cmp(&other.id)
     }
 }
-
-//
-// Asset handle context
-//
-
-/// Thread safe context for creating new handles
-#[derive(Debug, Clone)]
-pub struct AssetHandleContext {
-    id: Arc<Mutex<u64>>,
-}
-
-impl AssetHandleContext {
-    pub fn new() -> Self {
-        Self {
-            id: Arc::new(Mutex::new(0)),
-        }
-    }
-
-    pub fn next_id(&self) -> u64 {
-        let mut id_guard = self.id.lock().expect("could not unlock asset id lock");
-        let id = *id_guard;
-        *id_guard += 1;
-        id
-    }
-}

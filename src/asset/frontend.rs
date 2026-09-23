@@ -1,10 +1,9 @@
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        start_asset_background_thread, ArcAssetCacheRegistry, AssetCacheFrontendStorage,
-        AssetHandle, AssetHandleContext, AssetInserter, BackendToFrontendMessage,
-        FrontendToBackendMessage, GetAssetState, InternalAssetState, TypedInsertRequest,
-        TypedLoadRequest,
+        start_asset_background_thread, ArcAssetCacheRegistry, AssetCacheSnapshot, AssetHandle,
+        AssetInserter, BackendToFrontendMessage, FrontendToBackendMessage, GetAssetState,
+        InternalAssetState, TypedInsertRequest, TypedLoadRequest,
     },
     Context,
 };
@@ -16,7 +15,7 @@ use crate::{
 /// Exposed to the user
 pub struct AssetCache {
     registry: ArcAssetCacheRegistry,
-    storage: AssetCacheFrontendStorage,
+    snapshot: AssetCacheSnapshot,
 
     frontend_to_backend_sender: async_channel::Sender<FrontendToBackendMessage>,
     backend_to_frontend_receiver: async_channel::Receiver<BackendToFrontendMessage>,
@@ -27,12 +26,12 @@ impl AssetCache {
         let registry = ArcAssetCacheRegistry::new();
         let (frontend_to_backend_sender, backend_to_frontend_receiver) =
             start_asset_background_thread(ctx, registry.clone());
-        let storage = AssetCacheFrontendStorage::new();
+        let snapshot = AssetCacheSnapshot::new();
         Self {
             registry,
             frontend_to_backend_sender,
             backend_to_frontend_receiver,
-            storage,
+            snapshot,
         }
     }
 
@@ -42,10 +41,10 @@ impl AssetCache {
         while let Ok(backend_to_frontend_message) = self.backend_to_frontend_receiver.try_recv() {
             match backend_to_frontend_message {
                 BackendToFrontendMessage::AssetUpdate(asset_update) => {
-                    asset_update.insert(&mut self.storage);
+                    asset_update.insert(&mut self.snapshot);
                 }
                 BackendToFrontendMessage::AssetMetadataUpdate(metadata_update) => {
-                    self.storage
+                    self.snapshot
                         .set_metadata(metadata_update.handle, metadata_update.metadata);
                 }
             }
@@ -116,11 +115,11 @@ impl AssetCache {
         &mut self,
         handle: &AssetHandle<T>,
     ) -> Result<&T, GetAssetState> {
-        if let Some(asset) = self.storage.get_asset(handle) {
+        if let Some(asset) = self.snapshot.get_asset(handle) {
             return Ok(asset);
         }
 
-        let Some(metadata) = self.storage.get_metadata(&handle.to_dyn()) else {
+        let Some(metadata) = self.snapshot.get_metadata(&handle.to_dyn()) else {
             tracing::warn!(
                 "trying to get metadata which doesnt exist for {}, returning loading",
                 handle
@@ -186,7 +185,7 @@ impl AssetCache {
     }
 
     pub fn get_debug_name<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&str> {
-        self.storage
+        self.snapshot
             .get_metadata(&handle.to_dyn())
             .and_then(|metadata| metadata.debug_name.as_deref())
     }
