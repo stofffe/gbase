@@ -18,7 +18,7 @@ impl<T: Any + ConditionalSend + ConditionalSync> Asset for T {}
 #[derive(Clone, Debug)]
 pub(crate) enum InternalAssetState {
     // TODO: give better name
-    Pending,
+    Cleared,
     Loading,
     Failed,
     Ready,
@@ -102,30 +102,50 @@ impl AssetCacheStorage {
         self.metadata.get_mut(handle)
     }
 
-    pub(crate) fn register_asset_if_needed<T: Asset>(&mut self, handle: AssetHandle<T>) {
+    // TODO: no if needed check is done
+    pub(crate) fn register_asset_if_needed<T: Asset>(
+        &mut self,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        handle: AssetHandle<T>,
+    ) {
         // get or create the typed storage
         let dyn_storage = self
             .typed_storage
             .entry(TypeId::of::<T>())
             .or_insert_with(|| Box::new(TypedAssetStorage::<T>::new()));
+
         let typed_storage = dyn_storage
             .as_any_mut()
             .downcast_mut::<TypedAssetStorage<T>>()
             .expect("could not downcast typed storage cache");
 
         // insert metadata
-        self.metadata
-            .entry(handle.to_dyn())
-            .or_insert(AssetMetadata {
-                state: InternalAssetState::Pending,
+        if !self.metadata.contains_key(&handle.to_dyn()) {
+            let metadata = AssetMetadata {
+                state: InternalAssetState::Cleared,
                 debug_name: None,
-            });
+            };
+            self.metadata
+                .entry(handle.to_dyn())
+                .or_insert(metadata.clone());
+
+            // backend_to_frontend_sender
+            //     .try_send(BackendToFrontendMessage::AssetMetadataUpdate(
+            //         super::MetadataChanged {
+            //             handle: handle.to_dyn(),
+            //             metadata,
+            //         },
+            //     ))
+            //     .expect("could not send asset update message");
+        }
 
         // insert into storage
-        typed_storage.cache.entry(handle).or_insert(AssetEntry {
-            asset: None,
-            get_requests: Vec::new(),
-        });
+        if !typed_storage.cache.contains_key(&handle) {
+            typed_storage.cache.entry(handle).or_insert(AssetEntry {
+                asset: None,
+                get_requests: Vec::new(),
+            });
+        }
     }
 
     pub(crate) fn insert_asset<T: Asset>(

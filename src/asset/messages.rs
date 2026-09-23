@@ -42,7 +42,8 @@ pub(crate) enum BackendToBackendMessage {
 }
 
 pub(crate) trait DynFrontendAssetLoaded: ConditionalSend {
-    fn insert(self: Box<Self>, storage: &mut AssetCacheSnapshot);
+    fn insert_snapshot(self: Box<Self>, storage: &mut AssetCacheSnapshot);
+    fn handle(&self) -> DynAssetHandle;
 }
 
 pub(crate) struct TypedFrontendAssetLoaded<T: Asset> {
@@ -57,9 +58,12 @@ impl<T: Asset> TypedFrontendAssetLoaded<T> {
 }
 
 impl<T: Asset> DynFrontendAssetLoaded for TypedFrontendAssetLoaded<T> {
-    fn insert(self: Box<Self>, storage: &mut AssetCacheSnapshot) {
-        tracing::info!("SNAPSHOT insert asset {}", self.handle);
+    fn insert_snapshot(self: Box<Self>, storage: &mut AssetCacheSnapshot) {
         storage.set_asset(self.handle, self.asset);
+    }
+
+    fn handle(&self) -> DynAssetHandle {
+        self.handle.to_dyn()
     }
 }
 

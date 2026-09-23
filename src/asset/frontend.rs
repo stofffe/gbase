@@ -1,9 +1,11 @@
+use rustc_hash::FxHashSet;
+
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
         start_asset_background_thread, ArcAssetCacheRegistry, AssetCacheSnapshot, AssetHandle,
-        AssetInserter, BackendToFrontendMessage, FrontendToBackendMessage, GetAssetState,
-        InternalAssetState, TypedInsertRequest, TypedLoadRequest,
+        AssetInserter, BackendToFrontendMessage, DynAssetHandle, FrontendToBackendMessage,
+        GetAssetState, InternalAssetState, TypedInsertRequest, TypedLoadRequest,
     },
     Context,
 };
@@ -16,6 +18,8 @@ use crate::{
 pub struct AssetCache {
     registry: ArcAssetCacheRegistry,
     snapshot: AssetCacheSnapshot,
+
+    just_available: FxHashSet<DynAssetHandle>,
 
     frontend_to_backend_sender: async_channel::Sender<FrontendToBackendMessage>,
     backend_to_frontend_receiver: async_channel::Receiver<BackendToFrontendMessage>,
@@ -32,18 +36,24 @@ impl AssetCache {
             frontend_to_backend_sender,
             backend_to_frontend_receiver,
             snapshot,
+            just_available: FxHashSet::default(),
         }
     }
 
     #[tracing::instrument(name = "frontend poll", skip_all)]
     // TODO: move these
     pub(crate) fn poll(&mut self) {
+        self.just_available.clear();
+
         while let Ok(backend_to_frontend_message) = self.backend_to_frontend_receiver.try_recv() {
             match backend_to_frontend_message {
                 BackendToFrontendMessage::AssetUpdate(asset_update) => {
-                    asset_update.insert(&mut self.snapshot);
+                    self.just_available.insert(asset_update.handle());
+                    tracing::info!("SNAPSHOT asset {}", asset_update.handle());
+                    asset_update.insert_snapshot(&mut self.snapshot);
                 }
                 BackendToFrontendMessage::AssetMetadataUpdate(metadata_update) => {
+                    tracing::info!("SNAPSHOT metadata {}", metadata_update.handle);
                     self.snapshot
                         .set_metadata(metadata_update.handle, metadata_update.metadata);
                 }
@@ -66,7 +76,7 @@ impl AssetCache {
         tracing::info!("send insert asset request {}", handle);
         self.frontend_to_backend_sender
             .try_send(FrontendToBackendMessage::Insert(Box::new(
-                TypedInsertRequest::<T, I>::new(handle.clone(), asset, None),
+                TypedInsertRequest::<T>::new(handle.clone(), asset, None),
             )))
             .expect("could not send insert request");
 
@@ -75,12 +85,16 @@ impl AssetCache {
 
     /// Insert an asset without checking for cached handles
     pub fn insert_asset_force<T: Asset + 'static>(&mut self, asset: T) -> AssetHandle<T> {
-        todo!()
-        // self.inserter.insert_asset_with_new_handle::<T>(
-        //     &mut self.registry,
-        //     &mut self.storage,
-        //     asset,
-        // )
+        let handle = self.registry.get_empty_handle::<T>();
+
+        tracing::info!("send insert asset request {}", handle);
+        self.frontend_to_backend_sender
+            .try_send(FrontendToBackendMessage::Insert(Box::new(
+                TypedInsertRequest::<T>::new(handle.clone(), asset, None),
+            )))
+            .expect("could not send insert request");
+
+        handle
     }
 
     #[tracing::instrument(name = "frontend load", skip_all)]
@@ -92,12 +106,22 @@ impl AssetCache {
         // TODO: register in storage as well?
         let handle = self.registry.get_load_handle::<T>(settings);
 
-        tracing::info!("send load asset request {}", handle);
-        self.frontend_to_backend_sender
-            .try_send(FrontendToBackendMessage::Load(Box::new(
-                TypedLoadRequest::<T>::new(handle.clone()),
-            )))
-            .expect("could not send load request from frontend");
+        // check snapshot if sending request is needed
+        match self
+            .snapshot
+            .get_metadata(&handle.to_dyn())
+            .map(|metadata| metadata.state.clone())
+        {
+            None | Some(InternalAssetState::Cleared) => {
+                tracing::info!("send load asset request {}", handle);
+                self.frontend_to_backend_sender
+                    .try_send(FrontendToBackendMessage::Load(Box::new(
+                        TypedLoadRequest::<T>::new(handle.clone()),
+                    )))
+                    .expect("could not send load request from frontend");
+            }
+            _ => (),
+        };
 
         handle
     }
@@ -136,23 +160,25 @@ impl AssetCache {
                 tracing::info!("error in {}", handle);
                 Err(GetAssetState::Failed)
             }
+            InternalAssetState::Cleared => {
+                tracing::info!("{} is cleared", handle);
+                Err(GetAssetState::Loading)
+            }
             InternalAssetState::Ready => {
                 panic!(
                     "could not get asset from storage but status is ready {}",
                     handle
                 );
             }
-            InternalAssetState::Pending => {
-                panic!("trying to get pending asset {}", handle);
-            }
         }
     }
 
     /// Returns wheter a handle is available for reading
     pub fn handle_available<T: Asset>(&mut self, handle: &AssetHandle<T>) -> bool {
-        todo!()
-        // let status = self.storage.get_asset_state(&handle.to_dyn());
-        // matches!(status, InternalAssetState::Ready)
+        match self.snapshot.get_metadata(&handle.to_dyn()) {
+            Some(metadata) => matches!(metadata.state, InternalAssetState::Ready),
+            None => false,
+        }
     }
 
     pub fn clear_handle<T: Asset>(&mut self, handle: &AssetHandle<T>) {
@@ -197,8 +223,7 @@ impl AssetCache {
 
     /// Return if the handle became ready this frame
     pub fn handle_just_available<T: Asset>(&self, handle: &AssetHandle<T>) -> bool {
-        todo!()
-        // self.storage.handle_just_available(&handle.to_dyn())
+        self.just_available.contains(&handle.to_dyn())
     }
 
     /// Reload an existing asset while reusing the last path and loader

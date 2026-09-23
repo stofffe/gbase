@@ -138,6 +138,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 pub(crate) trait DynLoadRequest: ConditionalSend {
     fn load_asset(
         self: Box<Self>,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
@@ -157,11 +158,12 @@ impl<T: AssetLoader> TypedLoadRequest<T> {
 impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
     fn load_asset(
         self: Box<Self>,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) {
-        storage.register_asset_if_needed(self.handle.clone());
+        storage.register_asset_if_needed(backend_to_frontend_sender, self.handle.clone());
         loader.register_load_if_needed::<T>(storage, registry, self.handle.clone());
     }
 }
@@ -185,26 +187,23 @@ pub(crate) trait DynInsertRequest: ConditionalSend {
     );
 }
 
-// TODO: I not even used? maybe its fine
-pub(crate) struct TypedInsertRequest<T: Asset, I: AssetInserter> {
+pub(crate) struct TypedInsertRequest<T: Asset> {
     handle: AssetHandle<T>,
     asset: T,
     scope: Option<DynAssetHandle>,
-    ty: PhantomData<I>,
 }
 
-impl<T: Asset, I: AssetInserter> TypedInsertRequest<T, I> {
+impl<T: Asset> TypedInsertRequest<T> {
     pub(crate) fn new(handle: AssetHandle<T>, asset: T, scope: Option<DynAssetHandle>) -> Self {
         Self {
             handle,
             asset,
             scope,
-            ty: PhantomData,
         }
     }
 }
 
-impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertRequest<T, I> {
+impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
     fn insert_asset(
         self: Box<Self>,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
@@ -216,7 +215,7 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
     ) {
         tracing::info!("insert nested asset {:?}", self.handle);
 
-        let handle = inserter.insert_asset_scoped::<T, I>(
+        let handle = inserter.insert_asset::<T>(
             backend_to_frontend_sender,
             storage,
             self.handle,
@@ -227,7 +226,8 @@ impl<T: Asset, I: AssetInserter + 'static> DynInsertRequest for TypedInsertReque
         let dyn_handle = handle.to_dyn();
         // Reload all dependents while ignoring the one making the insertion
         // TODO: maybe could just remove dependencies before starting parent load?
-        // TODO: is this scope correct still?
+
+        tracing::error!("reload dependeing ignoring {}", dyn_handle);
         loader.reload_depending(registry, dependency, storage, &dyn_handle, self.scope);
         storage.set_just_available(dyn_handle);
     }
@@ -390,7 +390,7 @@ impl AssetCacheLoad {
         registry: &ArcAssetCacheRegistry,
         handle: AssetHandle<T::Asset>,
     ) -> AssetHandle<T::Asset> {
-        if let InternalAssetState::Pending = storage.get_asset_state(&handle.to_dyn()) {
+        if let InternalAssetState::Cleared = storage.get_asset_state(&handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -636,7 +636,7 @@ impl LoadContext {
         self.runtime
             .backend_message_sender
             .try_send(BackendToBackendMessage::Insert(Box::new(
-                TypedInsertRequest::<T, I>::new(
+                TypedInsertRequest::<T>::new(
                     handle.clone(),
                     asset,
                     Some(self.state.handle.clone()),

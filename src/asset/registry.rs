@@ -1,5 +1,8 @@
 use crate::{
-    asset::{Asset, AssetHandle, AssetInserter, AssetLoader, DynAssetHandle, ScopedInsertAssetKey},
+    asset::{
+        Asset, AssetCacheStorage, AssetHandle, AssetInserter, AssetLoader, DynAssetHandle,
+        ScopedInsertAssetKey,
+    },
     ConditionalSend,
 };
 use rustc_hash::FxHashMap;
@@ -24,6 +27,13 @@ impl ArcAssetCacheRegistry {
         Self {
             registry: Arc::new(Mutex::new(registry)),
         }
+    }
+
+    pub fn get_empty_handle<T: Asset>(&self) -> AssetHandle<T> {
+        self.registry
+            .lock()
+            .expect("could not lock registry mutex")
+            .create_empty_handle()
     }
 
     // TODO: all usage of this must also register in storage?
@@ -106,6 +116,11 @@ impl AssetCacheRegistry {
             .as_any_mut()
             .downcast_mut::<TypedInsertRegistry<T, I>>()
             .expect("could not downcast typed storage cache")
+    }
+
+    pub(crate) fn create_empty_handle<T: Asset + 'static>(&mut self) -> AssetHandle<T> {
+        tracing::info!("create new empty handle");
+        AssetHandle::new(self.next_id())
     }
 
     /// Gets an existing or creates a new handle

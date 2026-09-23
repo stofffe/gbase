@@ -29,37 +29,16 @@ impl AssetCacheInsert {
         Self {}
     }
 
-    pub(crate) fn insert_asset<T: Asset, I: AssetInserter + 'static>(
-        &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
-        registry: &ArcAssetCacheRegistry,
-        storage: &mut AssetCacheStorage,
-        key: I::Key,
-        asset: T,
-    ) -> AssetHandle<T> {
-        let handle = registry.get_insert_handle::<T, I>(key, None);
-        storage.register_asset_if_needed(handle.clone());
-
-        self.insert_asset_with_handle::<T>(
-            backend_to_frontend_sender,
-            storage,
-            handle.clone(),
-            asset,
-        );
-
-        handle
-    }
-
-    pub(crate) fn insert_asset_scoped<T: Asset, I: AssetInserter + 'static>(
+    pub(crate) fn insert_asset_force<T: Asset>(
         &mut self,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
-        // TODO: why unused
+        // TODO: why unused, is it because its already used in registry?
         scope: Option<DynAssetHandle>,
         asset: T,
     ) -> AssetHandle<T> {
-        storage.register_asset_if_needed(handle.clone());
+        storage.register_asset_if_needed(backend_to_frontend_sender.clone(), handle.clone());
 
         self.insert_asset_with_handle::<T>(
             backend_to_frontend_sender,
@@ -71,18 +50,26 @@ impl AssetCacheInsert {
         handle
     }
 
-    // pub(crate) fn insert_asset_with_new_handle<T: Asset>(
-    //     &mut self,
-    //     registry: &mut AssetCacheRegistry,
-    //     storage: &mut AssetCacheStorage,
-    //     asset: T,
-    // ) -> AssetHandle<T> {
-    //     let handle = registry.create_empty_handle::<T>(storage);
-    //
-    //     self.insert_asset_with_handle(storage, handle.clone(), asset);
-    //
-    //     handle
-    // }
+    pub(crate) fn insert_asset<T: Asset>(
+        &mut self,
+        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        storage: &mut AssetCacheStorage,
+        handle: AssetHandle<T>,
+        // TODO: why unused, is it because its already used in registry?
+        scope: Option<DynAssetHandle>,
+        asset: T,
+    ) -> AssetHandle<T> {
+        storage.register_asset_if_needed(backend_to_frontend_sender.clone(), handle.clone());
+
+        self.insert_asset_with_handle::<T>(
+            backend_to_frontend_sender,
+            storage,
+            handle.clone(),
+            asset,
+        );
+
+        handle
+    }
 
     fn insert_asset_with_handle<T: Asset>(
         &mut self,

@@ -6,7 +6,9 @@ use gbase::{
     input::{self, mouse_button_pressed, KeyCode},
     profile,
     render::{self},
-    time, tracing, wgpu, winit, CallbackResult, Callbacks, Context,
+    time,
+    tracing::{self, Level},
+    wgpu, winit, CallbackResult, Callbacks, Context,
 };
 use gbase_utils::{
     Alignment, Direction, Gltf, GltfLoader, GltfLoaderSettings, MeshLod, MeshLodLoader,
@@ -97,11 +99,13 @@ impl Callbacks for App {
 
         let pbr_renderer = PbrRenderer::new(ctx, cache);
 
+        tracing::error!("load helmet");
         let helmet_mesh = cache.load_asset::<MeshLodLoader>(
             &MeshLodLoaderSettings::new("assets/models/helmet_lod.glb")
                 .with_node_name("mesh_damaged_helmet")
                 .with_required_attr(pbr_renderer.required_attributes().clone()),
         );
+        cache.set_debug_name(&helmet_mesh, "HELMET ROOT");
 
         // let plane_mesh_handle = cache.insert_asset::<Mesh, NamedInserter>(
         //     &NamedInserterKey::new("plane mesh"),
@@ -113,10 +117,12 @@ impl Callbacks for App {
         // let plane_material = cache.insert_asset_force(plane_material);
         // let plane_mesh = mesh_to_lod_mesh(cache, plane_mesh_handle, plane_material);
 
+        tracing::error!("load sponza");
         let sponza_gltf = cache.load_asset::<GltfLoader>(
             &GltfLoaderSettings::new("assets/models/sponza.glb")
                 .required_attributes(pbr_renderer.required_attributes().clone()),
         );
+        cache.set_debug_name(&sponza_gltf, "SPONZA ROOT");
 
         let camera = gbase_utils::Camera::new_with_screen_size(
             ctx,
@@ -181,7 +187,7 @@ impl Callbacks for App {
     ) -> CallbackResult {
         // if cache.handle_just_available(&self.helmet_mesh) {}
         if cache.handle_just_available(&self.sponza_gltf) {
-            tracing::info!("sponza just loaded");
+            tracing::error!("sponza just loaded");
             for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
                 // tracing::info!("node {}", node);
                 // let node = cache.get_asset(node).unwrap();
@@ -235,6 +241,7 @@ impl Callbacks for App {
 
         {
             let _timer = profile::ProfileTimer::new(ctx, "render");
+            let _guard = tracing::span!(Level::INFO, "pbr render").entered();
             self.pbr_renderer.render(
                 ctx,
                 cache,

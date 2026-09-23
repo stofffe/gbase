@@ -25,10 +25,7 @@ pub enum GetAssetState {
 
 pub(crate) struct AssetCacheSnapshot {
     typed_snapshot: FxHashMap<TypeId, Box<dyn DynAssetSnapshot>>,
-
     metadata: FxHashMap<DynAssetHandle, AssetMetadata>,
-
-    just_available: FxHashSet<DynAssetHandle>,
 }
 
 impl AssetCacheSnapshot {
@@ -36,7 +33,6 @@ impl AssetCacheSnapshot {
         Self {
             typed_snapshot: FxHashMap::default(),
             metadata: FxHashMap::default(),
-            just_available: FxHashSet::default(),
         }
     }
 

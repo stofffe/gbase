@@ -185,6 +185,7 @@ pub(crate) fn start_asset_background_thread(
                     match frontend_to_backend_message {
                         FrontendToBackendMessage::Load(load_request) => {
                             load_request.load_asset(
+                                cache.backend_to_frontend_sender.clone(),
                                 &cache.registry,
                                 &mut cache.loader, 
                                 &mut cache.storage
@@ -218,6 +219,7 @@ pub(crate) fn start_asset_background_thread(
                         },
                         BackendToBackendMessage::Load(load_request) => {
                             load_request.load_asset(
+                                cache.backend_to_frontend_sender.clone(),
                                 &cache.registry,
                                 &mut cache.loader,
                                 &mut cache.storage
