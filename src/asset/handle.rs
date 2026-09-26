@@ -3,7 +3,7 @@ use std::{
     any::{type_name, TypeId},
     fmt::{Debug, Display},
     marker::PhantomData,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 //

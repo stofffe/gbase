@@ -179,8 +179,8 @@ impl RenderContext {
         }
     }
 
-    pub(crate) fn runtime(&self) -> &RenderRuntime {
-        &self.runtime
+    pub(crate) fn runtime(&self) -> RenderRuntime {
+        self.runtime.clone()
     }
 
     /// Resizes the window to a new size

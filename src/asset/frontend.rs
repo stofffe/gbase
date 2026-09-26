@@ -1,11 +1,12 @@
 use rustc_hash::FxHashSet;
+use wgpu::naga::back;
 
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
-        start_asset_background_thread, ArcAssetCacheRegistry, AssetCacheSnapshot, AssetHandle,
-        AssetInserter, BackendToFrontendMessage, DynAssetHandle, FrontendToBackendMessage,
-        GetAssetState, InternalAssetState, TypedInsertRequest, TypedLoadRequest,
+        ArcAssetCacheRegistry, AssetCacheBackend, AssetCacheSnapshot, AssetHandle, AssetInserter,
+        BackendToFrontendMessage, DynAssetHandle, FrontendToBackendMessage, GetAssetState,
+        InternalAssetState, TypedInsertRequest, TypedLoadRequest,
     },
     Context,
 };
@@ -28,8 +29,8 @@ pub struct AssetCache {
 impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
         let registry = ArcAssetCacheRegistry::new();
-        let (frontend_to_backend_sender, backend_to_frontend_receiver) =
-            start_asset_background_thread(ctx, registry.clone());
+        let backend = AssetCacheBackend::new(ctx, registry.clone());
+        let (frontend_to_backend_sender, backend_to_frontend_receiver) = backend.run(ctx);
         let snapshot = AssetCacheSnapshot::new();
         Self {
             registry,
@@ -41,7 +42,6 @@ impl AssetCache {
     }
 
     #[tracing::instrument(name = "frontend poll", skip_all)]
-    // TODO: move these
     pub(crate) fn poll(&mut self) {
         self.just_available.clear();
 
@@ -59,9 +59,6 @@ impl AssetCache {
                 }
             }
         }
-
-        // TODO: do this here
-        // self.storage.clear_just_available();
     }
 
     #[tracing::instrument(name = "frontend insert", skip_all)]
