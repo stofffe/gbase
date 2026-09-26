@@ -4,7 +4,6 @@ use crate::asset::{
     FrontendToBackendMessage,
 };
 use crate::Context;
-use futures::{select, FutureExt};
 use tracing::{Instrument};
 
 /// This is the owner of the asset cache state on the background thread
@@ -88,8 +87,8 @@ impl AssetCacheBackend {
 
         ctx.task.runtime().spawn_task(async move {
             loop {
-                select! {
-                    frontend_to_backend_message = self.frontend_to_backend_receiver.recv().fuse() => {
+                tokio::select! {
+                    frontend_to_backend_message = self.frontend_to_backend_receiver.recv() => {
                         let frontend_to_backend_message = frontend_to_backend_message.expect("could not get frontend message");
                         match frontend_to_backend_message {
                             FrontendToBackendMessage::Load(load_request) => {
@@ -118,7 +117,7 @@ impl AssetCacheBackend {
                             }
                         }
                     },
-                    backend_to_backend_message = self.backend_to_backend_receiver.recv().fuse() => {
+                    backend_to_backend_message = self.backend_to_backend_receiver.recv() => {
                         let backend_to_backend_message = backend_to_backend_message.expect("could not get backend message");
                         match backend_to_backend_message {
                             BackendToBackendMessage::Get(get_request) => {

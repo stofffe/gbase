@@ -1,5 +1,5 @@
 use crate::task::{Task, TaskExecutorPlatformTrait};
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use std::any::Any;
 
 pub type TaskExecutorPlatform = NativeTaskExecutor;
@@ -21,11 +21,16 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
         let (shutdown_sender, shutdown_receiver) = async_channel::bounded(1);
 
         let thread_handle = std::thread::spawn(move || {
+            let runtime = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("could not create tokio runtime");
+
             // TODO: should probably use better executor
             // pollster::block_on(Self::task_runner(task_receiver));
             // if the thread crashes crash the main program as well
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                pollster::block_on(task_runner(task_receiver, shutdown_receiver));
+                runtime.block_on(task_runner(task_receiver, shutdown_receiver));
             })) {
                 Ok(_) => {}
                 Err(err) => thread_panic_sender
@@ -73,36 +78,19 @@ pub(super) async fn task_runner(
     let mut running_tasks = futures::stream::FuturesUnordered::new();
 
     loop {
-        if running_tasks.is_empty() {
-            // when no assets are loading, only await new requests
-            futures::select! {
-                task = task_receiver.recv().fuse() => {
-                    let task = task.expect("channel closed");
-                    running_tasks.push(task);
-                }
-
-                _ = shutdown_receiver.recv().fuse() => {
-                    return;
+        tokio::select! {
+            task = task_receiver.recv() => {
+                let task = task.expect("could not receive task task");
+                running_tasks.push(task);
+            }
+            result = running_tasks.next(), if !running_tasks.is_empty() => {
+                // TODO : maybe expect here
+                if result.is_none() {
+                    tracing::info!("finished loading all current load requests");
                 }
             }
-        } else {
-            // TODO: should we fuse?
-
-            // when assets are loading, await both assets and new requests
-            futures::select! {
-                task = task_receiver.recv().fuse() => {
-                    let task = task.expect("could not receive task task");
-                    running_tasks.push(task);
-                }
-                result = running_tasks.next().fuse() => {
-                    // TODO : maybe expect here
-                    if result.is_none() {
-                        tracing::info!("finished loading all current load requests");
-                    }
-                }
-                _ = shutdown_receiver.recv().fuse() => {
-                    return;
-                }
+            _ = shutdown_receiver.recv() => {
+                return;
             }
         }
     }

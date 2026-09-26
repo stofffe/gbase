@@ -1,5 +1,5 @@
 use crate::task::{Task, TaskExecutorPlatformTrait, TaskTrait};
-use futures::{FutureExt, StreamExt};
+use futures::StreamExt;
 use std::{future::Future, pin::Pin};
 
 pub type TaskExecutorPlatform = WasmTaskExecutor;
@@ -30,28 +30,16 @@ pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Task>) {
     let mut running_tasks = futures::stream::FuturesUnordered::new();
 
     loop {
-        if running_tasks.is_empty() {
-            // when no assets are loading, only await new requests
-            futures::select! {
-                task = task_receiver.recv().fuse() => {
-                    let task = task.expect("channel closed");
-                    running_tasks.push(task);
-                }
+        // when assets are loading, await both assets and new requests
+        tokio::select! {
+            task = task_receiver.recv() => {
+                let task = task.expect("could not receive task task");
+                running_tasks.push(task);
             }
-        } else {
-            // TODO: should we fuse?
-
-            // when assets are loading, await both assets and new requests
-            futures::select! {
-                task = task_receiver.recv().fuse() => {
-                    let task = task.expect("could not receive task task");
-                    running_tasks.push(task);
-                }
-                result = running_tasks.next().fuse() => {
-                    // TODO : maybe expect here
-                    if result.is_none() {
-                        tracing::info!("finished loading all current load requests");
-                    }
+            result = running_tasks.next(), if !running_tasks.is_empty() => {
+                // TODO : maybe expect here
+                if result.is_none() {
+                    tracing::info!("finished loading all current load requests");
                 }
             }
         }

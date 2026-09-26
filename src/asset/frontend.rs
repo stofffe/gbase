@@ -1,6 +1,3 @@
-use rustc_hash::FxHashSet;
-use wgpu::naga::back;
-
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
@@ -10,6 +7,7 @@ use crate::{
     },
     Context,
 };
+use rustc_hash::FxHashSet;
 
 /// Holds snapshots of the backend asset system
 ///
