@@ -77,7 +77,7 @@ pub(crate) trait DynLoadResult: ConditionalSend {
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>>;
+    ) -> Vec<BoxedAssetLoadFuture>;
 }
 
 impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
@@ -89,7 +89,7 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+    ) -> Vec<BoxedAssetLoadFuture> {
         let dyn_handle = self.handle.to_dyn();
 
         dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
@@ -126,6 +126,7 @@ pub(crate) trait AssetLoadFuture:
 {
 }
 impl<T: Future<Output = Box<dyn DynLoadResult>> + ConditionalSend> AssetLoadFuture for T {}
+pub(crate) type BoxedAssetLoadFuture = Pin<Box<dyn AssetLoadFuture>>;
 
 /// Type erased load request
 ///
@@ -138,7 +139,7 @@ pub(crate) trait DynLoadRequest: ConditionalSend {
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    ) -> Option<Pin<Box<dyn AssetLoadFuture>>>;
+    ) -> Option<BoxedAssetLoadFuture>;
 }
 
 pub(crate) struct TypedLoadRequest<T: AssetLoader> {
@@ -159,11 +160,9 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    ) -> Option<Pin<Box<dyn AssetLoadFuture>>> {
+    ) -> Option<BoxedAssetLoadFuture> {
         storage.register_asset_if_needed(backend_to_frontend_sender, self.handle.clone());
-        let (_, load_future) =
-            loader.register_load_if_needed::<T>(storage, registry, self.handle.clone());
-        load_future
+        loader.register_load_if_needed::<T>(storage, registry, self.handle.clone())
     }
 }
 
@@ -183,7 +182,7 @@ pub(crate) trait DynInsertRequest: ConditionalSend {
         inserter: &mut AssetCacheInsert,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>>;
+    ) -> Vec<BoxedAssetLoadFuture>;
 }
 
 pub(crate) struct TypedInsertRequest<T: Asset> {
@@ -211,7 +210,7 @@ impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
         inserter: &mut AssetCacheInsert,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+    ) -> Vec<BoxedAssetLoadFuture> {
         tracing::info!("insert nested asset {:?}", self.handle);
 
         let handle = inserter.insert_asset::<T>(
@@ -325,34 +324,6 @@ impl AssetCacheLoad {
         let _ = typed_load;
     }
 
-    /// Get mutable typed cache or create if it doesnt exist
-    fn get_typed_cache_mut<T: AssetLoader + 'static>(&mut self) -> Option<&mut TypedAssetLoad<T>> {
-        self.typed_load.get_mut(&TypeId::of::<T>()).map(|dyn_load| {
-            dyn_load
-                .as_any_mut()
-                .downcast_mut::<TypedAssetLoad<T>>()
-                .expect("could not downcast typed storage cache")
-        })
-    }
-
-    // // check if any files completed loading and update cache and invalidate render cache
-    // pub(crate) fn poll_loaded(
-    //     &mut self,
-    //     storage: &mut AssetCacheStorage,
-    //     dependency: &mut AssetCacheDependency,
-    //     #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    // ) {
-    //     while let Ok(response) = self.response_receiver.try_recv() {
-    //         response.handle_asset_load_response(
-    //             storage,
-    //             self,
-    //             dependency,
-    //             #[cfg(not(target_arch = "wasm32"))]
-    //             reloader,
-    //         );
-    //     }
-    // }
-
     //
     // Load
     //
@@ -365,7 +336,7 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         dyn_handle: &DynAssetHandle,
         ignore_handle: Option<DynAssetHandle>,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+    ) -> Vec<BoxedAssetLoadFuture> {
         let mut load_futures = Vec::new();
         if let Some(dependents) = dependency.dependents(dyn_handle) {
             tracing::info!("reload {:?} due to {}", dependents, dyn_handle,);
@@ -389,8 +360,8 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         registry: &ArcAssetCacheRegistry,
         handle: AssetHandle<T::Asset>,
-    ) -> (AssetHandle<T::Asset>, Option<Pin<Box<dyn AssetLoadFuture>>>) {
-        let fut = if let InternalAssetState::Cleared = storage.get_asset_state(&handle.to_dyn()) {
+    ) -> Option<BoxedAssetLoadFuture> {
+        if let InternalAssetState::Cleared = storage.get_asset_state(&handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -401,9 +372,7 @@ impl AssetCacheLoad {
             Some(self.queue_load(registry, storage, handle.to_dyn()))
         } else {
             None
-        };
-
-        (handle, fut)
+        }
     }
 
     pub(crate) fn queue_load(
@@ -411,7 +380,7 @@ impl AssetCacheLoad {
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         dyn_handle: DynAssetHandle,
-    ) -> Pin<Box<dyn AssetLoadFuture>> {
+    ) -> BoxedAssetLoadFuture {
         tracing::info!("queue load for {}", dyn_handle);
 
         let Some(type_id) = self.handle_to_loader_type.get(&dyn_handle) else {
@@ -470,7 +439,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         &mut self,
         handle: AssetHandle<T::Asset>,
         settings: T::Settings,
-    ) -> Pin<Box<dyn AssetLoadFuture>> {
+    ) -> BoxedAssetLoadFuture {
         tracing::info!("spawn loader task for {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
@@ -522,7 +491,7 @@ trait DynAssetLoad: ConditionalSend {
         &mut self,
         registry: &ArcAssetCacheRegistry,
         dyn_handle: DynAssetHandle,
-    ) -> Pin<Box<dyn AssetLoadFuture>>;
+    ) -> BoxedAssetLoadFuture;
 }
 
 impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
@@ -534,7 +503,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
         &mut self,
         registry: &ArcAssetCacheRegistry,
         dyn_handle: DynAssetHandle,
-    ) -> Pin<Box<dyn AssetLoadFuture>> {
+    ) -> BoxedAssetLoadFuture {
         let handle = dyn_handle
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");

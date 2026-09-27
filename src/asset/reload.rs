@@ -1,12 +1,12 @@
 use crate::{
     asset::{
-        ArcAssetCacheRegistry, AssetCacheLoad, AssetCacheStorage, AssetLoadFuture,
-        BackendToBackendMessage, DynAssetHandle,
+        ArcAssetCacheRegistry, AssetCacheLoad, AssetCacheStorage, BackendToBackendMessage,
+        BoxedAssetLoadFuture, DynAssetHandle,
     },
     filesystem::FileSystemRuntime,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::{collections::HashSet, path::PathBuf, pin::Pin};
+use std::{collections::HashSet, path::PathBuf};
 
 //
 // Types
@@ -67,7 +67,7 @@ impl AssetCacheReload {
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+    ) -> Vec<BoxedAssetLoadFuture> {
         tracing::info!("Path changed {:?}", path);
         let mut load_futures = Vec::new();
         if let Some(handles) = self.reload_handles.get(path) {

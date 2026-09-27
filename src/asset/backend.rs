@@ -99,6 +99,7 @@ impl AssetCacheBackend {
                             &mut self.storage, 
                             &mut self.loader, 
                             &mut self.dependency, 
+                            #[cfg(not(target_arch = "wasm32"))]
                             &mut self.reloader
                         );
                         for load_future in load_futures {

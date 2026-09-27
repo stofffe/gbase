@@ -21,22 +21,23 @@ fixed examples
     [x] time
     [x] triangle
 
-real async runtime with async file loads (tokio?)
-run more of asset system in background thread to avoid main loop polling (send neccesary state to main thread)
+show settings in debug graph
+show box error in debug graph
+use tokio for file loading instead of sync
 special debug feature flags
-
-rename builder with cache build_cached
-archandle instead of arc?
-need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
+wesl loader
+archandle instead of arc in storage?
 cycle detecion
 fix clear handle
-maybe have more states on getasset result, like depency failed?
 task and asset cancellation?
-separate typedxxx mut from registering it
+maybe have more states on getasset result, like depency failed?
+
+rename builder with cache build_cached
+need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
 unused meshes in mesh example (xcode debug)
 
 release mode perf NOTE: wait for custom features
-    dont track changes
+    dont track file changes
     dont set debug names?
 
 next up
