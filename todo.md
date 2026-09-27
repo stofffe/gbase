@@ -21,9 +21,9 @@ fixed examples
     [x] time
     [x] triangle
 
+preload all boudning boxes? does it matter much?
 show settings in debug graph
 show box error in debug graph
-use tokio for file loading instead of sync
 special debug feature flags
 wesl loader
 archandle instead of arc in storage?

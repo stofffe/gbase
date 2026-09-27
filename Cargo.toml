@@ -15,7 +15,7 @@ async-channel = "2.5.0"
 futures = "0.3.32"
 rustc-hash = "2.1.1"
 thiserror = "2.0.17"
-tokio = { version = "1.53.1", features = ["rt", "macros"] }
+tokio = { version = "1.53.1", features = ["rt", "fs", "macros"] }
 
 # tracing
 tracing = "0.1.41"

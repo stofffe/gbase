@@ -64,34 +64,42 @@ impl FileSystemPlatformTrait for NativeFileSystem {
     //
 
     async fn load_bytes(&self, path: impl AsRef<Path>) -> Result<Vec<u8>, LoadFileError> {
-        std::fs::read(&path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => LoadFileError::FileNotFound,
-            _ => LoadFileError::Other(Box::new(err)),
-        })
+        tokio::fs::read(&path)
+            .await
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => LoadFileError::FileNotFound,
+                _ => LoadFileError::Other(Box::new(err)),
+            })
     }
     async fn load_string(&self, path: impl AsRef<Path>) -> Result<String, LoadFileError> {
-        std::fs::read_to_string(&path).map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => LoadFileError::FileNotFound,
-            _ => LoadFileError::Other(Box::new(err)),
-        })
+        tokio::fs::read_to_string(&path)
+            .await
+            .map_err(|err| match err.kind() {
+                std::io::ErrorKind::NotFound => LoadFileError::FileNotFound,
+                _ => LoadFileError::Other(Box::new(err)),
+            })
     }
     async fn write_bytes(
         &self,
         path: impl AsRef<Path>,
         bytes: impl AsRef<[u8]>,
     ) -> Result<(), WriteFileError> {
-        self.create_dir_if_needed(&path);
+        self.create_dir_if_needed(&path).await;
 
-        std::fs::write(path, bytes).map_err(|err| WriteFileError::Other(Box::new(err)))
+        tokio::fs::write(path, bytes)
+            .await
+            .map_err(|err| WriteFileError::Other(Box::new(err)))
     }
     async fn write_string(
         &self,
         path: impl AsRef<Path>,
         string: impl AsRef<str>,
     ) -> Result<(), WriteFileError> {
-        self.create_dir_if_needed(&path);
+        self.create_dir_if_needed(&path).await;
 
-        std::fs::write(path, string.as_ref()).map_err(|err| WriteFileError::Other(Box::new(err)))
+        tokio::fs::write(path, string.as_ref())
+            .await
+            .map_err(|err| WriteFileError::Other(Box::new(err)))
     }
 
     //
@@ -140,9 +148,11 @@ impl FileSystemPlatformTrait for NativeFileSystem {
 }
 
 impl NativeFileSystem {
-    fn create_dir_if_needed(&self, path: impl AsRef<Path>) {
+    async fn create_dir_if_needed(&self, path: impl AsRef<Path>) {
         if let Some(parent) = path.as_ref().parent() {
-            std::fs::create_dir_all(parent).expect("could not create dir");
+            tokio::fs::create_dir_all(parent)
+                .await
+                .expect("could not create dir");
         }
     }
 }
