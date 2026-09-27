@@ -90,35 +90,26 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
     ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+        let dyn_handle = self.handle.to_dyn();
+
+        dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
+
+        #[cfg(not(target_arch = "wasm32"))]
+        reloader.register_watches(dyn_handle.clone(), &self.watches);
+
         match self.result {
             LoadAssetResult::Success(asset) => {
                 tracing::info!("load success {}", self.handle);
-                let dyn_handle = self.handle.to_dyn();
 
-                // Storage
                 storage.insert_asset(backend_to_frontend_sender, self.handle.clone(), asset);
-                storage.set_just_available(dyn_handle.clone());
 
-                // Dependency
-                dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
-
-                // Reloader
-                #[cfg(not(target_arch = "wasm32"))]
-                reloader.register_watches(dyn_handle.clone(), &self.watches);
-
-                // Loader
                 loader.reload_depending(registry, dependency, storage, &dyn_handle, None)
             }
             LoadAssetResult::Error => {
                 tracing::error!("load error");
-                let dyn_handle = self.handle.to_dyn();
 
-                // Registry
+                // TODO: should this clear the old asset?
                 storage.set_asset_state(&dyn_handle, InternalAssetState::Failed);
-
-                // TODO: do we want this?
-                // Dependency
-                dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
                 Vec::new()
             }
@@ -192,7 +183,7 @@ pub(crate) trait DynInsertRequest: ConditionalSend {
         inserter: &mut AssetCacheInsert,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-    );
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>>;
 }
 
 pub(crate) struct TypedInsertRequest<T: Asset> {
@@ -220,7 +211,7 @@ impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
         inserter: &mut AssetCacheInsert,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-    ) {
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
         tracing::info!("insert nested asset {:?}", self.handle);
 
         let handle = inserter.insert_asset::<T>(
@@ -231,13 +222,10 @@ impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
             self.asset,
         );
 
-        let dyn_handle = handle.to_dyn();
         // Reload all dependents while ignoring the one making the insertion
-        // TODO: maybe could just remove dependencies before starting parent load?
-
+        let dyn_handle = handle.to_dyn();
         tracing::error!("reload dependeing ignoring {}", dyn_handle);
-        loader.reload_depending(registry, dependency, storage, &dyn_handle, self.scope);
-        storage.set_just_available(dyn_handle);
+        loader.reload_depending(registry, dependency, storage, &dyn_handle, self.scope)
     }
 }
 

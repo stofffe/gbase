@@ -38,8 +38,6 @@ pub(crate) struct AssetCacheStorage {
     typed_storage: FxHashMap<TypeId, Box<dyn DynAssetStorage>>,
 
     metadata: FxHashMap<DynAssetHandle, AssetMetadata>,
-
-    just_available: FxHashSet<DynAssetHandle>,
 }
 
 impl AssetCacheStorage {
@@ -47,7 +45,6 @@ impl AssetCacheStorage {
         Self {
             typed_storage: FxHashMap::default(),
             metadata: FxHashMap::default(),
-            just_available: FxHashSet::default(),
         }
     }
 
@@ -148,6 +145,7 @@ impl AssetCacheStorage {
         }
     }
 
+    /// Inserts asset into storage and sets state to Ready
     pub(crate) fn insert_asset<T: Asset>(
         &mut self,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
@@ -239,18 +237,6 @@ impl AssetCacheStorage {
             panic!("could not get asset metadata for {}", dyn_handle);
         };
         metadata.state = state;
-    }
-
-    pub(crate) fn set_just_available(&mut self, handle: DynAssetHandle) {
-        self.just_available.insert(handle);
-    }
-
-    pub(crate) fn handle_just_available(&self, handle: &DynAssetHandle) -> bool {
-        self.just_available.contains(handle)
-    }
-
-    pub(crate) fn clear_just_available(&mut self) {
-        self.just_available.clear();
     }
 
     pub(crate) fn set_debug_name(&mut self, handle: &DynAssetHandle, name: impl Into<String>) {

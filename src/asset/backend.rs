@@ -121,7 +121,7 @@ impl AssetCacheBackend {
                                 }
                             }
                             FrontendToBackendMessage::Insert(insert_request) => {
-                                insert_request.insert_asset(
+                                let load_futures = insert_request.insert_asset(
                                     self.backend_to_frontend_sender.clone(),
                                     &self.registry,
                                     &mut self.storage,
@@ -129,6 +129,9 @@ impl AssetCacheBackend {
                                     &mut self.loader,
                                     &mut self.dependency,
                                 );
+                                for load_future in load_futures {
+                                    loads.push(load_future)
+                                }
                             }
                             FrontendToBackendMessage::SetDebugName { handle, name } => {
                                 self.storage.set_debug_name(&handle, name);
@@ -159,7 +162,7 @@ impl AssetCacheBackend {
                                 }
                             },
                             BackendToBackendMessage::Insert(insert_request) => {
-                                insert_request.insert_asset(
+                                let load_futures = insert_request.insert_asset(
                                     self.backend_to_frontend_sender.clone(),
                                     &self.registry,
                                     &mut self.storage,
@@ -167,6 +170,9 @@ impl AssetCacheBackend {
                                     &mut self.loader,
                                     &mut self.dependency,
                                 );
+                                for load_future in load_futures {
+                                    loads.push(load_future)
+                                }
                             },
                             BackendToBackendMessage::SetDebugName{handle, name} => {
                                 self.storage.set_debug_name(&handle, name);
