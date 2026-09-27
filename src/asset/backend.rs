@@ -1,9 +1,9 @@
 use crate::asset::{
-    ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
-    AssetCacheStorage, BackendToBackendMessage, BackendToFrontendMessage, DynAssetHandle,
-    FrontendToBackendMessage,
+    ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad, AssetCacheStorage, BackendToBackendMessage, BackendToFrontendMessage, DynAssetHandle, DynLoadResult, FrontendToBackendMessage
 };
 use crate::Context;
+use futures::StreamExt;
+use futures::stream::FuturesUnordered;
 use tracing::{Instrument};
 
 /// This is the owner of the asset cache state on the background thread
@@ -82,22 +82,43 @@ impl AssetCacheBackend {
         async_channel::Receiver<BackendToFrontendMessage>,
         ) 
     {
+        let mut loads = FuturesUnordered::new();
+
         let frontend_to_backend_sender = self.frontend_to_backend_sender.clone();
         let backend_to_frontend_receiver = self.backend_to_frontend_receiver.clone();
 
         ctx.task.runtime().spawn_task(async move {
             loop {
                 tokio::select! {
+                    // progress current loads
+                    load_result = loads.next(), if !loads.is_empty() => {
+                        let load_result: Box<dyn DynLoadResult> = load_result.expect("result from running task was none");
+                        let load_futures = load_result.handle_load_result(
+                            self.backend_to_frontend_sender.clone(), 
+                            &self.registry, 
+                            &mut self.storage, 
+                            &mut self.loader, 
+                            &mut self.dependency, 
+                            &mut self.reloader
+                        );
+                        for load_future in load_futures {
+                            loads.push(load_future)
+                        }
+                    },
+                    // receive frontend request messages
                     frontend_to_backend_message = self.frontend_to_backend_receiver.recv() => {
                         let frontend_to_backend_message = frontend_to_backend_message.expect("could not get frontend message");
                         match frontend_to_backend_message {
                             FrontendToBackendMessage::Load(load_request) => {
-                                load_request.load_asset(
+                                let load_future = load_request.load_asset_if_needed(
                                     self.backend_to_frontend_sender.clone(),
                                     &self.registry,
                                     &mut self.loader, 
                                     &mut self.storage
                                 );
+                                if let Some(load_future) = load_future {
+                                    loads.push(load_future);
+                                }
                             }
                             FrontendToBackendMessage::Insert(insert_request) => {
                                 insert_request.insert_asset(
@@ -117,6 +138,7 @@ impl AssetCacheBackend {
                             }
                         }
                     },
+                    // receive internal request messages
                     backend_to_backend_message = self.backend_to_backend_receiver.recv() => {
                         let backend_to_backend_message = backend_to_backend_message.expect("could not get backend message");
                         match backend_to_backend_message {
@@ -126,12 +148,15 @@ impl AssetCacheBackend {
                                 );
                             },
                             BackendToBackendMessage::Load(load_request) => {
-                                load_request.load_asset(
+                                let load_future = load_request.load_asset_if_needed(
                                     self.backend_to_frontend_sender.clone(),
                                     &self.registry,
                                     &mut self.loader,
                                     &mut self.storage
                                 );
+                                if let Some(load_future) = load_future {
+                                    loads.push(load_future);
+                                }
                             },
                             BackendToBackendMessage::Insert(insert_request) => {
                                 insert_request.insert_asset(
@@ -143,28 +168,21 @@ impl AssetCacheBackend {
                                     &mut self.dependency,
                                 );
                             },
-                            BackendToBackendMessage::Response(response_request) => {
-                                response_request.handle_asset_load_response(
-                                    self.backend_to_frontend_sender.clone(),
-                                    &self.registry,
-                                    &mut self.storage,
-                                    &mut self.loader,
-                                    &mut self.dependency,
-                                    #[cfg(not(target_arch = "wasm32"))] 
-                                    &mut self.reloader,
-                                );
-                            },
                             BackendToBackendMessage::SetDebugName{handle, name} => {
                                 self.storage.set_debug_name(&handle, name);
                             },
                             #[cfg(not(target_arch = "wasm32"))] 
                             BackendToBackendMessage::Reload(reload_request) => {
-                                self.reloader.handle_path_changed(
+                                let load_futures = self.reloader.handle_path_changed(
                                     &reload_request.path,
                                     &self.registry,
                                     &mut self.loader,
                                     &mut self.storage
                                 );
+                                for load_future in load_futures {
+                                    loads.push(load_future);
+
+                                }
                             },
                         }
                     }

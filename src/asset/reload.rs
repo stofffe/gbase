@@ -1,12 +1,12 @@
 use crate::{
     asset::{
-        ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheLoad, AssetCacheStorage,
+        ArcAssetCacheRegistry, AssetCacheLoad, AssetCacheStorage, AssetLoadFuture,
         BackendToBackendMessage, DynAssetHandle,
     },
     filesystem::FileSystemRuntime,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::{collections::HashSet, path::PathBuf};
+use std::{collections::HashSet, path::PathBuf, pin::Pin};
 
 //
 // Types
@@ -22,9 +22,6 @@ pub(crate) struct ReloadHandleRequest {
 
 pub struct AssetCacheReload {
     filesystem_ctx: FileSystemRuntime,
-
-    // used to track if load responses are from reload or not
-    currently_reloading: FxHashSet<DynAssetHandle>,
 
     /// which handles depend to a certain path
     reload_handles: FxHashMap<PathBuf, HashSet<DynAssetHandle>>,
@@ -58,7 +55,6 @@ impl AssetCacheReload {
 
         Self {
             filesystem_ctx,
-            currently_reloading: FxHashSet::default(),
             reload_watcher,
             reload_handles: FxHashMap::default(),
         }
@@ -71,31 +67,22 @@ impl AssetCacheReload {
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    ) {
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
         tracing::info!("Path changed {:?}", path);
+        let mut load_futures = Vec::new();
         if let Some(handles) = self.reload_handles.get(path) {
             tracing::info!("reload {:?}", handles);
             for handle in handles.clone() {
-                self.reload(handle, registry, loader, storage);
+                let load_future = loader.queue_load(registry, storage, handle);
+                load_futures.push(load_future);
             }
         }
+        load_futures
     }
 
-    /// Queue a reload just like file watcher would
-    pub(crate) fn reload(
-        &mut self,
-        dyn_handle: DynAssetHandle,
-        registry: &ArcAssetCacheRegistry,
-        loader: &mut AssetCacheLoad,
-        storage: &mut AssetCacheStorage,
-    ) {
-        tracing::info!("reload {}", dyn_handle);
-        // mark as curretnly reloading
-        // TODO: still needed?
-        self.set_currently_reloading(dyn_handle.clone());
-        loader.queue_load(registry, storage, dyn_handle.clone());
-    }
-
+    /// Registers all watched paths for a specific handle
+    ///
+    /// This handle will be reloaded when any of the watched paths change
     pub(crate) fn register_watches(
         &mut self,
         handle: DynAssetHandle,
@@ -139,31 +126,5 @@ impl AssetCacheReload {
         }
 
         handles.insert(handle);
-    }
-
-    pub(crate) fn reload_dependents(
-        &mut self,
-        dependency: &mut AssetCacheDependency,
-        registry: &ArcAssetCacheRegistry,
-        loader: &mut AssetCacheLoad,
-        storage: &mut AssetCacheStorage,
-        handle: &DynAssetHandle,
-    ) {
-        if let Some(dependents) = dependency.dependents(handle) {
-            tracing::info!("reload dependents due to {}, {:?}", handle, dependents);
-
-            for dependent in dependents.iter() {
-                tracing::info!("reload {}", dependent);
-                self.reload(dependent.clone(), registry, loader, storage);
-            }
-        }
-    }
-
-    fn set_currently_reloading(&mut self, handle: DynAssetHandle) {
-        self.currently_reloading.insert(handle);
-    }
-
-    pub(crate) fn is_currently_reloading(&mut self, handle: &DynAssetHandle) -> bool {
-        self.currently_reloading.remove(handle)
     }
 }

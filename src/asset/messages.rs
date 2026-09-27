@@ -3,7 +3,7 @@ use std::sync::Arc;
 use crate::{
     asset::{
         Asset, AssetCacheSnapshot, AssetHandle, AssetMetadata, DynAssetHandle, DynGetRequest,
-        DynInsertRequest, DynLoadRequest, DynLoadResponse,
+        DynInsertRequest, DynLoadRequest, DynLoadResult,
     },
     ConditionalSend,
 };
@@ -30,7 +30,6 @@ pub(crate) enum BackendToBackendMessage {
     Get(Box<dyn DynGetRequest>),
     Load(Box<dyn DynLoadRequest>),
     Insert(Box<dyn DynInsertRequest>),
-    Response(Box<dyn DynLoadResponse>),
     SetDebugName {
         handle: DynAssetHandle,
         name: String,

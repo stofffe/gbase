@@ -2,7 +2,7 @@ use crate::{
     asset::{Asset, AssetHandle, AssetMetadata, DynAssetHandle},
     ConditionalSend,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::{
     any::{type_name, Any, TypeId},
     sync::Arc,

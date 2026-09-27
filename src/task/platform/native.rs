@@ -83,11 +83,8 @@ pub(super) async fn task_runner(
                 let task = task.expect("could not receive task task");
                 running_tasks.push(task);
             }
-            result = running_tasks.next(), if !running_tasks.is_empty() => {
-                // TODO : maybe expect here
-                if result.is_none() {
-                    tracing::info!("finished loading all current load requests");
-                }
+            task_result = running_tasks.next(), if !running_tasks.is_empty() => {
+                task_result.expect("result from running task was none");
             }
             _ = shutdown_receiver.recv() => {
                 return;

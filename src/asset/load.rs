@@ -20,6 +20,7 @@ use std::{
     hash::Hash,
     marker::PhantomData,
     path::PathBuf,
+    pin::Pin,
 };
 use std::{error, path::Path};
 use std::{fmt::Debug, sync::Arc};
@@ -64,8 +65,11 @@ struct LoadResponse<T: AssetLoader> {
     watches: FxHashSet<PathBuf>,
 }
 
-pub(crate) trait DynLoadResponse: ConditionalSend {
-    fn handle_asset_load_response(
+pub(crate) trait DynLoadResult: ConditionalSend {
+    /// Updates asset backend with the loaded asset
+    ///
+    /// Will return new loads for depending assets
+    fn handle_load_result(
         self: Box<Self>,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
@@ -73,11 +77,11 @@ pub(crate) trait DynLoadResponse: ConditionalSend {
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    );
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>>;
 }
 
-impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
-    fn handle_asset_load_response(
+impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
+    fn handle_load_result(
         self: Box<Self>,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
@@ -85,7 +89,7 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
         #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
-    ) {
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
         match self.result {
             LoadAssetResult::Success(asset) => {
                 tracing::info!("load success {}", self.handle);
@@ -98,20 +102,12 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 // Dependency
                 dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
-                // Loader
-                loader.reload_depending(registry, dependency, storage, &dyn_handle, None);
-
                 // Reloader
                 #[cfg(not(target_arch = "wasm32"))]
-                {
-                    reloader.register_watches(dyn_handle.clone(), &self.watches);
+                reloader.register_watches(dyn_handle.clone(), &self.watches);
 
-                    // TODO: doesnt seem like this needed anymore due to reload above
-                    // keep for now in case problems occur
-                    // if reloader.is_currently_reloading(&dyn_handle) {
-                    //     reloader.reload_dependents(dependency, loader, storage, &dyn_handle);
-                    // }
-                }
+                // Loader
+                loader.reload_depending(registry, dependency, storage, &dyn_handle, None)
             }
             LoadAssetResult::Error => {
                 tracing::error!("load error");
@@ -123,6 +119,8 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
                 // TODO: do we want this?
                 // Dependency
                 dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
+
+                Vec::new()
             }
         }
     }
@@ -132,17 +130,24 @@ impl<T: AssetLoader> DynLoadResponse for LoadResponse<T> {
 // Load Request
 //
 
+pub(crate) trait AssetLoadFuture:
+    Future<Output = Box<dyn DynLoadResult>> + ConditionalSend
+{
+}
+impl<T: Future<Output = Box<dyn DynLoadResult>> + ConditionalSend> AssetLoadFuture for T {}
+
 /// Type erased load request
 ///
 /// Is sent using async channels
 pub(crate) trait DynLoadRequest: ConditionalSend {
-    fn load_asset(
+    /// Loads an asset if needed
+    fn load_asset_if_needed(
         self: Box<Self>,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    );
+    ) -> Option<Pin<Box<dyn AssetLoadFuture>>>;
 }
 
 pub(crate) struct TypedLoadRequest<T: AssetLoader> {
@@ -155,16 +160,19 @@ impl<T: AssetLoader> TypedLoadRequest<T> {
     }
 }
 
+// TODO: clean up?
 impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
-    fn load_asset(
+    fn load_asset_if_needed(
         self: Box<Self>,
         backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
-    ) {
+    ) -> Option<Pin<Box<dyn AssetLoadFuture>>> {
         storage.register_asset_if_needed(backend_to_frontend_sender, self.handle.clone());
-        loader.register_load_if_needed::<T>(storage, registry, self.handle.clone());
+        let (_, load_future) =
+            loader.register_load_if_needed::<T>(storage, registry, self.handle.clone());
+        load_future
     }
 }
 
@@ -369,7 +377,8 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         dyn_handle: &DynAssetHandle,
         ignore_handle: Option<DynAssetHandle>,
-    ) {
+    ) -> Vec<Pin<Box<dyn AssetLoadFuture>>> {
+        let mut load_futures = Vec::new();
         if let Some(dependents) = dependency.dependents(dyn_handle) {
             tracing::info!("reload {:?} due to {}", dependents, dyn_handle,);
 
@@ -379,9 +388,12 @@ impl AssetCacheLoad {
                         continue;
                     }
                 }
-                self.queue_load(registry, storage, dependent.clone());
+                let load_future = self.queue_load(registry, storage, dependent.clone());
+                load_futures.push(load_future);
             }
         }
+
+        load_futures
     }
 
     pub(crate) fn register_load_if_needed<T: AssetLoader + 'static>(
@@ -389,8 +401,8 @@ impl AssetCacheLoad {
         storage: &mut AssetCacheStorage,
         registry: &ArcAssetCacheRegistry,
         handle: AssetHandle<T::Asset>,
-    ) -> AssetHandle<T::Asset> {
-        if let InternalAssetState::Cleared = storage.get_asset_state(&handle.to_dyn()) {
+    ) -> (AssetHandle<T::Asset>, Option<Pin<Box<dyn AssetLoadFuture>>>) {
+        let fut = if let InternalAssetState::Cleared = storage.get_asset_state(&handle.to_dyn()) {
             tracing::info!("register load {}", handle);
 
             self.handle_to_loader_type
@@ -398,10 +410,12 @@ impl AssetCacheLoad {
 
             self.register_loader::<T>();
 
-            self.queue_load(registry, storage, handle.to_dyn());
-        }
+            Some(self.queue_load(registry, storage, handle.to_dyn()))
+        } else {
+            None
+        };
 
-        handle
+        (handle, fut)
     }
 
     pub(crate) fn queue_load(
@@ -409,7 +423,7 @@ impl AssetCacheLoad {
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         dyn_handle: DynAssetHandle,
-    ) {
+    ) -> Pin<Box<dyn AssetLoadFuture>> {
         tracing::info!("queue load for {}", dyn_handle);
 
         let Some(type_id) = self.handle_to_loader_type.get(&dyn_handle) else {
@@ -421,7 +435,7 @@ impl AssetCacheLoad {
         };
 
         storage.set_asset_state(&dyn_handle, InternalAssetState::Loading);
-        typed_load.load(registry, dyn_handle);
+        typed_load.load(registry, dyn_handle)
     }
 }
 
@@ -464,7 +478,11 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         }
     }
 
-    fn load_asset_with_handle(&mut self, handle: AssetHandle<T::Asset>, settings: T::Settings) {
+    fn load_asset_with_handle(
+        &mut self,
+        handle: AssetHandle<T::Asset>,
+        settings: T::Settings,
+    ) -> Pin<Box<dyn AssetLoadFuture>> {
         tracing::info!("spawn loader task for {}", handle);
 
         let new_asset_state = LoadState::new(handle.to_dyn());
@@ -479,39 +497,31 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         let mut new_load_ctx = LoadContext::new(new_asset_state, new_asset_runtime);
 
         // spawn load
-        self.task_runtime.spawn_task(Box::pin(async move {
+        Box::pin(async move {
             let data = T::load(&mut new_load_ctx, settings).await;
 
             match data {
                 Ok(asset) => {
-                    new_load_ctx
-                        .runtime
-                        .backend_message_sender
-                        .send(BackendToBackendMessage::Response(Box::new(LoadResponse {
-                            handle: handle.clone(),
-                            result: LoadAssetResult::<T>::Success(asset),
-                            dependencies: new_load_ctx.state.dependencies,
-                            watches: new_load_ctx.state.watches,
-                        })))
-                        .await
-                        .expect("could not send load success response");
+                    let response: Box<dyn DynLoadResult> = Box::new(LoadResponse {
+                        handle: handle.clone(),
+                        result: LoadAssetResult::<T>::Success(asset),
+                        dependencies: new_load_ctx.state.dependencies,
+                        watches: new_load_ctx.state.watches,
+                    });
+                    response
                 }
                 Err(err) => {
                     tracing::warn!("could not load asset {}", err);
-                    new_load_ctx
-                        .runtime
-                        .backend_message_sender
-                        .send(BackendToBackendMessage::Response(Box::new(LoadResponse {
-                            handle: handle.clone(),
-                            result: LoadAssetResult::<T>::Error,
-                            dependencies: new_load_ctx.state.dependencies,
-                            watches: new_load_ctx.state.watches,
-                        })))
-                        .await
-                        .expect("could not send load error response");
+                    let response: Box<dyn DynLoadResult> = Box::new(LoadResponse {
+                        handle: handle.clone(),
+                        result: LoadAssetResult::<T>::Error,
+                        dependencies: new_load_ctx.state.dependencies,
+                        watches: new_load_ctx.state.watches,
+                    });
+                    response
                 }
             }
-        }));
+        })
     }
 }
 //
@@ -520,7 +530,11 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
 
 trait DynAssetLoad: ConditionalSend {
     fn as_any_mut(&mut self) -> &mut dyn Any;
-    fn load(&mut self, registry: &ArcAssetCacheRegistry, dyn_handle: DynAssetHandle);
+    fn load(
+        &mut self,
+        registry: &ArcAssetCacheRegistry,
+        dyn_handle: DynAssetHandle,
+    ) -> Pin<Box<dyn AssetLoadFuture>>;
 }
 
 impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
@@ -528,7 +542,11 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
         self as &mut dyn Any
     }
 
-    fn load(&mut self, registry: &ArcAssetCacheRegistry, dyn_handle: DynAssetHandle) {
+    fn load(
+        &mut self,
+        registry: &ArcAssetCacheRegistry,
+        dyn_handle: DynAssetHandle,
+    ) -> Pin<Box<dyn AssetLoadFuture>> {
         let handle = dyn_handle
             .to_typed::<T::Asset>()
             .expect("could not convert dyn handle to typed");
@@ -538,7 +556,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
         };
 
         // TODO: just move everything in this func here
-        self.load_asset_with_handle(handle, settings);
+        self.load_asset_with_handle(handle, settings)
     }
 }
 
@@ -625,8 +643,12 @@ impl LoadContext {
         key: impl Into<I::Key>,
         asset: T,
     ) -> AssetHandle<T> {
-        tracing::info!("request load request for {}", self.handle());
         let key = key.into();
+        tracing::info!(
+            "request load request for {:?} in {}",
+            key.clone(),
+            self.handle()
+        );
 
         let handle = self
             .runtime
@@ -655,7 +677,11 @@ impl LoadContext {
         &mut self,
         settings: T::Settings,
     ) -> AssetHandle<T::Asset> {
-        tracing::info!("request load request for {}", self.handle());
+        tracing::info!(
+            "request load request for {:?} in {}",
+            settings,
+            self.handle()
+        );
 
         // TODO: check if you need to load again
         let handle = self.runtime.registry.get_load_handle::<T>(&settings);
@@ -674,7 +700,11 @@ impl LoadContext {
 
     #[tracing::instrument(name = "nested get", skip_all)]
     pub async fn request_get<T: Asset>(&mut self, handle: AssetHandle<T>) -> Arc<T> {
-        tracing::info!("await start: request get request for {}", self.handle());
+        tracing::info!(
+            "await start: request get request for {} in {}",
+            handle,
+            self.handle()
+        );
 
         let (sender, receiver) = async_channel::bounded(1);
 
@@ -690,7 +720,11 @@ impl LoadContext {
             panic!("could not receive get request for {}", handle);
         };
 
-        tracing::info!("await done: recieve get request for {}", self.handle());
+        tracing::info!(
+            "await done: recieve get request for {} in {}",
+            handle,
+            self.handle()
+        );
 
         self.state.dependencies.insert(handle.to_dyn());
 
