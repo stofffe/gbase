@@ -1,4 +1,4 @@
-use crate::task::{Task, TaskExecutorPlatformTrait};
+use crate::task::{DynTask, Task, TaskExecutorPlatformTrait};
 use futures::StreamExt;
 use std::any::Any;
 
@@ -16,7 +16,7 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
     /// Native: Spawn a new thread with an executor
     ///
     /// Wasm: Attach background loader to JS scheduler
-    fn start(task_receiver: async_channel::Receiver<Task>) -> Self {
+    fn start(task_receiver: async_channel::Receiver<Box<dyn DynTask>>) -> Self {
         let (thread_panic_sender, thread_panic_receiver) = async_channel::bounded(1);
         let (shutdown_sender, shutdown_receiver) = async_channel::bounded(1);
 
@@ -72,7 +72,7 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
 ///
 /// Should be started using `start_background_loader`
 pub(super) async fn task_runner(
-    task_receiver: async_channel::Receiver<Task>,
+    task_receiver: async_channel::Receiver<Box<dyn DynTask>>,
     shutdown_receiver: async_channel::Receiver<()>,
 ) {
     let mut running_tasks = futures::stream::FuturesUnordered::new();
@@ -81,7 +81,7 @@ pub(super) async fn task_runner(
         tokio::select! {
             task = task_receiver.recv() => {
                 let task = task.expect("could not receive task task");
-                running_tasks.push(task);
+                running_tasks.push(task.into_future());
             }
             task_result = running_tasks.next(), if !running_tasks.is_empty() => {
                 task_result.expect("result from running task was none");

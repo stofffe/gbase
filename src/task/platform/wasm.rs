@@ -1,4 +1,4 @@
-use crate::task::{Task, TaskExecutorPlatformTrait, TaskTrait};
+use crate::task::{DynTask, Task, TaskExecutorPlatformTrait};
 use futures::StreamExt;
 use std::{future::Future, pin::Pin};
 
@@ -12,7 +12,7 @@ impl TaskExecutorPlatformTrait for WasmTaskExecutor {
     /// Native: Spawn a new thread with an executor
     ///
     /// Wasm: Attach background loader to JS scheduler
-    fn start(task_receiver: async_channel::Receiver<Task>) -> Self {
+    fn start(task_receiver: async_channel::Receiver<Box<dyn DynTask>>) -> Self {
         wasm_bindgen_futures::spawn_local(task_runner(task_receiver));
 
         Self {}
@@ -26,7 +26,7 @@ impl TaskExecutorPlatformTrait for WasmTaskExecutor {
 /// Implementation of an asset loader that runs in the background
 ///
 /// Should be started using `start_background_loader`
-pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Task>) {
+pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Box<dyn DynTask>>) {
     let mut running_tasks = futures::stream::FuturesUnordered::new();
 
     loop {
@@ -34,7 +34,7 @@ pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Task>) {
         tokio::select! {
             task = task_receiver.recv() => {
                 let task = task.expect("could not receive task task");
-                running_tasks.push(task);
+                running_tasks.push(task.into_future());
             }
             result = running_tasks.next(), if !running_tasks.is_empty() => {
                 // TODO : maybe expect here

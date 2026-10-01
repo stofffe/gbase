@@ -52,29 +52,57 @@ impl<T> TaskHandle<T> {
 }
 
 //
-// Task trait
-//
-
-pub trait TaskTrait: Future + ConditionalSend {}
-
-impl<F> TaskTrait for F where F: Future + ConditionalSend + 'static {}
-
-//
 // Task
 //
 
-pub struct Task {
-    task: Pin<Box<dyn TaskTrait<Output = ()> + 'static>>,
+// Factory for pinned future returning T which is conditionally sendable
+pub trait TaskTrait: FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + ConditionalSend {}
+impl<F: FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + ConditionalSend> TaskTrait for F {}
+
+pub struct Task<T: ConditionalSend> {
+    task: Box<dyn TaskTrait>,
+    task_response_receiver: async_channel::Receiver<T>,
 }
 
-impl Future for Task {
-    type Output = ();
+impl<T: ConditionalSend + 'static> Task<T> {
+    /// Create a task from a closure that returns future
+    ///
+    /// The Task will be sent across threads so any captured variables must be Send
+    ///
+    /// Example usage:
+    /// ```rust
+    /// Task::new(move || async move {
+    ///     some_func().await;
+    /// })
+    /// ```
+    pub fn new<F, Fut>(task: F) -> Self
+    where
+        F: FnOnce() -> Fut + ConditionalSend + 'static,
+        Fut: Future<Output = T> + 'static,
+    {
+        let (task_response_sender, task_response_receiver) = async_channel::bounded(1);
+        Self {
+            task: Box::new(move || {
+                Box::pin(async move {
+                    let result = task().await;
+                    task_response_sender
+                        .send(result)
+                        .await
+                        .expect("could not send the task result");
+                })
+            }),
+            task_response_receiver,
+        }
+    }
+}
 
-    fn poll(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
-        self.get_mut().task.as_mut().poll(cx)
+pub trait DynTask: ConditionalSend {
+    fn into_future(self: Box<Self>) -> Pin<Box<dyn Future<Output = ()> + 'static>>;
+}
+
+impl<T: ConditionalSend + 'static> DynTask for Task<T> {
+    fn into_future(self: Box<Self>) -> Pin<Box<dyn Future<Output = ()> + 'static>> {
+        (self.task)()
     }
 }
 
@@ -93,13 +121,7 @@ impl TaskContext {
         Self { task_executor }
     }
 
-    pub fn spawn_task<
-        T: ConditionalSend + 'static,
-        F: TaskTrait<Output = T> + ConditionalSend + 'static,
-    >(
-        &self,
-        task: F,
-    ) -> TaskHandle<T> {
+    pub fn spawn_task<T: ConditionalSend + 'static>(&self, task: Task<T>) -> TaskHandle<T> {
         self.runtime().spawn_task(task)
     }
 
@@ -133,8 +155,8 @@ impl TaskExecutor {
         Self { executor, runtime }
     }
 
-    pub fn spawn_task(&self, task: Task) {
-        self.runtime.spawn_task(task);
+    pub fn spawn_task<T: ConditionalSend + 'static>(&self, task: Task<T>) -> TaskHandle<T> {
+        self.runtime.spawn_task(task)
     }
 
     pub fn shutdown(self) {
@@ -156,36 +178,22 @@ impl TaskExecutor {
 
 #[derive(Clone)]
 pub struct TaskExecutorRuntime {
-    task_sender: async_channel::Sender<Task>,
+    task_sender: async_channel::Sender<Box<dyn DynTask>>,
 }
 
 impl TaskExecutorRuntime {
-    pub fn new(task_sender: async_channel::Sender<Task>) -> Self {
+    pub fn new(task_sender: async_channel::Sender<Box<dyn DynTask>>) -> Self {
         Self { task_sender }
     }
 
-    pub fn spawn_task<
-        T: ConditionalSend + 'static,
-        F: TaskTrait<Output = T> + ConditionalSend + 'static,
-    >(
-        &self,
-        task: F,
-    ) -> TaskHandle<T> {
-        let (task_response_sender, task_response_receiver) = async_channel::bounded(1);
-
-        let task_with_response = async move {
-            let result = task.await;
-            // ignore result since droppoin received TaskHandle will result in a SendError
-            let _ = task_response_sender.send(result).await;
-        };
+    pub fn spawn_task<T: ConditionalSend + 'static>(&self, task: Task<T>) -> TaskHandle<T> {
+        let receiver = task.task_response_receiver.clone();
 
         self.task_sender
-            .try_send(Task {
-                task: Box::pin(task_with_response),
-            })
+            .try_send(Box::new(task))
             .expect("could not send spawn task request");
 
-        TaskHandle::new(task_response_receiver)
+        TaskHandle::new(receiver)
     }
 }
 
@@ -193,12 +201,6 @@ impl TaskExecutorRuntime {
 // Commands
 //
 
-pub fn spawn_task<
-    T: ConditionalSend + 'static,
-    F: TaskTrait<Output = T> + ConditionalSend + 'static,
->(
-    ctx: &mut Context,
-    task: F,
-) -> TaskHandle<T> {
+pub fn spawn_task<T: ConditionalSend + 'static>(ctx: &mut Context, task: Task<T>) -> TaskHandle<T> {
     ctx.task.spawn_task(task)
 }

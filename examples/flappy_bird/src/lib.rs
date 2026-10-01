@@ -10,7 +10,7 @@ use gbase::{
     input::{self, KeyCode},
     random,
     render::{self, TextureBuilder},
-    task::{self, TaskHandle},
+    task::{self, Task, TaskHandle},
     time, tracing, wgpu,
     winit::{dpi::PhysicalSize, window::Window},
     CallbackResult, Callbacks, Context,
@@ -415,29 +415,32 @@ impl Callbacks for App {
 
         let highscore = 0;
         let filesystem_runtime = filesystem::get_filesystem_runtime(ctx);
-        let highscore_request_handle = task::spawn_task(ctx, async move {
-            let file_request = filesystem_runtime
-                .load_data_string(HIGHSCORE_FILE_NAME)
-                .await;
+        let highscore_request_handle = task::spawn_task(
+            ctx,
+            Task::new(move || async move {
+                let file_request = filesystem_runtime
+                    .load_data_string(HIGHSCORE_FILE_NAME)
+                    .await;
 
-            let highscore = match file_request {
-                Ok(string) => match string.parse::<u32>() {
-                    Ok(highscore) => highscore,
-                    Err(err) => {
-                        tracing::error!(
+                let highscore = match file_request {
+                    Ok(string) => match string.parse::<u32>() {
+                        Ok(highscore) => highscore,
+                        Err(err) => {
+                            tracing::error!(
                             "could not parse highscore file content to int: {}, using 0 instead",
                             err
                         );
+                            0
+                        }
+                    },
+                    Err(err) => {
+                        tracing::warn!("could not load highscore: {}, using 0 instead", err);
                         0
                     }
-                },
-                Err(err) => {
-                    tracing::warn!("could not load highscore: {}, using 0 instead", err);
-                    0
-                }
-            };
-            highscore
-        });
+                };
+                highscore
+            }),
+        );
 
         let flap_sound =
             audio::load_audio_source(ctx, include_bytes!("../assets/sounds/boom.mp3").into());
@@ -609,12 +612,17 @@ impl Callbacks for App {
 
                         let filesystem_runtime = filesystem::get_filesystem_runtime(ctx);
                         let score = self.score.to_string();
-                        task::spawn_task(ctx, async move {
-                            filesystem_runtime
-                                .write_data_string(HIGHSCORE_FILE_NAME, &score)
-                                .await
-                                .unwrap();
-                        });
+                        task::spawn_task(
+                            ctx,
+                            Task::new(move || {
+                                Box::pin(async move {
+                                    filesystem_runtime
+                                        .write_data_string(HIGHSCORE_FILE_NAME, &score)
+                                        .await
+                                        .unwrap();
+                                })
+                            }),
+                        );
                     }
                     self.player.get_mut(&mut self.entities).renderable = Renderable::Sprite;
                 }
