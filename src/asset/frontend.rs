@@ -39,7 +39,6 @@ impl AssetCache {
         }
     }
 
-    #[tracing::instrument(name = "frontend poll", skip_all)]
     pub(crate) fn poll(&mut self) {
         self.just_available.clear();
 
@@ -59,7 +58,6 @@ impl AssetCache {
         }
     }
 
-    #[tracing::instrument(name = "frontend insert", skip_all)]
     /// Insert an asset and reuse any handles matching the same key
     pub fn insert_asset<T: Asset + 'static, I: AssetInserter + 'static>(
         &mut self,
@@ -92,7 +90,6 @@ impl AssetCache {
         handle
     }
 
-    #[tracing::instrument(name = "frontend load", skip_all)]
     /// Request an asset load
     pub fn load_asset<T: AssetLoader + 'static>(
         &mut self,
@@ -128,7 +125,6 @@ impl AssetCache {
         self.get_asset(handle).cloned()
     }
 
-    #[tracing::instrument(name = "frontend get", skip_all)]
     /// Get an asset
     pub fn get_asset<T: Asset + 'static>(
         &mut self,
@@ -193,7 +189,6 @@ impl AssetCache {
         // self.storage.clear_unused_handles(&mut self.derived);
     }
 
-    #[tracing::instrument(name = "frontend set debug", skip_all)]
     pub fn set_debug_name<T: Asset>(&mut self, handle: &AssetHandle<T>, name: impl Into<String>) {
         let name = name.into();
         tracing::info!("send set debug name request {}: {}", handle, name);

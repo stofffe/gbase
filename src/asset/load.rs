@@ -591,7 +591,6 @@ impl LoadContext {
         &self.runtime.arc_runtime
     }
 
-    #[tracing::instrument(name = "nested insert", skip_all)]
     /// Insert an asset with a specific inserter
     ///
     /// Is local to the currently loading handle to avoid global collisions
@@ -628,7 +627,6 @@ impl LoadContext {
         handle
     }
 
-    #[tracing::instrument(name = "nested load", skip_all)]
     // nested
     pub fn request_load<T: AssetLoader + 'static>(
         &mut self,
@@ -655,7 +653,6 @@ impl LoadContext {
         handle
     }
 
-    #[tracing::instrument(name = "nested get", skip_all)]
     pub async fn request_get<T: Asset>(&mut self, handle: AssetHandle<T>) -> Arc<T> {
         tracing::info!(
             "await start: request get request for {} in {}",
@@ -688,7 +685,6 @@ impl LoadContext {
         asset
     }
 
-    #[tracing::instrument(name = "nested load bytes", skip_all)]
     pub async fn load_bytes(
         &mut self,
         path: impl AsRef<Path>,
@@ -715,7 +711,6 @@ impl LoadContext {
         result
     }
 
-    #[tracing::instrument(name = "nested load string", skip_all)]
     pub async fn load_string(
         &mut self,
         path: impl AsRef<Path>,
@@ -742,7 +737,6 @@ impl LoadContext {
         result
     }
 
-    #[tracing::instrument(name = "nested set debug", skip_all)]
     pub fn set_debug_name<T: Asset>(
         &mut self,
         handle: AssetHandle<T>,

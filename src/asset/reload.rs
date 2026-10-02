@@ -60,7 +60,6 @@ impl AssetCacheReload {
         }
     }
 
-    #[tracing::instrument(name = "reload", skip_all)]
     pub(crate) fn handle_path_changed(
         &mut self,
         path: &PathBuf,

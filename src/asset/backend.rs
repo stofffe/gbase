@@ -5,7 +5,6 @@ use crate::Context;
 use crate::task::Task;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
-use tracing::{Instrument};
 
 /// This is the owner of the asset cache state on the background thread
 pub struct AssetCacheBackend {
@@ -88,7 +87,7 @@ impl AssetCacheBackend {
         let frontend_to_backend_sender = self.frontend_to_backend_sender.clone();
         let backend_to_frontend_receiver = self.backend_to_frontend_receiver.clone();
 
-        ctx.task.runtime().spawn_task(Task::new(move || async move {
+        ctx.task.runtime().spawn_task(Task::new(|| async move {
             loop {
                 tokio::select! {
                     // progress current loads

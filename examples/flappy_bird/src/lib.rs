@@ -417,7 +417,7 @@ impl Callbacks for App {
         let filesystem_runtime = filesystem::get_filesystem_runtime(ctx);
         let highscore_request_handle = task::spawn_task(
             ctx,
-            Task::new(move || async move {
+            Task::new(|| async move {
                 let file_request = filesystem_runtime
                     .load_data_string(HIGHSCORE_FILE_NAME)
                     .await;
@@ -614,7 +614,7 @@ impl Callbacks for App {
                         let score = self.score.to_string();
                         task::spawn_task(
                             ctx,
-                            Task::new(move || {
+                            Task::new(|| {
                                 Box::pin(async move {
                                     filesystem_runtime
                                         .write_data_string(HIGHSCORE_FILE_NAME, &score)

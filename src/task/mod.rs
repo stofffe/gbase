@@ -59,6 +59,7 @@ impl<T> TaskHandle<T> {
 pub trait TaskTrait: FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + ConditionalSend {}
 impl<F: FnOnce() -> Pin<Box<dyn Future<Output = ()>>> + ConditionalSend> TaskTrait for F {}
 
+// TODO: do you even need this or should logic in new into spawn function
 pub struct Task<T: ConditionalSend> {
     task: Box<dyn TaskTrait>,
     task_response_receiver: async_channel::Receiver<T>,
