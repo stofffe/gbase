@@ -8,7 +8,7 @@ mod wasm;
 #[cfg(target_arch = "wasm32")]
 pub use wasm::*;
 
-use crate::task::{DynTask, Task};
+use crate::task::DynTask;
 
 /// Trait for keeping platform implementations in check
 ///

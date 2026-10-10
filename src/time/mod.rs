@@ -2,13 +2,8 @@ mod timer;
 
 pub use timer::*;
 
-#[cfg(target_arch = "wasm32")]
-pub use instant::Instant;
-use std::collections::VecDeque;
-#[cfg(not(target_arch = "wasm32"))]
-pub use std::time::Instant;
-
 use crate::Context;
+use std::collections::VecDeque;
 
 // TODO: contextbuilder options
 pub const FIXED_UPDATE_TIME: f32 = 1.0 / 50.0;
@@ -17,8 +12,8 @@ const TOTAL_FRAME_TIME_SAMPLES: usize = 25;
 
 pub(crate) struct TimeContext {
     // dt
-    start_time: Instant,
-    last_time: Instant,
+    start_time: web_time::Instant,
+    last_time: web_time::Instant,
     delta_time: f32,
     time_since_start: f32,
 
@@ -31,7 +26,7 @@ pub(crate) struct TimeContext {
 
 impl Default for TimeContext {
     fn default() -> Self {
-        let start_time = Instant::now();
+        let start_time = web_time::Instant::now();
         Self {
             start_time,
             last_time: start_time,
@@ -48,7 +43,7 @@ impl Default for TimeContext {
 
 impl TimeContext {
     pub(crate) fn update_delta_time(&mut self) {
-        let now = Instant::now();
+        let now = web_time::Instant::now();
 
         self.delta_time = now.duration_since(self.last_time).as_secs_f32();
 
@@ -78,7 +73,7 @@ pub fn time_since_start(ctx: &Context) -> f32 {
 }
 
 /// Return the current time (in seconds)
-pub fn current_time(ctx: &Context) -> Instant {
+pub fn current_time(ctx: &Context) -> web_time::Instant {
     ctx.time.last_time
 }
 

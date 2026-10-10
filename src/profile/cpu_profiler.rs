@@ -1,11 +1,10 @@
+use crate::Context;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
 };
-
 use tracing::span::Id;
-
-use crate::{time, Context};
+use web_time::Instant;
 
 const SAMPLES: usize = 25;
 
@@ -149,7 +148,7 @@ impl Profiler {
 /// Converts tracing spans to timestamps in `Profiler`
 pub(crate) struct CpuProfilingLayer {
     profiler: ProfilerWrapper,
-    spans: std::sync::Mutex<HashMap<tracing::span::Id, time::Instant>>,
+    spans: std::sync::Mutex<HashMap<tracing::span::Id, Instant>>,
 }
 
 impl CpuProfilingLayer {
@@ -175,7 +174,7 @@ where
             .spans
             .lock()
             .expect("could not lock profiler spans mutex");
-        spans.insert(id.clone(), time::Instant::now());
+        spans.insert(id.clone(), Instant::now());
     }
 
     fn on_exit(&self, id: &Id, _ctx: tracing_subscriber::layer::Context<'_, S>) {
@@ -206,14 +205,14 @@ where
 pub struct ProfileTimer {
     profiler: ProfilerWrapper,
     label: &'static str,
-    start: time::Instant,
+    start: Instant,
 }
 
 impl ProfileTimer {
     pub fn new(ctx: &Context, label: &'static str) -> Self {
         Self {
             label,
-            start: time::Instant::now(),
+            start: Instant::now(),
             profiler: ctx.profile.cpu_profiler.clone(),
         }
     }
