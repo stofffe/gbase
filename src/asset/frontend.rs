@@ -1,13 +1,51 @@
+use std::sync::Arc;
+
 use super::{Asset, AssetLoader};
 use crate::{
     asset::{
         ArcAssetCacheRegistry, AssetCacheBackend, AssetCacheSnapshot, AssetHandle, AssetInserter,
-        BackendToFrontendMessage, DynAssetHandle, FrontendToBackendMessage, GetAssetState,
-        InternalAssetState, TypedInsertRequest, TypedLoadRequest,
+        AssetMetadata, BackendMessage, DynAssetHandle, GetAssetState, InternalAssetState,
+        TypedInsertRequest, TypedLoadRequest,
     },
-    Context,
+    ConditionalSend, Context,
 };
 use rustc_hash::FxHashSet;
+
+pub(crate) enum FrontendMessage {
+    AssetUpdate(Box<dyn DynFrontendAssetLoaded>),
+    AssetMetadataUpdate(MetadataChanged),
+}
+
+pub(crate) trait DynFrontendAssetLoaded: ConditionalSend {
+    fn insert_snapshot(self: Box<Self>, storage: &mut AssetCacheSnapshot);
+    fn handle(&self) -> DynAssetHandle;
+}
+
+pub(crate) struct TypedFrontendAssetLoaded<T: Asset> {
+    handle: AssetHandle<T>,
+    asset: Arc<T>,
+}
+
+impl<T: Asset> TypedFrontendAssetLoaded<T> {
+    pub fn new(handle: AssetHandle<T>, asset: Arc<T>) -> Self {
+        Self { handle, asset }
+    }
+}
+
+impl<T: Asset> DynFrontendAssetLoaded for TypedFrontendAssetLoaded<T> {
+    fn insert_snapshot(self: Box<Self>, storage: &mut AssetCacheSnapshot) {
+        storage.set_asset(self.handle, self.asset);
+    }
+
+    fn handle(&self) -> DynAssetHandle {
+        self.handle.to_dyn()
+    }
+}
+
+pub(crate) struct MetadataChanged {
+    pub(crate) handle: DynAssetHandle,
+    pub(crate) metadata: AssetMetadata,
+}
 
 /// Holds snapshots of the backend asset system
 ///
@@ -20,20 +58,20 @@ pub struct AssetCache {
 
     just_available: FxHashSet<DynAssetHandle>,
 
-    frontend_to_backend_sender: async_channel::Sender<FrontendToBackendMessage>,
-    backend_to_frontend_receiver: async_channel::Receiver<BackendToFrontendMessage>,
+    backend_message_sender: async_channel::Sender<BackendMessage>,
+    frontend_message_receiver: async_channel::Receiver<FrontendMessage>,
 }
 
 impl AssetCache {
     pub(crate) fn new(ctx: &Context) -> Self {
         let registry = ArcAssetCacheRegistry::new();
         let backend = AssetCacheBackend::new(ctx, registry.clone());
-        let (frontend_to_backend_sender, backend_to_frontend_receiver) = backend.run(ctx);
+        let (backend_message_sender, frontend_message_receiver) = backend.run(ctx);
         let snapshot = AssetCacheSnapshot::new();
         Self {
             registry,
-            frontend_to_backend_sender,
-            backend_to_frontend_receiver,
+            backend_message_sender,
+            frontend_message_receiver,
             snapshot,
             just_available: FxHashSet::default(),
         }
@@ -42,14 +80,14 @@ impl AssetCache {
     pub(crate) fn poll(&mut self) {
         self.just_available.clear();
 
-        while let Ok(backend_to_frontend_message) = self.backend_to_frontend_receiver.try_recv() {
-            match backend_to_frontend_message {
-                BackendToFrontendMessage::AssetUpdate(asset_update) => {
+        while let Ok(frontend_message_message) = self.frontend_message_receiver.try_recv() {
+            match frontend_message_message {
+                FrontendMessage::AssetUpdate(asset_update) => {
                     self.just_available.insert(asset_update.handle());
                     tracing::info!("SNAPSHOT asset {}", asset_update.handle());
                     asset_update.insert_snapshot(&mut self.snapshot);
                 }
-                BackendToFrontendMessage::AssetMetadataUpdate(metadata_update) => {
+                FrontendMessage::AssetMetadataUpdate(metadata_update) => {
                     tracing::info!("SNAPSHOT metadata {}", metadata_update.handle);
                     self.snapshot
                         .set_metadata(metadata_update.handle, metadata_update.metadata);
@@ -67,8 +105,8 @@ impl AssetCache {
         let handle = self.registry.get_insert_handle::<T, I>(key.into(), None);
 
         tracing::info!("send insert asset request {}", handle);
-        self.frontend_to_backend_sender
-            .try_send(FrontendToBackendMessage::Insert(Box::new(
+        self.backend_message_sender
+            .try_send(BackendMessage::Insert(Box::new(
                 TypedInsertRequest::<T>::new(handle.clone(), asset, None),
             )))
             .expect("could not send insert request");
@@ -81,8 +119,8 @@ impl AssetCache {
         let handle = self.registry.get_empty_handle::<T>();
 
         tracing::info!("send insert asset request {}", handle);
-        self.frontend_to_backend_sender
-            .try_send(FrontendToBackendMessage::Insert(Box::new(
+        self.backend_message_sender
+            .try_send(BackendMessage::Insert(Box::new(
                 TypedInsertRequest::<T>::new(handle.clone(), asset, None),
             )))
             .expect("could not send insert request");
@@ -106,10 +144,10 @@ impl AssetCache {
         {
             None | Some(InternalAssetState::Cleared) => {
                 tracing::info!("send load asset request {}", handle);
-                self.frontend_to_backend_sender
-                    .try_send(FrontendToBackendMessage::Load(Box::new(
-                        TypedLoadRequest::<T>::new(handle.clone()),
-                    )))
+                self.backend_message_sender
+                    .try_send(BackendMessage::Load(Box::new(TypedLoadRequest::<T>::new(
+                        handle.clone(),
+                    ))))
                     .expect("could not send load request from frontend");
             }
             _ => (),
@@ -192,8 +230,8 @@ impl AssetCache {
     pub fn set_debug_name<T: Asset>(&mut self, handle: &AssetHandle<T>, name: impl Into<String>) {
         let name = name.into();
         tracing::info!("send set debug name request {}: {}", handle, name);
-        self.frontend_to_backend_sender
-            .try_send(FrontendToBackendMessage::SetDebugName {
+        self.backend_message_sender
+            .try_send(BackendMessage::SetDebugName {
                 handle: handle.to_dyn(),
                 name,
             })
@@ -225,8 +263,8 @@ impl AssetCache {
     }
 
     pub fn debug_assets(&self, show_dependencies: bool, show_recursive_dependencies: bool) {
-        self.frontend_to_backend_sender
-            .try_send(FrontendToBackendMessage::DebugAssets {
+        self.backend_message_sender
+            .try_send(BackendMessage::DebugAssets {
                 show_dependencies,
                 show_recursive_dependencies,
             })

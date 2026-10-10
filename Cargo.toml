@@ -11,10 +11,14 @@ bytemuck = { version = "1.14.0", features = ["derive"] }
 encase = { version = "0.6.1", features = ["glam"] }
 rodio = { version = "0.17.3", features = ["wasm-bindgen"] }
 image = "0.25.6"
-async-channel = "2.5.0"
-futures = "0.3.32"
 rustc-hash = "2.1.1"
 thiserror = "2.0.17"
+
+# async
+async-channel = "2.5.0"
+async-executor = "1.14.0"
+futures-lite = "2.6.1"
+futures-concurrency = "7.7.1"
 
 # tracing
 tracing = "0.1.41"
@@ -32,10 +36,9 @@ egui_extras = { version = "0.32.1", optional = true, features = ["image"] }
 
 # non wasm
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-pollster = { version = "0.3.0", features = ["macro"] }
 notify-debouncer-mini = "0.6.0"
 dlopen = { version = "0.1.8", features = [], optional = true }
-tokio = { version = "1.53.1", features = ["rt", "fs", "macros"] }
+async-fs = "2.2.0"
 
 # wasm
 [target.'cfg(target_arch = "wasm32")'.dependencies]
@@ -52,7 +55,6 @@ web-sys = { version = "0.3.64", features = [
     "GpuCanvasContext",
     "Storage",
 ] }
-tokio = { version = "1.53.1", features = ["macros"] }
 
 [features]
 default = []

@@ -1,5 +1,5 @@
 use crate::task::{DynTask, Task, TaskExecutorPlatformTrait};
-use futures::StreamExt;
+use futures_concurrency::future::Race;
 use std::{future::Future, pin::Pin};
 
 pub type TaskExecutorPlatform = WasmTaskExecutor;
@@ -27,21 +27,21 @@ impl TaskExecutorPlatformTrait for WasmTaskExecutor {
 ///
 /// Should be started using `start_background_loader`
 pub(super) async fn task_runner(task_receiver: async_channel::Receiver<Box<dyn DynTask>>) {
-    let mut running_tasks = futures::stream::FuturesUnordered::new();
+    let task_executor = async_executor::LocalExecutor::new();
 
     loop {
-        // when assets are loading, await both assets and new requests
-        tokio::select! {
-            task = task_receiver.recv() => {
-                let task = task.expect("could not receive task task");
-                running_tasks.push(task.into_future());
-            }
-            result = running_tasks.next(), if !running_tasks.is_empty() => {
-                // TODO : maybe expect here
-                if result.is_none() {
-                    tracing::info!("finished loading all current load requests");
-                }
-            }
-        }
+        let selected_futures = (
+            async {
+                let task = task_receiver
+                    .recv()
+                    .await
+                    .expect("could not receive from task channel");
+                task_executor.spawn(task.into_future()).detach();
+            },
+            async {
+                task_executor.tick().await;
+            },
+        );
+        selected_futures.race().await;
     }
 }

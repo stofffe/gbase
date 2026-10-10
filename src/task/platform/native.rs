@@ -1,5 +1,5 @@
-use crate::task::{DynTask, Task, TaskExecutorPlatformTrait};
-use futures::StreamExt;
+use crate::task::{DynTask, TaskExecutorPlatformTrait};
+use futures_concurrency::future::Race;
 use std::any::Any;
 
 pub type TaskExecutorPlatform = NativeTaskExecutor;
@@ -21,16 +21,9 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
         let (shutdown_sender, shutdown_receiver) = async_channel::bounded(1);
 
         let thread_handle = std::thread::spawn(move || {
-            let runtime = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("could not create tokio runtime");
-
-            // TODO: should probably use better executor
-            // pollster::block_on(Self::task_runner(task_receiver));
             // if the thread crashes crash the main program as well
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                runtime.block_on(task_runner(task_receiver, shutdown_receiver));
+                futures_lite::future::block_on(task_runner(task_receiver, shutdown_receiver));
             })) {
                 Ok(_) => {}
                 Err(err) => thread_panic_sender
@@ -75,20 +68,35 @@ pub(super) async fn task_runner(
     task_receiver: async_channel::Receiver<Box<dyn DynTask>>,
     shutdown_receiver: async_channel::Receiver<()>,
 ) {
-    let mut running_tasks = futures::stream::FuturesUnordered::new();
+    let task_executor = async_executor::LocalExecutor::new();
 
     loop {
-        tokio::select! {
-            task = task_receiver.recv() => {
-                let task = task.expect("could not receive task task");
-                running_tasks.push(task.into_future());
-            }
-            task_result = running_tasks.next(), if !running_tasks.is_empty() => {
-                task_result.expect("result from running task was none");
-            }
-            _ = shutdown_receiver.recv() => {
-                return;
-            }
+        let selected_futures = (
+            async {
+                task_executor.tick().await;
+                false
+            },
+            async {
+                let task = task_receiver
+                    .recv()
+                    .await
+                    .expect("could not receive from task channel");
+                task_executor.spawn(task.into_future()).detach();
+                false
+            },
+            async {
+                shutdown_receiver
+                    .recv()
+                    .await
+                    .expect("could not receive from shutdown channel");
+                true
+            },
+        );
+
+        let should_shutdown = selected_futures.race().await;
+
+        if should_shutdown {
+            break;
         }
     }
 }

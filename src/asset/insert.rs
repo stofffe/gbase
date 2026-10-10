@@ -1,8 +1,5 @@
 use crate::{
-    asset::{
-        ArcAssetCacheRegistry, Asset, AssetCacheRegistry, AssetCacheStorage, AssetHandle,
-        BackendToFrontendMessage, DynAssetHandle,
-    },
+    asset::{Asset, AssetCacheStorage, AssetHandle, DynAssetHandle, FrontendMessage},
     ConditionalSend,
 };
 use std::{fmt::Debug, hash::Hash};
@@ -31,54 +28,44 @@ impl AssetCacheInsert {
 
     pub(crate) fn insert_asset_force<T: Asset>(
         &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
         // TODO: why unused, is it because its already used in registry?
         scope: Option<DynAssetHandle>,
         asset: T,
     ) -> AssetHandle<T> {
-        storage.register_asset_if_needed(backend_to_frontend_sender.clone(), handle.clone());
+        storage.register_asset_if_needed(frontend_message_sender.clone(), handle.clone());
 
-        self.insert_asset_with_handle::<T>(
-            backend_to_frontend_sender,
-            storage,
-            handle.clone(),
-            asset,
-        );
+        self.insert_asset_with_handle::<T>(frontend_message_sender, storage, handle.clone(), asset);
 
         handle
     }
 
     pub(crate) fn insert_asset<T: Asset>(
         &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
         // TODO: why unused, is it because its already used in registry?
         scope: Option<DynAssetHandle>,
         asset: T,
     ) -> AssetHandle<T> {
-        storage.register_asset_if_needed(backend_to_frontend_sender.clone(), handle.clone());
+        storage.register_asset_if_needed(frontend_message_sender.clone(), handle.clone());
 
-        self.insert_asset_with_handle::<T>(
-            backend_to_frontend_sender,
-            storage,
-            handle.clone(),
-            asset,
-        );
+        self.insert_asset_with_handle::<T>(frontend_message_sender, storage, handle.clone(), asset);
 
         handle
     }
 
     fn insert_asset_with_handle<T: Asset>(
         &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         storage: &mut AssetCacheStorage,
         handle: AssetHandle<T>,
         asset: T,
     ) {
-        storage.insert_asset(backend_to_frontend_sender, handle.clone(), asset);
+        storage.insert_asset(frontend_message_sender, handle.clone(), asset);
     }
 }
 

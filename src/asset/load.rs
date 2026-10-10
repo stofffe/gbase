@@ -5,8 +5,8 @@ use crate::{
     arc::{self, ArcHandleRuntime},
     asset::{
         ArcAssetCacheRegistry, Asset, AssetCacheDependency, AssetCacheInsert, AssetCacheStorage,
-        AssetHandle, AssetInserter, BackendToBackendMessage, BackendToFrontendMessage,
-        DynAssetHandle, InternalAssetState,
+        AssetHandle, AssetInserter, BackendMessage, DynAssetHandle, FrontendMessage,
+        InternalAssetState,
     },
     filesystem::{self, FileSystemRuntime},
     render::{self, RenderRuntime},
@@ -71,7 +71,7 @@ pub(crate) trait DynLoadResult: ConditionalSend {
     /// Will return new loads for depending assets
     fn handle_load_result(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
@@ -83,7 +83,7 @@ pub(crate) trait DynLoadResult: ConditionalSend {
 impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
     fn handle_load_result(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
@@ -101,7 +101,7 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
             LoadAssetResult::Success(asset) => {
                 tracing::info!("load success {}", self.handle);
 
-                storage.insert_asset(backend_to_frontend_sender, self.handle.clone(), asset);
+                storage.insert_asset(frontend_message_sender, self.handle.clone(), asset);
 
                 loader.reload_depending(registry, dependency, storage, &dyn_handle, None)
             }
@@ -135,7 +135,7 @@ pub(crate) trait DynLoadRequest: ConditionalSend {
     /// Loads an asset if needed
     fn load_asset_if_needed(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
@@ -156,12 +156,12 @@ impl<T: AssetLoader> TypedLoadRequest<T> {
 impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
     fn load_asset_if_needed(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) -> Option<BoxedAssetLoadFuture> {
-        storage.register_asset_if_needed(backend_to_frontend_sender, self.handle.clone());
+        storage.register_asset_if_needed(frontend_message_sender, self.handle.clone());
         loader.register_load_if_needed::<T>(storage, registry, self.handle.clone())
     }
 }
@@ -176,7 +176,7 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
 pub(crate) trait DynInsertRequest: ConditionalSend {
     fn insert_asset(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         inserter: &mut AssetCacheInsert,
@@ -204,7 +204,7 @@ impl<T: Asset> TypedInsertRequest<T> {
 impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
     fn insert_asset(
         self: Box<Self>,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         registry: &ArcAssetCacheRegistry,
         storage: &mut AssetCacheStorage,
         inserter: &mut AssetCacheInsert,
@@ -214,7 +214,7 @@ impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
         tracing::info!("insert nested asset {:?}", self.handle);
 
         let handle = inserter.insert_asset::<T>(
-            backend_to_frontend_sender,
+            frontend_message_sender,
             storage,
             self.handle,
             self.scope.clone(),
@@ -276,7 +276,7 @@ pub(crate) struct AssetCacheLoad {
     handle_to_loader_type: FxHashMap<DynAssetHandle, TypeId>,
 
     // load request
-    backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+    backend_message_sender: async_channel::Sender<BackendMessage>,
 }
 
 impl AssetCacheLoad {
@@ -286,7 +286,7 @@ impl AssetCacheLoad {
         render_runtime: RenderRuntime,
         arc_runtime: ArcHandleRuntime,
         registry: ArcAssetCacheRegistry,
-        backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+        backend_message_sender: async_channel::Sender<BackendMessage>,
     ) -> Self {
         let typed_load = FxHashMap::default();
 
@@ -407,7 +407,7 @@ struct TypedAssetLoad<T: AssetLoader> {
     arc_runtime: ArcHandleRuntime,
     registry: ArcAssetCacheRegistry,
 
-    backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+    backend_message_sender: async_channel::Sender<BackendMessage>,
 
     // TODO: shouldnt be needed?
     ty: PhantomData<T>,
@@ -421,7 +421,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
         arc_runtime: ArcHandleRuntime,
         registry: ArcAssetCacheRegistry,
 
-        backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+        backend_message_sender: async_channel::Sender<BackendMessage>,
     ) -> Self {
         Self {
             task_runtime,
@@ -545,7 +545,7 @@ struct LoadRuntime {
     arc_runtime: arc::ArcHandleRuntime,
     registry: ArcAssetCacheRegistry,
 
-    backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+    backend_message_sender: async_channel::Sender<BackendMessage>,
 }
 
 impl LoadRuntime {
@@ -555,7 +555,7 @@ impl LoadRuntime {
         arc_runtime: arc::ArcHandleRuntime,
         registry: ArcAssetCacheRegistry,
 
-        backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+        backend_message_sender: async_channel::Sender<BackendMessage>,
     ) -> Self {
         Self {
             filesystem_runtime,
@@ -613,7 +613,7 @@ impl LoadContext {
 
         self.runtime
             .backend_message_sender
-            .try_send(BackendToBackendMessage::Insert(Box::new(
+            .try_send(BackendMessage::Insert(Box::new(
                 TypedInsertRequest::<T>::new(
                     handle.clone(),
                     asset,
@@ -643,9 +643,9 @@ impl LoadContext {
 
         self.runtime
             .backend_message_sender
-            .try_send(BackendToBackendMessage::Load(Box::new(
-                TypedLoadRequest::<T>::new(handle.clone()),
-            )))
+            .try_send(BackendMessage::Load(Box::new(TypedLoadRequest::<T>::new(
+                handle.clone(),
+            ))))
             .expect("could not send load request");
 
         self.state.dependencies.insert(handle.to_dyn());
@@ -664,9 +664,10 @@ impl LoadContext {
 
         self.runtime
             .backend_message_sender
-            .send(BackendToBackendMessage::Get(Box::new(
-                TypedGetRequest::new(handle.clone(), sender),
-            )))
+            .send(BackendMessage::Get(Box::new(TypedGetRequest::new(
+                handle.clone(),
+                sender,
+            ))))
             .await
             .expect("could not send get request");
 
@@ -744,7 +745,7 @@ impl LoadContext {
     ) {
         self.runtime
             .backend_message_sender
-            .try_send(BackendToBackendMessage::SetDebugName {
+            .try_send(BackendMessage::SetDebugName {
                 handle: handle.to_dyn(),
                 name: debug_name.into(),
             })

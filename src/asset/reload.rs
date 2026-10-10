@@ -1,6 +1,6 @@
 use crate::{
     asset::{
-        ArcAssetCacheRegistry, AssetCacheLoad, AssetCacheStorage, BackendToBackendMessage,
+        ArcAssetCacheRegistry, AssetCacheLoad, AssetCacheStorage, BackendMessage,
         BoxedAssetLoadFuture, DynAssetHandle,
     },
     filesystem::FileSystemRuntime,
@@ -34,7 +34,7 @@ pub struct AssetCacheReload {
 impl AssetCacheReload {
     pub(crate) fn new(
         filesystem_ctx: FileSystemRuntime,
-        backend_message_sender: async_channel::Sender<BackendToBackendMessage>,
+        backend_message_sender: async_channel::Sender<BackendMessage>,
     ) -> Self {
         let reload_watcher = notify_debouncer_mini::new_debouncer(
             std::time::Duration::from_millis(100),
@@ -42,7 +42,7 @@ impl AssetCacheReload {
                 Ok(events) => {
                     for event in events {
                         backend_message_sender
-                            .try_send(BackendToBackendMessage::Reload(ReloadHandleRequest {
+                            .try_send(BackendMessage::Reload(ReloadHandleRequest {
                                 path: event.path,
                             }))
                             .expect("could not send");

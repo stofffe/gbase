@@ -21,6 +21,7 @@ fixed examples
     [x] time
     [x] triangle
 
+combine native and wasm task runners?
 replace async channel with tokio channel? maybe not because of wasm?
 preload all boudning boxes? does it matter much?
 show settings in debug graph

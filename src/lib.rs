@@ -92,9 +92,6 @@ pub use tracing;
 pub use wgpu;
 pub use winit;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use pollster;
-
 /// Holds neccesary state for running the engine
 ///
 /// Sent with each command

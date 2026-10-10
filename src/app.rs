@@ -228,7 +228,7 @@ impl<C: Callbacks> winit::application::ApplicationHandler<Context> for App<C> {
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(init(window, builder, proxy));
         #[cfg(not(target_arch = "wasm32"))]
-        pollster::block_on(init(window, builder, proxy));
+        futures_lite::future::block_on(init(window, builder, proxy));
     }
 
     fn about_to_wait(&mut self, _event_loop: &winit::event_loop::ActiveEventLoop) {

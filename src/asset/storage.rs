@@ -1,8 +1,8 @@
 use crate::{
-    asset::{AssetHandle, BackendToFrontendMessage, DynAssetHandle, TypedFrontendAssetLoaded},
+    asset::{AssetHandle, DynAssetHandle, FrontendMessage, TypedFrontendAssetLoaded},
     ConditionalSend, ConditionalSync,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use std::{
     any::{type_name, Any, TypeId},
     sync::Arc,
@@ -102,7 +102,7 @@ impl AssetCacheStorage {
     // TODO: no if needed check is done
     pub(crate) fn register_asset_if_needed<T: Asset>(
         &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         handle: AssetHandle<T>,
     ) {
         // get or create the typed storage
@@ -126,8 +126,8 @@ impl AssetCacheStorage {
                 .entry(handle.to_dyn())
                 .or_insert(metadata.clone());
 
-            // backend_to_frontend_sender
-            //     .try_send(BackendToFrontendMessage::AssetMetadataUpdate(
+            // frontend_message_sender
+            //     .try_send(FrontendMessage::AssetMetadataUpdate(
             //         super::MetadataChanged {
             //             handle: handle.to_dyn(),
             //             metadata,
@@ -148,7 +148,7 @@ impl AssetCacheStorage {
     /// Inserts asset into storage and sets state to Ready
     pub(crate) fn insert_asset<T: Asset>(
         &mut self,
-        backend_to_frontend_sender: async_channel::Sender<BackendToFrontendMessage>,
+        frontend_message_sender: async_channel::Sender<FrontendMessage>,
         handle: AssetHandle<T>,
         asset: T,
     ) {
@@ -170,8 +170,8 @@ impl AssetCacheStorage {
         }
 
         // notify frontend
-        backend_to_frontend_sender
-            .try_send(BackendToFrontendMessage::AssetUpdate(Box::new(
+        frontend_message_sender
+            .try_send(FrontendMessage::AssetUpdate(Box::new(
                 TypedFrontendAssetLoaded::new(handle.clone(), arc_asset),
             )))
             .expect("could not send asset update message");
@@ -183,8 +183,8 @@ impl AssetCacheStorage {
         metadata.state = InternalAssetState::Ready;
 
         // TODO: maybe these should be merged?
-        backend_to_frontend_sender
-            .try_send(BackendToFrontendMessage::AssetMetadataUpdate(
+        frontend_message_sender
+            .try_send(FrontendMessage::AssetMetadataUpdate(
                 crate::asset::MetadataChanged {
                     handle: handle.to_dyn(),
                     metadata: metadata.clone(),
