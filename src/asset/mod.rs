@@ -13,7 +13,7 @@ mod registry;
 mod snapshot;
 mod storage;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "asset_reload")]
 mod reload;
 
 pub use backend::*;
@@ -27,7 +27,7 @@ pub use registry::*;
 pub use snapshot::*;
 pub use storage::*;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "asset_reload")]
 pub use reload::*;
 
 //
@@ -35,7 +35,7 @@ pub use reload::*;
 //
 
 // force reload an asset
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "asset_reload")]
 pub fn reload_asset<T: Asset + 'static>(cache: &mut AssetCache, handle: &AssetHandle<T>) {
     cache.reload::<T>(handle)
 }

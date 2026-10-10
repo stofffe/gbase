@@ -1,4 +1,4 @@
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "asset_reload")]
 use crate::asset::AssetCacheReload;
 
 use crate::{
@@ -76,7 +76,7 @@ pub(crate) trait DynLoadResult: ConditionalSend {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
+        #[cfg(feature = "asset_reload")] reloader: &mut AssetCacheReload,
     ) -> Vec<BoxedAssetLoadFuture>;
 }
 
@@ -88,13 +88,13 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
         storage: &mut AssetCacheStorage,
         loader: &mut AssetCacheLoad,
         dependency: &mut AssetCacheDependency,
-        #[cfg(not(target_arch = "wasm32"))] reloader: &mut AssetCacheReload,
+        #[cfg(feature = "asset_reload")] reloader: &mut AssetCacheReload,
     ) -> Vec<BoxedAssetLoadFuture> {
         let dyn_handle = self.handle.to_dyn();
 
         dependency.set_dependencies(&dyn_handle.clone(), &self.dependencies);
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(feature = "asset_reload")]
         reloader.register_watches(dyn_handle.clone(), &self.watches);
 
         match self.result {
@@ -704,8 +704,8 @@ impl LoadContext {
             );
         }
 
+        #[cfg(feature = "asset_reload")]
         if result.is_ok() {
-            #[cfg(not(target_arch = "wasm32"))]
             self.state.watches.insert(path.as_ref().to_path_buf());
         }
 
@@ -730,8 +730,8 @@ impl LoadContext {
             );
         }
 
+        #[cfg(feature = "asset_reload")]
         if result.is_ok() {
-            #[cfg(not(target_arch = "wasm32"))]
             self.state.watches.insert(path.as_ref().to_path_buf());
         }
 

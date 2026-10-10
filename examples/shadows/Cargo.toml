@@ -3,11 +3,6 @@ name = "shadows"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = []
-hot_reload = ["gbase/hot_reload"]
-trace_tracy = ["gbase/trace_tracy"]
-
 [dependencies]
 gbase = { path = "../..", features = ["egui"] }
 gbase_utils = { path = "../../utils/gbase_utils" }

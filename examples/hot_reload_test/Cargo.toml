@@ -3,10 +3,6 @@ name = "hot_reload_test"
 version = "0.1.0"
 edition = "2021"
 
-[features]
-default = []
-hot_reload = ["gbase/hot_reload"]
-
 [dependencies]
 fontdue = "0.9.4"
 gbase = { path = "../.." }

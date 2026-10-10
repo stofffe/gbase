@@ -58,11 +58,11 @@ web-sys = { version = "0.3.64", features = [
 
 [features]
 default = []
-
-egui = ["dep:egui", "dep:egui-winit", "dep:egui-wgpu", "dep:egui_extras"]
+asset_reload = []
 hot_reload = ["dep:dlopen"]
 trace = []
 trace_tracy = ["dep:tracing-tracy", "dep:tracy-client"]
+egui = ["dep:egui", "dep:egui-winit", "dep:egui-wgpu", "dep:egui_extras"]
 
 [workspace]
 members = ["utils/*", "tools/*", "examples/*"]

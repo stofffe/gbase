@@ -19,7 +19,7 @@ pub(crate) enum BackendMessage {
         show_recursive_dependencies: bool,
     },
     LoadResult(Box<dyn DynLoadResult>),
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(feature = "asset_reload")]
     Reload(crate::asset::ReloadHandleRequest),
 }
 
@@ -37,7 +37,7 @@ pub struct AssetCacheBackend {
     pub(crate) frontend_message_sender: async_channel::Sender<FrontendMessage>,
     pub(crate) frontend_message_receiver: async_channel::Receiver<FrontendMessage>,
 
-    #[cfg(not(target_arch = "wasm32"))]
+    #[cfg(feature = "asset_reload")]
     pub(crate) reloader: crate::asset::reload::AssetCacheReload,
 }
 
@@ -60,7 +60,7 @@ impl AssetCacheBackend {
 
         let dependency = AssetCacheDependency::new();
 
-        #[cfg(not(target_arch = "wasm32"))]
+        #[cfg(feature = "asset_reload")]
         let reloader = crate::asset::AssetCacheReload::new(
             ctx.filesystem.runtime(),
             backend_message_sender.clone(),
@@ -76,7 +76,7 @@ impl AssetCacheBackend {
 
             dependency,
 
-            #[cfg(not(target_arch = "wasm32"))]
+            #[cfg(feature = "asset_reload")]
             reloader,
 
             backend_message_sender,
@@ -171,7 +171,7 @@ impl AssetCacheBackend {
                                     &mut self.storage,
                                     &mut self.loader,
                                     &mut self.dependency,
-                                    #[cfg(not(target_arch = "wasm32"))]
+                                    #[cfg(feature = "asset_reload")]
                                     &mut self.reloader,
                                 );
                                 for load_future in load_futures {
@@ -182,7 +182,7 @@ impl AssetCacheBackend {
                                     );
                                 }
                             }
-                            #[cfg(not(target_arch = "wasm32"))]
+                            #[cfg(feature = "asset_reload")]
                             BackendMessage::Reload(reload_handle_request) => {
                                 let load_futures = self.reloader.handle_path_changed(
                                     &reload_handle_request.path,
