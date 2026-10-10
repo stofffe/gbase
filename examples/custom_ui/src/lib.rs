@@ -180,10 +180,7 @@ impl Callbacks for App {
 #[cfg(not(target_arch = "wasm32"))]
 impl App {
     #[no_mangle]
-    fn hot_reload(&mut self, ctx: &mut Context, cache: &mut AssetCache) {
+    fn hot_reload(&mut self, _ctx: &mut Context, _cache: &mut AssetCache) {
         Self::init_ctx().init_logging();
-
-        self.renderer
-            .hot_reload(ctx, cache, "assets/fonts/font.ttf");
     }
 }

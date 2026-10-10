@@ -21,13 +21,12 @@ fixed examples
     [x] time
     [x] triangle
 
+wesl loader
 combine native and wasm task runners?
-replace async channel with tokio channel? maybe not because of wasm?
 preload all boudning boxes? does it matter much?
 show settings in debug graph
 show box error in debug graph
 special debug feature flags
-wesl loader
 archandle instead of arc in storage?
 cycle detecion
 fix clear handle

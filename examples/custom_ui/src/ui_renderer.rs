@@ -226,22 +226,6 @@ impl UIRenderer {
                 pass.draw(0..4, 0..instances.len() as u32);
             });
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub fn hot_reload(
-        &mut self,
-        ctx: &mut gbase::Context,
-        cache: &mut AssetCache,
-        font_path: impl Into<PathBuf>,
-    ) {
-        // cache.reload(&self.font_handle);
-        // clear handle to not use old data
-        // cache.clear_handle(self.font_handle.clone());
-        // TODO:
-        // self.font = AssetBuilder::load::<FontLoader>()
-        //     .handle(self.font.clone())
-        //     .build(cache, FontLoaderSettings::new(font_path));
-    }
 }
 
 impl UIRenderer {

@@ -7,6 +7,8 @@
 
 #[cfg(all(feature = "hot_reload", target_arch = "wasm32"))]
 compile_error!("The 'hot_reload' feature is not supported on wasm32");
+#[cfg(all(feature = "asset_reload", target_arch = "wasm32"))]
+compile_error!("The 'asset_reload' feature is not supported on wasm32");
 #[cfg(all(feature = "trace_tracy", target_arch = "wasm32"))]
 compile_error!("The 'trace_tracy' feature is not supported on wasm32");
 
