@@ -1,45 +1,19 @@
-fixed examples
-    [x] camera
-    [x] custom_ui
-    [x] egui
-    [x] flappy_bird
-    [x] gizmos
-    [x] grass
-    [x] mesh
-    [x] physics
-    [x] post_process
-    [x] shader_imports
-    [x] shadows
-    [x] texture
-    [x] transform
-    [ ] ui (wait for new ui instead)
-    [x] audio
-    [x] compute
-    [x] filesystem
-    [x] input
-    [x] logging
-    [x] time
-    [x] triangle
-
-combine native and wasm task runners?
-preload all boudning boxes? does it matter much?
-show settings in debug graph
-show box error in debug graph
-special debug feature flags
-archandle instead of arc in storage?
-cycle detecion
-fix clear handle
-task and asset cancellation?
-maybe have more states on getasset result, like depency failed?
-
-rename builder with cache build_cached
-need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
-unused meshes in mesh example (xcode debug)
-
-release mode perf NOTE: wait for custom features
-    dont set debug names?
-
-next up
+whatevs
+    [] combine native and wasm task runners?
+    [] preload all boudning boxes? does it matter much?
+    [] show settings in debug graph
+    [] show box error in debug graph
+    [] special debug feature flags
+    [] archandle instead of arc in storage?
+    [] cycle detecion
+    [] fix clear handle
+    [] task and asset cancellation?
+    [] maybe have more states on getasset result, like depency failed?
+    [] rename builder with cache build_cached
+    [] need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
+    [] unused meshes in mesh example (xcode debug)
+    [] release mode perf NOTE: wait for custom features
+    [] dont set debug names?
     [] investigate if asset cache can be put in ctx
     [] put image crate behind feature flag
     [] create debug mode feature flag instead of checking if not wasm
@@ -54,8 +28,6 @@ next up
     [x] move derived asset validation to ext
     [x] manual reloading requires watch, not good
     [x] remove run being async
-
-[] whatevs
     [] explore drop on commandencoder to not miss submitting
     [] look into scale factor dpi
     [] feature based derives? #\[cfg_attr = "serde", derive(...)\]
