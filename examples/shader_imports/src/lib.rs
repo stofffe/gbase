@@ -1,10 +1,12 @@
 mod shader_import_asset;
+mod wesl_shader_loader;
+pub use shader_import_asset::*;
+pub use wesl_shader_loader::*;
+
 use gbase::asset::{
     ImageLoader, ImageLoaderSettings, MeshGpuLoader, MeshGpuLoaderSettings, NamedInserter,
     ShaderGpuLoader, ShaderGpuLoaderSettings,
 };
-pub use shader_import_asset::*;
-
 use gbase::input::{self, KeyCode};
 use gbase::render::{
     ArcShaderModule, ArcTexture, GpuMesh, Mesh, SamplerBuilder, TextureViewBuilder,
@@ -80,9 +82,13 @@ impl Callbacks for App {
             cache.load_asset::<MeshGpuLoader>(&MeshGpuLoaderSettings::new(mesh_handle.clone()));
         cache.set_debug_name(&mesh_gpu_handle, "quad mesh gpu");
 
-        let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
-            &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
-        );
+        // let shader_handle = cache.load_asset::<ShaderWithImportsLoader>(
+        //     &ShaderWithImportsLoaderSettings::new("shaders/texture_import.wgsl"),
+        // );
+        let shader_handle = cache.load_asset::<WeslShaderLoader>(&WeslShaderLoaderSettings::new(
+            "shaders",
+            "texture.wesl",
+        ));
         cache.set_debug_name(&shader_handle, "shader");
         let shader_gpu_handle =
             cache.load_asset::<ShaderGpuLoader>(&ShaderGpuLoaderSettings::new(shader_handle));

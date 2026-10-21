@@ -21,7 +21,6 @@ fixed examples
     [x] time
     [x] triangle
 
-wesl loader
 combine native and wasm task runners?
 preload all boudning boxes? does it matter much?
 show settings in debug graph
@@ -38,14 +37,13 @@ need to clean up dep graph when reload changes stuff (stuff that doesnt depend a
 unused meshes in mesh example (xcode debug)
 
 release mode perf NOTE: wait for custom features
-    dont track file changes
     dont set debug names?
 
 next up
     [] investigate if asset cache can be put in ctx
     [] put image crate behind feature flag
     [] create debug mode feature flag instead of checking if not wasm
-    [] move egui from core to utils
+    [] move egui from core to utils (when objc2 changes are merged into winit)
     [] fix all asset paths in examples
     [] fix hot reload looping if fps is low
     [] (asset + builder caching) for render types?

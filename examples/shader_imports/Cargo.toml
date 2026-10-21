@@ -7,6 +7,7 @@ edition = "2021"
 gbase = { path = "../.." }
 gbase_utils = { path = "../../utils/gbase_utils" }
 regex = "1.12.4"
+wesl = { git = "https://github.com/stofffe/wesl-rs.git", branch = "async-resolver-rework" }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 wasm-bindgen = "0.2.88"

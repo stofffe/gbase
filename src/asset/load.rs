@@ -46,7 +46,7 @@ pub trait AssetLoader: ConditionalSend {
     fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
-    ) -> impl Future<Output = Result<Self::Asset, Self::Error>> + ConditionalSend;
+    ) -> impl Future<Output = Result<Self::Asset, Self::Error>>;
 }
 
 //
@@ -121,12 +121,10 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
 // Load Request
 //
 
-pub(crate) trait AssetLoadFuture:
-    Future<Output = Box<dyn DynLoadResult>> + ConditionalSend
-{
-}
-impl<T: Future<Output = Box<dyn DynLoadResult>> + ConditionalSend> AssetLoadFuture for T {}
+pub(crate) trait AssetLoadFuture: Future<Output = Box<dyn DynLoadResult>> {}
+impl<T: Future<Output = Box<dyn DynLoadResult>>> AssetLoadFuture for T {}
 pub(crate) type BoxedAssetLoadFuture = Pin<Box<dyn AssetLoadFuture>>;
+// pub(crate) type BoxedAssetLoadFuture = Box<dyn FnOnce() -> Pin<Box<dyn AssetLoadFuture>>>;
 
 /// Type erased load request
 ///
@@ -589,6 +587,10 @@ impl LoadContext {
 
     pub fn arc_runtime(&self) -> &ArcHandleRuntime {
         &self.runtime.arc_runtime
+    }
+
+    pub fn filesystem_runtime(&self) -> &FileSystemRuntime {
+        &self.runtime.filesystem_runtime
     }
 
     /// Insert an asset with a specific inserter
