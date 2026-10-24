@@ -1,6 +1,7 @@
 use super::{AssetHandle, AssetLoader};
 use crate::{
     asset::{AssetInserter, LoadContext},
+    audio::{self, SoundSource},
     filesystem::{self, LoadFileError},
     render::{
         self, ArcHandle, ArcShaderModule, ArcTexture, GpuMesh, Mesh, Shader, TextureBuilder,
@@ -216,7 +217,6 @@ impl AssetLoader for ShaderGpuLoader {
 //
 // Image
 //
-//
 
 #[derive(Hash, PartialEq, Eq, Clone, Debug)]
 pub struct ImageLoaderSettings {
@@ -308,5 +308,37 @@ impl AssetLoader for ImageGpuLoader {
             );
 
         Ok(ArcHandle::new(load_ctx.arc_runtime(), image))
+    }
+}
+
+//
+// Sound
+//
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct SoundLoaderSettings {
+    path: PathBuf,
+}
+
+impl SoundLoaderSettings {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+}
+
+pub struct SoundLoader {}
+
+impl AssetLoader for SoundLoader {
+    type Asset = audio::SoundSource;
+    type Settings = SoundLoaderSettings;
+    type Error = LoadFileError;
+
+    async fn load(
+        load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let bytes = load_ctx.load_bytes(&settings.path).await?;
+        let sound_source = audio::load_audio_source(bytes);
+        Ok(sound_source)
     }
 }

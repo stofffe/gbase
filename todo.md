@@ -1,116 +1,111 @@
 whatevs
-    [] combine native and wasm task runners?
-    [] preload all boudning boxes? does it matter much?
-    [] show settings in debug graph
-    [] show box error in debug graph
-    [] special debug feature flags
-    [] archandle instead of arc in storage?
-    [] cycle detecion
-    [] fix clear handle
-    [] task and asset cancellation?
-    [] maybe have more states on getasset result, like depency failed?
-    [] rename builder with cache build_cached
-    [] need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
-    [] unused meshes in mesh example (xcode debug)
-    [] release mode perf NOTE: wait for custom features
-    [] dont set debug names?
-    [] investigate if asset cache can be put in ctx
-    [] put image crate behind feature flag
-    [] create debug mode feature flag instead of checking if not wasm
-    [] move egui from core to utils (when objc2 changes are merged into winit)
-    [] fix all asset paths in examples
-    [] fix hot reload looping if fps is low
-    [] (asset + builder caching) for render types?
-    [] finish ui
-    [] go over pub and pub(crate)
-    [] have default clear color if no render commands are sent (stop pink flashing)
-    [x] asset loaders fn without settings (default settings)
-    [x] move derived asset validation to ext
-    [x] manual reloading requires watch, not good
-    [x] remove run being async
-    [] explore drop on commandencoder to not miss submitting
-    [] look into scale factor dpi
-    [] feature based derives? #\[cfg_attr = "serde", derive(...)\]
-    [] helper crate with re exported macros
-    [] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
-    [] make format of frambuffer a generic thing
-    [] make format and or dimension of texture a generic thing
-    [] custom offset instance buffers
-    [] file system with caching for READ ONLY buffers/textures
-    [] make buffer usage more uniform
-    [] make screen view a buffer
-    [] look into submitting all command encoders at once (probably fine without)
-    [] add sinlge pixel images + full screen quad as cached stuff in context?
-    [] rework deferred
-    [] pbr renderer not caching textures? 
-    [] learn about mip mapping
-    [] fix super-debug mode (hot reload, asset reload) which is not available for wasm
-        #[cfg(all(feature = "super-debug", target_arch = "wasm32"))]
-        compile_error!("The 'super-debug' feature is not supported on wasm32");
-    [] remove all asset convert unwraps in renderers
-    [] convert all util and core to use include_bytes!()
-    [] remove framebuffers and replace with normal textures?
-    [] look into removing builder pattern from buffers (look at bevy_render/src/uniform_buffer.rs)
-    [] use single buffer for multiple vertex attributes?
-    [] tracing doesnt work in new() for hot reload
-    [] move more things to FxHasher?
-        [x] asset cache
-        [x] render cache
-        [] input?
-    [] use more references for asset handles, vectors etc
-    [] make camera matrices cached
-    [] remove unecessary features from crates
-    [] have window_event and device_event callbacks which can consume the events
-    [x] move collisions to utils?
-    [x] make all functions in callback trait required || check which functions are defined and only load those to hot reload
-    [x] fix new web build support in examples folder
-    [x] put hot reload specific imports behind feature flag
-    [x] change all helper/core filesystem loads to load_b/s?
-    [x] add view, proj, view_proj + all inverse to camera uniform
-    [x] pass new size in resize callback /  remove it completely and only use render::resized(ctx) kinda thing
-    [x] remove texture caching
-    [x] 2d sphere collision
-    [x] sprite transforms
-    [x] random wrapper (hash/rand)
-    [x] add gamma correction by default?
-    [x] hot_reload callback?
-    [x] upgrade to wgpu 24
-    [x] remove average fps from time module?
-    [x] add proper BRDF to pbr
-    [x] encase storage buffers instead of bytemuck
-    [x] extend camera to support non aspect ratio shapes
-    [x] merge update and render callbacks
-    [x] add HDR?
-    [x] move hot reload dll callback into Callbacks
-    [x] fix mesh example
-    [x] convert notify to notify debounce for reload
-    [x] new glb loader
-    [/] catch wgpu panics
-    [x] shaders
-    [] bindgroups
-    [] pipelines
-    ...
-    [/] fix logging not working in dlls
-    - have to call init logging in hot reload callback
-
-ui 2
+[] combine native and wasm task runners?
+[] preload all boudning boxes? does it matter much?
+[] show settings in debug graph
+[] show box error in debug graph
+[] special debug feature flags
+[] archandle instead of arc in storage?
+[] cycle detecion
+[] fix clear handle
+[] task and asset cancellation?
+[] maybe have more states on getasset result, like depency failed?
+[] rename builder with cache build_cached
+[] need to clean up dep graph when reload changes stuff (stuff that doesnt depend anymore)
+[] unused meshes in mesh example (xcode debug)
+[] release mode perf NOTE: wait for custom features
+[] dont set debug names?
+[] investigate if asset cache can be put in ctx
+[] put image crate behind feature flag
+[] create debug mode feature flag instead of checking if not wasm
+[] move egui from core to utils (when objc2 changes are merged into winit)
+[] fix all asset paths in examples
+[] fix hot reload looping if fps is low
+[] (asset + builder caching) for render types?
+[] finish ui
+[] go over pub and pub(crate)
+[] have default clear color if no render commands are sent (stop pink flashing)
+[x] asset loaders fn without settings (default settings)
+[x] move derived asset validation to ext
+[x] manual reloading requires watch, not good
+[x] remove run being async
+[] explore drop on commandencoder to not miss submitting
+[] look into scale factor dpi
+[] feature based derives? #\[cfg_attr = "serde", derive(...)\]
+[] helper crate with re exported macros
+[] add ability to choose gamma corrected or not on surface (currently always choose gamma corrected (srgb))
+[] make format of frambuffer a generic thing
+[] make format and or dimension of texture a generic thing
+[] custom offset instance buffers
+[] file system with caching for READ ONLY buffers/textures
+[] make buffer usage more uniform
+[] make screen view a buffer
+[] look into submitting all command encoders at once (probably fine without)
+[] add sinlge pixel images + full screen quad as cached stuff in context?
+[] rework deferred
+[] pbr renderer not caching textures? 
+[] learn about mip mapping
+[] fix super-debug mode (hot reload, asset reload) which is not available for wasm
+    #[cfg(all(feature = "super-debug", target_arch = "wasm32"))]
+    compile_error!("The 'super-debug' feature is not supported on wasm32");
+[] remove all asset convert unwraps in renderers
+[] convert all util and core to use include_bytes!()
+[] remove framebuffers and replace with normal textures?
+[] look into removing builder pattern from buffers (look at bevy_render/src/uniform_buffer.rs)
+[] use single buffer for multiple vertex attributes?
+[] tracing doesnt work in new() for hot reload
+[] move more things to FxHasher?
+    [x] asset cache
+    [x] render cache
+    [] input?
+[] use more references for asset handles, vectors etc
+[] make camera matrices cached
+[] remove unecessary features from crates
+[] have window_event and device_event callbacks which can consume the events
+[x] move collisions to utils?
+[x] make all functions in callback trait required || check which functions are defined and only load those to hot reload
+[x] fix new web build support in examples folder
+[x] put hot reload specific imports behind feature flag
+[x] change all helper/core filesystem loads to load_b/s?
+[x] add view, proj, view_proj + all inverse to camera uniform
+[x] pass new size in resize callback /  remove it completely and only use render::resized(ctx) kinda thing
+[x] remove texture caching
+[x] 2d sphere collision
+[x] sprite transforms
+[x] random wrapper (hash/rand)
+[x] add gamma correction by default?
+[x] hot_reload callback?
+[x] upgrade to wgpu 24
+[x] remove average fps from time module?
+[x] add proper BRDF to pbr
+[x] encase storage buffers instead of bytemuck
+[x] extend camera to support non aspect ratio shapes
+[x] merge update and render callbacks
+[x] add HDR?
+[x] move hot reload dll callback into Callbacks
+[x] fix mesh example
+[x] convert notify to notify debounce for reload
+[x] new glb loader
+[/] catch wgpu panics
+[x] shaders
+[] bindgroups
+[] pipelines
+...
+[/] fix logging not working in dlls
+- have to call init logging in hot reload callback
+[] ui 2
     [] figure out when to use min/preferred/width
     [] add text wrapping stage 
     [] add text rending (with kerning)
-
 [] allocations
     [] use arenas for CPU
     [] use arenas for GPU
-
 [] hot reload
     [x] add cleanup of reloaded dlls (maybe as you run or on startup?)
-
 [] egui
     [] fix dll on mac
     [?] make egui part of ctx and let user decide when stuff is rendererd
     [x] add egui flag to engine
     [x] move egui from ctx to app
-
 [] shadows
     [] fade out when reaching limit
     [] pcss
@@ -121,9 +116,8 @@ ui 2
     [x] look into depth bias state 
     [x] check if you actually wanna saturate the pixel or just return non shaded
     [x] compare front+back+bias vs only back faces
-
 [] assets 
-    [] make audio an asset
+    [x] make audio an asset
     [] garbage collect old handles
     [x] make convert only run once if it fails
     [] make non loading separate type without unwrap
@@ -133,8 +127,7 @@ ui 2
     [] make uniform/storage/mesh (vertex) grow dynamically?
     [x] allow load to error?
     [] reintroduce pixel cache
-    [] types
-        [] font
+    [x] font
     [/] add gltf loader
         [x] load gltf
         [x] cache duplicate meshes and materials
@@ -143,7 +136,6 @@ ui 2
     [x] remove typeid from asset handle, store it as tuple where needed
     [x] mesh lod loading 
     [x] look into putting assets in app and not context
-
 [] bloom
     [] move pixel cache to ctx
     [] add temp buffer creation stuff, pooling

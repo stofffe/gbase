@@ -4,7 +4,7 @@ mod sprite_renderer;
 use crate::sprite_atlas::{AtlasSprite, BACKGROUND};
 use core::f32;
 use gbase::{
-    asset::AssetCache,
+    asset::{AssetCache, AssetHandle, SoundLoader, SoundLoaderSettings},
     audio, filesystem,
     glam::{vec2, Quat, Vec2, Vec3, Vec4Swizzles},
     input::{self, KeyCode},
@@ -242,10 +242,10 @@ pub struct App {
     highscore: u32,
     die_timer: time::Timer,
 
-    flap_sound: audio::SoundSource,
-    die_sound: audio::SoundSource,
-    hit_sound: audio::SoundSource,
-    point_sound: audio::SoundSource,
+    flap_sound: AssetHandle<audio::SoundSource>,
+    die_sound: AssetHandle<audio::SoundSource>,
+    hit_sound: AssetHandle<audio::SoundSource>,
+    point_sound: AssetHandle<audio::SoundSource>,
 
     highscore_request_handle: TaskHandle<u32>,
 }
@@ -443,13 +443,13 @@ impl Callbacks for App {
         );
 
         let flap_sound =
-            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/boom.mp3").into());
+            cache.load_asset::<SoundLoader>(&SoundLoaderSettings::new("../assets/sounds/boom.mp3"));
         let die_sound =
-            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/die.mp3").into());
+            cache.load_asset::<SoundLoader>(&SoundLoaderSettings::new("../assets/sounds/die.mp3"));
         let hit_sound =
-            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/hit.mp3").into());
-        let point_sound =
-            audio::load_audio_source(ctx, include_bytes!("../assets/sounds/point.mp3").into());
+            cache.load_asset::<SoundLoader>(&SoundLoaderSettings::new("../assets/sounds/hit.mp3"));
+        let point_sound = cache
+            .load_asset::<SoundLoader>(&SoundLoaderSettings::new("../assets/sounds/point.mp3"));
 
         let die_timer = time::Timer::new(DIE_TIMER_DURATION);
 
@@ -530,7 +530,9 @@ impl Callbacks for App {
                     self.state = GameState::Game;
 
                     self.entities.get_entity_mut(self.player).velocity.y = PLAYER_JUMP_VELOCITY;
-                    audio::play_audio_source(ctx, &self.flap_sound);
+                    if let Ok(flap_sound) = cache.get_asset(&self.flap_sound) {
+                        audio::play_audio_source(ctx, flap_sound);
+                    }
                     self.player.get_mut(&mut self.entities).renderable = Renderable::Animation;
                 }
             }
@@ -571,7 +573,10 @@ impl Callbacks for App {
                 player.velocity.y -= 9.82 * dt * PLAYER_FALL_SPEED;
                 if input::key_just_pressed(ctx, KeyCode::Space) {
                     player.velocity.y = PLAYER_JUMP_VELOCITY;
-                    audio::play_audio_source(ctx, &self.flap_sound);
+
+                    if let Ok(flap_sound) = cache.get_asset(&self.flap_sound) {
+                        audio::play_audio_source(ctx, flap_sound);
+                    }
                 }
                 player.local_pos += player.velocity * dt;
                 player.local_pos.y = player.local_pos.y.clamp(
@@ -583,7 +588,10 @@ impl Callbacks for App {
                 for eh in self.entities.get_handles_filtered(|a| a.score_area) {
                     if self.entities.check_collision_handle(self.player, eh) {
                         self.score += 1;
-                        audio::play_audio_source(ctx, &self.point_sound);
+
+                        if let Ok(point_sound) = cache.get_asset(&self.point_sound) {
+                            audio::play_audio_source(ctx, point_sound);
+                        }
                         eh.get_mut(&mut self.entities).score_area = false;
                     }
                 }
@@ -605,7 +613,9 @@ impl Callbacks for App {
 
                 if collided {
                     self.state = GameState::GameOver;
-                    audio::play_audio_source(ctx, &self.hit_sound);
+                    if let Ok(hit_sound) = cache.get_asset(&self.hit_sound) {
+                        audio::play_audio_source(ctx, hit_sound);
+                    }
                     self.die_timer.reset();
                     if self.score > self.highscore {
                         self.highscore = self.score;
@@ -681,7 +691,9 @@ impl Callbacks for App {
                 }
 
                 if !on_ground && self.die_timer.just_ticked() {
-                    audio::play_audio_source(ctx, &self.die_sound);
+                    if let Ok(die_sound) = cache.get_asset(&self.die_sound) {
+                        audio::play_audio_source(ctx, die_sound);
+                    }
                 }
 
                 if input::key_just_pressed(ctx, input::KeyCode::KeyR) {

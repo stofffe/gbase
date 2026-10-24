@@ -28,7 +28,7 @@ impl AudioContext {
         Self { raw_handle }
     }
 
-    fn load_audio_source(&mut self, bytes: Vec<u8>) -> SoundSource {
+    fn load_audio_source(bytes: Vec<u8>) -> SoundSource {
         rodio::Decoder::new(Cursor::new(bytes))
             .expect("could not decode audio")
             .buffered()
@@ -48,17 +48,9 @@ impl AudioContext {
 //
 
 // Load audio source
-pub fn load_audio_source(ctx: &mut Context, bytes: Vec<u8>) -> SoundSource {
-    ctx.audio.load_audio_source(bytes)
+pub fn load_audio_source(bytes: Vec<u8>) -> SoundSource {
+    AudioContext::load_audio_source(bytes)
 }
-// pub async fn load_audio_source(ctx: &mut Context, path: impl Into<PathBuf>) -> SoundSource {
-//     let bytes = ctx
-//         .filesystem
-//         .load_bytes(&path.into())
-//         .await
-//         .expect("could not load bytes");
-//     ctx.audio.load_audio_source(bytes)
-// }
 
 /// Play audio source as raw sound
 pub fn play_audio_source(ctx: &Context, source: &SoundSource) {

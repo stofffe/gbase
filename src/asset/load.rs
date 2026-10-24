@@ -701,7 +701,7 @@ impl LoadContext {
         if let Err(err) = &result {
             tracing::error!(
                 "could not load nested bytes at {:?}: {}",
-                path.as_ref(),
+                self.runtime.filesystem_runtime.format_asset_path(path),
                 err
             );
         }
@@ -727,7 +727,7 @@ impl LoadContext {
         if let Err(err) = &result {
             tracing::error!(
                 "could not load nested string at {:?}: {}",
-                path.as_ref(),
+                self.runtime.filesystem_runtime.format_asset_path(path),
                 err
             );
         }
