@@ -14,13 +14,63 @@ pub(crate) enum BackendMessage {
         handle: DynAssetHandle,
         name: String,
     },
-    DebugAssets {
-        show_dependencies: bool,
-        show_recursive_dependencies: bool,
-    },
+    DebugAssets(DebugAssetsSettings),
     LoadResult(Box<dyn DynLoadResult>),
     #[cfg(feature = "asset_reload")]
     Reload(crate::asset::ReloadHandleRequest),
+}
+
+pub struct DebugAssetsSettings {
+    pub include_only_roots: bool,
+    pub include_dependencies: bool,
+    pub include_recursive_dependencies: bool,
+
+    pub show_asset_type: bool,
+    pub show_state: bool,
+}
+
+impl Default for DebugAssetsSettings {
+    fn default() -> Self {
+        Self {
+            include_only_roots: true,
+            include_dependencies: true,
+            include_recursive_dependencies: true,
+
+            show_asset_type: false,
+            show_state: true,
+        }
+    }
+}
+
+impl DebugAssetsSettings {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn include_only_roots(mut self, value: bool) -> Self {
+        self.include_only_roots = value;
+        self
+    }
+
+    pub fn include_dependencies(mut self, value: bool) -> Self {
+        self.include_dependencies = value;
+        self
+    }
+
+    pub fn include_recursive_dependencies(mut self, value: bool) -> Self {
+        self.include_recursive_dependencies = value;
+        self
+    }
+
+    pub fn show_asset_type(mut self, value: bool) -> Self {
+        self.show_asset_type = value;
+        self
+    }
+
+    pub fn show_state(mut self, value: bool) -> Self {
+        self.show_state = value;
+        self
+    }
 }
 
 /// This is the owner of the asset cache state on the background thread
@@ -154,11 +204,8 @@ impl AssetCacheBackend {
                             BackendMessage::SetDebugName { handle, name } => {
                                 self.storage.set_debug_name(&handle, name);
                             }
-                            BackendMessage::DebugAssets {
-                                show_dependencies,
-                                show_recursive_dependencies,
-                            } => {
-                                self.debug_assets(show_dependencies, show_recursive_dependencies);
+                            BackendMessage::DebugAssets(settings) => {
+                                self.debug_assets(&settings);
                             }
 
                             BackendMessage::Get(dyn_get_request) => {
@@ -221,34 +268,62 @@ impl AssetCacheBackend {
         dyn_handles
     }
 
-    fn asset_info(&self, handle: &DynAssetHandle) -> String {
-        let no_name_replacement = "___";
-        let asset_name = self
+    fn asset_info(&self, settings: &DebugAssetsSettings, handle: &DynAssetHandle) -> String {
+        let no_name_replacement = "___".to_string();
+        let metadata = self
             .storage
-            .get_debug_name(handle)
-            .unwrap_or(no_name_replacement);
-        let state = self.storage.get_asset_state(handle);
-        format!("{}: {:?}", asset_name, state)
+            .get_asset_metadata(handle)
+            .expect("could not get asset metadata")
+            .clone();
+
+        let mut output = String::new();
+
+        let name = metadata.debug_name.unwrap_or(no_name_replacement);
+        output.push_str(&name);
+
+        if settings.show_state {
+            let state = metadata.state;
+            output.push_str(", ");
+            output.push_str(&format!("{:?}", state));
+        }
+
+        if settings.show_asset_type {
+            let asset_type = metadata.asset_type_name;
+            output.push_str(", ");
+            output.push_str(&asset_type);
+        }
+
+        output
     }
 
-    pub fn debug_assets(&self, show_dependencies: bool, show_recursive_dependencies: bool) {
-        let root_handles = self.get_all_handles_sorted();
+    pub fn debug_assets(&self, settings: &DebugAssetsSettings) {
+        let all_handles = self.get_all_handles_sorted();
 
-        for root_handle in root_handles {
+        for handle in all_handles {
+            if settings.include_only_roots
+                && self
+                    .storage
+                    .get_asset_metadata(&handle)
+                    .unwrap()
+                    .is_dependency
+            {
+                continue;
+            }
+
             tracing::info!("");
 
             // print root
 
-            let debug_name = self.asset_info(&root_handle);
+            let debug_name = self.asset_info(settings, &handle);
 
-            tracing::info!("{} {}", root_handle.id(), debug_name);
+            tracing::info!("{} {}", handle.id(), debug_name);
 
             // print dependencies
 
             let mut stack = Vec::new();
 
-            if show_dependencies {
-                if let Some(dependencies) = self.dependency.dependencies(&root_handle) {
+            if settings.include_dependencies {
+                if let Some(dependencies) = self.dependency.dependencies(&handle) {
                     let mut dependencies: Vec<_> = dependencies.iter().cloned().collect();
                     dependencies.sort();
 
@@ -264,13 +339,13 @@ impl AssetCacheBackend {
             }
 
             while let Some((dyn_handle, prefix, depth, is_last)) = stack.pop() {
-                let debug_name = self.asset_info(&dyn_handle);
+                let debug_name = self.asset_info(settings, &dyn_handle);
                 let id = dyn_handle.id();
                 let connector = if is_last { "└── " } else { "├── " };
 
                 tracing::info!("{}{}{} {}", prefix, connector, id, debug_name);
 
-                if show_recursive_dependencies {
+                if settings.include_recursive_dependencies {
                     if let Some(dependencies) = self.dependency.dependencies(&dyn_handle) {
                         let mut dependencies: Vec<_> = dependencies.iter().cloned().collect();
                         dependencies.sort();

@@ -26,21 +26,21 @@ impl AssetCacheInsert {
         Self {}
     }
 
-    pub(crate) fn insert_asset_force<T: Asset>(
-        &mut self,
-        frontend_message_sender: async_channel::Sender<FrontendMessage>,
-        storage: &mut AssetCacheStorage,
-        handle: AssetHandle<T>,
-        // TODO: why unused, is it because its already used in registry?
-        scope: Option<DynAssetHandle>,
-        asset: T,
-    ) -> AssetHandle<T> {
-        storage.register_asset_if_needed(frontend_message_sender.clone(), handle.clone());
-
-        self.insert_asset_with_handle::<T>(frontend_message_sender, storage, handle.clone(), asset);
-
-        handle
-    }
+    // pub(crate) fn insert_asset_force<T: Asset>(
+    //     &mut self,
+    //     frontend_message_sender: async_channel::Sender<FrontendMessage>,
+    //     storage: &mut AssetCacheStorage,
+    //     handle: AssetHandle<T>,
+    //     // TODO: why unused, is it because its already used in registry?
+    //     scope: Option<DynAssetHandle>,
+    //     asset: T,
+    // ) -> AssetHandle<T> {
+    //     storage.register_asset_if_needed(frontend_message_sender.clone(), handle.clone());
+    //
+    //     self.insert_asset_with_handle::<T>(frontend_message_sender, storage, handle.clone(), asset);
+    //
+    //     handle
+    // }
 
     pub(crate) fn insert_asset<T: Asset>(
         &mut self,
@@ -51,7 +51,12 @@ impl AssetCacheInsert {
         scope: Option<DynAssetHandle>,
         asset: T,
     ) -> AssetHandle<T> {
-        storage.register_asset_if_needed(frontend_message_sender.clone(), handle.clone());
+        let is_dependency = scope.is_some();
+        storage.register_asset_if_needed(
+            frontend_message_sender.clone(),
+            handle.clone(),
+            is_dependency,
+        );
 
         self.insert_asset_with_handle::<T>(frontend_message_sender, storage, handle.clone(), asset);
 

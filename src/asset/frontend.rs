@@ -4,8 +4,8 @@ use super::{Asset, AssetLoader};
 use crate::{
     asset::{
         ArcAssetCacheRegistry, AssetCacheBackend, AssetCacheSnapshot, AssetHandle, AssetInserter,
-        AssetMetadata, BackendMessage, DynAssetHandle, GetAssetState, InternalAssetState,
-        TypedInsertRequest, TypedLoadRequest,
+        AssetMetadata, BackendMessage, DebugAssetsSettings, DynAssetHandle, GetAssetState,
+        InternalAssetState, TypedInsertRequest, TypedLoadRequest,
     },
     ConditionalSend, Context,
 };
@@ -147,6 +147,7 @@ impl AssetCache {
                 self.backend_message_sender
                     .try_send(BackendMessage::Load(Box::new(TypedLoadRequest::<T>::new(
                         handle.clone(),
+                        None,
                     ))))
                     .expect("could not send load request from frontend");
             }
@@ -262,12 +263,9 @@ impl AssetCache {
         //     .reload(handle.to_dyn(), &mut self.loader, &mut self.storage);
     }
 
-    pub fn debug_assets(&self, show_dependencies: bool, show_recursive_dependencies: bool) {
+    pub fn debug_assets(&self, settings: DebugAssetsSettings) {
         self.backend_message_sender
-            .try_send(BackendMessage::DebugAssets {
-                show_dependencies,
-                show_recursive_dependencies,
-            })
+            .try_send(BackendMessage::DebugAssets(settings))
             .expect("could not send debug assets message");
     }
 }

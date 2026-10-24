@@ -4,8 +4,8 @@ pub use shader_import_asset::*;
 pub use wesl_shader_loader::*;
 
 use gbase::asset::{
-    ImageLoader, ImageLoaderSettings, MeshGpuLoader, MeshGpuLoaderSettings, NamedInserter,
-    ShaderGpuLoader, ShaderGpuLoaderSettings,
+    DebugAssetsSettings, ImageLoader, ImageLoaderSettings, MeshGpuLoader, MeshGpuLoaderSettings,
+    NamedInserter, ShaderGpuLoader, ShaderGpuLoaderSettings,
 };
 use gbase::input::{self, KeyCode};
 use gbase::render::{
@@ -114,7 +114,7 @@ impl Callbacks for App {
     ) -> CallbackResult {
         if input::key_just_pressed(ctx, KeyCode::KeyD) {
             // asset::debug_asset_dependency_graph(cache);
-            cache.debug_assets(true, true);
+            cache.debug_assets(DebugAssetsSettings::new());
         }
 
         let Ok(mesh) = cache.get_asset(&self.mesh_gpu_handle).cloned() else {

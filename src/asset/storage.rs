@@ -24,10 +24,13 @@ pub(crate) enum InternalAssetState {
     Ready,
 }
 
+// TODO: is it neccessary need to send everything in here to frontend?
 #[derive(Debug, Clone)]
 pub struct AssetMetadata {
     pub(crate) state: InternalAssetState,
     pub(crate) debug_name: Option<String>,
+    pub(crate) is_dependency: bool,
+    pub(crate) asset_type_name: String,
 }
 
 //
@@ -99,11 +102,13 @@ impl AssetCacheStorage {
         self.metadata.get_mut(handle)
     }
 
+    /// Register a root asset if its not already registered
     // TODO: no if needed check is done
     pub(crate) fn register_asset_if_needed<T: Asset>(
         &mut self,
         frontend_message_sender: async_channel::Sender<FrontendMessage>,
         handle: AssetHandle<T>,
+        is_dependency: bool,
     ) {
         // get or create the typed storage
         let dyn_storage = self
@@ -121,6 +126,8 @@ impl AssetCacheStorage {
             let metadata = AssetMetadata {
                 state: InternalAssetState::Cleared,
                 debug_name: None,
+                is_dependency,
+                asset_type_name: type_name::<T>().to_string(),
             };
             self.metadata
                 .entry(handle.to_dyn())

@@ -1,7 +1,7 @@
 mod bloom;
 
 use gbase::{
-    asset::AssetHandle,
+    asset::{AssetHandle, DebugAssetsSettings},
     glam::{vec3, vec4, Vec3},
     input::{self, mouse_button_pressed, KeyCode},
     profile,
@@ -205,7 +205,7 @@ impl Callbacks for App {
         }
 
         if input::key_just_pressed(ctx, KeyCode::KeyD) {
-            cache.debug_assets(true, true);
+            cache.debug_assets(DebugAssetsSettings::new().show_asset_type(true));
         }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {

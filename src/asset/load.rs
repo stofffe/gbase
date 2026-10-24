@@ -143,11 +143,12 @@ pub(crate) trait DynLoadRequest: ConditionalSend {
 
 pub(crate) struct TypedLoadRequest<T: AssetLoader> {
     handle: AssetHandle<T::Asset>,
+    scope: Option<DynAssetHandle>,
 }
 
 impl<T: AssetLoader> TypedLoadRequest<T> {
-    pub(crate) fn new(handle: AssetHandle<T::Asset>) -> Self {
-        Self { handle }
+    pub(crate) fn new(handle: AssetHandle<T::Asset>, scope: Option<DynAssetHandle>) -> Self {
+        Self { handle, scope }
     }
 }
 
@@ -160,7 +161,12 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) -> Option<BoxedAssetLoadFuture> {
-        storage.register_asset_if_needed(frontend_message_sender, self.handle.clone());
+        let is_dependency = self.scope.is_some();
+        storage.register_asset_if_needed(
+            frontend_message_sender,
+            self.handle.clone(),
+            is_dependency,
+        );
         loader.register_load_if_needed::<T>(storage, registry, self.handle.clone())
     }
 }
@@ -648,10 +654,12 @@ impl LoadContext {
         // TODO: check if you need to load again
         let handle = self.runtime.registry.get_load_handle::<T>(settings);
 
+        let scope = self.handle();
         self.runtime
             .backend_message_sender
             .try_send(BackendMessage::Load(Box::new(TypedLoadRequest::<T>::new(
                 handle.clone(),
+                Some(scope),
             ))))
             .expect("could not send load request");
 
