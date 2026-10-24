@@ -91,7 +91,7 @@ impl AssetCacheStorage {
         typed_storage.cache.get_mut(handle)
     }
 
-    fn get_asset_metadata(&self, handle: &DynAssetHandle) -> Option<&AssetMetadata> {
+    pub(crate) fn get_asset_metadata(&self, handle: &DynAssetHandle) -> Option<&AssetMetadata> {
         self.metadata.get(handle)
     }
 

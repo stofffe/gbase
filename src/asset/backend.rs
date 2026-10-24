@@ -221,6 +221,16 @@ impl AssetCacheBackend {
         dyn_handles
     }
 
+    fn asset_info(&self, handle: &DynAssetHandle) -> String {
+        let no_name_replacement = "___";
+        let asset_name = self
+            .storage
+            .get_debug_name(handle)
+            .unwrap_or(no_name_replacement);
+        let state = self.storage.get_asset_state(handle);
+        format!("{}: {:?}", asset_name, state)
+    }
+
     pub fn debug_assets(&self, show_dependencies: bool, show_recursive_dependencies: bool) {
         let root_handles = self.get_all_handles_sorted();
 
@@ -228,12 +238,12 @@ impl AssetCacheBackend {
             tracing::info!("");
 
             // print root
-            let debug_name = self
-                .storage
-                .get_debug_name(&root_handle)
-                .unwrap_or("no name");
+
+            let debug_name = self.asset_info(&root_handle);
 
             tracing::info!("{} {}", root_handle.id(), debug_name);
+
+            // print dependencies
 
             let mut stack = Vec::new();
 
@@ -254,10 +264,7 @@ impl AssetCacheBackend {
             }
 
             while let Some((dyn_handle, prefix, depth, is_last)) = stack.pop() {
-                let debug_name = self
-                    .storage
-                    .get_debug_name(&dyn_handle)
-                    .unwrap_or("no name");
+                let debug_name = self.asset_info(&dyn_handle);
                 let id = dyn_handle.id();
                 let connector = if is_last { "└── " } else { "├── " };
 

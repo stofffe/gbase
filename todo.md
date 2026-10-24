@@ -1,4 +1,5 @@
 whatevs
+[] add option to hide nested handles
 [] errors in asset tree view
 [] load time in asset tree view
 [] combine native and wasm task runners?
