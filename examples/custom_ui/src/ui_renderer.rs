@@ -739,7 +739,7 @@ impl AssetLoader for FontAtlasLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let font = load_ctx.request_get(settings.font_handle).await;
+        let font = load_ctx.request_get(&settings.font_handle).await;
 
         let (lookup, texture) = create_font_atlas(
             load_ctx.render_runtime(),

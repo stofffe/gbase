@@ -1,7 +1,7 @@
 use super::{AssetHandle, AssetLoader};
 use crate::{
     asset::{AssetInserter, LoadContext},
-    audio::{self, SoundSource},
+    audio,
     filesystem::{self, LoadFileError},
     render::{
         self, ArcHandle, ArcShaderModule, ArcTexture, GpuMesh, Mesh, Shader, TextureBuilder,
@@ -113,7 +113,7 @@ impl AssetLoader for MeshGpuLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let mesh = load_ctx.request_get(settings.mesh).await;
+        let mesh = load_ctx.request_get(&settings.mesh).await;
 
         let gpu_mesh =
             render::GpuMesh::new(load_ctx.render_runtime(), load_ctx.arc_runtime(), &mesh);
@@ -198,7 +198,7 @@ impl AssetLoader for ShaderGpuLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let source = load_ctx.request_get(settings.source).await;
+        let source = load_ctx.request_get(&settings.source).await;
 
         let shader = render::ShaderBuilder::new()
             .build_err(&load_ctx.render_runtime().device, source.source.clone())
@@ -295,7 +295,7 @@ impl AssetLoader for ImageGpuLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let image = load_ctx.request_get(settings.source).await;
+        let image = load_ctx.request_get(&settings.source).await;
 
         let source = TextureSource::Data(image.width(), image.height(), image.clone().to_vec());
         let image = settings
@@ -308,6 +308,44 @@ impl AssetLoader for ImageGpuLoader {
             );
 
         Ok(ArcHandle::new(load_ctx.arc_runtime(), image))
+    }
+}
+
+#[derive(Hash, PartialEq, Eq, Clone, Debug)]
+pub struct SinglePixelImageLoaderSettings {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+}
+
+impl SinglePixelImageLoaderSettings {
+    pub fn new(color: [u8; 4]) -> Self {
+        Self {
+            r: color[0],
+            g: color[1],
+            b: color[2],
+            a: color[3],
+        }
+    }
+    pub fn to_array(&self) -> [u8; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+}
+
+pub struct SinglePixelImageLoader {}
+
+impl AssetLoader for SinglePixelImageLoader {
+    type Asset = RgbaImage;
+    type Settings = SinglePixelImageLoaderSettings;
+    type Error = LoadFileError;
+
+    async fn load(
+        _load_ctx: &mut LoadContext,
+        settings: Self::Settings,
+    ) -> Result<Self::Asset, Self::Error> {
+        let image_buffer = RgbaImage::from_pixel(1, 1, image::Rgba(settings.to_array()));
+        Ok(image_buffer)
     }
 }
 

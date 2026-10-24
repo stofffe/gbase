@@ -1,7 +1,10 @@
 use crate::Transform3D;
 use async_recursion::async_recursion;
 use gbase::{
-    asset::{AssetCache, AssetHandle, LoadContext, NamedInserter},
+    asset::{
+        AssetCache, AssetHandle, LoadContext, NamedInserter, SinglePixelImageLoader,
+        SinglePixelImageLoaderSettings,
+    },
     glam::{Quat, Vec3},
     render::{self, Mesh, SamplerBuilder, TextureBuilder, VertexAttributeId},
     tracing,
@@ -385,7 +388,7 @@ pub async fn parse_gltf_material(
         format: wgpu::TextureFormat, // TODO: why is this unused
     ) -> TextureRef {
         if let Some(image) = gltf_cache.images.get(&texture.index()) {
-            tracing::info!("Loaded {:?} from gltf image cache", texture.index());
+            tracing::info!("Used cached {:?} from gltf image cache", texture.index());
             return image.clone();
         }
         // TODO: look in cache using index
@@ -479,14 +482,19 @@ pub async fn parse_gltf_material(
         color: [u8; 4],
     ) -> TextureRef {
         if let Some(image) = gltf_cache.single_pixel_images.get(&color) {
-            tracing::info!("Loaded {:?} from gltf single pixel cache", color);
+            tracing::info!("Used cached {:?} from gltf single pixel cache", color);
             return image.clone();
         }
 
+        // let name = format!("single pixel rgb {:?}", color);
+        // let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
+        // let image_handle =
+        //     load_ctx.request_insert::<RgbaImage, NamedInserter>(name.clone(), pixel_image);
+        // load_ctx.set_debug_name(image_handle.clone(), name);
+
+        let image_handle = load_ctx
+            .request_load::<SinglePixelImageLoader>(&SinglePixelImageLoaderSettings::new(color));
         let name = format!("single pixel rgb {:?}", color);
-        let pixel_image = RgbaImage::from_pixel(1, 1, image::Rgba(color));
-        let image_handle =
-            load_ctx.request_insert::<RgbaImage, NamedInserter>(name.clone(), pixel_image);
         load_ctx.set_debug_name(image_handle.clone(), name);
 
         let sampler_config = render::SamplerBuilder::new()

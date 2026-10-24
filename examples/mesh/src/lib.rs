@@ -187,6 +187,7 @@ impl Callbacks for App {
     ) -> CallbackResult {
         // if cache.handle_just_available(&self.helmet_mesh) {}
         if cache.handle_just_available(&self.sponza_gltf) {
+            // panic!("sponza done");
             tracing::error!("sponza just loaded");
             for node in &cache.get_asset(&self.sponza_gltf).unwrap().clone().nodes {
                 // tracing::info!("node {}", node);

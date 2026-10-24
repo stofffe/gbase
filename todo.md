@@ -1,4 +1,6 @@
 whatevs
+[] errors in asset tree view
+[] load time in asset tree view
 [] combine native and wasm task runners?
 [] preload all boudning boxes? does it matter much?
 [] show settings in debug graph

@@ -221,7 +221,7 @@ impl<T: Asset> DynInsertRequest for TypedInsertRequest<T> {
 
         // Reload all dependents while ignoring the one making the insertion
         let dyn_handle = handle.to_dyn();
-        tracing::error!("reload dependeing ignoring {}", dyn_handle);
+        // tracing::error!("reload dependeing ignoring {}", dyn_handle);
         loader.reload_depending(registry, dependency, storage, &dyn_handle, self.scope)
     }
 }
@@ -632,7 +632,7 @@ impl LoadContext {
     // nested
     pub fn request_load<T: AssetLoader + 'static>(
         &mut self,
-        settings: T::Settings,
+        settings: &T::Settings,
     ) -> AssetHandle<T::Asset> {
         tracing::info!(
             "request load request for {:?} in {}",
@@ -641,7 +641,7 @@ impl LoadContext {
         );
 
         // TODO: check if you need to load again
-        let handle = self.runtime.registry.get_load_handle::<T>(&settings);
+        let handle = self.runtime.registry.get_load_handle::<T>(settings);
 
         self.runtime
             .backend_message_sender
@@ -655,7 +655,7 @@ impl LoadContext {
         handle
     }
 
-    pub async fn request_get<T: Asset>(&mut self, handle: AssetHandle<T>) -> Arc<T> {
+    pub async fn request_get<T: Asset>(&mut self, handle: &AssetHandle<T>) -> Arc<T> {
         tracing::info!(
             "await start: request get request for {} in {}",
             handle,

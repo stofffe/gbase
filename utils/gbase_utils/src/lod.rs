@@ -211,7 +211,7 @@ impl AssetLoader for BoundingBoxLoader {
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
-        let mesh = load_ctx.request_get(settings.mesh).await;
+        let mesh = load_ctx.request_get(&settings.mesh).await;
 
         let bounding_box = mesh.calculate_bounding_box();
 
