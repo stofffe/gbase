@@ -62,6 +62,7 @@ struct LoadResponse<T: AssetLoader> {
     handle: AssetHandle<T::Asset>,
     result: LoadAssetResult<T>,
     dependencies: FxHashSet<DynAssetHandle>,
+    #[cfg(feature = "asset_reload")]
     watches: FxHashSet<PathBuf>,
 }
 
@@ -461,6 +462,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
                         handle: handle.clone(),
                         result: LoadAssetResult::<T>::Success(asset),
                         dependencies: new_load_ctx.state.dependencies,
+                        #[cfg(feature = "asset_reload")]
                         watches: new_load_ctx.state.watches,
                     });
                     response
@@ -471,6 +473,7 @@ impl<T: AssetLoader + 'static> TypedAssetLoad<T> {
                         handle: handle.clone(),
                         result: LoadAssetResult::<T>::Error,
                         dependencies: new_load_ctx.state.dependencies,
+                        #[cfg(feature = "asset_reload")]
                         watches: new_load_ctx.state.watches,
                     });
                     response
@@ -523,6 +526,7 @@ impl<T: AssetLoader + 'static> DynAssetLoad for TypedAssetLoad<T> {
 struct LoadState {
     pub(crate) handle: DynAssetHandle,
     pub(crate) dependencies: FxHashSet<DynAssetHandle>,
+    #[cfg(feature = "asset_reload")]
     pub(crate) watches: FxHashSet<PathBuf>,
 }
 
@@ -531,6 +535,7 @@ impl LoadState {
         Self {
             handle,
             dependencies: FxHashSet::default(),
+            #[cfg(feature = "asset_reload")]
             watches: FxHashSet::default(),
         }
     }
@@ -701,7 +706,7 @@ impl LoadContext {
         if let Err(err) = &result {
             tracing::error!(
                 "could not load nested bytes at {:?}: {}",
-                self.runtime.filesystem_runtime.format_asset_path(path),
+                self.runtime.filesystem_runtime.format_asset_path(&path),
                 err
             );
         }
@@ -727,7 +732,7 @@ impl LoadContext {
         if let Err(err) = &result {
             tracing::error!(
                 "could not load nested string at {:?}: {}",
-                self.runtime.filesystem_runtime.format_asset_path(path),
+                self.runtime.filesystem_runtime.format_asset_path(&path),
                 err
             );
         }
