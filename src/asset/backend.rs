@@ -1,7 +1,9 @@
+use std::time::Duration;
+
 use crate::asset::{
     ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
-    AssetCacheStorage, BoxedAssetLoadFuture, DynAssetHandle, DynGetRequest, DynInsertRequest,
-    DynLoadRequest, DynLoadResult, FrontendMessage,
+    AssetCachePerformance, AssetCacheStorage, BoxedAssetLoadFuture, DynAssetHandle, DynGetRequest,
+    DynInsertRequest, DynLoadRequest, DynLoadResult, FrontendMessage,
 };
 use crate::task::Task;
 use crate::Context;
@@ -27,6 +29,7 @@ pub struct DebugAssetsSettings {
 
     pub show_asset_type: bool,
     pub show_state: bool,
+    pub show_performance: bool,
 }
 
 impl Default for DebugAssetsSettings {
@@ -38,6 +41,7 @@ impl Default for DebugAssetsSettings {
 
             show_asset_type: false,
             show_state: true,
+            show_performance: false,
         }
     }
 }
@@ -71,6 +75,11 @@ impl DebugAssetsSettings {
         self.show_state = value;
         self
     }
+
+    pub fn show_performance(mut self, value: bool) -> Self {
+        self.show_performance = value;
+        self
+    }
 }
 
 /// This is the owner of the asset cache state on the background thread
@@ -81,6 +90,7 @@ pub struct AssetCacheBackend {
     pub(crate) inserter: AssetCacheInsert,
     pub(crate) loader: AssetCacheLoad,
     pub(crate) dependency: AssetCacheDependency,
+    pub(crate) performance: AssetCachePerformance,
 
     pub(crate) backend_message_sender: async_channel::Sender<BackendMessage>,
     pub(crate) backend_message_receiver: async_channel::Receiver<BackendMessage>,
@@ -110,6 +120,8 @@ impl AssetCacheBackend {
 
         let dependency = AssetCacheDependency::new();
 
+        let performance = AssetCachePerformance::new();
+
         #[cfg(feature = "asset_reload")]
         let reloader = crate::asset::AssetCacheReload::new(
             ctx.filesystem.runtime(),
@@ -125,6 +137,8 @@ impl AssetCacheBackend {
             registry,
 
             dependency,
+
+            performance,
 
             #[cfg(feature = "asset_reload")]
             reloader,
@@ -170,6 +184,11 @@ impl AssetCacheBackend {
                     while let Ok(backend_message) = self.backend_message_receiver.recv().await {
                         match backend_message {
                             BackendMessage::Load(load_request) => {
+                                // performance
+                                let handle = load_request.handle();
+                                self.performance.start_load(handle);
+
+                                // start load
                                 let load_future = load_request.load_asset_if_needed(
                                     self.frontend_message_sender.clone(),
                                     &self.registry,
@@ -177,6 +196,29 @@ impl AssetCacheBackend {
                                     &mut self.storage,
                                 );
                                 if let Some(load_future) = load_future {
+                                    spawn_load(
+                                        &asset_executor,
+                                        self.backend_message_sender.clone(),
+                                        load_future,
+                                    );
+                                }
+                            }
+                            BackendMessage::LoadResult(load_result) => {
+                                // performance
+                                let handle = load_result.handle();
+                                self.performance.finish_load(handle);
+
+                                // handle result
+                                let load_futures = load_result.handle_load_result(
+                                    self.frontend_message_sender.clone(),
+                                    &self.registry,
+                                    &mut self.storage,
+                                    &mut self.loader,
+                                    &mut self.dependency,
+                                    #[cfg(feature = "asset_reload")]
+                                    &mut self.reloader,
+                                );
+                                for load_future in load_futures {
                                     spawn_load(
                                         &asset_executor,
                                         self.backend_message_sender.clone(),
@@ -210,24 +252,6 @@ impl AssetCacheBackend {
 
                             BackendMessage::Get(dyn_get_request) => {
                                 dyn_get_request.get_asset(&mut self.storage)
-                            }
-                            BackendMessage::LoadResult(load_result) => {
-                                let load_futures = load_result.handle_load_result(
-                                    self.frontend_message_sender.clone(),
-                                    &self.registry,
-                                    &mut self.storage,
-                                    &mut self.loader,
-                                    &mut self.dependency,
-                                    #[cfg(feature = "asset_reload")]
-                                    &mut self.reloader,
-                                );
-                                for load_future in load_futures {
-                                    spawn_load(
-                                        &asset_executor,
-                                        self.backend_message_sender.clone(),
-                                        load_future,
-                                    );
-                                }
                             }
                             #[cfg(feature = "asset_reload")]
                             BackendMessage::Reload(reload_handle_request) => {
@@ -291,6 +315,20 @@ impl AssetCacheBackend {
             let asset_type = metadata.asset_type_name;
             output.push_str(", ");
             output.push_str(&asset_type);
+        }
+
+        if settings.show_performance {
+            output.push_str(", ");
+            match self.performance.get_time(handle) {
+                Some(load_time) => output.push_str(&format!("{} ms", load_time.as_millis())),
+                None => {
+                    if self.performance.is_pending(handle) {
+                        output.push_str("pending");
+                    } else {
+                        output.push_str("inserted?");
+                    }
+                }
+            }
         }
 
         output

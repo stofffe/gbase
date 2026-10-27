@@ -205,7 +205,11 @@ impl Callbacks for App {
         }
 
         if input::key_just_pressed(ctx, KeyCode::KeyD) {
-            cache.debug_assets(DebugAssetsSettings::new().show_asset_type(true));
+            cache.debug_assets(
+                DebugAssetsSettings::new()
+                    .show_asset_type(true)
+                    .show_performance(true),
+            );
         }
 
         if mouse_button_pressed(ctx, input::MouseButton::Left) {

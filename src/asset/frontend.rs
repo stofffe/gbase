@@ -174,10 +174,10 @@ impl AssetCache {
         }
 
         let Some(metadata) = self.snapshot.get_metadata(&handle.to_dyn()) else {
-            tracing::warn!(
-                "trying to get metadata which doesnt exist for {}, returning loading",
-                handle
-            );
+            // tracing::warn!(
+            //     "trying to get metadata which doesnt exist for {}, returning loading",
+            //     handle
+            // );
             return Err(GetAssetState::Loading);
         };
 

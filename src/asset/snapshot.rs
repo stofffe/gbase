@@ -69,7 +69,7 @@ impl AssetCacheSnapshot {
 
     pub(crate) fn get_asset<T: Asset>(&self, handle: &AssetHandle<T>) -> Option<&Arc<T>> {
         let Some(typed_storage) = self.get_typed_storage_ref::<T>() else {
-            tracing::warn!("could not get typed frontend cache {}", type_name::<T>());
+            // tracing::warn!("could not get typed frontend cache {}", type_name::<T>());
             return None;
         };
 

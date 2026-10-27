@@ -79,6 +79,8 @@ pub(crate) trait DynLoadResult: ConditionalSend {
         dependency: &mut AssetCacheDependency,
         #[cfg(feature = "asset_reload")] reloader: &mut AssetCacheReload,
     ) -> Vec<BoxedAssetLoadFuture>;
+
+    fn handle(&self) -> DynAssetHandle;
 }
 
 impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
@@ -116,6 +118,10 @@ impl<T: AssetLoader> DynLoadResult for LoadResponse<T> {
             }
         }
     }
+
+    fn handle(&self) -> DynAssetHandle {
+        self.handle.to_dyn()
+    }
 }
 
 //
@@ -139,6 +145,7 @@ pub(crate) trait DynLoadRequest: ConditionalSend {
         loader: &mut AssetCacheLoad,
         storage: &mut AssetCacheStorage,
     ) -> Option<BoxedAssetLoadFuture>;
+    fn handle(&self) -> DynAssetHandle;
 }
 
 pub(crate) struct TypedLoadRequest<T: AssetLoader> {
@@ -168,6 +175,10 @@ impl<T: AssetLoader + 'static> DynLoadRequest for TypedLoadRequest<T> {
             is_dependency,
         );
         loader.register_load_if_needed::<T>(storage, registry, self.handle.clone())
+    }
+
+    fn handle(&self) -> DynAssetHandle {
+        self.handle.to_dyn()
     }
 }
 
