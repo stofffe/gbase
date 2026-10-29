@@ -312,7 +312,6 @@ impl UIRenderer {
         max_width: f32,
     ) -> TextLayoutResult {
         let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
-            // tracing::error!("could not get font");
             return TextLayoutResult {
                 width: 0.0,
                 height: 0.0,

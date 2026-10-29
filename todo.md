@@ -96,7 +96,10 @@ whatevs
 [/] fix logging not working in dlls
 - have to call init logging in hot reload callback
 [] ui 2
-    [] figure out when to use min/preferred/width
+    [] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
+    [] add tests for layout 
+    [] make shrink less weird with negative values?
+    [] figure out when to use min/max/preferred/final width
     [] add text wrapping stage 
     [] add text rending (with kerning)
 [] allocations

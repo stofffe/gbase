@@ -1,6 +1,6 @@
 use gbase::{
     asset::AssetCache,
-    glam::{f32, vec4, Vec4},
+    glam::{vec4, Vec4},
     render, Context,
 };
 
@@ -56,16 +56,17 @@ impl UILayouter {
         self.element_stack = vec![ROOT_ELEMENT];
     }
 
+    pub fn elements(&self) -> &[UIElement] {
+        &self.elems
+    }
+
     pub fn add_element(&mut self, element: UIElement, children: fn(&mut Self)) {
         self.open_element(element);
         children(self);
         self.close_element();
     }
 
-    pub fn elements(&self) -> &[UIElement] {
-        &self.elems
-    }
-
+    /// Add element to stack and set parent as current top of stack
     fn open_element(&mut self, mut element: UIElement) -> usize {
         // point to parent
         let parent = *self
@@ -77,7 +78,7 @@ impl UILayouter {
         // add element to global state
         self.elems.push(element);
 
-        // add element to parents children
+        // add element to parents child list
         let element_index = self.elems.len() - 1;
         self.elems[parent].children.push(element_index);
 
@@ -92,6 +93,7 @@ impl UILayouter {
             .expect("element stack should never be empty when closing an element");
     }
 
+    /// Layout elements with the screen dimensions as the canvas size
     pub fn layout_elements_fullscreen(
         &mut self,
         ctx: &mut Context,
@@ -178,7 +180,9 @@ impl UILayouter {
                     preferred_width += total_child_gap;
                     min_width += total_child_gap;
                 }
-                LayoutDirection::TopToBottom => {}
+                LayoutDirection::TopToBottom => {
+                    // dont do anything since we are in the x pass
+                }
             }
 
             // padding
@@ -236,22 +240,26 @@ impl UILayouter {
                     while remaining_width > 0.0 && !growable.is_empty() {
                         let mut smallest = f32::MAX;
                         let mut second_smallest = f32::MAX;
-                        let mut width_to_add = remaining_width;
+                        let mut smallest_count = 0;
 
                         for &child in growable.iter() {
                             let child_width = self.elems[child].preferred_width;
                             if child_width < smallest {
                                 second_smallest = smallest;
                                 smallest = child_width;
-                            }
-                            if child_width > smallest && child_width < second_smallest {
+                                smallest_count = 1;
+                            } else if child_width == smallest {
+                                smallest_count += 1;
+                            } else if child_width < second_smallest {
                                 second_smallest = child_width;
-                                width_to_add = second_smallest - smallest;
                             }
                         }
 
-                        width_to_add = width_to_add.min(remaining_width / growable.len() as f32);
-
+                        // if there are multiple with the smallest width and there is not enough
+                        // to add to all of them, then distribute the remaining width
+                        let width_to_make_equal = second_smallest - smallest;
+                        let available_width_after_sharing = remaining_width / smallest_count as f32;
+                        let width_to_add = width_to_make_equal.min(available_width_after_sharing);
                         for &child in growable.iter() {
                             let child_width = self.elems[child].preferred_width;
                             if child_width == smallest {
@@ -281,37 +289,41 @@ impl UILayouter {
                 LayoutDirection::LeftToRight => {
                     // shrink to fit overflowing width
                     while remaining_width < 0.0 && !shrinkable.is_empty() {
-                        let mut largest = 0.0;
-                        let mut second_largest = 0.0;
-                        let mut width_to_add = remaining_width;
+                        let mut largest = f32::MIN;
+                        let mut second_largest = f32::MIN;
+                        let mut largest_count = 0;
 
                         for &child in shrinkable.iter() {
                             let child_width = self.elems[child].preferred_width;
                             if child_width > largest {
                                 second_largest = largest;
                                 largest = child_width;
-                            }
-                            if child_width < largest {
-                                second_largest = second_largest.max(child_width);
-                                width_to_add = second_largest - largest;
+                                largest_count = 1;
+                            } else if child_width == largest {
+                                largest_count += 1;
+                            } else if child_width > second_largest {
+                                second_largest = child_width;
                             }
                         }
 
-                        width_to_add = width_to_add.max(remaining_width / shrinkable.len() as f32);
-
+                        // if there are multiple with the largest width and there is not enough
+                        // to add to all of them, then distribute the remaining width
+                        let width_to_make_equal = second_largest - largest; // negative
+                        let available_width_after_sharing = remaining_width / largest_count as f32; // negative
+                        let width_to_add = width_to_make_equal.max(available_width_after_sharing); // negative
                         shrinkable.retain(|&child_index| {
                             let child = &self.elems[child_index];
-                            let prev_width = child.preferred_width;
+                            let initial_width = child.preferred_width;
 
                             let mut at_min_width = false;
                             if child.preferred_width == largest {
-                                let mut new_width = child.preferred_width + width_to_add;
+                                let mut new_width = child.preferred_width + width_to_add; // basically a subtraciton
                                 if new_width <= child.min_width {
                                     new_width = child.min_width;
                                     at_min_width = true;
                                 }
 
-                                let removed_width = new_width - prev_width;
+                                let removed_width = new_width - initial_width;
                                 remaining_width -= removed_width;
 
                                 self.elems[child_index].preferred_width = new_width;
@@ -339,6 +351,7 @@ impl UILayouter {
         //
         // wrap text
         //
+
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
@@ -362,6 +375,7 @@ impl UILayouter {
         //
         // intrinsic/fit y
         //
+
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
@@ -460,21 +474,28 @@ impl UILayouter {
                     while remaining_height > 0.0 && !growable.is_empty() {
                         let mut smallest = f32::MAX;
                         let mut second_smallest = f32::MAX;
-                        let mut height_to_add = remaining_height;
+                        let mut smallest_count = 0;
 
                         for &child in growable.iter() {
                             let child_height = self.elems[child].preferred_height;
                             if child_height < smallest {
                                 second_smallest = smallest;
                                 smallest = child_height;
-                            }
-                            if child_height > smallest && child_height < second_smallest {
+                                smallest_count = 1;
+                            } else if child_height == smallest {
+                                smallest_count += 1;
+                            } else if child_height < second_smallest {
                                 second_smallest = child_height;
-                                height_to_add = second_smallest - smallest;
                             }
                         }
 
-                        height_to_add = height_to_add.min(remaining_height / growable.len() as f32);
+                        // if there are multiple with the smallest height and there is not enough
+                        // to add to all of them, then distribute the remaining height
+                        let height_to_make_equal = second_smallest - smallest;
+                        let available_height_after_sharing =
+                            remaining_height / smallest_count as f32;
+                        let height_to_add =
+                            height_to_make_equal.min(available_height_after_sharing);
 
                         for &child in growable.iter() {
                             let child_height = self.elems[child].preferred_height;
@@ -504,25 +525,30 @@ impl UILayouter {
                 LayoutDirection::TopToBottom => {
                     // shrink to fit overflowing height
                     while remaining_height < 0.0 && !shrinkable.is_empty() {
-                        let mut largest = 0.0;
-                        let mut second_largest = 0.0;
-                        let mut height_to_add = remaining_height;
+                        let mut largest = f32::MIN;
+                        let mut second_largest = f32::MIN;
+                        let mut largest_count = 0;
 
                         for &child in shrinkable.iter() {
                             let child_height = self.elems[child].preferred_height;
                             if child_height > largest {
                                 second_largest = largest;
                                 largest = child_height;
-                            }
-                            if child_height < largest {
-                                second_largest = second_largest.max(child_height);
-                                height_to_add = second_largest - largest;
+                                largest_count = 1;
+                            } else if child_height == largest {
+                                largest_count += 1;
+                            } else if child_height > second_largest {
+                                second_largest = child_height;
                             }
                         }
 
-                        height_to_add =
-                            height_to_add.max(remaining_height / shrinkable.len() as f32);
-
+                        // if there are multiple with the largest height and there is not enough
+                        // to add to all of them, then distribute the remaining height
+                        let height_to_make_equal = second_largest - largest;
+                        let available_height_after_sharing =
+                            remaining_height / largest_count as f32;
+                        let height_to_add =
+                            height_to_make_equal.max(available_height_after_sharing);
                         shrinkable.retain(|&child_index| {
                             let child = &self.elems[child_index];
                             let prev_height = child.preferred_height;
