@@ -1,5 +1,4 @@
 use crate::task::{DynTask, TaskExecutorPlatformTrait};
-use futures_concurrency::future::Race;
 use std::any::Any;
 
 pub type TaskExecutorPlatform = NativeTaskExecutor;
@@ -23,7 +22,10 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
         let thread_handle = std::thread::spawn(move || {
             // if the thread crashes crash the main program as well
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                futures_lite::future::block_on(task_runner(task_receiver, shutdown_receiver));
+                futures_lite::future::block_on(super::task_runner(
+                    task_receiver,
+                    shutdown_receiver,
+                ));
             })) {
                 Ok(_) => {}
                 Err(err) => thread_panic_sender
@@ -58,45 +60,5 @@ impl TaskExecutorPlatformTrait for NativeTaskExecutor {
             Err(err) => std::panic::resume_unwind(err),
         }
         tracing::info!("task thread shut down successfully");
-    }
-}
-
-/// Implementation of an asset loader that runs in the background
-///
-/// Should be started using `start_background_loader`
-pub(super) async fn task_runner(
-    task_receiver: async_channel::Receiver<Box<dyn DynTask>>,
-    shutdown_receiver: async_channel::Receiver<()>,
-) {
-    let task_executor = async_executor::LocalExecutor::new();
-
-    loop {
-        let selected_futures = (
-            async {
-                task_executor.tick().await;
-                false
-            },
-            async {
-                let task = task_receiver
-                    .recv()
-                    .await
-                    .expect("could not receive from task channel");
-                task_executor.spawn(task.into_future()).detach();
-                false
-            },
-            async {
-                shutdown_receiver
-                    .recv()
-                    .await
-                    .expect("could not receive from shutdown channel");
-                true
-            },
-        );
-
-        let should_shutdown = selected_futures.race().await;
-
-        if should_shutdown {
-            break;
-        }
     }
 }

@@ -1,8 +1,8 @@
 whatevs
 [x] add option to hide nested handles
 [x] errors in asset tree view
-[] load time in asset tree view
-[] combine native and wasm task runners?
+[x] load time in asset tree view
+[x] combine native and wasm task runners?
 [] preload all boudning boxes? does it matter much?
 [] show settings in debug graph
 [] show box error in debug graph
