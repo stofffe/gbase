@@ -1,10 +1,8 @@
+use crate::ui_font::TextMeasurer;
 use gbase::{
-    asset::AssetCache,
     glam::{vec4, Vec4},
     render, Context,
 };
-
-use crate::ui_renderer::UIRenderer;
 
 #[derive(Debug)]
 pub struct TextSizeResult {
@@ -97,13 +95,11 @@ impl UILayouter {
     pub fn layout_elements_fullscreen(
         &mut self,
         ctx: &mut Context,
-        cache: &mut AssetCache,
-        text_measurer: &mut UIRenderer,
+        text_measurer: &mut impl TextMeasurer,
     ) {
         let screen_size = render::surface_size(ctx);
         self.layout_elements(
             ctx,
-            cache,
             text_measurer,
             screen_size.width as f32,
             screen_size.height as f32,
@@ -113,8 +109,7 @@ impl UILayouter {
     pub fn layout_elements(
         &mut self,
         ctx: &mut Context,
-        cache: &mut AssetCache,
-        text_measurer: &mut UIRenderer,
+        text_measurer: &mut impl TextMeasurer,
         root_width: f32,
         root_height: f32,
     ) {
@@ -132,13 +127,13 @@ impl UILayouter {
             let mut preferred_width = 0.0f32;
             let mut min_width = 0.0f32;
 
+            // fixed sizes already set?
+
             // text size
             if !element.text_info.text.is_empty() {
                 let text_info = &element.text_info;
 
                 let layout_result = text_measurer.calculate_preferred_text_size(
-                    ctx,
-                    cache,
                     &text_info.text,
                     text_info.font_size,
                     false,
@@ -189,6 +184,7 @@ impl UILayouter {
             preferred_width += element.padding.horizontal();
             min_width += element.padding.horizontal();
 
+            // TODO: early continue and do this instead?
             // fixed size overwrite
             if let Sizing::Fixed(fixed_width) = element.sizing_x {
                 preferred_width = fixed_width;
@@ -358,8 +354,6 @@ impl UILayouter {
             let element_text = &element.text_info.text;
             if !element_text.is_empty() {
                 let layout_result = text_measurer.layout_text(
-                    ctx,
-                    cache,
                     &element.text_info.text,
                     element.text_info.font_size,
                     element.preferred_width,
@@ -615,30 +609,6 @@ impl UILayouter {
                     }
                 }
             }
-
-            // let element = &self.elems[elem];
-            // instances.push(UIElementInstace {
-            //     position: [element.x, element.y],
-            //     size: [element.preferred_width, element.preferred_height],
-            //     color: element.background_color.to_array(),
-            //     font_atlas_offset: [0.0, 0.0],
-            //     font_atlas_size: [0.0, 0.0],
-            // });
-
-            // // glyphs
-            // if !element.text_info.text.is_empty() {
-            //     for glyph in element.text_layout.glyphs.iter() {
-            //         let x = element.x + glyph.x;
-            //         let y = element.y + glyph.y;
-            //         instances.push(UIElementInstace {
-            //             position: [x, y],
-            //             size: [glyph.width, glyph.height],
-            //             color: element.text_info.text_color.to_array(),
-            //             font_atlas_offset: [glyph, glyph.y],
-            //             font_atlas_size: [glyph.width, glyph.height],
-            //         });
-            //     }
-            // }
         }
     }
 }
@@ -817,3 +787,23 @@ impl UIElement {
         layouter.add_element(self, |_| {});
     }
 }
+
+// #[cfg(test)]
+// mod test {
+//     use crate::{
+//         ui_layout::{Sizing::Fixed, UIElement, UILayouter},
+//         ui_renderer::UIRenderer,
+//     };
+//
+//     #[test]
+//     fn test_layout() {
+//         let mut layouter = UILayouter::new();
+//
+//         UIElement::new().sizing_x(Fixed(300.0)).draw(&mut layouter);
+//
+//         layouter.layout_elements(ctx, cache, text_measurer, 500.0, 500.0);
+//
+//         assert_eq!()
+//         // UIElement::new().sizing_x(Fixed(200.0)).draw(&mut layouter);
+//     }
+// }

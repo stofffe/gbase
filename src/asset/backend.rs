@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use crate::asset::{
     ArcAssetCacheRegistry, AssetCacheDependency, AssetCacheInsert, AssetCacheLoad,
     AssetCachePerformance, AssetCacheStorage, BoxedAssetLoadFuture, DynAssetHandle, DynGetRequest,

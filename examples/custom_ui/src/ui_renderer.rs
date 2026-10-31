@@ -1,4 +1,4 @@
-use crate::ui_layout::{Glyph, TextLayoutResult, TextSizeResult, UIElement};
+use crate::ui_layout::UIElement;
 use core::f32;
 use gbase::{
     arc::ArcHandleRuntime,
@@ -10,10 +10,11 @@ use gbase::{
     glam::{self, Mat4},
     input,
     render::{self, ArcHandle, ArcShaderModule, BindGroupBindable, RenderRuntime},
-    wgpu, Context,
+    tracing, wgpu,
 };
 use std::{collections::HashMap, hash::Hash, path::PathBuf};
 
+/// UI renderer that uses sdf for text
 pub struct UIRenderer {
     shader_gpu_handle: AssetHandle<ArcShaderModule>,
     bindgroup_layout: render::ArcBindGroupLayout,
@@ -23,11 +24,10 @@ pub struct UIRenderer {
 
     projection: render::UniformBuffer<glam::Mat4>,
 
-    font_handle: AssetHandle<Font>,
-    pub font_atlas_handle: AssetHandle<FontAtlas>,
+    pub font_handle: AssetHandle<Font>,
+    pub font_atlas_handle: AssetHandle<SdfFontAtlas>,
 
     // TODO: should this be some hashable f32 instead?
-    font_atlas_raster_size: u32,
     font_atlas_supported_chars: Vec<char>,
 }
 
@@ -54,11 +54,12 @@ impl UIRenderer {
         }
 
         let font_handle = cache.load_asset::<FontLoader>(&FontLoaderSettings::new(font_path));
-        let font_atlas_handle = cache.load_asset::<FontAtlasLoader>(&FontAtlasLoaderSettings::new(
-            font_handle.clone(),
-            font_atlas_supported_chars.clone(),
-            font_atlas_raster_size,
-        ));
+        let font_atlas_handle =
+            cache.load_asset::<SdfFontAtlasLoader>(&SdfFontAtlasLoaderSettings::new(
+                font_handle.clone(),
+                font_atlas_supported_chars.clone(),
+                font_atlas_raster_size,
+            ));
 
         //
         // gpu resources
@@ -103,7 +104,6 @@ impl UIRenderer {
 
             font_handle,
             font_atlas_handle,
-            font_atlas_raster_size,
             font_atlas_supported_chars,
         }
     }
@@ -151,19 +151,25 @@ impl UIRenderer {
             let atlas_height = font_atlas.texture.height();
             if !element.text_info.text.is_empty() {
                 for glyph in element.text_layout.glyphs.iter() {
-                    // TODO: backup
+                    // TODO: backup glyph
                     let glyph_info = font_atlas
                         .lookup
                         .get(&glyph.character)
                         .expect("could not find glyph");
 
-                    let x = element.x + glyph.x;
-                    let y = element.y + glyph.y;
+                    // All values related to atlas must be scaled
+                    // the generation had a large fixed font size, not we just scale it linearly
+                    let scale = element.text_info.font_size as f32 / font_atlas.raster_size as f32;
+                    let sdf_padding = font_atlas.sdf_params.pad as f32;
+                    let x = element.x + glyph.x - sdf_padding * scale;
+                    let y = element.y + glyph.y - sdf_padding * scale;
+                    let width = glyph_info.atlas_width as f32 * scale;
+                    let height = glyph_info.atlas_height as f32 * scale;
                     instances.push(UIElementInstace {
                         element_type: ELEMENT_TYPE_GLYPH,
 
                         position: [x, y],
-                        size: [glyph.width, glyph.height],
+                        size: [width, height],
                         color: element.text_info.text_color.to_array(),
                         font_atlas_offset: [
                             glyph_info.atlas_offset_x as f32 / atlas_width as f32,
@@ -228,243 +234,12 @@ impl UIRenderer {
     }
 }
 
-impl UIRenderer {
-    pub fn calculate_preferred_text_size(
-        &mut self,
-        _ctx: &mut Context,
-        cache: &mut AssetCache,
-        text: &str,
-        font_size: u32,
-        wrap_on_newline: bool,
-    ) -> TextSizeResult {
-        let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
-            // tracing::error!("could not get font");
-            return TextSizeResult {
-                preferred_width: 0.0,
-                preferred_height: 0.0,
-                min_width: 0.0,
-                min_height: 0.0,
-            };
-        };
-
-        let line_metrics = font
-            .font
-            .horizontal_line_metrics(font_size as f32)
-            .expect("could not get line metrics");
-        let line_height = line_metrics.new_line_size;
-
-        let mut x_offset = 0.0f32;
-        let mut y_offset = 0.0f32;
-        let mut longest_line = 0.0f32;
-        let mut shortest_word = f32::MAX;
-        // width
-        let mut current_word_width = 0.0;
-        let mut prev_char = None;
-        for letter in text.chars() {
-            // let font_metrics = font.font.metrics(letter, font_size as f32);
-            let font_metrics = font.font.metrics(letter, font_size as f32);
-
-            // TODO: might be a bit too long due to using advance and not width
-            if wrap_on_newline && letter == '\n' {
-                longest_line = longest_line.max(x_offset);
-                x_offset = 0.0;
-                y_offset += line_height;
-                continue;
-            }
-
-            if letter.is_whitespace() {
-                shortest_word = shortest_word.min(current_word_width);
-                current_word_width = 0.0;
-            }
-
-            if let Some(prev) = prev_char {
-                if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
-                    x_offset += kern;
-                }
-            }
-
-            current_word_width += font_metrics.advance_width;
-            x_offset += font_metrics.advance_width;
-
-            prev_char = Some(letter);
-        }
-
-        let preferred_width = longest_line.max(x_offset);
-        let preferred_height = y_offset + line_height;
-        let min_width = shortest_word;
-        // TODO: needed?
-        let min_height = preferred_height;
-
-        TextSizeResult {
-            preferred_width,
-            preferred_height,
-            min_width,
-            min_height,
-        }
-    }
-
-    pub fn layout_text(
-        &mut self,
-        ctx: &mut Context,
-        cache: &mut AssetCache,
-        text: &str,
-        font_size: u32,
-        max_width: f32,
-    ) -> TextLayoutResult {
-        let Ok(font) = cache.get_asset(&self.font_handle).cloned() else {
-            return TextLayoutResult {
-                width: 0.0,
-                height: 0.0,
-                glyphs: Vec::new(),
-            };
-        };
-
-        // for c in [' ', 'a', 'b', 'm', 'n', 'y'] {
-        //     let m = font.font.metrics(c, font_size as f32);
-        //     tracing::error!(
-        //         "LAYOUT: handle={:?} char={:?} advance={} width={} height={} xmin={} ymin={}",
-        //         self.font_handle,
-        //         c,
-        //         m.advance_width,
-        //         m.width,
-        //         m.height,
-        //         m.xmin,
-        //         m.ymin,
-        //     );
-        // }
-
-        let Ok(font_atlas) = cache.get_asset(&self.font_atlas_handle) else {
-            return TextLayoutResult {
-                width: 0.0,
-                height: 0.0,
-                glyphs: Vec::new(),
-            };
-        };
-
-        let line_metrics = font
-            .font
-            .horizontal_line_metrics(font_size as f32)
-            .expect("could not get line metrics");
-        let line_height = line_metrics.new_line_size;
-
-        let text = text.chars().collect::<Vec<_>>();
-        let mut glyphs = Vec::new();
-
-        let mut x_offset = 0.0f32;
-        let mut y_offset = 0.0f32;
-        let mut longest_line_width = 0.0f32;
-
-        let mut current_word_start = 0;
-        let mut current_word_len = 0;
-        let mut current_word_width = 0.0;
-
-        let mut prev_char = None;
-        for text_index in 0..text.len() {
-            let letter = text[text_index];
-            let font_metrics = font.font.metrics(letter, font_size as f32);
-
-            // add letter if not whitespace
-            let is_last_element = text_index == text.len() - 1;
-            let is_whitespace = letter == ' ' || letter == '\t' || letter == '\n';
-
-            if !is_whitespace {
-                if let Some(prev) = prev_char {
-                    if let Some(kern) = font.font.horizontal_kern(prev, letter, font_size as f32) {
-                        current_word_width += kern;
-                    }
-                }
-                current_word_width += font_metrics.advance_width;
-                current_word_len += 1;
-                prev_char = Some(letter);
-            }
-
-            if is_whitespace || is_last_element {
-                if current_word_len > 0 {
-                    // wrap check
-                    if x_offset + current_word_width > max_width {
-                        y_offset += line_height;
-                        longest_line_width = longest_line_width.max(x_offset);
-                        x_offset = 0.0;
-                    }
-
-                    let mut prev_char = None;
-                    for text_index in current_word_start..current_word_start + current_word_len {
-                        let text_char = text[text_index];
-                        let glyph_metrics = font.font.metrics(text_char, font_size as f32);
-                        let glyph_info = font_atlas.lookup.get(&text_char).unwrap();
-                        let scale = font_size as f32 / self.font_atlas_raster_size as f32;
-                        glyphs.push(Glyph {
-                            character: text_char,
-                            x: x_offset,
-                            y: y_offset + line_height
-                                - glyph_metrics.height as f32
-                                - glyph_metrics.ymin as f32
-                                + line_metrics.descent,
-                            width: glyph_info.atlas_width as f32 * scale,
-                            height: glyph_info.atlas_height as f32 * scale,
-                        });
-
-                        if let Some(prev) = prev_char {
-                            if let Some(kern) =
-                                // font.font.horizontal_kern(prev, letter, font_size as f32)
-                                font.font.horizontal_kern(prev, text_char, font_size as f32)
-                            {
-                                x_offset += kern;
-                            }
-                        }
-                        prev_char = Some(text_char);
-                        x_offset += glyph_metrics.advance_width;
-                    }
-                }
-
-                // TODO: how to handle tab
-
-                if letter == ' ' {
-                    let glyph_info = font_atlas.lookup.get(&letter).unwrap();
-                    let scale = font_size as f32 / self.font_atlas_raster_size as f32;
-                    glyphs.push(Glyph {
-                        character: letter,
-                        x: x_offset,
-                        y: y_offset + line_height
-                            - font_metrics.height as f32
-                            - font_metrics.ymin as f32
-                            + line_metrics.descent,
-                        width: glyph_info.atlas_width as f32 * scale,
-                        height: glyph_info.atlas_height as f32 * scale,
-                    });
-                    x_offset += font_metrics.advance_width;
-                }
-                // TODO: should maybe be a setting
-                if letter == '\n' {
-                    y_offset += line_height;
-                    longest_line_width = longest_line_width.max(x_offset);
-                    x_offset = 0.0;
-                }
-
-                // reset state
-                current_word_start = text_index + 1;
-                current_word_len = 0;
-                current_word_width = 0.0;
-            }
-        }
-
-        let width = longest_line_width.max(x_offset);
-        let height = y_offset + line_height;
-
-        TextLayoutResult {
-            width,
-            height,
-            glyphs,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
-struct AtlasGlyphInfo {
-    atlas_offset_x: usize,
-    atlas_offset_y: usize,
-    atlas_width: usize,
-    atlas_height: usize,
+pub struct AtlasGlyphInfo {
+    pub atlas_offset_x: usize,
+    pub atlas_offset_y: usize,
+    pub atlas_width: usize,
+    pub atlas_height: usize,
 }
 
 fn create_font_atlas(
@@ -473,17 +248,10 @@ fn create_font_atlas(
     font: &fontdue::Font,
     supported_chars: &[char],
     font_raster_size: f32,
+    sdf_params: sdfer::esdt::Params,
 ) -> (HashMap<char, AtlasGlyphInfo>, render::ArcTexture) {
     let mut glyphs = Vec::new();
     let mut total_area = 0;
-
-    let sdf_params = sdfer::esdt::Params {
-        pad: 8,
-        radius: 8.0,
-        cutoff: 0.5,
-        solidify: true,
-        preprocess: false,
-    };
 
     // create sdf glyphs
     for &char in supported_chars {
@@ -503,6 +271,7 @@ fn create_font_atlas(
             }
 
             // generate glyph sdf
+            //
             let (sdf_output, _) = sdfer::esdt::glyph_to_sdf(&mut sdf_input, sdf_params, None);
             let sdf_width = sdf_output.width();
             let sdf_height = sdf_output.height();
@@ -649,9 +418,10 @@ impl UIElementInstace {
     }
 }
 
+// TODO: keep or nah?
 #[derive(Clone)]
 pub struct Font {
-    font: fontdue::Font,
+    pub font: fontdue::Font,
 }
 
 pub struct FontLoader {}
@@ -702,18 +472,20 @@ impl AssetLoader for FontLoader {
 
 // TODO: no cpu representation currently, directly to gpu instead
 #[derive(Clone)]
-pub struct FontAtlas {
-    lookup: HashMap<char, AtlasGlyphInfo>,
+pub struct SdfFontAtlas {
+    pub lookup: HashMap<char, AtlasGlyphInfo>,
     pub texture: render::ArcTexture,
+    pub raster_size: u32,
+    pub sdf_params: sdfer::esdt::Params,
 }
 
 #[derive(Clone, Hash, PartialEq, Eq, Debug)]
-pub struct FontAtlasLoaderSettings {
+pub struct SdfFontAtlasLoaderSettings {
     font_handle: AssetHandle<Font>,
     supported_chars: Vec<char>,
     font_raster_size: u32,
 }
-impl FontAtlasLoaderSettings {
+impl SdfFontAtlasLoaderSettings {
     fn new(
         font_handle: AssetHandle<Font>,
         supported_chars: Vec<char>,
@@ -727,27 +499,43 @@ impl FontAtlasLoaderSettings {
     }
 }
 
-pub struct FontAtlasLoader;
+pub struct SdfFontAtlasLoader;
 
-impl AssetLoader for FontAtlasLoader {
-    type Asset = FontAtlas;
-    type Settings = FontAtlasLoaderSettings;
+impl AssetLoader for SdfFontAtlasLoader {
+    type Asset = SdfFontAtlas;
+    type Settings = SdfFontAtlasLoaderSettings;
     type Error = EmptyError;
 
     async fn load(
         load_ctx: &mut LoadContext,
         settings: Self::Settings,
     ) -> Result<Self::Asset, Self::Error> {
+        let raster_size = settings.font_raster_size;
         let font = load_ctx.request_get(&settings.font_handle).await;
+
+        // TODO: hardcoded
+        let sdf_params = sdfer::esdt::Params {
+            pad: 8,
+            radius: 8.0,
+            cutoff: 0.5,
+            solidify: true,
+            preprocess: false,
+        };
 
         let (lookup, texture) = create_font_atlas(
             load_ctx.render_runtime(),
             load_ctx.arc_runtime(),
             &font.font,
             &settings.supported_chars,
-            settings.font_raster_size as f32,
+            raster_size as f32,
+            sdf_params,
         );
 
-        Ok(FontAtlas { lookup, texture })
+        Ok(SdfFontAtlas {
+            lookup,
+            texture,
+            raster_size,
+            sdf_params,
+        })
     }
 }
