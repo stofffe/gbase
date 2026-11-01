@@ -3,7 +3,7 @@ mod ui_layout;
 mod ui_renderer;
 use crate::{
     ui_font::{FontTextMeasurer, UIFonts},
-    ui_layout::{Padding, Sizing, UIElement, UILayouter},
+    ui_layout::{LayoutDirection, Padding, Sizing, UIElement, UILayouter},
     ui_renderer::UIRenderer,
 };
 use gbase::{
@@ -83,94 +83,94 @@ impl Callbacks for App {
         cache: &mut asset::AssetCache,
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
-        UIElement::new()
-            .sizing_x(Sizing::Fixed(1200.0))
-            .sizing_y(Sizing::Fit)
-            .background_color(WHITE)
-            .draw_with_children(&mut self.layouter, |layouter| {
-                UIElement::new()
-                    .text(
-                        "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
-                    )
-                    .font_size(64)
-                    .padding(Padding::new(10.0,10.0,10.0,10.0))
-                    .background_color(BLUE)
-                    .draw(layouter);
-                UIElement::new()
-                    .sizing_x(Sizing::Fixed(400.0))
-                    .sizing_y(Sizing::Grow)
-                    .background_color(GREEN)
-                    .draw(layouter);
-                UIElement::new()
-                    // .text("Hello my name is bobbyyy")
-                    .text("abcd 123")
-                    .font_size(128)
-                    .background_color(BLUE)
-                    .draw(layouter);
-            });
-
         // UIElement::new()
-        //     .sizing_x(Sizing::Grow)
-        //     .sizing_y(Sizing::Grow)
-        //     .layout_direction(LayoutDirection::TopToBottom)
+        //     .sizing_x(Sizing::Fixed(1200.0))
+        //     .sizing_y(Sizing::Fit)
+        //     .background_color(WHITE)
         //     .draw_with_children(&mut self.layouter, |layouter| {
         //         UIElement::new()
-        //             .sizing_x(Sizing::Grow)
-        //             .sizing_y(Sizing::Fit)
-        //             .padding(Padding::new(20.0, 20.0, 20.0, 20.0))
-        //             .child_gap(20.0)
-        //             .background_color(vec4(0.2, 0.2, 0.2, 1.0))
-        //             .draw_with_children(layouter, |layouter| {
-        //                 UIElement::new()
-        //                     .background_color(vec4(1.0, 0.0, 1.0, 1.0))
-        //                     .text("Hello brooo")
-        //                     // .font(times_new_roman_font_id)
-        //                     .font_size(32)
-        //                     .draw(layouter);
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Fixed(100.0))
-        //                     .sizing_y(Sizing::Fixed(100.0))
-        //                     .background_color(vec4(1.0, 1.0, 1.0, 1.0))
-        //                     .draw(layouter);
-        //                 UIElement::new().sizing_x(Sizing::Grow).draw(layouter);
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Fixed(100.0))
-        //                     .sizing_y(Sizing::Fixed(100.0))
-        //                     .background_color(vec4(1.0, 1.0, 1.0, 1.0))
-        //                     .draw(layouter);
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Fixed(100.0))
-        //                     .sizing_y(Sizing::Fixed(100.0))
-        //                     .background_color(vec4(1.0, 1.0, 1.0, 1.0))
-        //                     .draw(layouter);
-        //             });
+        //             .text(
+        //                 "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
+        //             )
+        //             .font_size(64)
+        //             .padding(Padding::new(10.0,10.0,10.0,10.0))
+        //             .background_color(BLUE)
+        //             .draw(layouter);
         //         UIElement::new()
-        //             .sizing_x(Sizing::Grow)
+        //             .sizing_x(Sizing::Fixed(400.0))
         //             .sizing_y(Sizing::Grow)
-        //             .background_color(vec4(0.1, 0.1, 0.1, 1.0))
-        //             .draw_with_children(layouter, |layouter| {
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Percent(0.2))
-        //                     .sizing_y(Sizing::Grow)
-        //                     .background_color(vec4(0.6, 0.6, 0.6, 1.0))
-        //                     .draw_with_children(layouter, |layouter| {});
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Grow)
-        //                     .sizing_y(Sizing::Grow)
-        //                     .draw_with_children(layouter, |layouter| {});
-        //             });
+        //             .background_color(GREEN)
+        //             .draw(layouter);
         //         UIElement::new()
-        //             .sizing_x(Sizing::Grow)
-        //             .sizing_y(Sizing::Fit)
-        //             .background_color(vec4(0.2, 0.2, 0.2, 1.0))
-        //             .draw_with_children(layouter, |layouter| {
-        //                 UIElement::new()
-        //                     .sizing_x(Sizing::Fixed(100.0))
-        //                     .sizing_y(Sizing::Fixed(100.0))
-        //                     .background_color(vec4(0.2, 0.2, 0.2, 1.0))
-        //                     .draw(layouter);
-        //             });
+        //             // .text("Hello my name is bobbyyy")
+        //             .text("abcd 123")
+        //             .font_size(128)
+        //             .background_color(BLUE)
+        //             .draw(layouter);
         //     });
+
+        UIElement::new()
+            .sizing_x(Sizing::Grow)
+            .sizing_y(Sizing::Grow)
+            .layout_direction(LayoutDirection::TopToBottom)
+            .draw_with_children(&mut self.layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fit)
+                    .padding(Padding::new(20.0, 20.0, 20.0, 20.0))
+                    .child_gap(20.0)
+                    .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .background_color(vec4(1.0, 0.0, 1.0, 1.0))
+                            .text("Hello brooo")
+                            // .font(times_new_roman_font_id)
+                            .font_size(32)
+                            .draw(layouter);
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                        UIElement::new().sizing_x(Sizing::Grow).draw(layouter);
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                            .draw(layouter);
+                    });
+                UIElement::new()
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Grow)
+                    .background_color(vec4(0.1, 0.1, 0.1, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Sizing::Percent(0.2))
+                            .sizing_y(Sizing::Grow)
+                            .background_color(vec4(0.6, 0.6, 0.6, 1.0))
+                            .draw_with_children(layouter, |layouter| {});
+                        UIElement::new()
+                            .sizing_x(Sizing::Grow)
+                            .sizing_y(Sizing::Grow)
+                            .draw_with_children(layouter, |layouter| {});
+                    });
+                UIElement::new()
+                    .sizing_x(Sizing::Grow)
+                    .sizing_y(Sizing::Fit)
+                    .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Sizing::Fixed(100.0))
+                            .sizing_y(Sizing::Fixed(100.0))
+                            .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                            .draw(layouter);
+                    });
+            });
 
         let mut text_measurer = FontTextMeasurer {
             fonts: &self.fonts,

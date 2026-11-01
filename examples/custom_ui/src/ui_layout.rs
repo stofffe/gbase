@@ -4,6 +4,8 @@ use gbase::{
     render, Context,
 };
 
+pub struct UIElementId(usize);
+
 #[derive(Debug)]
 pub struct TextSizeResult {
     pub preferred_width: f32,
@@ -58,14 +60,23 @@ impl UILayouter {
         &self.elems
     }
 
-    pub fn add_element(&mut self, element: UIElement, children: fn(&mut Self)) {
-        self.open_element(element);
-        children(self);
+    pub fn get_element(&self, handle: &UIElementId) -> &UIElement {
+        &self.elems[handle.0]
+    }
+
+    pub fn add_element<F: FnOnce(&mut UILayouter) -> R, R>(
+        &mut self,
+        element: UIElement,
+        children: F,
+    ) -> (UIElementId, R) {
+        let element_index = self.open_element(element);
+        let children = children(self);
         self.close_element();
+        (element_index, children)
     }
 
     /// Add element to stack and set parent as current top of stack
-    fn open_element(&mut self, mut element: UIElement) -> usize {
+    fn open_element(&mut self, mut element: UIElement) -> UIElementId {
         // point to parent
         let parent = *self
             .element_stack
@@ -82,7 +93,7 @@ impl UILayouter {
 
         self.element_stack.push(element_index);
 
-        element_index
+        UIElementId(element_index)
     }
 
     fn close_element(&mut self) {
@@ -99,7 +110,6 @@ impl UILayouter {
     ) {
         let screen_size = render::surface_size(ctx);
         self.layout_elements(
-            ctx,
             text_measurer,
             screen_size.width as f32,
             screen_size.height as f32,
@@ -108,7 +118,6 @@ impl UILayouter {
 
     pub fn layout_elements(
         &mut self,
-        ctx: &mut Context,
         text_measurer: &mut impl TextMeasurer,
         root_width: f32,
         root_height: f32,
@@ -780,30 +789,271 @@ impl UIElement {
     // Helpers
     //
 
-    pub fn draw_with_children(self, layouter: &mut UILayouter, children: fn(&mut UILayouter)) {
-        layouter.add_element(self, children);
+    pub fn draw_with_children<F: FnOnce(&mut UILayouter) -> R, R>(
+        self,
+        layouter: &mut UILayouter,
+        children: F,
+    ) -> (UIElementId, R) {
+        layouter.add_element(self, children)
     }
-    pub fn draw(self, layouter: &mut UILayouter) {
-        layouter.add_element(self, |_| {});
+    pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
+        let (id, _) = layouter.add_element(self, |_| {});
+        id
     }
 }
 
-// #[cfg(test)]
-// mod test {
-//     use crate::{
-//         ui_layout::{Sizing::Fixed, UIElement, UILayouter},
-//         ui_renderer::UIRenderer,
-//     };
-//
-//     #[test]
-//     fn test_layout() {
-//         let mut layouter = UILayouter::new();
-//
-//         UIElement::new().sizing_x(Fixed(300.0)).draw(&mut layouter);
-//
-//         layouter.layout_elements(ctx, cache, text_measurer, 500.0, 500.0);
-//
-//         assert_eq!()
-//         // UIElement::new().sizing_x(Fixed(200.0)).draw(&mut layouter);
-//     }
-// }
+#[cfg(test)]
+mod test {
+    use crate::{
+        ui_font::TextMeasurer,
+        ui_layout::{
+            LayoutDirection::LeftToRight,
+            Sizing::{Fit, Fixed, Grow},
+            UIElement, UILayouter,
+        },
+    };
+
+    struct TestTextMeasurer {}
+    impl TextMeasurer for TestTextMeasurer {
+        fn calculate_preferred_text_size(
+            &mut self,
+            text: &str,
+            font_size: u32,
+            wrap_on_newline: bool,
+        ) -> super::TextSizeResult {
+            todo!()
+        }
+
+        fn layout_text(
+            &mut self,
+            text: &str,
+            font_size: u32,
+            max_width: f32,
+        ) -> super::TextLayoutResult {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn multiple_top_level() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new().sizing_x(Fixed(300.0)).draw(&mut layouter);
+        let elem2 = UIElement::new().sizing_x(Fixed(200.0)).draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 300.0);
+        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
+    }
+
+    //
+    // Fixed
+    //
+
+    #[test]
+    fn fixed() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new()
+            .sizing_x(Fixed(200.0))
+            .sizing_y(Fixed(100.0))
+            .draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 500.0, 500.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 100.0);
+    }
+
+    #[test]
+    fn fixed_overflow_stays_fixed() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new()
+            .sizing_x(Fixed(400.0))
+            .sizing_y(Fixed(200.0))
+            .draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 300.0, 300.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 400.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 200.0);
+    }
+
+    //
+    // Fit
+    //
+
+    #[test]
+    fn fit_with_fixed_inside() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, _) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fixed(200.0))
+                    .sizing_y(Fixed(250.0))
+                    .draw(layouter);
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 250.0);
+    }
+
+    #[test]
+    fn fit_with_no_children() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 0.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 0.0);
+    }
+
+    #[test]
+    fn fit_with_grow_inside() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, _) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Grow)
+                    .sizing_y(Grow)
+                    .draw(layouter);
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 0.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 0.0);
+    }
+
+    #[test]
+    fn fit_with_fit_with_fixed_inside() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, _) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fit)
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Fixed(100.0))
+                            .sizing_y(Fixed(200.0))
+                            .draw(layouter);
+                    });
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 100.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 200.0);
+    }
+
+    //
+    // Grow
+    //
+
+    #[test]
+    fn grow_at_root() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new()
+            .sizing_x(Grow)
+            .sizing_y(Grow)
+            .draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).preferred_width, 1000.0);
+        assert_eq!(layouter.get_element(&elem1).preferred_height, 1000.0);
+    }
+
+    #[test]
+    fn grow_inside_fixed() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (_, elem2) = UIElement::new()
+            .sizing_x(Fixed(200.0))
+            .sizing_y(Fixed(100.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Grow)
+                    .sizing_y(Grow)
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem2).preferred_height, 100.0);
+    }
+
+    #[test]
+    fn grow_distribution_main_axis() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (_, (elem2, elem3)) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_x(Fixed(400.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                let elem2 = UIElement::new().sizing_x(Grow).draw(layouter);
+                let elem3 = UIElement::new().sizing_x(Grow).draw(layouter);
+                (elem2, elem3)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem3).preferred_width, 200.0);
+    }
+
+    #[test]
+    fn grow_distribution_cross_axis() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (_, (elem2, elem3)) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_y(Fixed(300.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                let elem2 = UIElement::new().sizing_y(Grow).draw(layouter);
+                let elem3 = UIElement::new().sizing_y(Grow).draw(layouter);
+                (elem2, elem3)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).preferred_height, 300.0);
+        assert_eq!(layouter.get_element(&elem3).preferred_height, 300.0);
+    }
+
+    //
+    // Shrink
+    //
+}
