@@ -79,8 +79,8 @@ impl<'a> TextMeasurer for FontTextMeasurer<'a> {
         let Ok(font) = self.cache.get_asset(&self.fonts.temp_font_handle).cloned() else {
             // tracing::error!("could not get font");
             return TextSizeResult {
-                preferred_width: 0.0,
-                preferred_height: 0.0,
+                max_width: 0.0,
+                max_height: 0.0,
                 min_width: 0.0,
                 min_height: 0.0,
             };
@@ -135,8 +135,8 @@ impl<'a> TextMeasurer for FontTextMeasurer<'a> {
         let min_height = preferred_height;
 
         TextSizeResult {
-            preferred_width,
-            preferred_height,
+            max_width: preferred_width,
+            max_height: preferred_height,
             min_width,
             min_height,
         }

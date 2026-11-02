@@ -140,7 +140,7 @@ impl UIRenderer {
                 element_type: ELEMENT_TYPE_CONTAINER,
 
                 position: [element.x, element.y],
-                size: [element.preferred_width, element.preferred_height],
+                size: [element.width, element.height],
                 color: element.background_color.to_array(),
                 font_atlas_offset: [0.0, 0.0],
                 font_atlas_size: [0.0, 0.0],

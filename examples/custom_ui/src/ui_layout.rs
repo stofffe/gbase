@@ -1,3 +1,5 @@
+use core::f32;
+
 use crate::ui_font::TextMeasurer;
 use gbase::{
     glam::{vec4, Vec4},
@@ -8,10 +10,10 @@ pub struct UIElementId(usize);
 
 #[derive(Debug)]
 pub struct TextSizeResult {
-    pub preferred_width: f32,
-    pub preferred_height: f32,
     pub min_width: f32,
     pub min_height: f32,
+    pub max_width: f32,
+    pub max_height: f32,
 }
 
 // TODO: should not be clone
@@ -122,8 +124,8 @@ impl UILayouter {
         root_width: f32,
         root_height: f32,
     ) {
-        self.elems[ROOT_ELEMENT].preferred_width = root_width;
-        self.elems[ROOT_ELEMENT].preferred_height = root_height;
+        self.elems[ROOT_ELEMENT].width = root_width;
+        self.elems[ROOT_ELEMENT].height = root_height;
 
         //
         // intrinsic/fit x
@@ -133,10 +135,10 @@ impl UILayouter {
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            let mut preferred_width = 0.0f32;
             let mut min_width = 0.0f32;
+            let mut max_width = 0.0f32;
 
-            // fixed sizes already set?
+            // TODO: only allow text size OR children size using some enum
 
             // text size
             if !element.text_info.text.is_empty() {
@@ -147,42 +149,38 @@ impl UILayouter {
                     text_info.font_size,
                     false,
                 );
-                preferred_width += layout_result.preferred_width;
-                min_width = layout_result.min_width;
+                min_width += layout_result.min_width;
+                max_width += layout_result.max_width;
             }
 
             // children sizes
-            let mut children_preferred_width = 0.0;
-            let mut children_min_width = 0.0;
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
                     // accumulate children sizes
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
-                        children_preferred_width += child.preferred_width;
-                        children_min_width += child.min_width;
+                        min_width += child.min_width;
+                        max_width += child.max_width;
                     }
                 }
                 LayoutDirection::TopToBottom => {
                     // get max width of children
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
-                        children_preferred_width =
-                            children_preferred_width.max(child.preferred_width);
-                        children_min_width = children_min_width.max(child.min_width);
+                        // TODO: unsure about this one
+                        min_width = min_width.max(child.min_width);
+                        max_width = max_width.max(child.max_width);
                     }
                 }
             }
-            preferred_width += children_preferred_width;
-            min_width += children_min_width;
 
             // gap
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
                     let child_count = element.children.len().saturating_sub(1);
                     let total_child_gap = child_count as f32 * element.child_gap;
-                    preferred_width += total_child_gap;
                     min_width += total_child_gap;
+                    max_width += total_child_gap;
                 }
                 LayoutDirection::TopToBottom => {
                     // dont do anything since we are in the x pass
@@ -190,18 +188,25 @@ impl UILayouter {
             }
 
             // padding
-            preferred_width += element.padding.horizontal();
             min_width += element.padding.horizontal();
+            max_width += element.padding.horizontal();
 
-            // TODO: early continue and do this instead?
-            // fixed size overwrite
-            if let Sizing::Fixed(fixed_width) = element.sizing_x {
-                preferred_width = fixed_width;
-                min_width = fixed_width;
+            // TODO: correct?
+            match element.sizing_x {
+                Sizing::Fixed(fixed_width) => {
+                    min_width = fixed_width;
+                    max_width = fixed_width;
+                    self.elems[elem].width = fixed_width;
+                }
+                Sizing::Fit => {
+                    // acts as fit(max_content) right now
+                    self.elems[elem].width = max_width;
+                }
+                _ => (), // handled in later passes
             }
 
-            self.elems[elem].preferred_width = preferred_width;
             self.elems[elem].min_width = min_width;
+            self.elems[elem].max_width = max_width;
         }
 
         //
@@ -211,24 +216,24 @@ impl UILayouter {
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
 
-            // percent
+            // percent on all children
             for &child in element.children.iter() {
                 if let Sizing::Percent(p) = self.elems[child].sizing_x {
-                    let width = element.preferred_width * p;
+                    let width = element.width * p;
 
-                    self.elems[child].preferred_width = width;
-                    self.elems[child].min_width = width;
+                    self.elems[child].width = width;
+                    // self.elems[child].min_width_override = width;
                 }
             }
 
             // calculate remaining width (used for grow/shrink)
-            let mut remaining_width = element.preferred_width;
+            let mut remaining_width = element.width;
             remaining_width -= element.padding.horizontal();
             if let LayoutDirection::LeftToRight = element.layout_direction {
                 remaining_width -=
                     (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
                 for &child in element.children.iter() {
-                    remaining_width -= self.elems[child].preferred_width;
+                    remaining_width -= self.elems[child].width;
                 }
             }
 
@@ -236,7 +241,7 @@ impl UILayouter {
             let mut growable = Vec::new();
             for &child in element.children.iter() {
                 if let Sizing::Grow = self.elems[child].sizing_x {
-                    growable.push(child);
+                    growable.push(child)
                 }
             }
             match element.layout_direction {
@@ -248,7 +253,7 @@ impl UILayouter {
                         let mut smallest_count = 0;
 
                         for &child in growable.iter() {
-                            let child_width = self.elems[child].preferred_width;
+                            let child_width = self.elems[child].width;
                             if child_width < smallest {
                                 second_smallest = smallest;
                                 smallest = child_width;
@@ -260,15 +265,17 @@ impl UILayouter {
                             }
                         }
 
+                        // TODO: if max width is reached, pop from growable list
+
                         // if there are multiple with the smallest width and there is not enough
                         // to add to all of them, then distribute the remaining width
                         let width_to_make_equal = second_smallest - smallest;
                         let available_width_after_sharing = remaining_width / smallest_count as f32;
                         let width_to_add = width_to_make_equal.min(available_width_after_sharing);
                         for &child in growable.iter() {
-                            let child_width = self.elems[child].preferred_width;
+                            let child_width = self.elems[child].width;
                             if child_width == smallest {
-                                self.elems[child].preferred_width += width_to_add;
+                                self.elems[child].width += width_to_add;
                                 remaining_width -= width_to_add;
                             }
                         }
@@ -277,7 +284,7 @@ impl UILayouter {
                 LayoutDirection::TopToBottom => {
                     // fill up all available space
                     for &child_index in growable.iter() {
-                        self.elems[child_index].preferred_width = remaining_width;
+                        self.elems[child_index].width += element.width;
                     }
                 }
             }
@@ -285,9 +292,10 @@ impl UILayouter {
             // shrinkable
             let mut shrinkable = Vec::new();
             for &child in element.children.iter() {
-                let sizing = &self.elems[child].sizing_x;
-                if matches!(sizing, Sizing::Grow | Sizing::Fit) {
-                    shrinkable.push(child);
+                match self.elems[child].sizing_x {
+                    Sizing::Grow => shrinkable.push(child),
+                    Sizing::Fit => shrinkable.push(child),
+                    _ => (), // TODO: eventually add all that have min_width < width
                 }
             }
             match element.layout_direction {
@@ -299,7 +307,7 @@ impl UILayouter {
                         let mut largest_count = 0;
 
                         for &child in shrinkable.iter() {
-                            let child_width = self.elems[child].preferred_width;
+                            let child_width = self.elems[child].width;
                             if child_width > largest {
                                 second_largest = largest;
                                 largest = child_width;
@@ -318,11 +326,11 @@ impl UILayouter {
                         let width_to_add = width_to_make_equal.max(available_width_after_sharing); // negative
                         shrinkable.retain(|&child_index| {
                             let child = &self.elems[child_index];
-                            let initial_width = child.preferred_width;
+                            let initial_width = child.width;
 
                             let mut at_min_width = false;
-                            if child.preferred_width == largest {
-                                let mut new_width = child.preferred_width + width_to_add; // basically a subtraciton
+                            if child.width == largest {
+                                let mut new_width = child.width + width_to_add; // basically a subtraciton
                                 if new_width <= child.min_width {
                                     new_width = child.min_width;
                                     at_min_width = true;
@@ -331,7 +339,7 @@ impl UILayouter {
                                 let removed_width = new_width - initial_width;
                                 remaining_width -= removed_width;
 
-                                self.elems[child_index].preferred_width = new_width;
+                                self.elems[child_index].width = new_width;
                             }
 
                             !at_min_width
@@ -340,14 +348,25 @@ impl UILayouter {
                 }
                 LayoutDirection::TopToBottom => {
                     for &child_index in shrinkable.iter() {
-                        let child = &self.elems[child_index];
+                        let child = &mut self.elems[child_index];
 
-                        let mut new_width = child.preferred_width.min(remaining_width);
-                        if new_width < child.min_width {
-                            new_width = child.min_width;
+                        if remaining_width < 0.0 {
+                            let new_width = child.width + remaining_width;
+                            if new_width < child.min_width {
+                                self.elems[child_index].width = child.min_width;
+                            } else {
+                                self.elems[child_index].width = new_width;
+                            }
                         }
 
-                        self.elems[child_index].preferred_width = new_width;
+                        // self.elems[child_index].width = remaining_width;
+
+                        // let mut new_width = child.width.min(remaining_width);
+                        // if new_width < child.min_width_override {
+                        //     new_width = child.min_width_override;
+                        // }
+
+                        // self.elems[child_index].width = new_width;
                     }
                 }
             }
@@ -365,75 +384,92 @@ impl UILayouter {
                 let layout_result = text_measurer.layout_text(
                     &element.text_info.text,
                     element.text_info.font_size,
-                    element.preferred_width,
+                    element.width,
                 );
 
-                self.elems[elem].preferred_height += layout_result.height;
-                // TODO: dont know if its need here
-                self.elems[elem].min_height += layout_result.height;
+                // // TODO: dont know if its need here
+                // self.elems[elem].height += layout_result.height;
+                // self.elems[elem].min_height += layout_result.height;
+                // self.elems[elem].max_height += layout_result.height;
+
                 self.elems[elem].text_layout = layout_result;
             }
         }
 
         //
-        // intrinsic/fit y
+        // intrinsic y
         //
 
+        // TODO: clamp values?
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            // use heights calculated in text wrapping stage
-            let mut preferred_height = element.preferred_height;
-            let mut min_height = element.min_height;
+            // use height from text wrapping
+            let mut min_height = 0.0;
+            let mut max_height = 0.0;
+
+            // TODO: wonder if you can just assign the height immediately?
+            // could work for x as well if the intrinsics are set in the pop element call?
+            if !element.text_info.text.is_empty() {
+                let text_height = element.text_layout.height;
+                min_height = text_height;
+                max_height = text_height;
+            }
 
             // children sizes
-            let mut children_preferred_height = 0.0;
-            let mut children_min_height = 0.0;
             match element.layout_direction {
                 LayoutDirection::TopToBottom => {
                     // accumulate children sizes
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
-                        children_preferred_height += child.preferred_height;
-                        children_min_height += child.min_height;
+                        min_height += child.min_height;
+                        max_height += child.max_height;
                     }
                 }
                 LayoutDirection::LeftToRight => {
                     // get max height of children
                     for &child_index in element.children.iter() {
                         let child = &self.elems[child_index];
-                        children_preferred_height =
-                            children_preferred_height.max(child.preferred_height);
-                        children_min_height = children_min_height.max(child.min_height);
+                        // TODO: unsure about this one
+                        min_height = min_height.max(child.min_height);
+                        max_height = max_height.max(child.max_height);
                     }
                 }
             }
-            preferred_height += children_preferred_height;
-            min_height += children_min_height;
 
             // gap
             match element.layout_direction {
                 LayoutDirection::TopToBottom => {
                     let child_count = element.children.len().saturating_sub(1);
                     let total_child_gap = child_count as f32 * element.child_gap;
-                    preferred_height += total_child_gap;
                     min_height += total_child_gap;
+                    max_height += total_child_gap;
                 }
-                LayoutDirection::LeftToRight => {}
+                LayoutDirection::LeftToRight => {
+                    // dont do anything since we are in the x pass
+                }
             }
 
             // padding
-            preferred_height += element.padding.vertical();
             min_height += element.padding.vertical();
+            max_height += element.padding.vertical();
 
-            // fixed size overwrite
-            if let Sizing::Fixed(fixed_height) = element.sizing_y {
-                preferred_height = fixed_height;
-                min_height = fixed_height;
+            // TODO: correct?
+            match element.sizing_y {
+                Sizing::Fixed(fixed_height) => {
+                    min_height = fixed_height;
+                    max_height = fixed_height;
+                    self.elems[elem].height = fixed_height;
+                }
+                Sizing::Fit => {
+                    // acts as fit(max_content) right now
+                    self.elems[elem].height = max_height;
+                }
+                _ => (), // handled in later passes
             }
 
-            self.elems[elem].preferred_height = preferred_height;
             self.elems[elem].min_height = min_height;
+            self.elems[elem].max_height = max_height;
         }
 
         //
@@ -443,24 +479,24 @@ impl UILayouter {
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
 
-            // percent
+            // percent on all children
             for &child in element.children.iter() {
                 if let Sizing::Percent(p) = self.elems[child].sizing_y {
-                    let height = element.preferred_height * p;
+                    let height = element.height * p;
 
-                    self.elems[child].preferred_height = height;
-                    self.elems[child].min_height = height;
+                    self.elems[child].height = height;
+                    // self.elems[child].min_height_override = height;
                 }
             }
 
-            // remaining height (used for grow/shrink)
-            let mut remaining_height = element.preferred_height;
+            // calculate remaining height (used for grow/shrink)
+            let mut remaining_height = element.height;
             remaining_height -= element.padding.vertical();
             if let LayoutDirection::TopToBottom = element.layout_direction {
                 remaining_height -=
                     (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
                 for &child in element.children.iter() {
-                    remaining_height -= self.elems[child].preferred_height;
+                    remaining_height -= self.elems[child].height;
                 }
             }
 
@@ -468,7 +504,7 @@ impl UILayouter {
             let mut growable = Vec::new();
             for &child in element.children.iter() {
                 if let Sizing::Grow = self.elems[child].sizing_y {
-                    growable.push(child);
+                    growable.push(child)
                 }
             }
             match element.layout_direction {
@@ -480,7 +516,7 @@ impl UILayouter {
                         let mut smallest_count = 0;
 
                         for &child in growable.iter() {
-                            let child_height = self.elems[child].preferred_height;
+                            let child_height = self.elems[child].height;
                             if child_height < smallest {
                                 second_smallest = smallest;
                                 smallest = child_height;
@@ -492,6 +528,8 @@ impl UILayouter {
                             }
                         }
 
+                        // TODO: if max height is reached, pop from growable list
+
                         // if there are multiple with the smallest height and there is not enough
                         // to add to all of them, then distribute the remaining height
                         let height_to_make_equal = second_smallest - smallest;
@@ -499,11 +537,10 @@ impl UILayouter {
                             remaining_height / smallest_count as f32;
                         let height_to_add =
                             height_to_make_equal.min(available_height_after_sharing);
-
                         for &child in growable.iter() {
-                            let child_height = self.elems[child].preferred_height;
+                            let child_height = self.elems[child].height;
                             if child_height == smallest {
-                                self.elems[child].preferred_height += height_to_add;
+                                self.elems[child].height += height_to_add;
                                 remaining_height -= height_to_add;
                             }
                         }
@@ -512,7 +549,8 @@ impl UILayouter {
                 LayoutDirection::LeftToRight => {
                     // fill up all available space
                     for &child_index in growable.iter() {
-                        self.elems[child_index].preferred_height = remaining_height;
+                        // TODO: ?
+                        self.elems[child_index].height += element.height;
                     }
                 }
             }
@@ -520,8 +558,10 @@ impl UILayouter {
             // shrinkable
             let mut shrinkable = Vec::new();
             for &child in element.children.iter() {
-                if let Sizing::Fit = self.elems[child].sizing_y {
-                    shrinkable.push(child);
+                match self.elems[child].sizing_y {
+                    Sizing::Grow => shrinkable.push(child),
+                    Sizing::Fit => shrinkable.push(child),
+                    _ => (), // TODO: eventually add all that have min_height < height
                 }
             }
             match element.layout_direction {
@@ -533,7 +573,7 @@ impl UILayouter {
                         let mut largest_count = 0;
 
                         for &child in shrinkable.iter() {
-                            let child_height = self.elems[child].preferred_height;
+                            let child_height = self.elems[child].height;
                             if child_height > largest {
                                 second_largest = largest;
                                 largest = child_height;
@@ -547,27 +587,27 @@ impl UILayouter {
 
                         // if there are multiple with the largest height and there is not enough
                         // to add to all of them, then distribute the remaining height
-                        let height_to_make_equal = second_largest - largest;
+                        let height_to_make_equal = second_largest - largest; // negative
                         let available_height_after_sharing =
-                            remaining_height / largest_count as f32;
+                            remaining_height / largest_count as f32; // negative
                         let height_to_add =
-                            height_to_make_equal.max(available_height_after_sharing);
+                            height_to_make_equal.max(available_height_after_sharing); // negative
                         shrinkable.retain(|&child_index| {
                             let child = &self.elems[child_index];
-                            let prev_height = child.preferred_height;
+                            let initial_height = child.height;
 
                             let mut at_min_height = false;
-                            if child.preferred_height == largest {
-                                let mut new_height = child.preferred_height + height_to_add;
+                            if child.height == largest {
+                                let mut new_height = child.height + height_to_add; // basically a subtraciton
                                 if new_height <= child.min_height {
                                     new_height = child.min_height;
                                     at_min_height = true;
                                 }
 
-                                let removed_height = new_height - prev_height;
+                                let removed_height = new_height - initial_height;
                                 remaining_height -= removed_height;
 
-                                self.elems[child_index].preferred_height = new_height;
+                                self.elems[child_index].height = new_height;
                             }
 
                             !at_min_height
@@ -576,18 +616,241 @@ impl UILayouter {
                 }
                 LayoutDirection::LeftToRight => {
                     for &child_index in shrinkable.iter() {
-                        let child = &self.elems[child_index];
+                        let child = &mut self.elems[child_index];
 
-                        let mut new_height = child.preferred_height.min(remaining_height);
-                        if new_height < child.min_height {
-                            new_height = child.min_height;
+                        if remaining_height < 0.0 {
+                            let new_height = child.height + remaining_height;
+                            if new_height < child.min_height {
+                                self.elems[child_index].height = child.min_height;
+                            } else {
+                                self.elems[child_index].height = new_height;
+                            }
                         }
 
-                        self.elems[child_index].preferred_height = new_height;
+                        // self.elems[child_index].width = remaining_width;
+
+                        // let mut new_width = child.width.min(remaining_width);
+                        // if new_width < child.min_width_override {
+                        //     new_width = child.min_width_override;
+                        // }
+
+                        // self.elems[child_index].width = new_width;
                     }
                 }
             }
         }
+        // //
+        // // intrinsic/fit y
+        // //
+        //
+        // for elem in (1..self.elems.len()).rev() {
+        //     let element = &self.elems[elem];
+        //
+        //     // use heights calculated in text wrapping stage
+        //     let mut preferred_height = element.height;
+        //     let mut min_height = element.min_height_override;
+        //
+        //     // children sizes
+        //     let mut children_preferred_height = 0.0;
+        //     let mut children_min_height = 0.0;
+        //     match element.layout_direction {
+        //         LayoutDirection::TopToBottom => {
+        //             // accumulate children sizes
+        //             for &child_index in element.children.iter() {
+        //                 let child = &self.elems[child_index];
+        //                 children_preferred_height += child.height;
+        //                 children_min_height += child.min_height_override;
+        //             }
+        //         }
+        //         LayoutDirection::LeftToRight => {
+        //             // get max height of children
+        //             for &child_index in element.children.iter() {
+        //                 let child = &self.elems[child_index];
+        //                 children_preferred_height = children_preferred_height.max(child.height);
+        //                 children_min_height = children_min_height.max(child.min_height_override);
+        //             }
+        //         }
+        //     }
+        //     preferred_height += children_preferred_height;
+        //     min_height += children_min_height;
+        //
+        //     // gap
+        //     match element.layout_direction {
+        //         LayoutDirection::TopToBottom => {
+        //             let child_count = element.children.len().saturating_sub(1);
+        //             let total_child_gap = child_count as f32 * element.child_gap;
+        //             preferred_height += total_child_gap;
+        //             min_height += total_child_gap;
+        //         }
+        //         LayoutDirection::LeftToRight => {}
+        //     }
+        //
+        //     // padding
+        //     preferred_height += element.padding.vertical();
+        //     min_height += element.padding.vertical();
+        //
+        //     // fixed size overwrite
+        //     if let Sizing::Fixed(fixed_height) = element.sizing_y {
+        //         preferred_height = fixed_height;
+        //         min_height = fixed_height;
+        //     }
+        //
+        //     self.elems[elem].height = preferred_height;
+        //     self.elems[elem].min_height_override = min_height;
+        // }
+
+        // //
+        // // percent/grow/shrink y
+        // //
+        //
+        // for elem in 0..self.elems.len() {
+        //     let element = self.elems[elem].clone();
+        //
+        //     // percent
+        //     for &child in element.children.iter() {
+        //         if let Sizing::Percent(p) = self.elems[child].sizing_y {
+        //             let height = element.height * p;
+        //
+        //             self.elems[child].height = height;
+        //             self.elems[child].min_height_override = height;
+        //         }
+        //     }
+        //
+        //     // remaining height (used for grow/shrink)
+        //     let mut remaining_height = element.height;
+        //     remaining_height -= element.padding.vertical();
+        //     if let LayoutDirection::TopToBottom = element.layout_direction {
+        //         remaining_height -=
+        //             (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
+        //         for &child in element.children.iter() {
+        //             remaining_height -= self.elems[child].height;
+        //         }
+        //     }
+        //
+        //     // growable
+        //     let mut growable = Vec::new();
+        //     for &child in element.children.iter() {
+        //         if let Sizing::Grow = self.elems[child].sizing_y {
+        //             growable.push(child);
+        //         }
+        //     }
+        //     match element.layout_direction {
+        //         LayoutDirection::TopToBottom => {
+        //             // distribute remaining height
+        //             while remaining_height > 0.0 && !growable.is_empty() {
+        //                 let mut smallest = f32::MAX;
+        //                 let mut second_smallest = f32::MAX;
+        //                 let mut smallest_count = 0;
+        //
+        //                 for &child in growable.iter() {
+        //                     let child_height = self.elems[child].height;
+        //                     if child_height < smallest {
+        //                         second_smallest = smallest;
+        //                         smallest = child_height;
+        //                         smallest_count = 1;
+        //                     } else if child_height == smallest {
+        //                         smallest_count += 1;
+        //                     } else if child_height < second_smallest {
+        //                         second_smallest = child_height;
+        //                     }
+        //                 }
+        //
+        //                 // if there are multiple with the smallest height and there is not enough
+        //                 // to add to all of them, then distribute the remaining height
+        //                 let height_to_make_equal = second_smallest - smallest;
+        //                 let available_height_after_sharing =
+        //                     remaining_height / smallest_count as f32;
+        //                 let height_to_add =
+        //                     height_to_make_equal.min(available_height_after_sharing);
+        //
+        //                 for &child in growable.iter() {
+        //                     let child_height = self.elems[child].height;
+        //                     if child_height == smallest {
+        //                         self.elems[child].height += height_to_add;
+        //                         remaining_height -= height_to_add;
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //         LayoutDirection::LeftToRight => {
+        //             // fill up all available space
+        //             for &child_index in growable.iter() {
+        //                 self.elems[child_index].height = remaining_height;
+        //             }
+        //         }
+        //     }
+        //
+        //     // shrinkable
+        //     let mut shrinkable = Vec::new();
+        //     for &child in element.children.iter() {
+        //         if let Sizing::Fit = self.elems[child].sizing_y {
+        //             shrinkable.push(child);
+        //         }
+        //     }
+        //     match element.layout_direction {
+        //         LayoutDirection::TopToBottom => {
+        //             // shrink to fit overflowing height
+        //             while remaining_height < 0.0 && !shrinkable.is_empty() {
+        //                 let mut largest = f32::MIN;
+        //                 let mut second_largest = f32::MIN;
+        //                 let mut largest_count = 0;
+        //
+        //                 for &child in shrinkable.iter() {
+        //                     let child_height = self.elems[child].height;
+        //                     if child_height > largest {
+        //                         second_largest = largest;
+        //                         largest = child_height;
+        //                         largest_count = 1;
+        //                     } else if child_height == largest {
+        //                         largest_count += 1;
+        //                     } else if child_height > second_largest {
+        //                         second_largest = child_height;
+        //                     }
+        //                 }
+        //
+        //                 // if there are multiple with the largest height and there is not enough
+        //                 // to add to all of them, then distribute the remaining height
+        //                 let height_to_make_equal = second_largest - largest;
+        //                 let available_height_after_sharing =
+        //                     remaining_height / largest_count as f32;
+        //                 let height_to_add =
+        //                     height_to_make_equal.max(available_height_after_sharing);
+        //                 shrinkable.retain(|&child_index| {
+        //                     let child = &self.elems[child_index];
+        //                     let prev_height = child.height;
+        //
+        //                     let mut at_min_height = false;
+        //                     if child.height == largest {
+        //                         let mut new_height = child.height + height_to_add;
+        //                         if new_height <= child.min_height_override {
+        //                             new_height = child.min_height_override;
+        //                             at_min_height = true;
+        //                         }
+        //
+        //                         let removed_height = new_height - prev_height;
+        //                         remaining_height -= removed_height;
+        //
+        //                         self.elems[child_index].height = new_height;
+        //                     }
+        //
+        //                     !at_min_height
+        //                 });
+        //             }
+        //         }
+        //         LayoutDirection::LeftToRight => {
+        //             for &child_index in shrinkable.iter() {
+        //                 let child = &self.elems[child_index];
+        //
+        //                 let mut new_height = child.height.min(remaining_height);
+        //                 if new_height < child.min_height_override {
+        //                     new_height = child.min_height_override;
+        //                 }
+        //
+        //                 self.elems[child_index].height = new_height;
+        //             }
+        //         }
+        //     }
+        // }
 
         //
         // positioning
@@ -607,14 +870,14 @@ impl UILayouter {
                     for child in element.children.clone().into_iter() {
                         self.elems[child].x = x + offset;
                         self.elems[child].y = y;
-                        offset += self.elems[child].preferred_width + child_gap;
+                        offset += self.elems[child].width + child_gap;
                     }
                 }
                 LayoutDirection::TopToBottom => {
                     for child in element.children.clone().into_iter() {
                         self.elems[child].x = x;
                         self.elems[child].y = y + offset;
-                        offset += self.elems[child].preferred_height + child_gap;
+                        offset += self.elems[child].height + child_gap;
                     }
                 }
             }
@@ -639,7 +902,7 @@ pub struct TextInfo {
 #[derive(Debug, Clone)]
 pub enum Sizing {
     Fixed(f32),
-    Fit,
+    Fit, // acts as fit(max_content) right now
     Percent(f32),
     Grow,
 }
@@ -683,22 +946,32 @@ pub struct UIElement {
 
     padding: Padding,
 
+    child_gap: f32,
+
     pub background_color: Vec4,
 
     layout_direction: LayoutDirection,
 
     pub text_info: TextInfo,
 
-    child_gap: f32,
-
-    min_width: f32, // TODO: already handled by width?
-    min_height: f32,
+    // TODO: use option
+    // gets overwritten when text is used
+    min_width_override: Option<f32>, // TODO: already handled by width?
+    min_height_override: Option<f32>,
+    max_width_override: Option<f32>,
+    max_height_override: Option<f32>,
 
     // calculated fields
+    min_width: f32,
+    min_height: f32,
+    max_width: f32,
+    max_height: f32,
+
+    pub width: f32,
+    pub height: f32,
+
     pub x: f32,
     pub y: f32,
-    pub preferred_width: f32,
-    pub preferred_height: f32,
 
     pub text_layout: TextLayoutResult,
 
@@ -727,18 +1000,26 @@ impl UIElement {
                 font_size: 12,
             },
 
-            min_width: 0.0,
-            min_height: 0.0,
+            min_width_override: None,
+            min_height_override: None,
+            max_width_override: None,
+            max_height_override: None,
 
             text_layout: TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
                 glyphs: Vec::new(),
             },
+
+            min_width: 0.0,
+            min_height: 0.0,
+            max_width: 0.0,
+            max_height: 0.0,
+
             x: 0.0,
             y: 0.0,
-            preferred_width: 0.0,
-            preferred_height: 0.0,
+            width: 0.0,
+            height: 0.0,
             parent: ROOT_ELEMENT,
             children: Vec::new(),
         }
@@ -844,8 +1125,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 300.0);
-        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem1).width, 300.0);
+        assert_eq!(layouter.get_element(&elem2).width, 200.0);
     }
 
     //
@@ -864,8 +1145,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 500.0, 500.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 200.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 100.0);
+        assert_eq!(layouter.get_element(&elem1).width, 200.0);
+        assert_eq!(layouter.get_element(&elem1).height, 100.0);
     }
 
     #[test]
@@ -880,8 +1161,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 300.0, 300.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 400.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 200.0);
+        assert_eq!(layouter.get_element(&elem1).width, 400.0);
+        assert_eq!(layouter.get_element(&elem1).height, 200.0);
     }
 
     //
@@ -906,8 +1187,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 200.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 250.0);
+        assert_eq!(layouter.get_element(&elem1).width, 200.0);
+        assert_eq!(layouter.get_element(&elem1).height, 250.0);
     }
 
     #[test]
@@ -922,8 +1203,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 0.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 0.0);
+        assert_eq!(layouter.get_element(&elem1).width, 0.0);
+        assert_eq!(layouter.get_element(&elem1).height, 0.0);
     }
 
     #[test]
@@ -943,8 +1224,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 0.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 0.0);
+        assert_eq!(layouter.get_element(&elem1).width, 0.0);
+        assert_eq!(layouter.get_element(&elem1).height, 0.0);
     }
 
     #[test]
@@ -968,8 +1249,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 100.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 200.0);
+        assert_eq!(layouter.get_element(&elem1).width, 100.0);
+        assert_eq!(layouter.get_element(&elem1).height, 200.0);
     }
 
     //
@@ -988,8 +1269,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).preferred_width, 1000.0);
-        assert_eq!(layouter.get_element(&elem1).preferred_height, 1000.0);
+        assert_eq!(layouter.get_element(&elem1).width, 1000.0);
+        assert_eq!(layouter.get_element(&elem1).height, 1000.0);
     }
 
     #[test]
@@ -1009,8 +1290,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
-        assert_eq!(layouter.get_element(&elem2).preferred_height, 100.0);
+        assert_eq!(layouter.get_element(&elem2).width, 200.0);
+        assert_eq!(layouter.get_element(&elem2).height, 100.0);
     }
 
     #[test]
@@ -1029,8 +1310,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem2).preferred_width, 200.0);
-        assert_eq!(layouter.get_element(&elem3).preferred_width, 200.0);
+        assert_eq!(layouter.get_element(&elem2).width, 200.0);
+        assert_eq!(layouter.get_element(&elem3).width, 200.0);
     }
 
     #[test]
@@ -1049,8 +1330,8 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem2).preferred_height, 300.0);
-        assert_eq!(layouter.get_element(&elem3).preferred_height, 300.0);
+        assert_eq!(layouter.get_element(&elem2).height, 300.0);
+        assert_eq!(layouter.get_element(&elem3).height, 300.0);
     }
 
     //
