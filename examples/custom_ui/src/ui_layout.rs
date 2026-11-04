@@ -666,7 +666,7 @@ mod test {
         ui_font::TextMeasurer,
         ui_layout::{
             LayoutDirection::LeftToRight,
-            Sizing::{Fit, Fixed, Grow},
+            Sizing::{Fit, Fixed, Grow, Percent},
             UIElement, UILayouter,
         },
     };
@@ -711,7 +711,7 @@ mod test {
     //
 
     #[test]
-    fn fixed() {
+    fn fixed_in_root() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
@@ -720,10 +720,106 @@ mod test {
             .sizing_y(Fixed(100.0))
             .draw(&mut layouter);
 
-        layouter.layout_elements(&mut measurer, 500.0, 500.0);
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
         assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
         assert_eq!(layouter.get_element(&elem1).size[1], 100.0);
+    }
+
+    #[test]
+    fn fixed_in_fixed() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Fixed(500.0))
+            .sizing_y(Fixed(600.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fixed(200.0))
+                    .sizing_y(Fixed(300.0))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 500.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 600.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 300.0);
+    }
+
+    #[test]
+    fn fixed_in_fit() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fixed(200.0))
+                    .sizing_y(Fixed(300.0))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 300.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 300.0);
+    }
+
+    #[test]
+    fn fixed_in_percent() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Percent(0.5))
+            .sizing_y(Percent(0.6))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fixed(200.0))
+                    .sizing_y(Fixed(300.0))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 500.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 600.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 300.0);
+    }
+
+    #[test]
+    fn fixed_in_grow() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Grow)
+            .sizing_y(Grow)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fixed(200.0))
+                    .sizing_y(Fixed(300.0))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 1000.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 300.0);
     }
 
     #[test]
@@ -742,34 +838,43 @@ mod test {
         assert_eq!(layouter.get_element(&elem1).size[1], 200.0);
     }
 
+    #[test]
+    fn fixed_in_fit_in_fit() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, (elem2, elem3)) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Fit)
+                    .draw_with_children(layouter, |layouter| {
+                        UIElement::new()
+                            .sizing_x(Fixed(100.0))
+                            .sizing_y(Fixed(200.0))
+                            .draw(layouter)
+                    })
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 100.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 200.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 100.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 200.0);
+
+        assert_eq!(layouter.get_element(&elem3).size[0], 100.0);
+        assert_eq!(layouter.get_element(&elem3).size[1], 200.0);
+    }
+
     //
     // Fit
     //
 
     #[test]
-    fn fit_with_fixed_inside() {
-        let mut layouter = UILayouter::new();
-        let mut measurer = TestTextMeasurer {};
-
-        let (elem1, _) = UIElement::new()
-            .layout_direction(LeftToRight)
-            .sizing_x(Fit)
-            .sizing_y(Fit)
-            .draw_with_children(&mut layouter, |layouter| {
-                UIElement::new()
-                    .sizing_x(Fixed(200.0))
-                    .sizing_y(Fixed(250.0))
-                    .draw(layouter);
-            });
-
-        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
-
-        assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
-        assert_eq!(layouter.get_element(&elem1).size[1], 250.0);
-    }
-
-    #[test]
-    fn fit_with_no_children() {
+    fn fit_in_root() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
@@ -785,49 +890,207 @@ mod test {
     }
 
     #[test]
-    fn fit_with_grow_inside() {
+    fn fit_in_fixed() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
-        let (elem1, _) = UIElement::new()
+        let (elem1, elem2) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_x(Fixed(200.0))
+            .sizing_y(Fixed(300.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 300.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
+    }
+
+    #[test]
+    fn fit_in_fit() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .layout_direction(LeftToRight)
             .sizing_x(Fit)
             .sizing_y(Fit)
             .draw_with_children(&mut layouter, |layouter| {
-                UIElement::new()
-                    .sizing_x(Grow)
-                    .sizing_y(Grow)
-                    .draw(layouter);
+                UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
             });
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
         assert_eq!(layouter.get_element(&elem1).size[0], 0.0);
         assert_eq!(layouter.get_element(&elem1).size[1], 0.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
     }
 
     #[test]
-    fn fit_with_fit_with_fixed_inside() {
+    fn fit_in_percent() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
-        let (elem1, _) = UIElement::new()
-            .sizing_x(Fit)
-            .sizing_y(Fit)
+        let (elem1, elem2) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_x(Percent(0.5))
+            .sizing_y(Percent(0.6))
             .draw_with_children(&mut layouter, |layouter| {
-                UIElement::new()
-                    .sizing_x(Fit)
-                    .draw_with_children(layouter, |layouter| {
-                        UIElement::new()
-                            .sizing_x(Fixed(100.0))
-                            .sizing_y(Fixed(200.0))
-                            .draw(layouter);
-                    });
+                UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
             });
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
-        assert_eq!(layouter.get_element(&elem1).size[0], 100.0);
-        assert_eq!(layouter.get_element(&elem1).size[1], 200.0);
+        assert_eq!(layouter.get_element(&elem1).size[0], 500.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 600.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
+    }
+
+    #[test]
+    fn fit_in_grow() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .layout_direction(LeftToRight)
+            .sizing_x(Grow)
+            .sizing_y(Grow)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 1000.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
+    }
+
+    //
+    // Percent
+    //
+
+    #[test]
+    fn percent_in_root() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let elem1 = UIElement::new()
+            .sizing_x(Percent(0.3))
+            .sizing_y(Percent(0.7))
+            .draw(&mut layouter);
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 300.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 700.0);
+    }
+
+    #[test]
+    fn percent_in_fixed() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Fixed(400.0))
+            .sizing_y(Fixed(600.0))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Percent(0.5))
+                    .sizing_y(Percent(0.8))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 400.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 600.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 480.0);
+    }
+
+    #[test]
+    fn percent_in_fit() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Percent(0.5))
+                    .sizing_y(Percent(0.9))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 0.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
+    }
+
+    #[test]
+    fn percent_in_percent() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Percent(0.5))
+            .sizing_y(Percent(0.7))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Percent(0.5))
+                    .sizing_y(Percent(1.0))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 500.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 700.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 250.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 700.0);
+    }
+
+    #[test]
+    fn percent_in_grow() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Grow)
+            .sizing_y(Grow)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Percent(0.5))
+                    .sizing_y(Percent(0.9))
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 1000.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 500.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 900.0);
     }
 
     //
@@ -835,7 +1098,7 @@ mod test {
     //
 
     #[test]
-    fn grow_at_root() {
+    fn grow_in_root() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
@@ -851,11 +1114,11 @@ mod test {
     }
 
     #[test]
-    fn grow_inside_fixed() {
+    fn grow_in_fixed() {
         let mut layouter = UILayouter::new();
         let mut measurer = TestTextMeasurer {};
 
-        let (_, elem2) = UIElement::new()
+        let (elem1, elem2) = UIElement::new()
             .sizing_x(Fixed(200.0))
             .sizing_y(Fixed(100.0))
             .draw_with_children(&mut layouter, |layouter| {
@@ -867,8 +1130,83 @@ mod test {
 
         layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
+        assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 100.0);
+
         assert_eq!(layouter.get_element(&elem2).size[0], 200.0);
         assert_eq!(layouter.get_element(&elem2).size[1], 100.0);
+    }
+
+    #[test]
+    fn grow_in_fit() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Fit)
+            .sizing_y(Fit)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Grow)
+                    .sizing_y(Grow)
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 0.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 0.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 0.0);
+    }
+
+    #[test]
+    fn grow_in_percent() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Percent(0.4))
+            .sizing_y(Percent(0.2))
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Grow)
+                    .sizing_y(Grow)
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 400.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 200.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 400.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 200.0);
+    }
+
+    #[test]
+    fn grow_in_grow() {
+        let mut layouter = UILayouter::new();
+        let mut measurer = TestTextMeasurer {};
+
+        let (elem1, elem2) = UIElement::new()
+            .sizing_x(Grow)
+            .sizing_y(Grow)
+            .draw_with_children(&mut layouter, |layouter| {
+                UIElement::new()
+                    .sizing_x(Grow)
+                    .sizing_y(Grow)
+                    .draw(layouter)
+            });
+
+        layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+        assert_eq!(layouter.get_element(&elem1).size[0], 1000.0);
+        assert_eq!(layouter.get_element(&elem1).size[1], 1000.0);
+
+        assert_eq!(layouter.get_element(&elem2).size[0], 1000.0);
+        assert_eq!(layouter.get_element(&elem2).size[1], 1000.0);
     }
 
     #[test]
@@ -910,8 +1248,4 @@ mod test {
         assert_eq!(layouter.get_element(&elem2).size[1], 300.0);
         assert_eq!(layouter.get_element(&elem3).size[1], 300.0);
     }
-
-    //
-    // Shrink
-    //
 }
