@@ -139,8 +139,8 @@ impl UIRenderer {
             instances.push(UIElementInstace {
                 element_type: ELEMENT_TYPE_CONTAINER,
 
-                position: [element.x, element.y],
-                size: [element.width, element.height],
+                position: [element.pos[0], element.pos[1]],
+                size: [element.size[0], element.size[1]],
                 color: element.background_color.to_array(),
                 font_atlas_offset: [0.0, 0.0],
                 font_atlas_size: [0.0, 0.0],
@@ -161,8 +161,8 @@ impl UIRenderer {
                     // the generation had a large fixed font size, not we just scale it linearly
                     let scale = element.text_info.font_size as f32 / font_atlas.raster_size as f32;
                     let sdf_padding = font_atlas.sdf_params.pad as f32;
-                    let x = element.x + glyph.x - sdf_padding * scale;
-                    let y = element.y + glyph.y - sdf_padding * scale;
+                    let x = element.pos[0] + glyph.x - sdf_padding * scale;
+                    let y = element.pos[1] + glyph.y - sdf_padding * scale;
                     let width = glyph_info.atlas_width as f32 * scale;
                     let height = glyph_info.atlas_height as f32 * scale;
                     instances.push(UIElementInstace {

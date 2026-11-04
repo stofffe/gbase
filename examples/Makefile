@@ -32,3 +32,6 @@ debug:
 
 release:
 	cargo run --release
+
+test:
+	cargo test
