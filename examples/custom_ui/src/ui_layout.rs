@@ -129,19 +129,19 @@ impl UILayouter {
 
         self.text_width_pass(text_measurer);
 
-        self.intrinsic_pass(true);
+        self.intrinsic_pass(Axis::X);
 
-        self.fit_pass(true);
+        self.fit_pass(Axis::X);
 
-        self.percent_grow_shrink_pass(true);
+        self.percent_grow_shrink_pass(Axis::X);
 
         self.text_height_pass(text_measurer);
 
-        self.intrinsic_pass(false);
+        self.intrinsic_pass(Axis::Y);
 
-        self.fit_pass(false);
+        self.fit_pass(Axis::Y);
 
-        self.percent_grow_shrink_pass(false);
+        self.percent_grow_shrink_pass(Axis::Y);
 
         self.position_pass();
     }
@@ -196,8 +196,11 @@ impl UILayouter {
     /// Sets the min/max sizes the elements wants (ignores any constraints)
     ///
     /// Iterates reverse DFS so children sizes are processed before processing the element itself
-    fn intrinsic_pass(&mut self, x_axis: bool) {
-        let i = if x_axis { 0 } else { 1 };
+    fn intrinsic_pass(&mut self, axis: Axis) {
+        let i = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+        };
 
         // reverse DFS so children are ready when processing element
         for elem in (1..self.elems.len()).rev() {
@@ -214,10 +217,9 @@ impl UILayouter {
             let mut min_size = element.min[i];
             let mut max_size = element.max[i];
 
-            let layout_dir_matches_axis = if x_axis {
-                matches!(element.layout_direction, LayoutDirection::LeftToRight)
-            } else {
-                matches!(element.layout_direction, LayoutDirection::TopToBottom)
+            let layout_dir_matches_axis = match axis {
+                Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
+                Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
             };
 
             if layout_dir_matches_axis {
@@ -243,13 +245,16 @@ impl UILayouter {
             }
 
             // padding
-            if x_axis {
-                min_size += element.padding.horizontal();
-                max_size += element.padding.horizontal();
-            } else {
-                min_size += element.padding.vertical();
-                max_size += element.padding.vertical();
-            }
+            match axis {
+                Axis::X => {
+                    min_size += element.padding.horizontal();
+                    max_size += element.padding.horizontal();
+                }
+                Axis::Y => {
+                    min_size += element.padding.vertical();
+                    max_size += element.padding.vertical();
+                }
+            };
 
             // set min and max, but actual size is not set
             self.elems[elem].min[i] = min_size;
@@ -260,8 +265,11 @@ impl UILayouter {
     /// Sets the sizing of elements with Sizing mode FIT
     ///
     /// Iteration order does not matter so do simplest DFS
-    fn fit_pass(&mut self, x_axis: bool) {
-        let i = if x_axis { 0 } else { 1 };
+    fn fit_pass(&mut self, axis: Axis) {
+        let i = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+        };
 
         for elem in 1..self.elems.len() {
             let element = &self.elems[elem];
@@ -277,16 +285,18 @@ impl UILayouter {
     /// All elements with width > min_width are allowed to shrink
     ///
     /// Iterates DFS so parent is always processed before child
-    fn percent_grow_shrink_pass(&mut self, x_axis: bool) {
-        let i = if x_axis { 0 } else { 1 };
+    fn percent_grow_shrink_pass(&mut self, axis: Axis) {
+        let i = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+        };
 
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
 
-            let layout_dir_matches_axis = if x_axis {
-                matches!(element.layout_direction, LayoutDirection::LeftToRight)
-            } else {
-                matches!(element.layout_direction, LayoutDirection::TopToBottom)
+            let layout_dir_matches_axis = match axis {
+                Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
+                Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
             };
 
             // percent on all children
@@ -430,7 +440,7 @@ impl UILayouter {
         }
     }
 
-    /// Positions elements relative to their parent element
+    /// Positions elements relative to their parent element on both x and y axis
     ///
     /// Iterates DFS so parent is always processed before child
     fn position_pass(&mut self) {
@@ -461,6 +471,11 @@ impl UILayouter {
             }
         }
     }
+}
+
+enum Axis {
+    X,
+    Y,
 }
 
 #[derive(Debug, Clone)]
