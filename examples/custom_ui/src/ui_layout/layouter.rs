@@ -94,155 +94,120 @@ impl UILayouter {
         self.elems[ROOT_ELEMENT].size[0] = root_width;
         self.elems[ROOT_ELEMENT].size[1] = root_height;
 
-        self.text_width_pass(text_measurer);
-
-        self.intrinsic_pass(Axis::X);
-
-        self.fit_pass(Axis::X);
+        self.intrinsic_fixed_fit_pass(text_measurer, Axis::X);
 
         self.percent_grow_shrink_pass(Axis::X);
 
-        self.text_height_pass(text_measurer);
-
-        self.intrinsic_pass(Axis::Y);
-
-        self.fit_pass(Axis::Y);
+        self.intrinsic_fixed_fit_pass(text_measurer, Axis::Y);
 
         self.percent_grow_shrink_pass(Axis::Y);
 
         self.position_pass();
     }
 
-    // TODO: only allow text size OR children size using some enum
-
-    // Sets the intrinsic width by measuring the text width
+    // Sets the intrinsic, fixed and fit size
     //
-    /// Iteration order does not matter so do simplest DFS
-    fn text_width_pass(&mut self, text_measurer: &mut impl TextMeasurer) {
-        for elem in 1..self.elems.len() {
-            let element = &self.elems[elem];
-
-            if !element.text_info.text.is_empty() {
-                let text_info = &element.text_info;
-
-                let layout_result = text_measurer.calculate_preferred_text_size(
-                    &text_info.text,
-                    text_info.font_size,
-                    false,
-                );
-                self.elems[elem].min[0] = layout_result.min_width;
-                self.elems[elem].max[0] = layout_result.max_width;
-            }
-        }
-    }
-
-    // Sets the intrinsic height by measuring the text height by wrapping based
-    // on the width set in previous passes
-    //
-    /// Iteration order does not matter so do simplest DFS
-    fn text_height_pass(&mut self, text_measurer: &mut impl TextMeasurer) {
-        for elem in 1..self.elems.len() {
-            let element = &self.elems[elem];
-
-            let element_text = &element.text_info.text;
-            if !element_text.is_empty() {
-                let layout_result = text_measurer.layout_text(
-                    &element.text_info.text,
-                    element.text_info.font_size,
-                    element.size[0],
-                );
-
-                // // TODO: dont know if its need here
-                self.elems[elem].min[1] = layout_result.height;
-                self.elems[elem].max[1] = layout_result.height;
-                self.elems[elem].text_layout = layout_result;
-            }
-        }
-    }
-
-    /// Sets the min/max sizes the elements wants (ignores any constraints)
-    ///
-    /// Iterates reverse DFS so children sizes are processed before processing the element itself
-    fn intrinsic_pass(&mut self, axis: Axis) {
+    /// Children need to be ready before parent so do REVERSE DFS
+    fn intrinsic_fixed_fit_pass(&mut self, text_measurer: &mut impl TextMeasurer, axis: Axis) {
         let i = match axis {
             Axis::X => 0,
             Axis::Y => 1,
         };
 
-        // reverse DFS so children are ready when processing element
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            // fixed overrides
-            if let Sizing::Fixed(fixed_size) = element.sizing[i] {
-                self.elems[elem].min[i] = fixed_size;
-                self.elems[elem].max[i] = fixed_size;
-                self.elems[elem].size[i] = fixed_size;
-                continue;
-            }
+            // intrinsic min/max sizing
+            // text, fixed or children sum
+            let has_element_text = !element.text_info.text.is_empty();
+            let (min_size, max_size) = if has_element_text {
+                match axis {
+                    Axis::X => {
+                        let text_info = &element.text_info;
 
-            let mut min_size = element.min[i];
-            let mut max_size = element.max[i];
+                        let layout_result = text_measurer.calculate_preferred_text_size(
+                            &text_info.text,
+                            text_info.font_size,
+                            false,
+                        );
 
-            let layout_dir_matches_axis = match axis {
-                Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
-                Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
-            };
+                        let min_size = layout_result.min_width;
+                        let max_size = layout_result.max_width;
 
-            if layout_dir_matches_axis {
-                // accumulate children sizes
-                for &child_index in element.children.iter() {
-                    let child = &self.elems[child_index];
-                    min_size += child.min[i];
-                    max_size += child.max[i];
+                        (min_size, max_size)
+                    }
+                    Axis::Y => {
+                        let layout_result = text_measurer.layout_text(
+                            &element.text_info.text,
+                            element.text_info.font_size,
+                            element.size[0],
+                        );
+
+                        let min_size = layout_result.height;
+                        let max_size = layout_result.height;
+
+                        self.elems[elem].text_layout = layout_result;
+
+                        (min_size, max_size)
+                    }
                 }
-                // add gap
-                let child_count = element.children.len().saturating_sub(1);
-                let total_child_gap = child_count as f32 * element.child_gap;
-                min_size += total_child_gap;
-                max_size += total_child_gap;
+            } else if let Sizing::Fixed(fixed_size) = element.sizing[i] {
+                (fixed_size, fixed_size)
             } else {
-                // get max size of children
-                for &child_index in element.children.iter() {
-                    let child = &self.elems[child_index];
-                    // TODO: unsure about this one
-                    min_size = min_size.max(child.min[i]);
-                    max_size = max_size.max(child.max[i]);
-                }
-            }
+                let element = &self.elems[elem];
+                let mut min_size = 0.0;
+                let mut max_size = 0.0;
 
-            // padding
-            match axis {
-                Axis::X => {
-                    min_size += element.padding.horizontal();
-                    max_size += element.padding.horizontal();
+                let layout_dir_matches_axis = match axis {
+                    Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
+                    Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
+                };
+                if layout_dir_matches_axis {
+                    // accumulate children sizes
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        min_size += child.min[i];
+                        max_size += child.max[i];
+                    }
+                    // add gap
+                    let child_count = element.children.len().saturating_sub(1);
+                    let total_child_gap = child_count as f32 * element.child_gap;
+                    min_size += total_child_gap;
+                    max_size += total_child_gap;
+                } else {
+                    // get max size of children
+                    for &child_index in element.children.iter() {
+                        let child = &self.elems[child_index];
+                        // TODO: unsure about this one
+                        min_size = min_size.max(child.min[i]);
+                        max_size = max_size.max(child.max[i]);
+                    }
                 }
-                Axis::Y => {
-                    min_size += element.padding.vertical();
-                    max_size += element.padding.vertical();
-                }
+
+                // padding
+                match axis {
+                    Axis::X => {
+                        min_size += element.padding.horizontal();
+                        max_size += element.padding.horizontal();
+                    }
+                    Axis::Y => {
+                        min_size += element.padding.vertical();
+                        max_size += element.padding.vertical();
+                    }
+                };
+
+                (min_size, max_size)
             };
 
             // set min and max, but actual size is not set
             self.elems[elem].min[i] = min_size;
             self.elems[elem].max[i] = max_size;
-        }
-    }
 
-    /// Sets the sizing of elements with Sizing mode FIT
-    ///
-    /// Iteration order does not matter so do simplest DFS
-    fn fit_pass(&mut self, axis: Axis) {
-        let i = match axis {
-            Axis::X => 0,
-            Axis::Y => 1,
-        };
-
-        for elem in 1..self.elems.len() {
-            let element = &self.elems[elem];
-
-            if let Sizing::Fit = element.sizing[i] {
-                self.elems[elem].size[i] = element.max[i];
+            // Sizing mode based sizing
+            match self.elems[elem].sizing[i] {
+                Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size,
+                Sizing::Fit => self.elems[elem].size[i] = max_size,
+                _ => (),
             }
         }
     }
@@ -260,12 +225,6 @@ impl UILayouter {
 
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
-
-            let layout_dir_matches_axis = match axis {
-                Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
-                Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
-            };
-
             // percent on all children
             for &child in element.children.iter() {
                 if let Sizing::Percent(p) = self.elems[child].sizing[i] {
@@ -284,6 +243,10 @@ impl UILayouter {
             };
             remaining_width -= padding;
 
+            let layout_dir_matches_axis = match axis {
+                Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
+                Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
+            };
             if layout_dir_matches_axis {
                 remaining_width -=
                     (element.children.len().saturating_sub(1)) as f32 * element.child_gap;

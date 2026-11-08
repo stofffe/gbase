@@ -1,3 +1,6 @@
+use core::f32;
+use std::cmp::max;
+
 use gbase::glam::vec4;
 
 use crate::{
@@ -5,32 +8,97 @@ use crate::{
     ui_layout::{
         layouter::UILayouter,
         LayoutDirection::{self, LeftToRight},
-        Padding,
         Sizing::{self, Fit, Fixed, Grow, Percent},
         TextLayoutResult, TextSizeResult, UIElement,
     },
 };
 
-struct TestTextMeasurer {}
+struct TestTextMeasurer {
+    char_width: f32,
+    char_height: f32,
+}
+
+impl TestTextMeasurer {
+    pub fn new() -> Self {
+        Self {
+            char_width: 10.0,
+            char_height: 10.0,
+        }
+    }
+}
+
 impl TextMeasurer for TestTextMeasurer {
     fn calculate_preferred_text_size(
         &mut self,
-        _text: &str,
-        _font_size: u32,
+        text: &str,
+        font_size: u32,
         _wrap_on_newline: bool,
     ) -> TextSizeResult {
-        todo!()
+        let mut min_width = f32::MAX;
+        let mut max_width = 0.0;
+
+        let space_width = self.char_width;
+
+        for word in text.split_whitespace() {
+            let word_width = self.char_width * word.len() as f32;
+            min_width = min_width.min(word_width);
+            max_width += word_width;
+            max_width += space_width;
+        }
+
+        max_width -= space_width;
+
+        TextSizeResult {
+            min_width,
+            max_width,
+
+            min_height: self.char_height,
+            max_height: self.char_height,
+        }
     }
 
-    fn layout_text(&mut self, _text: &str, _font_size: u32, _max_width: f32) -> TextLayoutResult {
-        todo!()
+    fn layout_text(&mut self, text: &str, _font_size: u32, max_width: f32) -> TextLayoutResult {
+        let mut line_width = 0.0;
+        let mut max_line_width = 0.0f32;
+        let mut lines = 0;
+
+        let space_width = self.char_width;
+
+        for word in text.split_whitespace() {
+            let word_width = self.char_width * word.len() as f32;
+
+            if line_width > 0.0 {
+                line_width += space_width;
+            }
+
+            // wrap
+            if line_width + word_width > max_width {
+                lines += 1;
+                line_width -= space_width;
+                max_line_width = max_line_width.max(line_width);
+                line_width = 0.0;
+            }
+
+            line_width += word_width;
+        }
+
+        max_line_width = max_line_width.max(line_width);
+
+        let height = (lines + 1) as f32 * self.char_height;
+        let width = max_line_width;
+
+        TextLayoutResult {
+            width,
+            height,
+            glyphs: Vec::new(),
+        }
     }
 }
 
 #[test]
 fn multiple_top_level() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new().sizing_x(Fixed(300.0)).draw(&mut layouter);
     let elem2 = UIElement::new().sizing_x(Fixed(200.0)).draw(&mut layouter);
@@ -48,7 +116,7 @@ fn multiple_top_level() {
 #[test]
 fn fixed_in_root() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
         .sizing_x(Fixed(200.0))
@@ -64,7 +132,7 @@ fn fixed_in_root() {
 #[test]
 fn fixed_in_fixed() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fixed(500.0))
@@ -88,7 +156,7 @@ fn fixed_in_fixed() {
 #[test]
 fn fixed_in_fit() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fit)
@@ -112,7 +180,7 @@ fn fixed_in_fit() {
 #[test]
 fn fixed_in_percent() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Percent(0.5))
@@ -136,7 +204,7 @@ fn fixed_in_percent() {
 #[test]
 fn fixed_in_grow() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Grow)
@@ -160,7 +228,7 @@ fn fixed_in_grow() {
 #[test]
 fn fixed_overflow_stays_fixed() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
         .sizing_x(Fixed(400.0))
@@ -176,7 +244,7 @@ fn fixed_overflow_stays_fixed() {
 #[test]
 fn fixed_in_fit_in_fit() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, (elem2, elem3)) = UIElement::new()
         .sizing_x(Fit)
@@ -211,7 +279,7 @@ fn fixed_in_fit_in_fit() {
 #[test]
 fn fit_in_root() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
         .sizing_x(Fit)
@@ -227,7 +295,7 @@ fn fit_in_root() {
 #[test]
 fn fit_in_fixed() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -249,7 +317,7 @@ fn fit_in_fixed() {
 #[test]
 fn fit_in_fit() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -271,7 +339,7 @@ fn fit_in_fit() {
 #[test]
 fn fit_in_percent() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -293,7 +361,7 @@ fn fit_in_percent() {
 #[test]
 fn fit_in_grow() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -319,7 +387,7 @@ fn fit_in_grow() {
 #[test]
 fn percent_in_root() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
         .sizing_x(Percent(0.3))
@@ -335,7 +403,7 @@ fn percent_in_root() {
 #[test]
 fn percent_in_fixed() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fixed(400.0))
@@ -359,7 +427,7 @@ fn percent_in_fixed() {
 #[test]
 fn percent_in_fit() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fit)
@@ -383,7 +451,7 @@ fn percent_in_fit() {
 #[test]
 fn percent_in_percent() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Percent(0.5))
@@ -407,7 +475,7 @@ fn percent_in_percent() {
 #[test]
 fn percent_in_grow() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Grow)
@@ -435,7 +503,7 @@ fn percent_in_grow() {
 #[test]
 fn grow_in_root() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
         .sizing_x(Grow)
@@ -451,7 +519,7 @@ fn grow_in_root() {
 #[test]
 fn grow_in_fixed() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fixed(200.0))
@@ -475,7 +543,7 @@ fn grow_in_fixed() {
 #[test]
 fn grow_in_fit() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Fit)
@@ -499,7 +567,7 @@ fn grow_in_fit() {
 #[test]
 fn grow_in_percent() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Percent(0.4))
@@ -523,7 +591,7 @@ fn grow_in_percent() {
 #[test]
 fn grow_in_grow() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
         .sizing_x(Grow)
@@ -547,7 +615,7 @@ fn grow_in_grow() {
 #[test]
 fn grow_distribution_main_axis() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (_, (elem2, elem3)) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -567,7 +635,7 @@ fn grow_distribution_main_axis() {
 #[test]
 fn grow_distribution_cross_axis() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (_, (elem2, elem3)) = UIElement::new()
         .layout_direction(LeftToRight)
@@ -587,7 +655,7 @@ fn grow_distribution_cross_axis() {
 #[test]
 fn navbar_sidebar_statusbar() {
     let mut layouter = UILayouter::new();
-    let mut measurer = TestTextMeasurer {};
+    let mut measurer = TestTextMeasurer::new();
 
     let (
         elem1,
@@ -703,4 +771,194 @@ fn navbar_sidebar_statusbar() {
 
     assert_eq!(layouter.get_element(&elem1_3_1).size[0], 100.0);
     assert_eq!(layouter.get_element(&elem1_3_1).size[1], 100.0);
+}
+
+//
+// Text
+//
+
+#[test]
+fn text_with_fit() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    let text = "hello duuude";
+
+    let elem1 = UIElement::new()
+        .layout_direction(LeftToRight)
+        .text(text)
+        .sizing_x(Fit)
+        .sizing_y(Fit)
+        .draw(&mut layouter);
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(
+        layouter.get_element(&elem1).size[0],
+        measurer.char_width * text.len() as f32
+    );
+    assert_eq!(layouter.get_element(&elem1).size[1], measurer.char_height);
+}
+
+#[test]
+fn text_with_fixed_width() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // will wrap every 5 chars
+    // hello
+    // bro
+    let text = "hello bro";
+
+    let elem1 = UIElement::new()
+        .layout_direction(LeftToRight)
+        .text(text)
+        .sizing_x(Fixed(50.0))
+        .sizing_y(Fit)
+        .draw(&mut layouter);
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 50.0);
+    assert_eq!(
+        layouter.get_element(&elem1).size[1],
+        measurer.char_height * 2.0
+    );
+}
+
+#[test]
+fn text_distribution() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // will wrap every 5 chars
+    // hello
+    // bro i
+    // saw
+    // a rad
+    // electric
+    // bike
+    let text1 = "hello bro i saw a rad electric bike";
+
+    // will wrap every 5 chars
+    // hello
+    // bro
+    let text2 = "hello bro";
+
+    let (elem1, (elem2, elem3)) = UIElement::new()
+        .layout_direction(LeftToRight)
+        .sizing_x(Fixed(100.0))
+        .sizing_y(Fit)
+        .draw_with_children(&mut layouter, |layouter| {
+            let elem2 = UIElement::new()
+                .text(text1)
+                .sizing_x(Fit)
+                .sizing_y(Fit)
+                .draw(layouter);
+            let elem3 = UIElement::new()
+                .text(text2)
+                .sizing_x(Fit)
+                .sizing_y(Fit)
+                .draw(layouter);
+            (elem2, elem3)
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    let wrapped_text1_height = measurer.char_height * 6.0;
+    let wrapped_text2_height = measurer.char_height * 2.0;
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 100.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], wrapped_text1_height);
+
+    assert_eq!(layouter.get_element(&elem2).size[0], 50.0);
+    assert_eq!(layouter.get_element(&elem2).size[1], wrapped_text1_height);
+
+    assert_eq!(layouter.get_element(&elem3).size[0], 50.0);
+    assert_eq!(layouter.get_element(&elem3).size[1], wrapped_text2_height);
+}
+
+#[test]
+fn text_in_fixed_width() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // will wrap every 5 chars
+    // hello
+    // bro i
+    // saw
+    // a rad
+    // electric
+    // bike
+    let text = "hello bro i saw a rad electric bike";
+
+    let (elem1, elem2) = UIElement::new()
+        .layout_direction(LeftToRight)
+        .sizing_x(Fixed(50.0))
+        .sizing_y(Fit)
+        .draw_with_children(&mut layouter, |layouter| {
+            UIElement::new()
+                .text(text)
+                .sizing_x(Fit)
+                .sizing_y(Fit)
+                .draw(layouter)
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    let wrapped_text_height = measurer.char_height * 6.0;
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 50.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], wrapped_text_height);
+
+    assert_eq!(layouter.get_element(&elem2).size[0], 50.0);
+    assert_eq!(layouter.get_element(&elem2).size[1], wrapped_text_height);
+}
+
+#[test]
+fn text_in_fixed_with_many_children() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // will wrap every 5 chars
+    // hello
+    // bro i
+    // saw
+    // a rad
+    // electric
+    // bike
+    let text = "hello bro i saw a rad electric bike";
+
+    let (elem1, (elem2, elem3, elem4)) = UIElement::new()
+        .layout_direction(LeftToRight)
+        .sizing_x(Fixed(300.0))
+        .sizing_y(Fit)
+        .draw_with_children(&mut layouter, |layouter| {
+            let elem2 = UIElement::new()
+                .sizing_x(Fixed(100.0))
+                .sizing_y(Grow)
+                .draw(layouter);
+            let elem3 = UIElement::new().text(text).draw(layouter);
+            let elem4 = UIElement::new()
+                .sizing_x(Fixed(150.0))
+                .sizing_y(Fit)
+                .draw(layouter);
+            (elem2, elem3, elem4)
+        });
+
+    let wrapped_text_height = measurer.char_height * 6.0;
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 300.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], wrapped_text_height);
+
+    assert_eq!(layouter.get_element(&elem2).size[0], 100.0);
+    assert_eq!(layouter.get_element(&elem2).size[1], wrapped_text_height);
+
+    assert_eq!(layouter.get_element(&elem3).size[0], 50.0);
+    assert_eq!(layouter.get_element(&elem3).size[1], wrapped_text_height);
+
+    assert_eq!(layouter.get_element(&elem4).size[0], 150.0);
+    assert_eq!(layouter.get_element(&elem4).size[1], 0.0);
 }
