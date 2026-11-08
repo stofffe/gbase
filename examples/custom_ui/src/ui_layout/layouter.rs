@@ -118,9 +118,12 @@ impl UILayouter {
             let element = &self.elems[elem];
 
             // intrinsic min/max sizing
-            // text, fixed or children sum
+            // fixed OR text OR children sum
             let has_element_text = !element.text_info.text.is_empty();
-            let (min_size, max_size) = if has_element_text {
+
+            let (min_size, max_size) = if let Sizing::Fixed(fixed_size) = element.sizing[i] {
+                (fixed_size, fixed_size)
+            } else if has_element_text {
                 match axis {
                     Axis::X => {
                         let text_info = &element.text_info;
@@ -151,8 +154,6 @@ impl UILayouter {
                         (min_size, max_size)
                     }
                 }
-            } else if let Sizing::Fixed(fixed_size) = element.sizing[i] {
-                (fixed_size, fixed_size)
             } else {
                 let element = &self.elems[elem];
                 let mut min_size = 0.0;
