@@ -1,3 +1,4 @@
+pub mod builder;
 pub mod layouter;
 
 #[cfg(test)]
@@ -12,32 +13,29 @@ pub struct UIElementId(usize);
 
 #[derive(Debug, Clone)]
 pub struct UIElement {
-    // set fields
+    // general
+    content_type: ContentType,
     sizing: [Sizing; 2],
-
     padding: Padding,
-
-    child_gap: f32,
-
     pub background_color: Vec4,
-
-    layout_direction: LayoutDirection,
-
-    pub text_info: TextInfo,
-
-    // gets overwritten when text is used
     min_override: [Option<f32>; 2],
     max_override: [Option<f32>; 2],
 
-    // calculated fields
+    // container
+    layout_direction: LayoutDirection,
+    child_gap: f32,
+
+    // text
+    pub text: String,
+    pub text_color: Vec4,
+    pub font_size: u32,
+
+    // calculated
+    pub text_layout: TextLayoutResult,
     min: [f32; 2],
     max: [f32; 2],
-
     pub size: [f32; 2],
     pub pos: [f32; 2],
-
-    pub text_layout: TextLayoutResult,
-
     pub parent: usize,
     pub children: Vec<usize>,
 }
@@ -45,6 +43,8 @@ pub struct UIElement {
 impl UIElement {
     pub fn new() -> Self {
         Self {
+            // general
+            content_type: ContentType::Container,
             sizing: [Sizing::Fit, Sizing::Fit],
             padding: Padding {
                 top: 0.0,
@@ -52,30 +52,29 @@ impl UIElement {
                 left: 0.0,
                 right: 0.0,
             },
-            layout_direction: LayoutDirection::LeftToRight,
             background_color: vec4(0.0, 0.0, 0.0, 1.0),
-            child_gap: 0.0,
-
-            text_info: TextInfo {
-                text: String::new(),
-                text_color: vec4(0.0, 0.0, 0.0, 1.0),
-                font_size: 12,
-            },
-
             min_override: [None, None],
             max_override: [None, None],
 
+            // container
+            layout_direction: LayoutDirection::LeftToRight,
+            child_gap: 0.0,
+
+            // text
+            text: String::new(),
+            text_color: Vec4::ZERO,
+            font_size: 12,
+
+            // calculated
             text_layout: TextLayoutResult {
                 width: 0.0,
                 height: 0.0,
                 glyphs: Vec::new(),
             },
-
             min: [0.0, 0.0],
             max: [0.0, 0.0],
             size: [0.0, 0.0],
             pos: [0.0, 0.0],
-
             parent: ROOT_ELEMENT,
             children: Vec::new(),
         }
@@ -110,15 +109,16 @@ impl UIElement {
         self
     }
     pub fn text(mut self, text: impl Into<String>) -> Self {
-        self.text_info.text = text.into();
+        self.text = text.into();
+        self.content_type = ContentType::Text;
         self
     }
     pub fn font_size(mut self, font_size: u32) -> Self {
-        self.text_info.font_size = font_size;
+        self.font_size = font_size;
         self
     }
     pub fn text_color(mut self, text_color: Vec4) -> Self {
-        self.text_info.text_color = text_color;
+        self.text_color = text_color;
         self
     }
 
@@ -133,6 +133,7 @@ impl UIElement {
     ) -> (UIElementId, R) {
         layouter.add_element(self, children)
     }
+
     pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
         let (id, _) = layouter.add_element(self, |_| {});
         id
@@ -145,17 +146,60 @@ enum Axis {
 }
 
 #[derive(Debug, Clone)]
+pub struct ContainerInfo {
+    layout_direction: LayoutDirection,
+    child_gap: f32,
+}
+
+impl ContainerInfo {
+    pub fn new() -> Self {
+        Self {
+            layout_direction: LayoutDirection::LeftToRight,
+            child_gap: 0.0,
+        }
+    }
+
+    pub fn direction(mut self, direction: LayoutDirection) -> Self {
+        self.layout_direction = direction;
+        self
+    }
+
+    pub fn child_gap(mut self, child_gap: f32) -> Self {
+        self.child_gap = child_gap;
+        self
+    }
+}
+
+#[derive(Debug, Clone)]
 pub enum ContentType {
     Container,
-    Text(TextInfo),
+    Text,
 }
 
 #[derive(Debug, Clone)]
 pub struct TextInfo {
     pub text: String,
-
     pub text_color: Vec4,
     pub font_size: u32,
+}
+
+impl TextInfo {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            text_color: vec4(0.0, 0.0, 0.0, 1.0),
+            font_size: 12,
+        }
+    }
+
+    pub fn font_size(mut self, font_size: u32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+    pub fn text_color(mut self, text_color: Vec4) -> Self {
+        self.text_color = text_color;
+        self
+    }
 }
 
 #[derive(Debug, Clone)]

@@ -2,7 +2,9 @@ use gbase::{render, Context};
 
 use crate::{
     ui_font::TextMeasurer,
-    ui_layout::{Axis, LayoutDirection, Sizing, UIElement, UIElementId, ROOT_ELEMENT},
+    ui_layout::{
+        Axis, ContentType, LayoutDirection, Sizing, TextInfo, UIElement, UIElementId, ROOT_ELEMENT,
+    },
 };
 
 pub struct UILayouter {
@@ -114,90 +116,102 @@ impl UILayouter {
             Axis::Y => 1,
         };
 
+        // container
+        // text
+        // image
+
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            // intrinsic min/max sizing
-            // fixed OR text OR children sum
-            let has_element_text = !element.text_info.text.is_empty();
-
             let (min_size, max_size) = if let Sizing::Fixed(fixed_size) = element.sizing[i] {
                 (fixed_size, fixed_size)
-            } else if has_element_text {
-                match axis {
-                    Axis::X => {
-                        let text_info = &element.text_info;
-
-                        let layout_result = text_measurer.calculate_preferred_text_size(
-                            &text_info.text,
-                            text_info.font_size,
-                            false,
-                        );
-
-                        let min_size = layout_result.min_width;
-                        let max_size = layout_result.max_width;
-
-                        (min_size, max_size)
-                    }
-                    Axis::Y => {
-                        let layout_result = text_measurer.layout_text(
-                            &element.text_info.text,
-                            element.text_info.font_size,
-                            element.size[0],
-                        );
-
-                        let min_size = layout_result.height;
-                        let max_size = layout_result.height;
-
-                        self.elems[elem].text_layout = layout_result;
-
-                        (min_size, max_size)
-                    }
-                }
             } else {
-                let element = &self.elems[elem];
-                let mut min_size = 0.0;
-                let mut max_size = 0.0;
+                match element.content_type {
+                    ContentType::Text => {
+                        let text_info = TextInfo {
+                            text: element.text.clone(),
+                            text_color: element.text_color,
+                            font_size: element.font_size,
+                        };
+                        match axis {
+                            Axis::X => {
+                                let layout_result = text_measurer.calculate_preferred_text_size(
+                                    &text_info.text,
+                                    text_info.font_size,
+                                    false,
+                                );
 
-                let layout_dir_matches_axis = match axis {
-                    Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
-                    Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
-                };
-                if layout_dir_matches_axis {
-                    // accumulate children sizes
-                    for &child_index in element.children.iter() {
-                        let child = &self.elems[child_index];
-                        min_size += child.min[i];
-                        max_size += child.max[i];
+                                let min_size = layout_result.min_width;
+                                let max_size = layout_result.max_width;
+
+                                (min_size, max_size)
+                            }
+                            Axis::Y => {
+                                let layout_result = text_measurer.layout_text(
+                                    &text_info.text,
+                                    text_info.font_size,
+                                    element.size[0],
+                                );
+
+                                let min_size = layout_result.height;
+                                let max_size = layout_result.height;
+
+                                self.elems[elem].text_layout = layout_result;
+
+                                (min_size, max_size)
+                            }
+                        }
                     }
-                    // add gap
-                    let child_count = element.children.len().saturating_sub(1);
-                    let total_child_gap = child_count as f32 * element.child_gap;
-                    min_size += total_child_gap;
-                    max_size += total_child_gap;
-                } else {
-                    // get max size of children
-                    for &child_index in element.children.iter() {
-                        let child = &self.elems[child_index];
-                        // TODO: unsure about this one
-                        min_size = min_size.max(child.min[i]);
-                        max_size = max_size.max(child.max[i]);
+                    ContentType::Container => {
+                        let element = &self.elems[elem];
+                        let mut min_size = 0.0;
+                        let mut max_size = 0.0;
+
+                        let layout_dir_matches_axis = match axis {
+                            Axis::X => {
+                                matches!(element.layout_direction, LayoutDirection::LeftToRight)
+                            }
+                            Axis::Y => {
+                                matches!(element.layout_direction, LayoutDirection::TopToBottom)
+                            }
+                        };
+                        if layout_dir_matches_axis {
+                            // accumulate children sizes
+                            for &child_index in element.children.iter() {
+                                let child = &self.elems[child_index];
+                                min_size += child.min[i];
+                                max_size += child.max[i];
+                            }
+                            // add gap
+                            let child_count = element.children.len().saturating_sub(1);
+                            let total_child_gap = child_count as f32 * element.child_gap;
+                            min_size += total_child_gap;
+                            max_size += total_child_gap;
+                        } else {
+                            // get max size of children
+                            for &child_index in element.children.iter() {
+                                let child = &self.elems[child_index];
+                                // TODO: unsure about this one
+                                min_size = min_size.max(child.min[i]);
+                                max_size = max_size.max(child.max[i]);
+                            }
+                        }
+
+                        // padding
+                        match axis {
+                            Axis::X => {
+                                min_size += element.padding.horizontal();
+                                max_size += element.padding.horizontal();
+                            }
+                            Axis::Y => {
+                                min_size += element.padding.vertical();
+                                max_size += element.padding.vertical();
+                            }
+                        };
+
+                        (min_size, max_size)
                     }
                 }
-
-                // padding
-                match axis {
-                    Axis::X => {
-                        min_size += element.padding.horizontal();
-                        max_size += element.padding.horizontal();
-                    }
-                    Axis::Y => {
-                        min_size += element.padding.vertical();
-                        max_size += element.padding.vertical();
-                    }
-                };
-
-                (min_size, max_size)
             };
 
             // set min and max, but actual size is not set

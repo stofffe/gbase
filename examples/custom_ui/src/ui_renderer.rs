@@ -149,7 +149,7 @@ impl UIRenderer {
             // glyphs
             let atlas_width = font_atlas.texture.width();
             let atlas_height = font_atlas.texture.height();
-            if !element.text_info.text.is_empty() {
+            if !element.text.is_empty() {
                 for glyph in element.text_layout.glyphs.iter() {
                     // TODO: backup glyph
                     let glyph_info = font_atlas
@@ -159,7 +159,7 @@ impl UIRenderer {
 
                     // All values related to atlas must be scaled
                     // the generation had a large fixed font size, not we just scale it linearly
-                    let scale = element.text_info.font_size as f32 / font_atlas.raster_size as f32;
+                    let scale = element.font_size as f32 / font_atlas.raster_size as f32;
                     let sdf_padding = font_atlas.sdf_params.pad as f32;
                     let x = element.pos[0] + glyph.x - sdf_padding * scale;
                     let y = element.pos[1] + glyph.y - sdf_padding * scale;
@@ -170,7 +170,7 @@ impl UIRenderer {
 
                         position: [x, y],
                         size: [width, height],
-                        color: element.text_info.text_color.to_array(),
+                        color: element.text_color.to_array(),
                         font_atlas_offset: [
                             glyph_info.atlas_offset_x as f32 / atlas_width as f32,
                             glyph_info.atlas_offset_y as f32 / atlas_height as f32,

@@ -1,11 +1,11 @@
 use core::f32;
-use std::cmp::max;
 
 use gbase::glam::vec4;
 
 use crate::{
     ui_font::TextMeasurer,
     ui_layout::{
+        builder::UIBuilder,
         layouter::UILayouter,
         LayoutDirection::{self, LeftToRight},
         Sizing::{self, Fit, Fixed, Grow, Percent},
@@ -31,7 +31,7 @@ impl TextMeasurer for TestTextMeasurer {
     fn calculate_preferred_text_size(
         &mut self,
         text: &str,
-        font_size: u32,
+        _font_size: u32,
         _wrap_on_newline: bool,
     ) -> TextSizeResult {
         let mut min_width = f32::MAX;
@@ -784,12 +784,18 @@ fn text_with_fit() {
 
     let text = "hello duuude";
 
-    let elem1 = UIElement::new()
-        .layout_direction(LeftToRight)
-        .text(text)
+    let elem1 = UIBuilder::new()
         .sizing_x(Fit)
         .sizing_y(Fit)
+        .text(text)
+        .build()
         .draw(&mut layouter);
+    // let elem1 = UIElement::new()
+    //     .layout_direction(LeftToRight)
+    //     .sizing_x(Fit)
+    //     .sizing_y(Fit)
+    //     .text(text)
+    //     .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
@@ -810,11 +816,11 @@ fn text_with_fixed_width() {
     // bro
     let text = "hello bro";
 
-    let elem1 = UIElement::new()
-        .layout_direction(LeftToRight)
-        .text(text)
+    let elem1 = UIBuilder::new()
         .sizing_x(Fixed(50.0))
         .sizing_y(Fit)
+        .text(text)
+        .build()
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -845,20 +851,24 @@ fn text_distribution() {
     // bro
     let text2 = "hello bro";
 
-    let (elem1, (elem2, elem3)) = UIElement::new()
-        .layout_direction(LeftToRight)
+    let (elem1, (elem2, elem3)) = UIBuilder::new()
         .sizing_x(Fixed(100.0))
         .sizing_y(Fit)
+        .container()
+        .layout_direction(LeftToRight)
+        .build()
         .draw_with_children(&mut layouter, |layouter| {
-            let elem2 = UIElement::new()
+            let elem2 = UIBuilder::new()
+                .sizing_x(Fit)
+                .sizing_y(Fit)
                 .text(text1)
-                .sizing_x(Fit)
-                .sizing_y(Fit)
+                .build()
                 .draw(layouter);
-            let elem3 = UIElement::new()
-                .text(text2)
+            let elem3 = UIBuilder::new()
                 .sizing_x(Fit)
                 .sizing_y(Fit)
+                .text(text2)
+                .build()
                 .draw(layouter);
             (elem2, elem3)
         });
@@ -893,14 +903,14 @@ fn text_in_fixed_width() {
     let text = "hello bro i saw a rad electric bike";
 
     let (elem1, elem2) = UIElement::new()
-        .layout_direction(LeftToRight)
         .sizing_x(Fixed(50.0))
         .sizing_y(Fit)
+        .layout_direction(LeftToRight)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .text(text)
                 .sizing_x(Fit)
                 .sizing_y(Fit)
+                .text(text)
                 .draw(layouter)
         });
 
@@ -929,19 +939,23 @@ fn text_in_fixed_with_many_children() {
     // bike
     let text = "hello bro i saw a rad electric bike";
 
-    let (elem1, (elem2, elem3, elem4)) = UIElement::new()
-        .layout_direction(LeftToRight)
+    let (elem1, (elem2, elem3, elem4)) = UIBuilder::new()
         .sizing_x(Fixed(300.0))
         .sizing_y(Fit)
+        .container()
+        .layout_direction(LeftToRight)
+        .build()
         .draw_with_children(&mut layouter, |layouter| {
-            let elem2 = UIElement::new()
+            let elem2 = UIBuilder::new()
                 .sizing_x(Fixed(100.0))
                 .sizing_y(Grow)
+                .build()
                 .draw(layouter);
-            let elem3 = UIElement::new().text(text).draw(layouter);
-            let elem4 = UIElement::new()
+            let elem3 = UIBuilder::new().text(text).build().draw(layouter);
+            let elem4 = UIBuilder::new()
                 .sizing_x(Fixed(150.0))
                 .sizing_y(Fit)
+                .build()
                 .draw(layouter);
             (elem2, elem3, elem4)
         });
