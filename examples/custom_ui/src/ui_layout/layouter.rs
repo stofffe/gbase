@@ -1,4 +1,4 @@
-use gbase::{render, Context};
+use gbase::{render, tracing, Context};
 
 use crate::{
     ui_font::TextMeasurer,
@@ -126,7 +126,7 @@ impl UILayouter {
             let (min_size, max_size) = if let Sizing::Fixed(fixed_size) = element.sizing[i] {
                 (fixed_size, fixed_size)
             } else {
-                match element.content_type {
+                let (mut min_size, mut max_size) = match element.content_type {
                     ContentType::Text => {
                         let text_info = TextInfo {
                             text: element.text.clone(),
@@ -162,7 +162,7 @@ impl UILayouter {
                             }
                         }
                     }
-                    ContentType::Container => {
+                    ContentType::Children => {
                         let element = &self.elems[elem];
                         let mut min_size = 0.0;
                         let mut max_size = 0.0;
@@ -197,21 +197,24 @@ impl UILayouter {
                             }
                         }
 
-                        // padding
-                        match axis {
-                            Axis::X => {
-                                min_size += element.padding.horizontal();
-                                max_size += element.padding.horizontal();
-                            }
-                            Axis::Y => {
-                                min_size += element.padding.vertical();
-                                max_size += element.padding.vertical();
-                            }
-                        };
-
                         (min_size, max_size)
                     }
-                }
+                    ContentType::None => (0.0, 0.0),
+                };
+
+                // padding applies regardless of sizing mode
+                let element = &self.elems[elem];
+                match axis {
+                    Axis::X => {
+                        min_size += element.padding.horizontal();
+                        max_size += element.padding.horizontal();
+                    }
+                    Axis::Y => {
+                        min_size += element.padding.vertical();
+                        max_size += element.padding.vertical();
+                    }
+                };
+                (min_size, max_size)
             };
 
             // set min and max, but actual size is not set

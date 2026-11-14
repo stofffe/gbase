@@ -1,9 +1,10 @@
 use gbase::glam::{vec4, Vec4};
 
-use crate::ui_layout::{ContentType, LayoutDirection, Padding, Sizing, UIElement};
+use crate::ui_layout::{
+    layouter::UILayouter, ContentType, LayoutDirection, Padding, Sizing, UIElement, UIElementId,
+};
 
 pub struct UIBuilder {
-    content_type: ContentType,
     sizing: [Sizing; 2],
     padding: Padding,
     pub background_color: Vec4,
@@ -14,7 +15,6 @@ pub struct UIBuilder {
 impl UIBuilder {
     pub fn new() -> Self {
         Self {
-            content_type: ContentType::Container,
             sizing: [Sizing::Fit, Sizing::Fit],
             padding: Padding {
                 top: 0.0,
@@ -30,13 +30,18 @@ impl UIBuilder {
 
     pub fn build(self) -> UIElement {
         let mut element = UIElement::new();
-        element.content_type = ContentType::Container;
+        element.content_type = ContentType::None;
         element.sizing = self.sizing;
         element.padding = self.padding;
         element.background_color = self.background_color;
         element.min_override = self.min_override;
         element.max_override = self.max_override;
         element
+    }
+
+    pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
+        let element = self.build();
+        element.draw(layouter)
     }
 
     pub fn container(self) -> UIContainerBuilder {
@@ -51,7 +56,7 @@ impl UIBuilder {
         UITextBuilder {
             ui_builder: self,
             text: text.into(),
-            text_color: Vec4::ZERO,
+            text_color: vec4(0.0, 0.0, 0.0, 1.0),
             font_size: 12,
         }
     }
@@ -84,18 +89,24 @@ pub struct UIContainerBuilder {
 impl UIContainerBuilder {
     pub fn build(self) -> UIElement {
         let mut element = self.ui_builder.build();
-        element.content_type = ContentType::Container;
+        element.content_type = ContentType::Children;
         element.layout_direction = self.layout_direction;
         element.child_gap = self.child_gap;
         element
     }
 
-    pub fn build_with_children(self) -> UIElement {
-        let mut element = self.ui_builder.build();
-        element.content_type = ContentType::Container;
-        element.layout_direction = self.layout_direction;
-        element.child_gap = self.child_gap;
-        element
+    pub fn draw_with_children<F: FnOnce(&mut UILayouter) -> R, R>(
+        self,
+        layouter: &mut UILayouter,
+        children: F,
+    ) -> (UIElementId, R) {
+        let element = self.build();
+        element.draw_with_children(layouter, children)
+    }
+
+    pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
+        let element = self.build();
+        element.draw(layouter)
     }
 
     pub fn layout_direction(mut self, layout_direction: LayoutDirection) -> Self {
@@ -124,6 +135,11 @@ impl UITextBuilder {
         element.text_color = self.text_color;
         element.font_size = self.font_size;
         element
+    }
+
+    pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
+        let element = self.build();
+        element.draw(layouter)
     }
 
     pub fn text_color(mut self, text_color: Vec4) -> Self {

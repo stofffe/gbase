@@ -44,7 +44,7 @@ impl UIElement {
     pub fn new() -> Self {
         Self {
             // general
-            content_type: ContentType::Container,
+            content_type: ContentType::Children,
             sizing: [Sizing::Fit, Sizing::Fit],
             padding: Padding {
                 top: 0.0,
@@ -62,7 +62,7 @@ impl UIElement {
 
             // text
             text: String::new(),
-            text_color: Vec4::ZERO,
+            text_color: vec4(0.0, 0.0, 0.0, 1.0),
             font_size: 12,
 
             // calculated
@@ -172,7 +172,8 @@ impl ContainerInfo {
 
 #[derive(Debug, Clone)]
 pub enum ContentType {
-    Container,
+    None,
+    Children,
     Text,
 }
 

@@ -4,6 +4,7 @@ mod ui_renderer;
 use crate::{
     ui_font::{FontTextMeasurer, UIFonts},
     ui_layout::{
+        builder::UIBuilder,
         layouter::UILayouter,
         LayoutDirection, Padding,
         Sizing::{self, Fixed},
@@ -92,14 +93,23 @@ impl Callbacks for App {
             .sizing_y(Sizing::Fit)
             .background_color(WHITE)
             .draw_with_children(&mut self.layouter, |layouter| {
-                UIElement::new()
+                UIBuilder::new()
+                    .padding(Padding::new(10.0, 10.0, 10.0, 10.0))
+                    .background_color(BLUE)
                     .text(
                         "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
                     )
                     .font_size(64)
-                    .padding(Padding::new(10.0,10.0,10.0,10.0))
-                    .background_color(BLUE)
+                    .build()
                     .draw(layouter);
+                // UIElement::new()
+                //     .text(
+                //         "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
+                //     )
+                //     .font_size(64)
+                //     .padding(Padding::new(10.0,10.0,10.0,10.0))
+                //     .background_color(BLUE)
+                //     .draw(layouter);
                 UIElement::new()
                     .sizing_x(Sizing::Fixed(400.0))
                     .sizing_y(Sizing::Grow)
