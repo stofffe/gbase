@@ -105,11 +105,11 @@ impl UILayouter {
             }
         }
 
-        self.intrinsic_fixed_fit_pass(text_measurer, Axis::X);
+        self.intrinsic_fixed_fit_pass(Axis::X, text_measurer);
 
         self.percent_grow_shrink_pass(Axis::X);
 
-        self.intrinsic_fixed_fit_pass(text_measurer, Axis::Y);
+        self.intrinsic_fixed_fit_pass(Axis::Y, text_measurer);
 
         self.percent_grow_shrink_pass(Axis::Y);
 
@@ -119,7 +119,7 @@ impl UILayouter {
     // Sets the intrinsic, fixed and fit size
     //
     /// Children need to be ready before parent so do REVERSE DFS
-    fn intrinsic_fixed_fit_pass(&mut self, text_measurer: &mut impl TextMeasurer, axis: Axis) {
+    fn intrinsic_fixed_fit_pass(&mut self, axis: Axis, text_measurer: &mut impl TextMeasurer) {
         let i = match axis {
             Axis::X => 0,
             Axis::Y => 1,

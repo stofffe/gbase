@@ -209,6 +209,7 @@ impl ContainerInfo {
 
 #[derive(Debug, Clone)]
 pub enum ContentType {
+    // TODO: Should we have none?
     None,
     Children,
     Text,
@@ -219,25 +220,6 @@ pub struct TextInfo {
     pub text: String,
     pub text_color: Vec4,
     pub font_size: u32,
-}
-
-impl TextInfo {
-    pub fn new(text: impl Into<String>) -> Self {
-        Self {
-            text: text.into(),
-            text_color: vec4(0.0, 0.0, 0.0, 1.0),
-            font_size: 12,
-        }
-    }
-
-    pub fn font_size(mut self, font_size: u32) -> Self {
-        self.font_size = font_size;
-        self
-    }
-    pub fn text_color(mut self, text_color: Vec4) -> Self {
-        self.text_color = text_color;
-        self
-    }
 }
 
 #[derive(Debug, Clone)]
