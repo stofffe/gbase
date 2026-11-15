@@ -100,8 +100,12 @@ fn multiple_top_level() {
     let mut layouter = UILayouter::new();
     let mut measurer = TestTextMeasurer::new();
 
-    let elem1 = UIElement::new().sizing_x(Fixed(300.0)).draw(&mut layouter);
-    let elem2 = UIElement::new().sizing_x(Fixed(200.0)).draw(&mut layouter);
+    let elem1 = UIElement::new()
+        .with_sizing_x(Fixed(300.0))
+        .draw(&mut layouter);
+    let elem2 = UIElement::new()
+        .with_sizing_x(Fixed(200.0))
+        .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
@@ -119,8 +123,8 @@ fn fixed_in_root() {
     let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
-        .sizing_x(Fixed(200.0))
-        .sizing_y(Fixed(100.0))
+        .with_sizing_x(Fixed(200.0))
+        .with_sizing_y(Fixed(100.0))
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -135,12 +139,12 @@ fn fixed_in_fixed() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fixed(500.0))
-        .sizing_y(Fixed(600.0))
+        .with_sizing_x(Fixed(500.0))
+        .with_sizing_y(Fixed(600.0))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fixed(200.0))
-                .sizing_y(Fixed(300.0))
+                .with_sizing_x(Fixed(200.0))
+                .with_sizing_y(Fixed(300.0))
                 .draw(layouter)
         });
 
@@ -159,12 +163,12 @@ fn fixed_in_fit() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fixed(200.0))
-                .sizing_y(Fixed(300.0))
+                .with_sizing_x(Fixed(200.0))
+                .with_sizing_y(Fixed(300.0))
                 .draw(layouter)
         });
 
@@ -183,12 +187,12 @@ fn fixed_in_percent() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Percent(0.5))
-        .sizing_y(Percent(0.6))
+        .with_sizing_x(Percent(0.5))
+        .with_sizing_y(Percent(0.6))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fixed(200.0))
-                .sizing_y(Fixed(300.0))
+                .with_sizing_x(Fixed(200.0))
+                .with_sizing_y(Fixed(300.0))
                 .draw(layouter)
         });
 
@@ -207,12 +211,12 @@ fn fixed_in_grow() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Grow)
-        .sizing_y(Grow)
+        .with_sizing_x(Grow)
+        .with_sizing_y(Grow)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fixed(200.0))
-                .sizing_y(Fixed(300.0))
+                .with_sizing_x(Fixed(200.0))
+                .with_sizing_y(Fixed(300.0))
                 .draw(layouter)
         });
 
@@ -231,8 +235,8 @@ fn fixed_overflow_stays_fixed() {
     let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
-        .sizing_x(Fixed(400.0))
-        .sizing_y(Fixed(200.0))
+        .with_sizing_x(Fixed(400.0))
+        .with_sizing_y(Fixed(200.0))
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 300.0, 300.0);
@@ -247,15 +251,15 @@ fn fixed_in_fit_in_fit() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, (elem2, elem3)) = UIElement::new()
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fit)
+                .with_sizing_x(Fit)
                 .draw_with_children(layouter, |layouter| {
                     UIElement::new()
-                        .sizing_x(Fixed(100.0))
-                        .sizing_y(Fixed(200.0))
+                        .with_sizing_x(Fixed(100.0))
+                        .with_sizing_y(Fixed(200.0))
                         .draw(layouter)
                 })
         });
@@ -282,8 +286,8 @@ fn fit_in_root() {
     let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -298,11 +302,14 @@ fn fit_in_fixed() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_x(Fixed(200.0))
-        .sizing_y(Fixed(300.0))
+        .with_layout_direction(LeftToRight)
+        .with_sizing_x(Fixed(200.0))
+        .with_sizing_y(Fixed(300.0))
         .draw_with_children(&mut layouter, |layouter| {
-            UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            UIElement::new()
+                .with_sizing_x(Fit)
+                .with_sizing_y(Fit)
+                .draw(layouter)
         });
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -320,11 +327,14 @@ fn fit_in_fit() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_layout_direction(LeftToRight)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw_with_children(&mut layouter, |layouter| {
-            UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            UIElement::new()
+                .with_sizing_x(Fit)
+                .with_sizing_y(Fit)
+                .draw(layouter)
         });
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -342,11 +352,14 @@ fn fit_in_percent() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_x(Percent(0.5))
-        .sizing_y(Percent(0.6))
+        .with_layout_direction(LeftToRight)
+        .with_sizing_x(Percent(0.5))
+        .with_sizing_y(Percent(0.6))
         .draw_with_children(&mut layouter, |layouter| {
-            UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            UIElement::new()
+                .with_sizing_x(Fit)
+                .with_sizing_y(Fit)
+                .draw(layouter)
         });
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -364,11 +377,14 @@ fn fit_in_grow() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_x(Grow)
-        .sizing_y(Grow)
+        .with_layout_direction(LeftToRight)
+        .with_sizing_x(Grow)
+        .with_sizing_y(Grow)
         .draw_with_children(&mut layouter, |layouter| {
-            UIElement::new().sizing_x(Fit).sizing_y(Fit).draw(layouter)
+            UIElement::new()
+                .with_sizing_x(Fit)
+                .with_sizing_y(Fit)
+                .draw(layouter)
         });
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -390,8 +406,8 @@ fn percent_in_root() {
     let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
-        .sizing_x(Percent(0.3))
-        .sizing_y(Percent(0.7))
+        .with_sizing_x(Percent(0.3))
+        .with_sizing_y(Percent(0.7))
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -406,12 +422,12 @@ fn percent_in_fixed() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fixed(400.0))
-        .sizing_y(Fixed(600.0))
+        .with_sizing_x(Fixed(400.0))
+        .with_sizing_y(Fixed(600.0))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Percent(0.5))
-                .sizing_y(Percent(0.8))
+                .with_sizing_x(Percent(0.5))
+                .with_sizing_y(Percent(0.8))
                 .draw(layouter)
         });
 
@@ -430,12 +446,12 @@ fn percent_in_fit() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Percent(0.5))
-                .sizing_y(Percent(0.9))
+                .with_sizing_x(Percent(0.5))
+                .with_sizing_y(Percent(0.9))
                 .draw(layouter)
         });
 
@@ -454,12 +470,12 @@ fn percent_in_percent() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Percent(0.5))
-        .sizing_y(Percent(0.7))
+        .with_sizing_x(Percent(0.5))
+        .with_sizing_y(Percent(0.7))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Percent(0.5))
-                .sizing_y(Percent(1.0))
+                .with_sizing_x(Percent(0.5))
+                .with_sizing_y(Percent(1.0))
                 .draw(layouter)
         });
 
@@ -478,12 +494,12 @@ fn percent_in_grow() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Grow)
-        .sizing_y(Grow)
+        .with_sizing_x(Grow)
+        .with_sizing_y(Grow)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Percent(0.5))
-                .sizing_y(Percent(0.9))
+                .with_sizing_x(Percent(0.5))
+                .with_sizing_y(Percent(0.9))
                 .draw(layouter)
         });
 
@@ -506,8 +522,8 @@ fn grow_in_root() {
     let mut measurer = TestTextMeasurer::new();
 
     let elem1 = UIElement::new()
-        .sizing_x(Grow)
-        .sizing_y(Grow)
+        .with_sizing_x(Grow)
+        .with_sizing_y(Grow)
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -522,12 +538,12 @@ fn grow_in_fixed() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fixed(200.0))
-        .sizing_y(Fixed(100.0))
+        .with_sizing_x(Fixed(200.0))
+        .with_sizing_y(Fixed(100.0))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Grow)
-                .sizing_y(Grow)
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
                 .draw(layouter)
         });
 
@@ -546,12 +562,12 @@ fn grow_in_fit() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fit)
-        .sizing_y(Fit)
+        .with_sizing_x(Fit)
+        .with_sizing_y(Fit)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Grow)
-                .sizing_y(Grow)
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
                 .draw(layouter)
         });
 
@@ -570,12 +586,12 @@ fn grow_in_percent() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Percent(0.4))
-        .sizing_y(Percent(0.2))
+        .with_sizing_x(Percent(0.4))
+        .with_sizing_y(Percent(0.2))
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Grow)
-                .sizing_y(Grow)
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
                 .draw(layouter)
         });
 
@@ -594,12 +610,12 @@ fn grow_in_grow() {
     let mut measurer = TestTextMeasurer::new();
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Grow)
-        .sizing_y(Grow)
+        .with_sizing_x(Grow)
+        .with_sizing_y(Grow)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Grow)
-                .sizing_y(Grow)
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
                 .draw(layouter)
         });
 
@@ -618,11 +634,11 @@ fn grow_distribution_main_axis() {
     let mut measurer = TestTextMeasurer::new();
 
     let (_, (elem2, elem3)) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_x(Fixed(400.0))
+        .with_layout_direction(LeftToRight)
+        .with_sizing_x(Fixed(400.0))
         .draw_with_children(&mut layouter, |layouter| {
-            let elem2 = UIElement::new().sizing_x(Grow).draw(layouter);
-            let elem3 = UIElement::new().sizing_x(Grow).draw(layouter);
+            let elem2 = UIElement::new().with_sizing_x(Grow).draw(layouter);
+            let elem3 = UIElement::new().with_sizing_x(Grow).draw(layouter);
             (elem2, elem3)
         });
 
@@ -638,11 +654,11 @@ fn grow_distribution_cross_axis() {
     let mut measurer = TestTextMeasurer::new();
 
     let (_, (elem2, elem3)) = UIElement::new()
-        .layout_direction(LeftToRight)
-        .sizing_y(Fixed(300.0))
+        .with_layout_direction(LeftToRight)
+        .with_sizing_y(Fixed(300.0))
         .draw_with_children(&mut layouter, |layouter| {
-            let elem2 = UIElement::new().sizing_y(Grow).draw(layouter);
-            let elem3 = UIElement::new().sizing_y(Grow).draw(layouter);
+            let elem2 = UIElement::new().with_sizing_y(Grow).draw(layouter);
+            let elem3 = UIElement::new().with_sizing_y(Grow).draw(layouter);
             (elem2, elem3)
         });
 
@@ -672,60 +688,60 @@ fn navbar_sidebar_statusbar() {
             elem1_3_1,
         ),
     ) = UIElement::new()
-        .sizing_x(Sizing::Grow)
-        .sizing_y(Sizing::Grow)
-        .layout_direction(LayoutDirection::TopToBottom)
+        .with_sizing_x(Sizing::Grow)
+        .with_sizing_y(Sizing::Grow)
+        .with_layout_direction(LayoutDirection::TopToBottom)
         .draw_with_children(&mut layouter, |layouter| {
             let (elem1_1, (elem1_1_1, elem1_1_2, elem1_1_3, elem1_1_4)) = UIElement::new()
-                .sizing_x(Sizing::Grow)
-                .sizing_y(Sizing::Fit)
-                .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                .with_sizing_x(Sizing::Grow)
+                .with_sizing_y(Sizing::Fit)
+                .with_background_color(vec4(0.2, 0.2, 0.2, 1.0))
                 .draw_with_children(layouter, |layouter| {
                     let elem1_1_1 = UIElement::new()
-                        .sizing_x(Sizing::Fixed(100.0))
-                        .sizing_y(Sizing::Fixed(100.0))
-                        .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                        .with_sizing_x(Sizing::Fixed(100.0))
+                        .with_sizing_y(Sizing::Fixed(100.0))
+                        .with_background_color(vec4(1.0, 1.0, 1.0, 1.0))
                         .draw(layouter);
-                    let elem1_1_2 = UIElement::new().sizing_x(Sizing::Grow).draw(layouter);
+                    let elem1_1_2 = UIElement::new().with_sizing_x(Sizing::Grow).draw(layouter);
                     let elem1_1_3 = UIElement::new()
-                        .sizing_x(Sizing::Fixed(100.0))
-                        .sizing_y(Sizing::Fixed(100.0))
-                        .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                        .with_sizing_x(Sizing::Fixed(100.0))
+                        .with_sizing_y(Sizing::Fixed(100.0))
+                        .with_background_color(vec4(1.0, 1.0, 1.0, 1.0))
                         .draw(layouter);
                     let elem1_1_4 = UIElement::new()
-                        .sizing_x(Sizing::Fixed(100.0))
-                        .sizing_y(Sizing::Fixed(100.0))
-                        .background_color(vec4(1.0, 1.0, 1.0, 1.0))
+                        .with_sizing_x(Sizing::Fixed(100.0))
+                        .with_sizing_y(Sizing::Fixed(100.0))
+                        .with_background_color(vec4(1.0, 1.0, 1.0, 1.0))
                         .draw(layouter);
                     (elem1_1_1, elem1_1_2, elem1_1_3, elem1_1_4)
                 });
 
             let (elem1_2, (elem1_2_1, elem1_2_2)) = UIElement::new()
-                .sizing_x(Sizing::Grow) // TODO: this adds somehow
-                .sizing_y(Sizing::Grow)
-                .background_color(vec4(0.1, 0.1, 0.1, 1.0))
+                .with_sizing_x(Sizing::Grow) // TODO: this adds somehow
+                .with_sizing_y(Sizing::Grow)
+                .with_background_color(vec4(0.1, 0.1, 0.1, 1.0))
                 .draw_with_children(layouter, |layouter| {
                     let elem1_2_1 = UIElement::new()
-                        .sizing_x(Sizing::Percent(0.2))
-                        .sizing_y(Sizing::Grow)
-                        .background_color(vec4(0.6, 0.6, 0.6, 1.0))
+                        .with_sizing_x(Sizing::Percent(0.2))
+                        .with_sizing_y(Sizing::Grow)
+                        .with_background_color(vec4(0.6, 0.6, 0.6, 1.0))
                         .draw(layouter);
                     let elem1_2_2 = UIElement::new()
-                        .sizing_x(Sizing::Grow)
-                        .sizing_y(Sizing::Grow)
+                        .with_sizing_x(Sizing::Grow)
+                        .with_sizing_y(Sizing::Grow)
                         .draw(layouter);
                     (elem1_2_1, elem1_2_2)
                 });
 
             let (elem1_3, elem1_3_1) = UIElement::new()
-                .sizing_x(Sizing::Grow)
-                .sizing_y(Sizing::Fit)
-                .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                .with_sizing_x(Sizing::Grow)
+                .with_sizing_y(Sizing::Fit)
+                .with_background_color(vec4(0.2, 0.2, 0.2, 1.0))
                 .draw_with_children(layouter, |layouter| {
                     let elem1_3_1 = UIElement::new()
-                        .sizing_x(Sizing::Fixed(100.0))
-                        .sizing_y(Sizing::Fixed(100.0))
-                        .background_color(vec4(0.2, 0.2, 0.2, 1.0))
+                        .with_sizing_x(Sizing::Fixed(100.0))
+                        .with_sizing_y(Sizing::Fixed(100.0))
+                        .with_background_color(vec4(0.2, 0.2, 0.2, 1.0))
                         .draw(layouter);
                     //
                     elem1_3_1
@@ -788,7 +804,6 @@ fn text_with_fit() {
         .sizing_x(Fit)
         .sizing_y(Fit)
         .text(text)
-        .build()
         .draw(&mut layouter);
     // let elem1 = UIElement::new()
     //     .layout_direction(LeftToRight)
@@ -820,7 +835,7 @@ fn text_with_fixed_width() {
         .sizing_x(Fixed(50.0))
         .sizing_y(Fit)
         .text(text)
-        .build()
+        .element()
         .draw(&mut layouter);
 
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
@@ -856,19 +871,18 @@ fn text_distribution() {
         .sizing_y(Fit)
         .container()
         .layout_direction(LeftToRight)
-        .build()
         .draw_with_children(&mut layouter, |layouter| {
             let elem2 = UIBuilder::new()
                 .sizing_x(Fit)
                 .sizing_y(Fit)
                 .text(text1)
-                .build()
+                .element()
                 .draw(layouter);
             let elem3 = UIBuilder::new()
                 .sizing_x(Fit)
                 .sizing_y(Fit)
                 .text(text2)
-                .build()
+                .element()
                 .draw(layouter);
             (elem2, elem3)
         });
@@ -903,14 +917,14 @@ fn text_in_fixed_width() {
     let text = "hello bro i saw a rad electric bike";
 
     let (elem1, elem2) = UIElement::new()
-        .sizing_x(Fixed(50.0))
-        .sizing_y(Fit)
-        .layout_direction(LeftToRight)
+        .with_sizing_x(Fixed(50.0))
+        .with_sizing_y(Fit)
+        .with_layout_direction(LeftToRight)
         .draw_with_children(&mut layouter, |layouter| {
             UIElement::new()
-                .sizing_x(Fit)
-                .sizing_y(Fit)
-                .text(text)
+                .with_sizing_x(Fit)
+                .with_sizing_y(Fit)
+                .with_text(text)
                 .draw(layouter)
         });
 
@@ -944,18 +958,15 @@ fn text_in_fixed_with_many_children() {
         .sizing_y(Fit)
         .container()
         .layout_direction(LeftToRight)
-        .build()
         .draw_with_children(&mut layouter, |layouter| {
             let elem2 = UIBuilder::new()
                 .sizing_x(Fixed(100.0))
                 .sizing_y(Grow)
-                .build()
                 .draw(layouter);
-            let elem3 = UIBuilder::new().text(text).build().draw(layouter);
+            let elem3 = UIBuilder::new().text(text).element().draw(layouter);
             let elem4 = UIBuilder::new()
                 .sizing_x(Fixed(150.0))
                 .sizing_y(Fit)
-                .build()
                 .draw(layouter);
             (elem2, elem3, elem4)
         });

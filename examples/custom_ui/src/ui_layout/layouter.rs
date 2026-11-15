@@ -96,6 +96,15 @@ impl UILayouter {
         self.elems[ROOT_ELEMENT].size[0] = root_width;
         self.elems[ROOT_ELEMENT].size[1] = root_height;
 
+        #[cfg(debug_assertions)]
+        for elem in 1..self.elems.len() {
+            let element = &self.elems[elem];
+
+            if !matches!(element.content_type, ContentType::Text) {
+                assert!(element.text.is_empty());
+            }
+        }
+
         self.intrinsic_fixed_fit_pass(text_measurer, Axis::X);
 
         self.percent_grow_shrink_pass(Axis::X);

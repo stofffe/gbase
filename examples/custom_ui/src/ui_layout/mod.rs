@@ -81,49 +81,7 @@ impl UIElement {
     }
 
     //
-    // Attributes
-    //
-
-    pub fn sizing_x(mut self, sizing: Sizing) -> Self {
-        self.sizing[0] = sizing;
-        self
-    }
-    pub fn sizing_y(mut self, sizing: Sizing) -> Self {
-        self.sizing[1] = sizing;
-        self
-    }
-    pub fn background_color(mut self, background_color: Vec4) -> Self {
-        self.background_color = background_color;
-        self
-    }
-    pub fn layout_direction(mut self, layout_direction: LayoutDirection) -> Self {
-        self.layout_direction = layout_direction;
-        self
-    }
-    pub fn padding(mut self, padding: Padding) -> Self {
-        self.padding = padding;
-        self
-    }
-    pub fn child_gap(mut self, child_gap: f32) -> Self {
-        self.child_gap = child_gap;
-        self
-    }
-    pub fn text(mut self, text: impl Into<String>) -> Self {
-        self.text = text.into();
-        self.content_type = ContentType::Text;
-        self
-    }
-    pub fn font_size(mut self, font_size: u32) -> Self {
-        self.font_size = font_size;
-        self
-    }
-    pub fn text_color(mut self, text_color: Vec4) -> Self {
-        self.text_color = text_color;
-        self
-    }
-
-    //
-    // Helpers
+    // Draw
     //
 
     pub fn draw_with_children<F: FnOnce(&mut UILayouter) -> R, R>(
@@ -137,6 +95,85 @@ impl UIElement {
     pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
         let (id, _) = layouter.add_element(self, |_| {});
         id
+    }
+
+    //
+    // Attributes
+    //
+
+    pub fn with_sizing_x(mut self, sizing: Sizing) -> Self {
+        self.sizing[0] = sizing;
+        self
+    }
+    pub fn set_sizing_x(&mut self, sizing: Sizing) {
+        self.sizing[0] = sizing;
+    }
+
+    pub fn with_sizing_y(mut self, sizing: Sizing) -> Self {
+        self.sizing[1] = sizing;
+        self
+    }
+    pub fn set_sizing_y(&mut self, sizing: Sizing) {
+        self.sizing[1] = sizing;
+    }
+
+    pub fn with_background_color(mut self, background_color: Vec4) -> Self {
+        self.background_color = background_color;
+        self
+    }
+    pub fn set_background_color(&mut self, background_color: Vec4) {
+        self.background_color = background_color;
+    }
+
+    pub fn with_layout_direction(mut self, layout_direction: LayoutDirection) -> Self {
+        self.layout_direction = layout_direction;
+        self
+    }
+    pub fn set_layout_direction(&mut self, layout_direction: LayoutDirection) {
+        self.layout_direction = layout_direction;
+    }
+
+    pub fn with_padding(mut self, padding: Padding) -> Self {
+        self.padding = padding;
+        self
+    }
+    pub fn set_padding(&mut self, padding: Padding) {
+        self.padding = padding;
+    }
+
+    pub fn with_child_gap(mut self, child_gap: f32) -> Self {
+        self.child_gap = child_gap;
+        self
+    }
+    pub fn set_child_gap(&mut self, child_gap: f32) {
+        self.child_gap = child_gap;
+    }
+
+    pub fn with_text(mut self, text: impl Into<String>) -> Self {
+        self.text = text.into();
+        self.content_type = ContentType::Text;
+        self
+    }
+    pub fn set_text(&mut self, text: impl Into<String>) {
+        self.text = text.into();
+        self.content_type = ContentType::Text;
+    }
+
+    pub fn with_font_size(mut self, font_size: u32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+    pub fn set_font_size(&mut self, font_size: u32) {
+        self.font_size = font_size;
+    }
+
+    pub fn with_text_color(mut self, text_color: Vec4) -> Self {
+        self.text_color = text_color;
+        self
+    }
+
+    pub fn set_text_color(&mut self, text_color: Vec4) {
+        self.text_color = text_color;
     }
 }
 

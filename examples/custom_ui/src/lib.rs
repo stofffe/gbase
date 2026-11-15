@@ -89,37 +89,28 @@ impl Callbacks for App {
         screen_view: &wgpu::TextureView,
     ) -> CallbackResult {
         UIElement::new()
-            .sizing_x(Sizing::Fixed(1200.0))
-            .sizing_y(Sizing::Fit)
-            .background_color(WHITE)
+            .with_sizing_x(Sizing::Fixed(1200.0))
+            .with_sizing_y(Sizing::Fit)
+            .with_background_color(WHITE)
             .draw_with_children(&mut self.layouter, |layouter| {
-                UIBuilder::new()
-                    .padding(Padding::new(10.0, 10.0, 10.0, 10.0))
-                    .background_color(BLUE)
-                    .text(
+                UIElement::new()
+                    .with_text(
                         "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
                     )
-                    .font_size(64)
-                    .build()
+                    .with_font_size(64)
+                    .with_padding(Padding::new(10.0,10.0,10.0,10.0))
+                    .with_background_color(BLUE)
                     .draw(layouter);
-                // UIElement::new()
-                //     .text(
-                //         "Hello     my name is not bobbyyy Hello my name is not bobbyyy Hello my name is not bobbyyy",
-                //     )
-                //     .font_size(64)
-                //     .padding(Padding::new(10.0,10.0,10.0,10.0))
-                //     .background_color(BLUE)
-                //     .draw(layouter);
                 UIElement::new()
-                    .sizing_x(Sizing::Fixed(400.0))
-                    .sizing_y(Sizing::Grow)
-                    .background_color(GREEN)
+                    .with_sizing_x(Sizing::Fixed(400.0))
+                    .with_sizing_y(Sizing::Grow)
+                    .with_background_color(GREEN)
                     .draw(layouter);
                 UIElement::new()
                     // .text("Hello my name is bobbyyy")
-                    .text("abcd 123")
-                    .font_size(128)
-                    .background_color(BLUE)
+                    .with_text("abcd 123")
+                    .with_font_size(128)
+                    .with_background_color(BLUE)
                     .draw(layouter);
             });
 
