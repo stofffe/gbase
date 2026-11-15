@@ -227,13 +227,18 @@ impl UILayouter {
             };
 
             // set min and max, but actual size is not set
-            self.elems[elem].min[i] = min_size;
-            self.elems[elem].max[i] = max_size;
+            // constrain by explicit min/max, if they are not set the computed sizes will always win
+            let override_min = self.elems[elem].min_override[i];
+            let override_max = self.elems[elem].max_override[i];
+            self.elems[elem].min[i] = min_size.max(override_min);
+            self.elems[elem].max[i] = max_size.min(override_max);
 
             // Sizing mode based sizing
+            let min = self.elems[elem].min[i];
+            let max = self.elems[elem].max[i];
             match self.elems[elem].sizing[i] {
-                Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size,
-                Sizing::Fit => self.elems[elem].size[i] = max_size,
+                Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size.clamp(min, max),
+                Sizing::Fit => self.elems[elem].size[i] = max_size.clamp(min, max),
                 _ => (),
             }
         }
@@ -244,6 +249,9 @@ impl UILayouter {
     /// All elements with width > min_width are allowed to shrink
     ///
     /// Iterates DFS so parent is always processed before child
+    /// When iterating an element will loop through its children and grow those with Grow sizing
+    /// The percent does however need to be applied first so the grow knows how much space is left
+    /// but percent can not be its own pass since it depends on parents with Grow
     fn percent_grow_shrink_pass(&mut self, axis: Axis) {
         let i = match axis {
             Axis::X => 0,
@@ -255,9 +263,12 @@ impl UILayouter {
             // percent on all children
             for &child in element.children.iter() {
                 if let Sizing::Percent(p) = self.elems[child].sizing[i] {
+                    // TODO: this includes padding, probably should subtract it
                     let width = element.size[i] * p;
 
-                    self.elems[child].size[i] = width;
+                    let child_override_min = self.elems[child].min_override[i];
+                    let child_override_max = self.elems[child].max_override[i];
+                    self.elems[child].size[i] = width.clamp(child_override_min, child_override_max);
                 }
             }
 
@@ -282,7 +293,7 @@ impl UILayouter {
                 }
             }
 
-            // growable
+            // grow children
             let mut growable = Vec::new();
             for &child in element.children.iter() {
                 if let Sizing::Grow = self.elems[child].sizing[i] {
@@ -332,11 +343,11 @@ impl UILayouter {
                 }
             }
 
-            // shrinkable
+            // shrink children
             let mut shrinkable = Vec::new();
             for &child in element.children.iter() {
                 match self.elems[child].sizing[i] {
-                    Sizing::Grow => shrinkable.push(child),
+                    Sizing::Grow => shrinkable.push(child), // TODO: is this needed, shouldnt be able to grow if there is too little space
                     Sizing::Fit => shrinkable.push(child),
                     _ => (), // TODO: eventually add all that have min_width < width
                 }

@@ -512,6 +512,38 @@ fn percent_in_grow() {
     assert_eq!(layouter.get_element(&elem2).size[1], 900.0);
 }
 
+#[test]
+fn percent_in_grow_in_fixed() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    let (elem1, (elem2, elem3)) = UIElement::new()
+        .with_sizing_x(Fixed(1000.0))
+        .with_sizing_y(Fixed(1000.0))
+        .draw_with_children(&mut layouter, |layouter| {
+            UIElement::new()
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
+                .draw_with_children(layouter, |layouter| {
+                    UIElement::new()
+                        .with_sizing_x(Percent(0.5))
+                        .with_sizing_y(Percent(0.9))
+                        .draw(layouter)
+                })
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 1000.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], 1000.0);
+
+    assert_eq!(layouter.get_element(&elem2).size[0], 1000.0);
+    assert_eq!(layouter.get_element(&elem2).size[1], 1000.0);
+
+    assert_eq!(layouter.get_element(&elem3).size[0], 500.0);
+    assert_eq!(layouter.get_element(&elem3).size[1], 900.0);
+}
+
 //
 // Grow
 //

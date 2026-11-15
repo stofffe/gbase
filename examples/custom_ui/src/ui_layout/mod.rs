@@ -4,6 +4,8 @@ pub mod layouter;
 #[cfg(test)]
 mod test;
 
+use std::f32;
+
 use crate::ui_layout::layouter::UILayouter;
 use gbase::glam::{vec4, Vec4};
 
@@ -18,8 +20,8 @@ pub struct UIElement {
     sizing: [Sizing; 2],
     padding: Padding,
     pub background_color: Vec4,
-    min_override: [Option<f32>; 2],
-    max_override: [Option<f32>; 2],
+    min_override: [f32; 2],
+    max_override: [f32; 2],
 
     // container
     layout_direction: LayoutDirection,
@@ -53,8 +55,8 @@ impl UIElement {
                 right: 0.0,
             },
             background_color: vec4(0.0, 0.0, 0.0, 1.0),
-            min_override: [None, None],
-            max_override: [None, None],
+            min_override: [0.0, 0.0],
+            max_override: [f32::MAX, f32::MAX],
 
             // container
             layout_direction: LayoutDirection::LeftToRight,

@@ -1,3 +1,22 @@
+[] ui 2
+    [] evaluate builder vs element (interaction?)
+    [] min > max what happens?
+    [x] draw and draw with children on the builders?
+    [x] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
+    [/] add tests for layout 
+    [] fix grow to act more like shrink
+    [/] figure out when to use min/max/preferred/final width
+        [] actually use min and max override
+    [] alignment
+    [] margin?
+    [] interaction
+        [] button
+        [] slider
+        [] text box
+    [] make shrink less weird with negative values?
+    [x] add text wrapping stage 
+    [x] add text rending (with kerning)
+
 whatevs
 [x] add option to hide nested handles
 [x] errors in asset tree view
@@ -95,23 +114,6 @@ whatevs
 ...
 [/] fix logging not working in dlls
 - have to call init logging in hot reload callback
-[] ui 2
-    [] evaluate builder vs element (interaction?)
-    [x] draw and draw with children on the builders?
-    [x] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
-    [/] add tests for layout 
-    [] fix grow to act more like shrink
-    [/] figure out when to use min/max/preferred/final width
-        [] actually use min and max override
-    [] alignment
-    [] margin?
-    [] interaction
-        [] button
-        [] slider
-        [] text box
-    [] make shrink less weird with negative values?
-    [x] add text wrapping stage 
-    [x] add text rending (with kerning)
 [] allocations
     [] use arenas for CPU
     [] use arenas for GPU
