@@ -211,8 +211,6 @@ impl ContainerInfo {
 
 #[derive(Debug, Clone)]
 pub enum ContentType {
-    // TODO: Should we have none?
-    None,
     Children,
     Text,
 }

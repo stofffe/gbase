@@ -105,140 +105,156 @@ impl UILayouter {
             }
         }
 
-        self.intrinsic_fixed_fit_pass(Axis::X, text_measurer);
+        self.intrinsic_pass(Axis::X, text_measurer);
+
+        self.fixed_fit_pass(Axis::X);
 
         self.percent_grow_shrink_pass(Axis::X);
 
-        self.intrinsic_fixed_fit_pass(Axis::Y, text_measurer);
+        self.intrinsic_pass(Axis::Y, text_measurer);
+
+        self.fixed_fit_pass(Axis::Y);
 
         self.percent_grow_shrink_pass(Axis::Y);
 
         self.position_pass();
     }
 
-    // Sets the intrinsic, fixed and fit size
+    // Sets the intrinsic size, the size the content naturally wants regardless of sizing mode
     //
     /// Children need to be ready before parent so do REVERSE DFS
-    fn intrinsic_fixed_fit_pass(&mut self, axis: Axis, text_measurer: &mut impl TextMeasurer) {
+    fn intrinsic_pass(&mut self, axis: Axis, text_measurer: &mut impl TextMeasurer) {
         let i = match axis {
             Axis::X => 0,
             Axis::Y => 1,
         };
 
-        // container
-        // text
-        // image
-
         for elem in (1..self.elems.len()).rev() {
             let element = &self.elems[elem];
 
-            let (min_size, max_size) = if let Sizing::Fixed(fixed_size) = element.sizing[i] {
-                (fixed_size, fixed_size)
-            } else {
-                let (mut min_size, mut max_size) = match element.content_type {
-                    ContentType::Text => {
-                        let text_info = TextInfo {
-                            text: element.text.clone(),
-                            text_color: element.text_color,
-                            font_size: element.font_size,
-                        };
-                        match axis {
-                            Axis::X => {
-                                let layout_result = text_measurer.calculate_preferred_text_size(
-                                    &text_info.text,
-                                    text_info.font_size,
-                                    false,
-                                );
+            // 1. Calculate intrinsic sizing
+            let (intrinsic_content_min, intrinsic_content_max) = match element.content_type {
+                ContentType::Text => {
+                    let text_info = TextInfo {
+                        text: element.text.clone(),
+                        text_color: element.text_color,
+                        font_size: element.font_size,
+                    };
+                    match axis {
+                        Axis::X => {
+                            let layout_result = text_measurer.calculate_preferred_text_size(
+                                &text_info.text,
+                                text_info.font_size,
+                                false,
+                            );
 
-                                let min_size = layout_result.min_width;
-                                let max_size = layout_result.max_width;
+                            let intrinsic_min = layout_result.min_width;
+                            let intrinsic_max = layout_result.max_width;
 
-                                (min_size, max_size)
-                            }
-                            Axis::Y => {
-                                let layout_result = text_measurer.layout_text(
-                                    &text_info.text,
-                                    text_info.font_size,
-                                    element.size[0],
-                                );
+                            (intrinsic_min, intrinsic_max)
+                        }
+                        Axis::Y => {
+                            let layout_result = text_measurer.layout_text(
+                                &text_info.text,
+                                text_info.font_size,
+                                element.size[0],
+                            );
 
-                                let min_size = layout_result.height;
-                                let max_size = layout_result.height;
+                            let intrinsic_min = layout_result.height;
+                            let intrinsic_max = layout_result.height;
 
-                                self.elems[elem].text_layout = layout_result;
+                            self.elems[elem].text_layout = layout_result;
 
-                                (min_size, max_size)
-                            }
+                            (intrinsic_min, intrinsic_max)
                         }
                     }
-                    ContentType::Children => {
-                        let element = &self.elems[elem];
-                        let mut min_size = 0.0;
-                        let mut max_size = 0.0;
+                }
+                ContentType::Children => {
+                    let element = &self.elems[elem];
+                    let mut intrinsic_min = 0.0;
+                    let mut intrinsic_max = 0.0;
 
-                        let layout_dir_matches_axis = match axis {
-                            Axis::X => {
-                                matches!(element.layout_direction, LayoutDirection::LeftToRight)
-                            }
-                            Axis::Y => {
-                                matches!(element.layout_direction, LayoutDirection::TopToBottom)
-                            }
-                        };
-                        if layout_dir_matches_axis {
-                            // accumulate children sizes
-                            for &child_index in element.children.iter() {
-                                let child = &self.elems[child_index];
-                                min_size += child.min[i];
-                                max_size += child.max[i];
-                            }
-                            // add gap
-                            let child_count = element.children.len().saturating_sub(1);
-                            let total_child_gap = child_count as f32 * element.child_gap;
-                            min_size += total_child_gap;
-                            max_size += total_child_gap;
-                        } else {
-                            // get max size of children
-                            for &child_index in element.children.iter() {
-                                let child = &self.elems[child_index];
-                                // TODO: unsure about this one
-                                min_size = min_size.max(child.min[i]);
-                                max_size = max_size.max(child.max[i]);
-                            }
+                    let layout_dir_matches_axis = match axis {
+                        Axis::X => {
+                            matches!(element.layout_direction, LayoutDirection::LeftToRight)
                         }
+                        Axis::Y => {
+                            matches!(element.layout_direction, LayoutDirection::TopToBottom)
+                        }
+                    };
+                    if layout_dir_matches_axis {
+                        // accumulate children sizes
+                        for &child_index in element.children.iter() {
+                            let child = &self.elems[child_index];
+                            intrinsic_min += child.min[i];
+                            intrinsic_max += child.max[i];
+                        }
+                        // add gap
+                        let child_count = element.children.len().saturating_sub(1);
+                        let total_child_gap = child_count as f32 * element.child_gap;
+                        intrinsic_min += total_child_gap;
+                        intrinsic_max += total_child_gap;
+                    } else {
+                        // get max size of children
+                        for &child_index in element.children.iter() {
+                            let child = &self.elems[child_index];
+                            // TODO: unsure about this one
+                            intrinsic_min = intrinsic_min.max(child.min[i]);
+                            intrinsic_max = intrinsic_max.max(child.max[i]);
+                        }
+                    }
 
-                        (min_size, max_size)
-                    }
-                    ContentType::None => (0.0, 0.0),
-                };
-
-                // padding applies regardless of sizing mode
-                let element = &self.elems[elem];
-                match axis {
-                    Axis::X => {
-                        min_size += element.padding.horizontal();
-                        max_size += element.padding.horizontal();
-                    }
-                    Axis::Y => {
-                        min_size += element.padding.vertical();
-                        max_size += element.padding.vertical();
-                    }
-                };
-                (min_size, max_size)
+                    (intrinsic_min, intrinsic_max)
+                }
             };
+
+            // padding applies regardless of content type
+            let element = &self.elems[elem];
+            let padding = match axis {
+                Axis::X => element.padding.horizontal(),
+                Axis::Y => element.padding.vertical(),
+            };
+
+            let intrinsic_min = intrinsic_content_min + padding;
+            let intrinsic_max = intrinsic_content_max + padding;
+
+            let override_min = self.elems[elem].min_override[i];
+            let override_max = self.elems[elem].max_override[i];
 
             // set min and max, but actual size is not set
             // constrain by explicit min/max, if they are not set the computed sizes will always win
-            let override_min = self.elems[elem].min_override[i];
-            let override_max = self.elems[elem].max_override[i];
-            self.elems[elem].min[i] = min_size.max(override_min);
-            self.elems[elem].max[i] = max_size.min(override_max);
+            self.elems[elem].min[i] = intrinsic_min.max(override_min);
+            self.elems[elem].max[i] = intrinsic_max.min(override_max);
 
+            // fixed size is the only sizing mode which defines a size independent of children/parent elements
+            // so a special case can be applied which treats it like an intrinsic
+            // note that it ignores the intrinsic min/max but respects the overriden min/max
+            if let Sizing::Fixed(fixed_size) = self.elems[elem].sizing[i] {
+                self.elems[elem].min[i] = fixed_size.max(override_min);
+                self.elems[elem].max[i] = fixed_size.min(override_max);
+            }
+        }
+    }
+
+    /// Sets the fixed and fit sizing based on intrinsic sizes
+    ///
+    /// Iterates DFS so parent is always processed before child
+    fn fixed_fit_pass(&mut self, axis: Axis) {
+        let i = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+        };
+
+        for elem in 1..self.elems.len() {
             // Sizing mode based sizing
             let min = self.elems[elem].min[i];
             let max = self.elems[elem].max[i];
+
+            debug_assert!(min <= max);
+
             match self.elems[elem].sizing[i] {
                 Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size.clamp(min, max),
-                Sizing::Fit => self.elems[elem].size[i] = max_size.clamp(min, max),
+                Sizing::Fit => self.elems[elem].size[i] = max, // fit assumed to be max-content
                 _ => (),
             }
         }
@@ -260,34 +276,40 @@ impl UILayouter {
 
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
-            // percent on all children
-            for &child in element.children.iter() {
-                if let Sizing::Percent(p) = self.elems[child].sizing[i] {
-                    // TODO: this includes padding, probably should subtract it
-                    let width = element.size[i] * p;
-
-                    let child_override_min = self.elems[child].min_override[i];
-                    let child_override_max = self.elems[child].max_override[i];
-                    self.elems[child].size[i] = width.clamp(child_override_min, child_override_max);
-                }
-            }
-
-            // calculate remaining width (used for grow/shrink)
-            let mut remaining_width = element.size[i];
 
             let padding = match axis {
                 Axis::X => element.padding.horizontal(),
                 Axis::Y => element.padding.vertical(),
             };
-            remaining_width -= padding;
+            let content_size = element.size[i] - padding;
 
+            // TODO: could just max(0.0) above but wanna see if this ever happens
+            debug_assert!(content_size >= 0.0);
+
+            // percent on all children
+            for &child in element.children.iter() {
+                if let Sizing::Percent(p) = self.elems[child].sizing[i] {
+                    // TODO: this includes padding, probably should subtract it
+                    let child_size = content_size * p;
+
+                    let child_override_min = self.elems[child].min_override[i];
+                    let child_override_max = self.elems[child].max_override[i];
+                    self.elems[child].size[i] =
+                        child_size.clamp(child_override_min, child_override_max);
+                }
+            }
+
+            // calculate remaining width (used for grow/shrink)
+            let mut remaining_width = content_size;
             let layout_dir_matches_axis = match axis {
                 Axis::X => matches!(element.layout_direction, LayoutDirection::LeftToRight),
                 Axis::Y => matches!(element.layout_direction, LayoutDirection::TopToBottom),
             };
             if layout_dir_matches_axis {
+                // remove gaps
                 remaining_width -=
                     (element.children.len().saturating_sub(1)) as f32 * element.child_gap;
+                // remove child sizes
                 for &child in element.children.iter() {
                     remaining_width -= self.elems[child].size[i];
                 }
