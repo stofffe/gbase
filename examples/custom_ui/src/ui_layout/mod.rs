@@ -179,6 +179,7 @@ impl UIElement {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Axis {
     X,
     Y,
@@ -258,6 +259,12 @@ impl Padding {
     }
     fn vertical(&self) -> f32 {
         self.bottom + self.top
+    }
+    fn axis(&self, axis: Axis) -> f32 {
+        match axis {
+            Axis::X => self.horizontal(),
+            Axis::Y => self.vertical(),
+        }
     }
 }
 

@@ -1,13 +1,14 @@
 [] ui 2
-    [] evaluate builder vs element (interaction?)
     [] min > max what happens?
     [] test padding
+    [] apply override in grow/shrink
     [x] draw and draw with children on the builders?
     [x] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
     [/] add tests for layout 
     [] fix grow to act more like shrink
     [/] figure out when to use min/max/preferred/final width
         [] actually use min and max override
+    [] evaluate builder vs element (interaction?)
     [] alignment
     [] margin?
     [] interaction
