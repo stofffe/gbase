@@ -154,7 +154,7 @@ impl UILayouter {
                             (intrinsic_min, intrinsic_max)
                         }
                         Axis::Y => {
-                            let content_width = element.size[0] - element.padding.horizontal();
+                            let content_width = element.size[0] - element.padding.horizontal_sum();
 
                             let layout_result = text_measurer.layout_text(
                                 &text_info.text,
@@ -213,16 +213,21 @@ impl UILayouter {
             // padding applies regardless of content type
             let element = &self.elems[elem];
 
-            let intrinsic_min = intrinsic_content_min + element.padding.axis(axis);
-            let intrinsic_max = intrinsic_content_max + element.padding.axis(axis);
+            let intrinsic_min = intrinsic_content_min + element.padding.symmetric_sum(axis);
+            let intrinsic_max = intrinsic_content_max + element.padding.symmetric_sum(axis);
 
             let override_min = self.elems[elem].min_override[i];
             let override_max = self.elems[elem].max_override[i];
 
+            let min = intrinsic_min.max(override_min);
+            let max = intrinsic_max.min(override_max);
+
+            debug_assert!(min <= max);
+
             // set min and max, but actual size is not set
             // constrain by explicit min/max, if they are not set the computed sizes will always win
-            self.elems[elem].min[i] = intrinsic_min.max(override_min);
-            self.elems[elem].max[i] = intrinsic_max.min(override_max);
+            self.elems[elem].min[i] = min;
+            self.elems[elem].max[i] = max;
 
             // fixed size is the only sizing mode which defines a size independent of children/parent elements
             // so a special case can be applied which treats it like an intrinsic
@@ -247,8 +252,6 @@ impl UILayouter {
             // Sizing mode based sizing
             let min = self.elems[elem].min[i];
             let max = self.elems[elem].max[i];
-
-            debug_assert!(min <= max);
 
             match self.elems[elem].sizing[i] {
                 Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size.clamp(min, max),
@@ -275,7 +278,7 @@ impl UILayouter {
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
 
-            let content_size = element.size[i] - element.padding.axis(axis);
+            let content_size = element.size[i] - element.padding.symmetric_sum(axis);
 
             // TODO: could just max(0.0) above but wanna see if this ever happens
             debug_assert!(content_size >= 0.0);
@@ -355,7 +358,8 @@ impl UILayouter {
                 // fill up all available space
                 for &child_index in growable.iter() {
                     // TODO: max size check
-                    self.elems[child_index].size[i] = element.size[i];
+                    let content_size = element.size[i] - element.padding.symmetric_sum(axis);
+                    self.elems[child_index].size[i] = content_size;
                 }
             }
 

@@ -8,6 +8,7 @@ use crate::{
         builder::UIBuilder,
         layouter::UILayouter,
         LayoutDirection::{self, LeftToRight},
+        Padding,
         Sizing::{self, Fit, Fixed, Grow, Percent},
         TextLayoutResult, TextSizeResult, UIElement,
     },
@@ -984,6 +985,7 @@ fn text_in_fixed_with_many_children() {
     // electric
     // bike
     let text = "hello bro i saw a rad electric bike";
+    let wrapped_text_height = measurer.char_height * 6.0;
 
     let (elem1, (elem2, elem3, elem4)) = UIBuilder::new()
         .sizing_x(Fixed(300.0))
@@ -1003,8 +1005,6 @@ fn text_in_fixed_with_many_children() {
             (elem2, elem3, elem4)
         });
 
-    let wrapped_text_height = measurer.char_height * 6.0;
-
     layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
 
     assert_eq!(layouter.get_element(&elem1).size[0], 300.0);
@@ -1018,4 +1018,110 @@ fn text_in_fixed_with_many_children() {
 
     assert_eq!(layouter.get_element(&elem4).size[0], 150.0);
     assert_eq!(layouter.get_element(&elem4).size[1], 0.0);
+}
+
+//
+// Padding
+//
+
+#[test]
+fn grow_in_fixed_with_padding() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    let padding = Padding::all(10.0);
+
+    let (elem1, elem2) = UIElement::new()
+        .with_sizing_x(Fixed(200.0))
+        .with_sizing_y(Fixed(100.0))
+        .with_padding(padding.clone())
+        .draw_with_children(&mut layouter, |layouter| {
+            UIElement::new()
+                .with_sizing_x(Grow)
+                .with_sizing_y(Grow)
+                .draw(layouter)
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], 100.0);
+
+    assert_eq!(
+        layouter.get_element(&elem2).size[0],
+        200.0 - padding.horizontal_sum()
+    );
+    assert_eq!(
+        layouter.get_element(&elem2).size[1],
+        100.0 - padding.vertical_sum()
+    );
+}
+
+#[test]
+fn percent_in_fixed_with_padding() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    let padding = Padding::all(10.0);
+
+    let (elem1, elem2) = UIElement::new()
+        .with_sizing_x(Fixed(200.0))
+        .with_sizing_y(Fixed(100.0))
+        .with_padding(padding.clone())
+        .draw_with_children(&mut layouter, |layouter| {
+            UIElement::new()
+                .with_sizing_x(Percent(0.5))
+                .with_sizing_y(Percent(0.9))
+                .draw(layouter)
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 200.0);
+    assert_eq!(layouter.get_element(&elem1).size[1], 100.0);
+
+    assert_eq!(
+        layouter.get_element(&elem2).size[0],
+        (200.0 - padding.horizontal_sum()) * 0.5
+    );
+    assert_eq!(
+        layouter.get_element(&elem2).size[1],
+        (100.0 - padding.vertical_sum()) * 0.9
+    );
+}
+
+#[test]
+fn text_in_fixed_with_padding() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // should wrap after 8 chars
+    // a b c d
+    // e f g h
+    // i
+    let text = "a b c d e f g h i";
+    let wrapped_text_height = measurer.char_height * 3.0;
+    let padding = Padding::all(10.0);
+
+    let (elem1, elem2) = UIElement::new()
+        .with_sizing_x(Fixed(100.0))
+        .with_sizing_y(Fit)
+        .with_padding(padding.clone())
+        .draw_with_children(&mut layouter, |layouter| {
+            UIElement::new().with_text(text).draw(layouter)
+        });
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    assert_eq!(layouter.get_element(&elem1).size[0], 100.0);
+    assert_eq!(
+        layouter.get_element(&elem1).size[1],
+        wrapped_text_height + padding.vertical_sum()
+    );
+
+    assert_eq!(
+        layouter.get_element(&elem2).size[0],
+        100.0 - padding.horizontal_sum()
+    );
+    assert_eq!(layouter.get_element(&elem2).size[1], wrapped_text_height);
 }

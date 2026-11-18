@@ -254,16 +254,35 @@ impl Padding {
             right,
         }
     }
-    fn horizontal(&self) -> f32 {
+
+    pub fn all(padding: f32) -> Self {
+        Self {
+            top: padding,
+            bottom: padding,
+            left: padding,
+            right: padding,
+        }
+    }
+
+    pub fn symmetric(horizontal: f32, vertical: f32) -> Self {
+        Self {
+            top: vertical,
+            bottom: vertical,
+            left: horizontal,
+            right: horizontal,
+        }
+    }
+
+    fn horizontal_sum(&self) -> f32 {
         self.left + self.right
     }
-    fn vertical(&self) -> f32 {
+    fn vertical_sum(&self) -> f32 {
         self.bottom + self.top
     }
-    fn axis(&self, axis: Axis) -> f32 {
+    fn symmetric_sum(&self, axis: Axis) -> f32 {
         match axis {
-            Axis::X => self.horizontal(),
-            Axis::Y => self.vertical(),
+            Axis::X => self.horizontal_sum(),
+            Axis::Y => self.vertical_sum(),
         }
     }
 }
