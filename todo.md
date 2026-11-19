@@ -1,11 +1,11 @@
 [] ui 2
-    [] min > max what happens?
-    [] test padding
-    [] apply override in grow/shrink
-    [x] draw and draw with children on the builders?
-    [x] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
-    [/] add tests for layout 
+    [] make content size and pos act the same (helper or field)
+    [] add min_content version of Fit?
+    [?] apply override in grow/shrink
     [] fix grow to act more like shrink
+    [/] min > max what happens? (assert for now)
+    [/] test padding
+    [/] add tests for layout 
     [/] figure out when to use min/max/preferred/final width
         [] actually use min and max override
     [] evaluate builder vs element (interaction?)
@@ -16,6 +16,8 @@
         [] slider
         [] text box
     [] make shrink less weird with negative values?
+    [x] draw and draw with children on the builders?
+    [x] use shared function with indexing for x/y, maybe make all fields vectors as well to support this, such as width...
     [x] add text wrapping stage 
     [x] add text rending (with kerning)
 

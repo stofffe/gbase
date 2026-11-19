@@ -38,6 +38,8 @@ pub struct UIElement {
     max: [f32; 2],
     pub size: [f32; 2],
     pub pos: [f32; 2],
+    pub content_pos: [f32; 2],
+    // TODO: add conent_size
     pub parent: usize,
     pub children: Vec<usize>,
 }
@@ -77,6 +79,7 @@ impl UIElement {
             max: [0.0, 0.0],
             size: [0.0, 0.0],
             pos: [0.0, 0.0],
+            content_pos: [0.0, 0.0],
             parent: ROOT_ELEMENT,
             children: Vec::new(),
         }
@@ -97,6 +100,27 @@ impl UIElement {
     pub fn draw(self, layouter: &mut UILayouter) -> UIElementId {
         let (id, _) = layouter.add_element(self, |_| {});
         id
+    }
+
+    //
+    // Helpers
+    //
+
+    pub fn content_size(&self, axis: Axis) -> f32 {
+        let content_size = match axis {
+            Axis::X => self.size[0] - self.padding.horizontal_sum(),
+            Axis::Y => self.size[1] - self.padding.vertical_sum(),
+        };
+        // TODO: could just max(0.0) above but wanna see if this ever happens
+        debug_assert!(content_size >= 0.0);
+        content_size
+    }
+
+    pub fn content_pos(&self, axis: Axis) -> f32 {
+        match axis {
+            Axis::X => self.size[0] + self.padding.left,
+            Axis::Y => self.size[1] - self.padding.top,
+        }
     }
 
     //
@@ -180,7 +204,7 @@ impl UIElement {
 }
 
 #[derive(Clone, Copy)]
-enum Axis {
+pub enum Axis {
     X,
     Y,
 }
@@ -237,7 +261,7 @@ pub enum LayoutDirection {
     TopToBottom,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Padding {
     top: f32,
     bottom: f32,

@@ -1,4 +1,4 @@
-use gbase::{render, tracing, Context};
+use gbase::{render, Context};
 
 use crate::{
     ui_font::TextMeasurer,
@@ -154,7 +154,7 @@ impl UILayouter {
                             (intrinsic_min, intrinsic_max)
                         }
                         Axis::Y => {
-                            let content_width = element.size[0] - element.padding.horizontal_sum();
+                            let content_width = element.content_size(Axis::X);
 
                             let layout_result = text_measurer.layout_text(
                                 &text_info.text,
@@ -278,15 +278,11 @@ impl UILayouter {
         for elem in 0..self.elems.len() {
             let element = self.elems[elem].clone();
 
-            let content_size = element.size[i] - element.padding.symmetric_sum(axis);
-
-            // TODO: could just max(0.0) above but wanna see if this ever happens
-            debug_assert!(content_size >= 0.0);
+            let content_size = element.content_size(axis);
 
             // percent on all children
             for &child in element.children.iter() {
                 if let Sizing::Percent(p) = self.elems[child].sizing[i] {
-                    // TODO: this includes padding, probably should subtract it
                     let child_size = content_size * p;
 
                     let child_override_min = self.elems[child].min_override[i];
@@ -357,8 +353,7 @@ impl UILayouter {
             } else {
                 // fill up all available space
                 for &child_index in growable.iter() {
-                    // TODO: max size check
-                    let content_size = element.size[i] - element.padding.symmetric_sum(axis);
+                    let content_size = element.content_size(axis);
                     self.elems[child_index].size[i] = content_size;
                 }
             }
@@ -439,6 +434,7 @@ impl UILayouter {
     ///
     /// Iterates DFS so parent is always processed before child
     fn position_pass(&mut self) {
+        // TODO: could this by using parent pointer instead?
         for elem in 1..self.elems.len() {
             let element = &self.elems[elem];
 
@@ -451,15 +447,21 @@ impl UILayouter {
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
                     for child in element.children.clone().into_iter() {
+                        let padding = self.elems[child].padding.clone();
                         self.elems[child].pos[0] = x + offset;
                         self.elems[child].pos[1] = y;
+                        self.elems[child].content_pos[0] = x + offset + padding.left;
+                        self.elems[child].content_pos[1] = y + padding.top;
                         offset += self.elems[child].size[0] + child_gap;
                     }
                 }
                 LayoutDirection::TopToBottom => {
                     for child in element.children.clone().into_iter() {
+                        let padding = self.elems[child].padding.clone();
                         self.elems[child].pos[0] = x;
                         self.elems[child].pos[1] = y + offset;
+                        self.elems[child].content_pos[0] = x + padding.left;
+                        self.elems[child].content_pos[1] = y + offset + padding.top;
                         offset += self.elems[child].size[1] + child_gap;
                     }
                 }
