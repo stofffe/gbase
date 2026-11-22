@@ -38,8 +38,6 @@ pub struct UIElement {
     max: [f32; 2],
     pub size: [f32; 2],
     pub pos: [f32; 2],
-    pub content_pos: [f32; 2],
-    // TODO: add conent_size
     pub parent: usize,
     pub children: Vec<usize>,
 }
@@ -79,7 +77,6 @@ impl UIElement {
             max: [0.0, 0.0],
             size: [0.0, 0.0],
             pos: [0.0, 0.0],
-            content_pos: [0.0, 0.0],
             parent: ROOT_ELEMENT,
             children: Vec::new(),
         }
@@ -118,8 +115,8 @@ impl UIElement {
 
     pub fn content_pos(&self, axis: Axis) -> f32 {
         match axis {
-            Axis::X => self.size[0] + self.padding.left,
-            Axis::Y => self.size[1] - self.padding.top,
+            Axis::X => self.pos[0] + self.padding.left,
+            Axis::Y => self.pos[1] + self.padding.top,
         }
     }
 

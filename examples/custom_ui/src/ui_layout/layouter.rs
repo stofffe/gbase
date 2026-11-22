@@ -447,21 +447,15 @@ impl UILayouter {
             match element.layout_direction {
                 LayoutDirection::LeftToRight => {
                     for child in element.children.clone().into_iter() {
-                        let padding = self.elems[child].padding.clone();
                         self.elems[child].pos[0] = x + offset;
                         self.elems[child].pos[1] = y;
-                        self.elems[child].content_pos[0] = x + offset + padding.left;
-                        self.elems[child].content_pos[1] = y + padding.top;
                         offset += self.elems[child].size[0] + child_gap;
                     }
                 }
                 LayoutDirection::TopToBottom => {
                     for child in element.children.clone().into_iter() {
-                        let padding = self.elems[child].padding.clone();
                         self.elems[child].pos[0] = x;
                         self.elems[child].pos[1] = y + offset;
-                        self.elems[child].content_pos[0] = x + padding.left;
-                        self.elems[child].content_pos[1] = y + offset + padding.top;
                         offset += self.elems[child].size[1] + child_gap;
                     }
                 }

@@ -7,6 +7,7 @@ use crate::{
     ui_layout::{
         builder::UIBuilder,
         layouter::UILayouter,
+        Axis,
         LayoutDirection::{self, LeftToRight},
         Padding,
         Sizing::{self, Fit, Fixed, Grow, Percent},
@@ -1163,11 +1164,11 @@ fn text_in_fixed_with_padding() {
     assert_eq!(layouter.get_element(&elem2).pos[1], fixed_padding.top);
 
     assert_eq!(
-        layouter.get_element(&elem2).content_pos[0],
+        layouter.get_element(&elem2).content_pos(Axis::X),
         fixed_padding.left + text_padding.left
     );
     assert_eq!(
-        layouter.get_element(&elem2).content_pos[1],
+        layouter.get_element(&elem2).content_pos(Axis::Y),
         fixed_padding.top + text_padding.top
     );
 }

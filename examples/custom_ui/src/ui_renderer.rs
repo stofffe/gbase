@@ -1,4 +1,4 @@
-use crate::ui_layout::UIElement;
+use crate::ui_layout::{Axis, UIElement};
 use core::f32;
 use gbase::{
     arc::ArcHandleRuntime,
@@ -163,8 +163,8 @@ impl UIRenderer {
                     // the generation had a large fixed font size, not we just scale it linearly
                     let scale = element.font_size as f32 / font_atlas.raster_size as f32;
                     let sdf_padding = font_atlas.sdf_params.pad as f32;
-                    let x = element.content_pos[0] + glyph.x - sdf_padding * scale;
-                    let y = element.content_pos[1] + glyph.y - sdf_padding * scale;
+                    let x = element.content_pos(Axis::X) + glyph.x - sdf_padding * scale;
+                    let y = element.content_pos(Axis::Y) + glyph.y - sdf_padding * scale;
                     let width = glyph_info.atlas_width as f32 * scale;
                     let height = glyph_info.atlas_height as f32 * scale;
                     instances.push(UIElementInstace {
