@@ -1112,12 +1112,73 @@ fn percent_in_fixed_with_padding() {
 }
 
 #[test]
-fn text_in_fixed_with_padding() {
+fn text_with_padding() {
     let mut layouter = UILayouter::new();
     let mut measurer = TestTextMeasurer::new();
 
     // should wrap after 8 chars
     // a b c d
+    // e f g h
+    // i
+    let text = "a b c d e f g h i";
+    let wrapped_text_height = measurer.char_height * 3.0;
+    let padding = Padding::all(10.0);
+
+    let elem = UIElement::new()
+        .with_sizing_x(Fixed(100.0))
+        .with_sizing_y(Fit)
+        .with_text(text)
+        .with_padding(padding)
+        .draw(&mut layouter);
+
+    layouter.layout_elements(&mut measurer, 1000.0, 1000.0);
+
+    // size
+
+    assert_eq!(layouter.get_element(&elem).size[0], 100.0);
+    assert_eq!(
+        layouter.get_element(&elem).size[1],
+        wrapped_text_height + padding.vertical_sum(),
+    );
+    // assert_eq!(
+    //     layouter.get_element(&elem1).size[1],
+    //     wrapped_text_height + text_padding.vertical_sum() + fixed_padding.vertical_sum() // because fit
+    // ); // expected 90 got 70
+    //
+    // assert_eq!(
+    //     layouter.get_element(&elem2).size[0],
+    //     100.0 - text_padding.horizontal_sum()
+    // );
+    // assert_eq!(
+    //     layouter.get_element(&elem2).size[1],
+    //     wrapped_text_height + text_padding.vertical_sum()
+    // );
+    //
+    // // pos
+    //
+    // assert_eq!(layouter.get_element(&elem1).pos[0], 0.0);
+    // assert_eq!(layouter.get_element(&elem1).pos[1], 0.0);
+    //
+    // assert_eq!(layouter.get_element(&elem2).pos[0], fixed_padding.left);
+    // assert_eq!(layouter.get_element(&elem2).pos[1], fixed_padding.top);
+    //
+    // assert_eq!(
+    //     layouter.get_element(&elem2).content_pos(Axis::X),
+    //     fixed_padding.left + text_padding.left
+    // );
+    // assert_eq!(
+    //     layouter.get_element(&elem2).content_pos(Axis::Y),
+    //     fixed_padding.top + text_padding.top
+    // );
+}
+
+#[test]
+fn text_with_padding_in_fixed_with_padding() {
+    let mut layouter = UILayouter::new();
+    let mut measurer = TestTextMeasurer::new();
+
+    // should wrap after 8 chars
+    // |a b c d|
     // e f g h
     // i
     let text = "a b c d e f g h i";
@@ -1144,7 +1205,7 @@ fn text_in_fixed_with_padding() {
     assert_eq!(
         layouter.get_element(&elem1).size[1],
         wrapped_text_height + text_padding.vertical_sum() + fixed_padding.vertical_sum() // because fit
-    );
+    ); // expected 90 got 70
 
     assert_eq!(
         layouter.get_element(&elem2).size[0],

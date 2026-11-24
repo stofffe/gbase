@@ -1,5 +1,5 @@
 [] ui 2
-    [] make content size and pos act the same (helper or field)
+    [x] make content size and pos act the same (helper or field)
     [] add min_content version of Fit?
     [?] apply override in grow/shrink
     [] fix grow to act more like shrink

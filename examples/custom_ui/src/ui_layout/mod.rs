@@ -34,6 +34,8 @@ pub struct UIElement {
 
     // calculated
     pub text_layout: TextLayoutResult,
+    intrinsic_min: [f32; 2],
+    intrinsic_max: [f32; 2],
     min: [f32; 2],
     max: [f32; 2],
     pub size: [f32; 2],
@@ -73,6 +75,8 @@ impl UIElement {
                 height: 0.0,
                 glyphs: Vec::new(),
             },
+            intrinsic_min: [0.0, 0.0],
+            intrinsic_max: [0.0, 0.0],
             min: [0.0, 0.0],
             max: [0.0, 0.0],
             size: [0.0, 0.0],
@@ -300,7 +304,7 @@ impl Padding {
     fn vertical_sum(&self) -> f32 {
         self.bottom + self.top
     }
-    fn symmetric_sum(&self, axis: Axis) -> f32 {
+    fn axis_sum(&self, axis: Axis) -> f32 {
         match axis {
             Axis::X => self.horizontal_sum(),
             Axis::Y => self.vertical_sum(),

@@ -1,4 +1,4 @@
-use gbase::{render, Context};
+use gbase::{render, winit::dpi::Size, Context};
 
 use crate::{
     ui_font::TextMeasurer,
@@ -107,11 +107,15 @@ impl UILayouter {
 
         self.intrinsic_pass(Axis::X, text_measurer);
 
+        self.constraint_pass(Axis::X);
+
         self.fixed_fit_pass(Axis::X);
 
         self.percent_grow_shrink_pass(Axis::X);
 
         self.intrinsic_pass(Axis::Y, text_measurer);
+
+        self.constraint_pass(Axis::Y);
 
         self.fixed_fit_pass(Axis::Y);
 
@@ -133,7 +137,7 @@ impl UILayouter {
             let element = &self.elems[elem];
 
             // 1. Calculate intrinsic sizing
-            let (intrinsic_content_min, intrinsic_content_max) = match element.content_type {
+            let (content_intrinsic_min, content_intrinsic_max) = match element.content_type {
                 ContentType::Text => {
                     let text_info = TextInfo {
                         text: element.text.clone(),
@@ -188,8 +192,8 @@ impl UILayouter {
                         // accumulate children sizes
                         for &child_index in element.children.iter() {
                             let child = &self.elems[child_index];
-                            intrinsic_min += child.min[i];
-                            intrinsic_max += child.max[i];
+                            intrinsic_min += child.intrinsic_min[i];
+                            intrinsic_max += child.intrinsic_max[i];
                         }
                         // add gap
                         let child_count = element.children.len().saturating_sub(1);
@@ -201,8 +205,8 @@ impl UILayouter {
                         for &child_index in element.children.iter() {
                             let child = &self.elems[child_index];
                             // TODO: unsure about this one
-                            intrinsic_min = intrinsic_min.max(child.min[i]);
-                            intrinsic_max = intrinsic_max.max(child.max[i]);
+                            intrinsic_min = intrinsic_min.max(child.intrinsic_min[i]);
+                            intrinsic_max = intrinsic_max.max(child.intrinsic_max[i]);
                         }
                     }
 
@@ -211,37 +215,103 @@ impl UILayouter {
             };
 
             // padding applies regardless of content type
-            let element = &self.elems[elem];
+            let padding = self.elems[elem].padding.axis_sum(axis);
 
-            let intrinsic_min = intrinsic_content_min + element.padding.symmetric_sum(axis);
-            let intrinsic_max = intrinsic_content_max + element.padding.symmetric_sum(axis);
-
-            let override_min = self.elems[elem].min_override[i];
-            let override_max = self.elems[elem].max_override[i];
-
-            let min = intrinsic_min.max(override_min);
-            let max = intrinsic_max.min(override_max);
-
-            debug_assert!(min <= max);
-
-            // set min and max, but actual size is not set
-            // constrain by explicit min/max, if they are not set the computed sizes will always win
-            self.elems[elem].min[i] = min;
-            self.elems[elem].max[i] = max;
-
-            // fixed size is the only sizing mode which defines a size independent of children/parent elements
-            // so a special case can be applied which treats it like an intrinsic
-            // note that it ignores the intrinsic min/max but respects the overriden min/max
-            if let Sizing::Fixed(fixed_size) = self.elems[elem].sizing[i] {
-                self.elems[elem].min[i] = fixed_size.max(override_min);
-                self.elems[elem].max[i] = fixed_size.min(override_max);
-            }
+            self.elems[elem].intrinsic_min[i] = content_intrinsic_min + padding;
+            self.elems[elem].intrinsic_max[i] = content_intrinsic_max + padding;
         }
     }
 
     /// Sets the fixed and fit sizing based on intrinsic sizes
     ///
     /// Iterates DFS so parent is always processed before child
+    fn constraint_pass(&mut self, axis: Axis) {
+        let i = match axis {
+            Axis::X => 0,
+            Axis::Y => 1,
+        };
+
+        for elem in (1..self.elems.len()).rev() {
+            let element = &self.elems[elem];
+            let padding = element.padding.axis_sum(axis);
+
+            let (sizing_min, sizing_max) = match element.sizing[i] {
+                Sizing::Fit => {
+                    match element.content_type {
+                        // already calculated in intrinsic pass
+                        ContentType::Text => (element.intrinsic_min[i], element.intrinsic_max[i]),
+                        // needs to be recalculated since chilren might have changed size
+                        // TODO: is it neccessary?
+                        ContentType::Children => {
+                            let mut children_min = 0.0;
+                            let mut children_max = 0.0;
+
+                            let layout_dir_matches_axis = match axis {
+                                Axis::X => {
+                                    matches!(element.layout_direction, LayoutDirection::LeftToRight)
+                                }
+                                Axis::Y => {
+                                    matches!(element.layout_direction, LayoutDirection::TopToBottom)
+                                }
+                            };
+
+                            if layout_dir_matches_axis {
+                                // accumulate children sizes
+                                for &child_index in element.children.iter() {
+                                    let child = &self.elems[child_index];
+                                    children_min += child.min[i];
+
+                                    // ignore grow and percent since their sizes are not set yet
+                                    // TODO: might be cases where this breaks?
+                                    if !matches!(child.sizing[i], Sizing::Grow | Sizing::Percent(_))
+                                    {
+                                        children_max += child.max[i];
+                                    }
+                                }
+                                // add gap
+                                let child_count = element.children.len().saturating_sub(1);
+                                let total_child_gap = child_count as f32 * element.child_gap;
+                                children_min += total_child_gap;
+                                children_max += total_child_gap;
+                            } else {
+                                // get max size of children
+                                for &child_index in element.children.iter() {
+                                    let child = &self.elems[child_index];
+                                    // TODO: unsure about this one
+                                    children_min = children_min.max(child.min[i]);
+
+                                    // ignore grow and percent since their sizes are not set yet
+                                    // TODO: might be cases where this breaks?
+                                    if !matches!(child.sizing[i], Sizing::Grow | Sizing::Percent(_))
+                                    {
+                                        children_max = children_max.max(child.max[i]);
+                                    }
+                                }
+                            }
+                            (children_min + padding, children_max + padding)
+                        }
+                    }
+                }
+                Sizing::Fixed(fixed_size) => {
+                    // TODO: correct?
+                    // ignore intrinsic size and padding
+                    (fixed_size, fixed_size)
+                }
+                Sizing::Grow => (0.0 + padding, f32::MAX + padding),
+                Sizing::Percent(_) => (0.0 + padding, f32::MAX + padding),
+            };
+
+            // Sizing mode based sizing
+            let element = &self.elems[elem];
+
+            let override_min = element.min_override[i];
+            let override_max = element.max_override[i];
+
+            self.elems[elem].min[i] = sizing_min.max(override_min);
+            self.elems[elem].max[i] = sizing_max.min(override_max);
+        }
+    }
+
     fn fixed_fit_pass(&mut self, axis: Axis) {
         let i = match axis {
             Axis::X => 0,
@@ -249,13 +319,15 @@ impl UILayouter {
         };
 
         for elem in 1..self.elems.len() {
-            // Sizing mode based sizing
-            let min = self.elems[elem].min[i];
-            let max = self.elems[elem].max[i];
-
-            match self.elems[elem].sizing[i] {
-                Sizing::Fixed(fixed_size) => self.elems[elem].size[i] = fixed_size.clamp(min, max),
-                Sizing::Fit => self.elems[elem].size[i] = max, // fit assumed to be max-content
+            let element = &self.elems[elem];
+            match element.sizing[i] {
+                Sizing::Fixed(fixed_size) => {
+                    self.elems[elem].size[i] = fixed_size.clamp(element.min[i], element.max[i]);
+                }
+                Sizing::Fit => {
+                    // fit assumed to be max-content
+                    self.elems[elem].size[i] = element.max[i].clamp(element.min[i], element.max[i]);
+                }
                 _ => (),
             }
         }
@@ -308,8 +380,8 @@ impl UILayouter {
                 }
             }
 
-            // grow children
             let mut growable = Vec::new();
+            // grow children
             for &child in element.children.iter() {
                 if let Sizing::Grow = self.elems[child].sizing[i] {
                     growable.push(child)
@@ -318,10 +390,11 @@ impl UILayouter {
             if layout_dir_matches_axis {
                 // distribute remaining size
                 while remaining_size > 0.0 && !growable.is_empty() {
+                    // find smallest and second smallest elements sizes smallest and
+                    // seconds smallest doesnt have to be a single element each
                     let mut smallest = f32::MAX;
                     let mut second_smallest = f32::MAX;
                     let mut smallest_count = 0;
-
                     for &child in growable.iter() {
                         let child_size = self.elems[child].size[i];
                         if child_size < smallest {
@@ -342,13 +415,24 @@ impl UILayouter {
                     let size_to_make_equal = second_smallest - smallest;
                     let available_size_after_sharing = remaining_size / smallest_count as f32;
                     let size_to_add = size_to_make_equal.min(available_size_after_sharing);
-                    for &child in growable.iter() {
-                        let child_size = self.elems[child].size[i];
-                        if child_size == smallest {
-                            self.elems[child].size[i] += size_to_add;
-                            remaining_size -= size_to_add;
+
+                    // add size to smallest elements
+                    // remove element if reached its max size
+                    growable.retain(|&child_index| {
+                        let child = &self.elems[child_index];
+
+                        if child.size[i] != smallest {
+                            return true;
                         }
-                    }
+
+                        let old_size = child.size[i];
+                        let new_size = (old_size + size_to_add).min(child.max[i]);
+
+                        self.elems[child_index].size[i] = new_size;
+                        remaining_size -= new_size - old_size;
+
+                        new_size < self.elems[child_index].max[i]
+                    });
                 }
             } else {
                 // fill up all available space
@@ -392,6 +476,8 @@ impl UILayouter {
                     let size_to_make_equal = second_largest - largest; // negative
                     let available_size_after_sharing = remaining_size / largest_count as f32; // negative
                     let size_to_add = size_to_make_equal.max(available_size_after_sharing); // negative
+
+                    // TODO: more like grow?
                     shrinkable.retain(|&child_index| {
                         let child = &self.elems[child_index];
                         let initial_size = child.size[i];
